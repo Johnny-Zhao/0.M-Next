@@ -124,24 +124,37 @@
 ## 5. 禁止事项
 
 - AG-501:**禁止修改 `/docs/spec/` 下任何文件。** 契约变更由人发起独立 spec-change PR;AI 代理只能在 PR 描述中提建议。CI:CODEOWNERS + 路径保护,代理提交触碰该路径直接 fail。
-- AG-502:**禁止引入未在 ADR 中批准的依赖。** 运行时依赖以 `/ci/deps-allowlist.yaml`(由 ADR-001~008 派生)为准;新增依赖先提 ADR 变更。同时执行 ADR-008 准入门禁:含 native 产物的依赖必须有 linux-arm64 构件;全部依赖可从内网私服解析;license 仅限 MIT/Apache-2.0/BSD/ISC/EPL。CI:lockfile/pom 与 allowlist 比对 + arm64 探测 + license 扫描 + 断网构建流水线。
+
+- AG-502:**禁止引入未在 ADR 中批准的依赖。** 运行时依赖以 `/ci/deps-allowlist.yaml`(由 ADR-001~009 派生)为准;新增依赖先提 ADR 变更。同时执行 ADR-008 准入门禁:含 native 产物的依赖必须有 linux-arm64 构件;全部依赖可从内网私服解析;license 仅限 MIT/Apache-2.0/BSD/ISC/EPL。CI:lockfile/pom 与 allowlist 比对 + arm64 探测 + license 扫描 + 断网构建流水线。
+
 - AG-503:**禁止绕过权限检查。** 命令处理必须先调用 PermissionChecker 预检(D.1 前置条件);禁止新增 `skipPermission`/`internalOnly` 类旁路参数;所有查询端点(含搜索)强制 workspace 范围过滤。CI:architecture:check(命令处理器必经 PermissionChecker)+ 越权测试套件必跑(9.5)。
+
 - AG-504:**测试禁止用 sleep 等待异步结果。** 等待 outbox 投递/任务完成只允许:测试内同步 drain 的 TestOutboxRelay、Awaitility/带超时轮询断言、任务状态查询。CI:静态扫描测试代码中的 `Thread.sleep`/裸 `setTimeout` 等待;豁免须注释 `// AG-504-exempt: <理由>` 并人工评审。
+
 - AG-505:**禁止硬编码公网 URL**(AI 端点、镜像源、CDN、遥测);AI 端点只能读 `AI_GATEWAY_URL` 等环境变量;镜像引用一律 `${REGISTRY_PREFIX}/...`(9.6.2;ADR-008)。CI:代码与镜像外呼扫描 + compose/Helm lint。
+
 - AG-506:**禁止直连基础设施。** PostgreSQL/OpenSearch/MinIO/RabbitMQ 的驱动与 SDK 只允许出现在对应封装层(kernel/internal/persistence、SearchGateway、StorageClient、OutboxRelay/TaskDispatcher);其他模块一律经封装接口。CI:依赖扫描(驱动依赖声明位置白名单)。
-- AG-507:**禁止把外部标准文件作为平台唯一事实源。** ReqIF、XMI、STEP、Modelica、FMI/FMU 等导入后必须解析并映射为内部对象、字段、关系、规则和制品映射;输出时再由适配器生成标准制品。CI:适配器契约测试 + 架构检查(标准解析器不得绕过 Command/内核映射层写入)。
-- AG-508:**C 级标准或工具不得作为 MVP 主流程强依赖。** HLA、AUTOSAR、EMF/CDO、Prolog/CLP、OR-Tools、Gurobi、CPLEX 等引入前必须先通过 ADR-009 流程与 ADR-008 依赖准入。CI:依赖 allowlist 比对 + ADR 引用校验 + license/arm64/离线扫描。
+
+- AG-507:**禁止把外部标准文件(ReqIF/XMI/STEP/FMU 等)作为事实源直读直写**;导入必须解析为内部对象/字段/关系/制品映射,输出由适配器生成(依据 F.5/7.15.3)。CI:适配器代码扫描"绕过内核命令直接以标准文件为读写目标"模式。
+
+- AG-508:**C 级标准/工具(以 ADR-009 §C 级清单为准)禁止进入 MVP 依赖与主流程**;引入前必须新增专项 ADR 并通过 ADR-008 准入。A 级标准适配器必须声明支持子集并维护 golden files,适配器变更必须跑样本回归(F.4-1/3/4)。CI:deps-allowlist 与 C 级清单比对;适配器目录存在 golden/ 样本集检查。
 
 标准适配器必须声明采用等级、适用版本、支持子集、映射规则、兼容边界、失败/差异处理和回写边界,并维护输入输出样例与 golden files;适配器变更后必须执行导入、导出、差异对比、冲突处理和回写链路回归测试(F.4)。
 
 ---
 
+
+
 ## 附:提交前自检清单(代理每次提交前逐条核对)
 
 1. 本次变更落在哪个 package?该 package"不得承担"什么(§1.1/§1.3)?
-2. 是否在热路径/事件处理器中加入了重操作或全量查询(AG-201/202/209)?
+
+2. 是否在热路径/事件处理器中加入了重操作或全量查询(AG-201/202/209/211)?
+
 3. 写操作是否走命令入口、审计字段是否必填、事件是否在注册集合内(AG-110/301/321/322)?
-4. 新依赖是否在 allowlist、命名是否在附录A 对照表内(AG-502/§3.1)?
-5. 是否把标准借鉴误写成完整实现,或让外部标准替代事实源/进入热路径(AG-211/507/508)?
-6. 分支命名、Spec-Ref、测试等待方式是否合规(AG-401/402/504)?
-7. `pnpm verify` 是否全绿?
+
+4. 新依赖是否在 allowlist、命名是否在附录A 对照表 20 项内(AG-502/§3.1)?
+
+5. 分支命名、Spec-Ref、测试等待方式是否合规(AG-401/402/504)?
+
+6. `pnpm verify` 是否全绿?

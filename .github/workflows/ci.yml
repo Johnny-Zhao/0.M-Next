@@ -27,6 +27,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm architecture:check
       - run: pnpm architecture:test
+      - run: node scripts/check-contracts.mjs
       - run: pnpm format:check
       - run: pnpm lint
 

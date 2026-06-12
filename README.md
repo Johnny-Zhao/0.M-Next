@@ -24,6 +24,7 @@ Windows PowerShell:
 
 The command installs locked dependencies and runs architecture checks, format
 checks, lint, type checks, tests, and builds.
+Contract schemas and fixtures are validated by `pnpm contracts:check` and the CI lint job.
 
 Start local infrastructure with:
 

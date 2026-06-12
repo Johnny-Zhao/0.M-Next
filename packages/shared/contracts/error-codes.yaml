@@ -1,0 +1,106 @@
+version: 1
+codes:
+  - code: KERNEL-400-SCHEMA-INVALID
+    httpStatus: 400
+    title: 载荷不符合命令 Schema
+    responseRequirement: 列出违例 JSON Pointer
+  - code: KERNEL-400-NESTED-BATCH
+    httpStatus: 400
+    title: BatchCommand 嵌套
+    responseRequirement: —
+  - code: KERNEL-404-WORKSPACE-NOT-FOUND
+    httpStatus: 404
+    title: 空间不存在或不可见
+    responseRequirement: 不泄露越权目标存在性
+  - code: KERNEL-404-TARGET-NOT-FOUND
+    httpStatus: 404
+    title: 目标不存在或不可见
+    responseRequirement: 不泄露越权目标存在性
+  - code: KERNEL-404-TYPE-NOT-FOUND
+    httpStatus: 404
+    title: 类型不存在或不可见
+    responseRequirement: 不泄露越权目标存在性
+  - code: KERNEL-409-VERSION-CONFLICT
+    httpStatus: 409
+    title: 乐观版本冲突
+    responseRequirement: 冲突对象、当前版本、冲突字段、建议操作(§5.3)
+  - code: KERNEL-409-IDEMPOTENCY-CONFLICT
+    httpStatus: 409
+    title: 同幂等键不同载荷
+    responseRequirement: 返回原 commandId
+  - code: KERNEL-409-DUPLICATE-RELATION
+    httpStatus: 409
+    title: 同型同向同端点活动关系已存在
+    responseRequirement: 返回已存在 relationId
+  - code: KERNEL-409-CYCLE-DETECTED
+    httpStatus: 409
+    title: 层级关系成环
+    responseRequirement: 返回环路径
+  - code: KERNEL-409-STATE-TRANSITION-INVALID
+    httpStatus: 409
+    title: 状态机不允许
+    responseRequirement: 返回当前态与允许迁移集
+  - code: KERNEL-410-TARGET-ARCHIVED
+    httpStatus: 410
+    title: 目标已废止
+    responseRequirement: 提示恢复路径
+  - code: KERNEL-410-TARGET-DELETED
+    httpStatus: 410
+    title: 目标已删除
+    responseRequirement: 提示恢复路径
+  - code: KERNEL-410-WORKSPACE-ARCHIVED
+    httpStatus: 410
+    title: 空间已归档
+    responseRequirement: 提示恢复路径
+  - code: KERNEL-413-BATCH-TOO-LARGE
+    httpStatus: 413
+    title: 批量命令超出热路径限额
+    responseRequirement: 引导预览+冷路径任务
+  - code: KERNEL-413-CASCADE-TOO-LARGE
+    httpStatus: 413
+    title: 级联操作超出热路径限额
+    responseRequirement: 引导预览+冷路径任务
+  - code: KERNEL-422-ENDPOINT-INVALID
+    httpStatus: 422
+    title: 关系端点无效或不可见
+    responseRequirement: —
+  - code: KERNEL-422-CARDINALITY-VIOLATION
+    httpStatus: 422
+    title: 关系基数超限
+    responseRequirement: 返回基数定义与现值
+  - code: KERNEL-422-ACTIVE-RELATIONS
+    httpStatus: 422
+    title: 废止或删除目标存在活动关系
+    responseRequirement: 关系清单(≤50)+总数+relationPolicy 提示
+  - code: KERNEL-422-DERIVED-DATA-IMPACT
+    httpStatus: 422
+    title: 强语义关系解除影响派生数据
+    responseRequirement: 派生对象清单
+  - code: KERNEL-423-TARGET-LOCKED
+    httpStatus: 423
+    title: 字段或对象被他人锁定
+    responseRequirement: 持锁人与过期时间
+  - code: KERNEL-500-TX-FAILED
+    httpStatus: 500
+    title: 事务执行失败(可重试)
+    responseRequirement: 不暴露内部细节
+  - code: PERM-403-FIELD-DENIED
+    httpStatus: 403
+    title: 字段级权限拒绝
+    responseRequirement: —
+  - code: RULE-422-*
+    httpStatus: 422
+    title: 规则失败或阻断
+    responseRequirement: —
+  - code: AI-409-CHANGESET-EXPIRED
+    httpStatus: 409
+    title: AI 变更集已过期
+    responseRequirement: —
+  - code: AI-409-CHANGESET-ALREADY-DECIDED
+    httpStatus: 409
+    title: AI 变更集已决策
+    responseRequirement: —
+  - code: AI-422-ITEM-PRECHECK-FAILED
+    httpStatus: 422
+    title: AI 变更项预检失败
+    responseRequirement: —
