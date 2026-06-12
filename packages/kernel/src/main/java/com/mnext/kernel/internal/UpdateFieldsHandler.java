@@ -30,13 +30,15 @@ class UpdateFieldsHandler {
   public CommandResult execute(UpdateFieldsCommand command, Actor actor) {
     support.validateEnvelope(
         command.workspaceId(), command.correlationId(), command.idempotencyKey());
-    validate(command);
     var codes =
-        command.fields().stream()
-            .map(FieldUpdate::fieldDefCode)
-            .collect(java.util.stream.Collectors.toSet());
+        command.fields() == null
+            ? Set.<String>of()
+            : command.fields().stream()
+                .map(FieldUpdate::fieldDefCode)
+                .collect(java.util.stream.Collectors.toSet());
     permissionChecker.check(
         "field.update", command.workspaceId(), command.objectId(), codes, actor);
+    validate(command);
     var payloadHash = CommandSupport.payloadHash(payload(command));
     var replay = support.replay(command.workspaceId(), command.idempotencyKey(), payloadHash);
     if (replay.isPresent()) return replay.get();

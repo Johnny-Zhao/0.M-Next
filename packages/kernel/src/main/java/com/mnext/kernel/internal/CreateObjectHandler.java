@@ -29,13 +29,13 @@ class CreateObjectHandler {
   public CommandResult execute(CreateObjectCommand command, Actor actor) {
     support.validateEnvelope(
         command.workspaceId(), command.correlationId(), command.idempotencyKey());
-    validate(command);
     permissionChecker.check(
         "object.create",
         command.workspaceId(),
         command.objectTypeId(),
-        command.fields().keySet(),
+        command.fields() == null ? Set.of() : command.fields().keySet(),
         actor);
+    validate(command);
     var payloadHash = CommandSupport.payloadHash(payload(command));
     var replay = support.replay(command.workspaceId(), command.idempotencyKey(), payloadHash);
     if (replay.isPresent()) return replay.get();
