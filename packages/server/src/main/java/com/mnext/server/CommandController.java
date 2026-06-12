@@ -33,7 +33,7 @@ public class CommandController {
 
   @PostMapping("/workspaces/{workspaceId}/commands")
   public CommandResult execute(
-      @PathVariable UUID workspaceId,
+      @PathVariable("workspaceId") UUID workspaceId,
       @RequestHeader("X-Actor-Id") String actorId,
       @RequestBody CommandRequest request) {
     if (!workspaceId.equals(request.workspaceId())) {

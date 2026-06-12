@@ -10,6 +10,9 @@
         <relativePath>../../pom.xml</relativePath>
     </parent>
     <artifactId>kernel</artifactId>
+    <properties>
+        <jacoco.minimum>0.80</jacoco.minimum>
+    </properties>
     <dependencies>
         <dependency>
             <groupId>com.mnext</groupId>

@@ -13,6 +13,7 @@ directDependencies:
   - com.github.f4b6a3:ulid-creator
   - org.testcontainers:postgresql
   - org.testcontainers:junit-jupiter
+  - org.testcontainers:testcontainers-bom
 buildPlugins:
   - org.apache.maven.plugins:maven-compiler-plugin
   - org.apache.maven.plugins:maven-surefire-plugin

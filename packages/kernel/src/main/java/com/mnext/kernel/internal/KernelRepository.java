@@ -1,6 +1,7 @@
 package com.mnext.kernel.internal;
 
 import com.mnext.kernel.api.events.EventEnvelope;
+import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -94,8 +95,8 @@ class KernelRepository {
         status,
         actor,
         actor,
-        now,
-        now);
+        Timestamp.from(now),
+        Timestamp.from(now));
   }
 
   void insertField(UUID objectId, UUID fieldDefId, String valueJson, String actor, Instant now) {
@@ -110,8 +111,8 @@ class KernelRepository {
         valueJson,
         actor,
         actor,
-        now,
-        now);
+        Timestamp.from(now),
+        Timestamp.from(now));
     insertHistory(objectId, fieldDefId, valueJson, 1, actor, now);
   }
 
@@ -173,7 +174,7 @@ class KernelRepository {
         valueJson,
         nextVersion,
         actor,
-        now,
+        Timestamp.from(now),
         objectId,
         fieldDefId);
     insertHistory(objectId, fieldDefId, valueJson, nextVersion, actor, now);
@@ -199,7 +200,7 @@ class KernelRepository {
         """,
         Long.class,
         actor,
-        now,
+        Timestamp.from(now),
         objectId);
   }
 
@@ -216,7 +217,7 @@ class KernelRepository {
         event.targetId(),
         event.sequence(),
         EventJson.encode(event),
-        event.occurredAt());
+        Timestamp.from(event.occurredAt()));
   }
 
   void insertCommand(
@@ -241,7 +242,7 @@ class KernelRepository {
         commandType,
         payloadHash,
         JsonCodec.encode(result),
-        now);
+        Timestamp.from(now));
   }
 
   private void insertHistory(
@@ -257,6 +258,6 @@ class KernelRepository {
         valueJson,
         version,
         actor,
-        now);
+        Timestamp.from(now));
   }
 }
