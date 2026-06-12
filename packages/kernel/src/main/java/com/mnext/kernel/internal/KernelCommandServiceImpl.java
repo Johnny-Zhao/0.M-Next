@@ -4,6 +4,7 @@ import com.mnext.kernel.api.Actor;
 import com.mnext.kernel.api.CommandResult;
 import com.mnext.kernel.api.KernelCommandService;
 import com.mnext.kernel.api.commands.ArchiveCommand;
+import com.mnext.kernel.api.commands.BatchCommand;
 import com.mnext.kernel.api.commands.ChangeStateCommand;
 import com.mnext.kernel.api.commands.CreateObjectCommand;
 import com.mnext.kernel.api.commands.CreateRelationCommand;
@@ -15,6 +16,7 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class KernelCommandServiceImpl implements KernelCommandService {
+  private final BatchCommandHandler batchCommandHandler;
   private final SoftDeleteHandler softDeleteHandler;
   private final ArchiveHandler archiveHandler;
   private final ChangeStateHandler changeStateHandler;
@@ -25,6 +27,7 @@ public class KernelCommandServiceImpl implements KernelCommandService {
   private final UnlinkHandler unlinkHandler;
 
   public KernelCommandServiceImpl(
+      BatchCommandHandler batchCommandHandler,
       SoftDeleteHandler softDeleteHandler,
       ArchiveHandler archiveHandler,
       ChangeStateHandler changeStateHandler,
@@ -33,6 +36,7 @@ public class KernelCommandServiceImpl implements KernelCommandService {
       CreateRelationHandler createRelationHandler,
       UpdateRelationHandler updateRelationHandler,
       UnlinkHandler unlinkHandler) {
+    this.batchCommandHandler = batchCommandHandler;
     this.softDeleteHandler = softDeleteHandler;
     this.archiveHandler = archiveHandler;
     this.changeStateHandler = changeStateHandler;
@@ -41,6 +45,11 @@ public class KernelCommandServiceImpl implements KernelCommandService {
     this.createRelationHandler = createRelationHandler;
     this.updateRelationHandler = updateRelationHandler;
     this.unlinkHandler = unlinkHandler;
+  }
+
+  @Override
+  public CommandResult batch(BatchCommand command, Actor actor) {
+    return batchCommandHandler.execute(command, actor);
   }
 
   @Override

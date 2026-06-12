@@ -1,6 +1,7 @@
 package com.mnext.kernel.api;
 
 import com.mnext.kernel.api.commands.ArchiveCommand;
+import com.mnext.kernel.api.commands.BatchCommand;
 import com.mnext.kernel.api.commands.ChangeStateCommand;
 import com.mnext.kernel.api.commands.CreateObjectCommand;
 import com.mnext.kernel.api.commands.CreateRelationCommand;
@@ -10,6 +11,8 @@ import com.mnext.kernel.api.commands.UpdateFieldsCommand;
 import com.mnext.kernel.api.commands.UpdateRelationCommand;
 
 public interface KernelCommandService {
+  CommandResult batch(BatchCommand command, Actor actor);
+
   CommandResult softDelete(SoftDeleteCommand command, Actor actor);
 
   CommandResult archive(ArchiveCommand command, Actor actor);

@@ -49,6 +49,18 @@ final class CommandErrors {
         "KERNEL-413-CASCADE-TOO-LARGE", "活动关系超过同步级联上限", Map.of("total", total), "先走预览并使用冷路径批量任务");
   }
 
+  static CommandRejectedException nestedBatch() {
+    return error("KERNEL-400-NESTED-BATCH", "BatchCommand 禁止嵌套", Map.of(), "移除嵌套批次后重试");
+  }
+
+  static CommandRejectedException batchTooLarge(long commands, long writes) {
+    return error(
+        "KERNEL-413-BATCH-TOO-LARGE",
+        "批量命令超出热路径限额",
+        Map.of("commands", commands, "estimatedWrites", writes),
+        "先走预览并使用冷路径批量任务");
+  }
+
   static CommandRejectedException endpointInvalid() {
     return error("KERNEL-422-ENDPOINT-INVALID", "关系端点无效或不可见", Map.of(), "确认端点后重试");
   }

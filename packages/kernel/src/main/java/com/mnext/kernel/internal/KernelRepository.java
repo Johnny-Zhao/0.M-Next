@@ -259,6 +259,33 @@ class KernelRepository {
         Timestamp.from(now));
   }
 
+  void upsertCommand(
+      UUID workspaceId,
+      String idempotencyKey,
+      String commandId,
+      String commandType,
+      String payloadHash,
+      List<String> events,
+      Instant now) {
+    var result = Map.of("status", "COMMITTED", "events", events);
+    jdbc.update(
+        """
+        INSERT INTO command_log
+          (workspace_id, idempotency_key, command_id, command_type,
+           payload_hash, result_snapshot, decided_at)
+        VALUES (?, ?, ?, ?, ?, CAST(? AS jsonb), ?)
+        ON CONFLICT (workspace_id, idempotency_key) DO UPDATE
+          SET result_snapshot = EXCLUDED.result_snapshot, decided_at = EXCLUDED.decided_at
+        """,
+        workspaceId,
+        idempotencyKey,
+        commandId,
+        commandType,
+        payloadHash,
+        JsonCodec.encode(result),
+        Timestamp.from(now));
+  }
+
   private void insertHistory(
       UUID objectId, UUID fieldDefId, String valueJson, long version, String actor, Instant now) {
     jdbc.update(

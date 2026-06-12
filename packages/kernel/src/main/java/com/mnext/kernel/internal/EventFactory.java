@@ -174,6 +174,29 @@ final class EventFactory {
         commandId);
   }
 
+  static EventEnvelope batchCommitted(
+      UUID workspaceId,
+      String commandId,
+      Map<String, Object> result,
+      Actor actor,
+      Instant now,
+      UUID correlationId) {
+    return envelope(
+        "BatchCommitted",
+        workspaceId,
+        "batch",
+        commandId,
+        1,
+        null,
+        result,
+        actor,
+        "manual",
+        now,
+        correlationId,
+        commandId,
+        1);
+  }
+
   private static EventEnvelope lifecycle(
       String eventType,
       UUID workspaceId,
@@ -199,7 +222,7 @@ final class EventFactory {
         "manual",
         now,
         correlationId,
-        commandId,
+        CommandSupport.causationId(commandId),
         version);
   }
 
