@@ -148,6 +148,32 @@ final class EventFactory {
         commandId);
   }
 
+  static EventEnvelope softDeleted(
+      UUID workspaceId,
+      String targetType,
+      UUID targetId,
+      String beforeState,
+      String reason,
+      long version,
+      Actor actor,
+      Instant now,
+      UUID correlationId,
+      String commandId) {
+    return lifecycle(
+        "SoftDeleted",
+        workspaceId,
+        targetType,
+        targetId,
+        beforeState,
+        "DELETED",
+        reason,
+        version,
+        actor,
+        now,
+        correlationId,
+        commandId);
+  }
+
   private static EventEnvelope lifecycle(
       String eventType,
       UUID workspaceId,
