@@ -180,13 +180,14 @@ final class EventFactory {
       Map<String, Object> result,
       Actor actor,
       Instant now,
-      UUID correlationId) {
+      UUID correlationId,
+      long sequence) {
     return envelope(
         "BatchCommitted",
         workspaceId,
         "batch",
         commandId,
-        1,
+        sequence,
         null,
         result,
         actor,
@@ -194,7 +195,7 @@ final class EventFactory {
         now,
         correlationId,
         commandId,
-        1);
+        sequence);
   }
 
   private static EventEnvelope lifecycle(

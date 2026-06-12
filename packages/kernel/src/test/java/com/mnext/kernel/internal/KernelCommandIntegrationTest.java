@@ -193,6 +193,11 @@ class KernelCommandIntegrationTest {
     assertEquals(3, count("data_object"));
     assertEquals(4, count("command_log"));
     assertEquals(
+        List.of(1L, 2L),
+        jdbc.queryForList(
+            "SELECT sequence FROM event_outbox WHERE event_type = 'BatchCommitted' ORDER BY sequence",
+            Long.class));
+    assertEquals(
         0,
         jdbc.queryForObject(
             "SELECT count(*) FROM event_outbox WHERE event_type <> 'BatchCommitted' AND payload->>'causationId' <> ?",

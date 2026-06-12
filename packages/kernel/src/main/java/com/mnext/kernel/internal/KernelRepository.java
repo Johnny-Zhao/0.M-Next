@@ -234,6 +234,14 @@ class KernelRepository {
         Timestamp.from(event.occurredAt()));
   }
 
+  long nextEventSequence(String targetType, String targetId) {
+    return jdbc.queryForObject(
+        "SELECT COALESCE(max(sequence), 0) + 1 FROM event_outbox WHERE aggregate_type = ? AND aggregate_id = ?",
+        Long.class,
+        targetType,
+        targetId);
+  }
+
   void insertCommand(
       UUID workspaceId,
       String idempotencyKey,

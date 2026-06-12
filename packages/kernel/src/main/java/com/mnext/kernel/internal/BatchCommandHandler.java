@@ -154,7 +154,13 @@ class BatchCommandHandler {
     summary.put("failedIndexes", failed.stream().map(BatchItemResult::index).toList());
     var event =
         EventFactory.batchCommitted(
-            command.workspaceId(), commandId, summary, actor, now, command.correlationId());
+            command.workspaceId(),
+            commandId,
+            summary,
+            actor,
+            now,
+            command.correlationId(),
+            repository.nextEventSequence("batch", commandId));
     repository.insertEvent(event);
     var events = new ArrayList<String>();
     results.forEach(result -> events.addAll(result.events()));
@@ -188,8 +194,12 @@ class BatchCommandHandler {
   }
 
   private long estimatedWrites(BatchItem item) {
-    if (item.command() instanceof CreateObjectCommand create) return 1L + create.fields().size();
-    if (item.command() instanceof UpdateFieldsCommand update) return update.fields().size();
+    if (item.command() instanceof CreateObjectCommand create) {
+      return create.fields() == null ? 1 : 1L + create.fields().size();
+    }
+    if (item.command() instanceof UpdateFieldsCommand update) {
+      return update.fields() == null ? 1 : update.fields().size();
+    }
     return 1;
   }
 
