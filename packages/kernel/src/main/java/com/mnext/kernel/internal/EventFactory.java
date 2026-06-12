@@ -362,7 +362,7 @@ final class EventFactory {
         source,
         now,
         correlationId,
-        commandId,
+        CommandSupport.causationId(commandId),
         sequence,
         null);
   }

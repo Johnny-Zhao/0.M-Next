@@ -192,6 +192,12 @@ class KernelCommandIntegrationTest {
     assertEquals(3, second.results().stream().filter(r -> r.error() == null).count());
     assertEquals(3, count("data_object"));
     assertEquals(4, count("command_log"));
+    assertEquals(
+        0,
+        jdbc.queryForObject(
+            "SELECT count(*) FROM event_outbox WHERE event_type <> 'BatchCommitted' AND payload->>'causationId' <> ?",
+            Integer.class,
+            second.commandId()));
   }
 
   @Test
