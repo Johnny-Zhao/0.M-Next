@@ -72,7 +72,9 @@ class KernelCommandIntegrationTest {
     var conflict =
         assertThrows(
             CommandRejectedException.class,
-            () -> commands.updateFields(update("kernel-b", objectId, 1, "cost", 12, 1L), Actor.user("actor-b")));
+            () ->
+                commands.updateFields(
+                    update("kernel-b", objectId, 1, "cost", 12, 1L), Actor.user("actor-b")));
 
     assertTrue(replay.idempotentReplay());
     assertEquals("KERNEL-409-VERSION-CONFLICT", conflict.error().code());
@@ -81,12 +83,10 @@ class KernelCommandIntegrationTest {
 
   @Test
   void differentFieldVersionsMerge() {
-    var objectId =
-        create("kernel-different", Map.of("name", "demo", "cost", 10, "owner", "alice"));
+    var objectId = create("kernel-different", Map.of("name", "demo", "cost", 10, "owner", "alice"));
 
     commands.updateFields(update("kernel-cost", objectId, 1, "cost", 11, 1L), Actor.user("a"));
-    commands.updateFields(
-        update("kernel-owner", objectId, 1, "owner", "bob", 1L), Actor.user("b"));
+    commands.updateFields(update("kernel-owner", objectId, 1, "owner", "bob", 1L), Actor.user("b"));
 
     assertEquals(
         3L,
@@ -109,13 +109,7 @@ class KernelCommandIntegrationTest {
   private UUID create(String key, Map<String, Object> fields) {
     commands.createObject(
         new CreateObjectCommand(
-            WORKSPACE,
-            UUID.randomUUID(),
-            key,
-            TYPE,
-            fields,
-            new SourceInfo("manual", null),
-            null),
+            WORKSPACE, UUID.randomUUID(), key, TYPE, fields, new SourceInfo("manual", null), null),
         Actor.user("creator"));
     return jdbc.queryForObject(
         "SELECT id FROM data_object ORDER BY created_at DESC LIMIT 1", UUID.class);
