@@ -31,6 +31,7 @@ import org.testcontainers.utility.DockerImageName;
 class CommandIntegrationTest {
   private static final UUID WORKSPACE = UUID.fromString("11111111-1111-4111-8111-111111111111");
   private static final UUID TYPE = UUID.fromString("22222222-2222-4222-8222-222222222222");
+  private static final UUID DEPENDS = UUID.fromString("44444444-4444-4444-8444-444444444441");
 
   @Container
   static final PostgreSQLContainer<?> POSTGRES =
@@ -51,6 +52,9 @@ class CommandIntegrationTest {
 
   @BeforeEach
   void cleanCommands() {
+    jdbc.update("DELETE FROM relation_closure");
+    jdbc.update("DELETE FROM relation_history");
+    jdbc.update("DELETE FROM data_relation");
     jdbc.update("DELETE FROM event_outbox");
     jdbc.update("DELETE FROM command_log");
     jdbc.update("DELETE FROM field_value_history");
@@ -132,6 +136,25 @@ class CommandIntegrationTest {
     assertEquals("KERNEL-400-UNKNOWN-COMMAND", error(response).get("code"));
   }
 
+  @Test
+  void relationCommandsCompleteHttpVerticalSlice() {
+    var source = createObject("relation-source", Map.of("name", "source"));
+    var target = createObject("relation-target", Map.of("name", "target"));
+
+    var created = post(relationRequest("relation-create", source, target));
+    var relationId = jdbc.queryForObject("SELECT id FROM data_relation", UUID.class);
+    var updated = post(updateRelationRequest("relation-update", relationId, Map.of("weight", 2)));
+    var unlinked = post(unlinkRequest("relation-unlink", relationId, 2));
+
+    assertEquals(200, created.getStatusCode().value());
+    assertEquals(200, updated.getStatusCode().value());
+    assertEquals(200, unlinked.getStatusCode().value());
+    assertEquals(
+        "UNLINKED",
+        jdbc.queryForObject(
+            "SELECT status FROM data_relation WHERE id = ?", String.class, relationId));
+  }
+
   private UUID createObject(String key, Map<String, Object> fields) {
     var response = post(createRequest(key, fields));
     assertEquals(200, response.getStatusCode().value(), String.valueOf(response.getBody()));
@@ -139,7 +162,8 @@ class CommandIntegrationTest {
     assertTrue(count("field_value_history") > 0);
     assertTrue(count("command_log") > 0);
     assertTrue(count("event_outbox") > 0);
-    return jdbc.queryForObject("SELECT id FROM data_object", UUID.class);
+    return jdbc.queryForObject(
+        "SELECT id FROM data_object ORDER BY created_at DESC LIMIT 1", UUID.class);
   }
 
   private Map<String, Object> createRequest(String key, Map<String, Object> fields) {
@@ -161,6 +185,33 @@ class CommandIntegrationTest {
     payload.put("expectedObjectVersion", objectVersion);
     payload.put("fields", List.of(field));
     return post(envelope("UpdateFields", key, payload));
+  }
+
+  private Map<String, Object> relationRequest(String key, UUID source, UUID target) {
+    var payload = new LinkedHashMap<String, Object>();
+    payload.put("relationTypeId", DEPENDS.toString());
+    payload.put("sourceId", source.toString());
+    payload.put("targetId", target.toString());
+    payload.put("relationFields", Map.of("weight", 1));
+    payload.put("source", Map.of("type", "manual"));
+    return envelope("CreateRelation", key, payload);
+  }
+
+  private Map<String, Object> updateRelationRequest(
+      String key, UUID relationId, Map<String, Object> fields) {
+    var payload = new LinkedHashMap<String, Object>();
+    payload.put("relationId", relationId.toString());
+    payload.put("expectedVersion", 1);
+    payload.put("fields", fields);
+    return envelope("UpdateRelation", key, payload);
+  }
+
+  private Map<String, Object> unlinkRequest(String key, UUID relationId, long version) {
+    var payload = new LinkedHashMap<String, Object>();
+    payload.put("relationId", relationId.toString());
+    payload.put("reason", "obsolete");
+    payload.put("expectedVersion", version);
+    return envelope("Unlink", key, payload);
   }
 
   private Map<String, Object> envelope(
