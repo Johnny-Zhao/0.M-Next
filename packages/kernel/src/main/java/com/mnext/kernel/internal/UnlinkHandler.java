@@ -65,8 +65,8 @@ class UnlinkHandler {
           now);
     }
     if (relation.version() != command.expectedVersion()) {
-      throw CommandErrors.version(
-          relation.id().toString(), command.expectedVersion(), relation.version(), List.of());
+      throw CommandErrors.relationVersion(
+          relation.id().toString(), command.expectedVersion(), relation.version());
     }
     // TODO 阶段3 规则引擎接入派生判定
     var type =

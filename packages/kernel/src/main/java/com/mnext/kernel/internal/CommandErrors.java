@@ -78,6 +78,20 @@ final class CommandErrors {
         "拉取最新版本对比合并后重试;无重叠字段可直接以字段级版本重提");
   }
 
+  static CommandRejectedException relationVersion(
+      String targetId, long expectedVersion, long currentVersion) {
+    return error(
+        "KERNEL-409-VERSION-CONFLICT",
+        "关系已被他人修改",
+        Map.of(
+            "targetType", "relation",
+            "targetId", targetId,
+            "expectedVersion", expectedVersion,
+            "currentVersion", currentVersion,
+            "conflictingFields", List.of()),
+        "拉取最新关系版本后重试");
+  }
+
   private static CommandRejectedException error(
       String code, String message, Map<String, Object> details, String suggestion) {
     return new CommandRejectedException(new CommandError(code, message, details, suggestion));

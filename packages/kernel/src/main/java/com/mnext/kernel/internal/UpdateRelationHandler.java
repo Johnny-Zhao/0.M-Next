@@ -51,8 +51,8 @@ class UpdateRelationHandler {
             .orElseThrow(CommandErrors::targetNotFound);
     if (!"ACTIVE".equals(relation.status())) throw CommandErrors.targetNotFound();
     if (relation.version() != command.expectedVersion()) {
-      throw CommandErrors.version(
-          relation.id().toString(), command.expectedVersion(), relation.version(), List.of());
+      throw CommandErrors.relationVersion(
+          relation.id().toString(), command.expectedVersion(), relation.version());
     }
     var type =
         relations

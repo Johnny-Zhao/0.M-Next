@@ -86,7 +86,7 @@ class RelationRepository {
         SELECT id, relation_type_id, source_id, target_id, fields::text, status, version
         FROM data_relation
         WHERE workspace_id = ? AND relation_type_id = ? AND source_id = ? AND target_id = ?
-        FOR UPDATE
+        ORDER BY (status = 'ACTIVE') DESC, version DESC LIMIT 1 FOR UPDATE
         """,
         workspaceId,
         typeId,
