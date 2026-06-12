@@ -213,6 +213,24 @@ class KernelCommandIntegrationTest {
     assertEquals("KERNEL-413-BATCH-TOO-LARGE", largeError.error().code());
   }
 
+  @Test
+  void updateFieldsRejectsTerminalObjectStates() {
+    for (var state : List.of("VOID", "FILED", "DELETED")) {
+      var object = create("terminal-" + state, Map.of("name", state));
+      jdbc.update("UPDATE data_object SET status = ? WHERE id = ?", state, object);
+
+      var error =
+          assertThrows(
+              CommandRejectedException.class,
+              () ->
+                  commands.updateFields(
+                      update("update-" + state, object, 1, "name", "changed", 1L),
+                      Actor.user("u")));
+
+      assertEquals("KERNEL-410-TARGET-ARCHIVED", error.error().code());
+    }
+  }
+
   private UUID create(String key, Map<String, Object> fields) {
     commands.createObject(
         new CreateObjectCommand(

@@ -129,6 +129,17 @@ class RelationCommandIntegrationTest {
   }
 
   @Test
+  void filedEndpointIsRejected() {
+    var source = createObject("endpoint-source-filed");
+    var filed = createObject("endpoint-filed");
+    jdbc.update("UPDATE data_object SET status = 'FILED' WHERE id = ?", filed);
+
+    var error = relationError("filed", source, filed);
+
+    assertEquals("KERNEL-422-ENDPOINT-INVALID", error.error().code());
+  }
+
+  @Test
   void concurrentDuplicateHasExactlyOneWinner() throws Exception {
     var endpoints = endpoints(2);
     var start = new CountDownLatch(1);

@@ -34,7 +34,7 @@ final class RelationCommandSupport {
   }
 
   private boolean invalid(EndpointRow endpoint) {
-    return Set.of("VOID", "DELETED").contains(endpoint.status());
+    return Set.of("VOID", "FILED", "DELETED").contains(endpoint.status());
   }
 
   private EndpointRow endpoint(List<EndpointRow> endpoints, UUID id) {
