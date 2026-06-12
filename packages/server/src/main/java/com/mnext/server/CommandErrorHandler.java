@@ -27,12 +27,7 @@ public class CommandErrorHandler {
 
   @ExceptionHandler(DataAccessException.class)
   ResponseEntity<CommandResult> transactionFailed(DataAccessException exception) {
-    return response(
-        new CommandError(
-            "KERNEL-500-TX-FAILED",
-            "事务执行失败",
-            Map.of(),
-            "稍后使用相同幂等键重试"));
+    return response(new CommandError("KERNEL-500-TX-FAILED", "事务执行失败", Map.of(), "稍后使用相同幂等键重试"));
   }
 
   private static ResponseEntity<CommandResult> response(CommandError error) {
