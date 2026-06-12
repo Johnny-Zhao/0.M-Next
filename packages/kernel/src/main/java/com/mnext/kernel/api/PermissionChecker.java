@@ -5,9 +5,5 @@ import java.util.UUID;
 
 public interface PermissionChecker {
   void check(
-      String permissionCode,
-      UUID workspaceId,
-      UUID targetId,
-      Set<String> fieldCodes,
-      Actor actor);
+      String permissionCode, UUID workspaceId, UUID targetId, Set<String> fieldCodes, Actor actor);
 }
