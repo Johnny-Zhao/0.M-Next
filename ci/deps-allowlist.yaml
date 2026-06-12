@@ -1,0 +1,23 @@
+version: 1
+directDependencies:
+  - com.mnext:shared
+  - com.mnext:kernel
+  - com.mnext:engines
+  - org.junit.jupiter:junit-jupiter
+  - org.springframework.boot:spring-boot-starter-web
+  - org.springframework.boot:spring-boot-starter-jdbc
+  - org.springframework.boot:spring-boot-starter-test
+  - org.flywaydb:flyway-core
+  - org.flywaydb:flyway-database-postgresql
+  - org.postgresql:postgresql
+  - com.github.f4b6a3:ulid-creator
+  - org.testcontainers:postgresql
+  - org.testcontainers:junit-jupiter
+  - org.testcontainers:testcontainers-bom
+buildPlugins:
+  - org.apache.maven.plugins:maven-compiler-plugin
+  - org.apache.maven.plugins:maven-surefire-plugin
+  - org.apache.maven.plugins:maven-checkstyle-plugin
+  - org.springframework.boot:spring-boot-maven-plugin
+  - com.diffplug.spotless:spotless-maven-plugin
+  - org.jacoco:jacoco-maven-plugin
