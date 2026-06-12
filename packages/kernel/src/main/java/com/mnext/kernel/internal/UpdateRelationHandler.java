@@ -65,11 +65,8 @@ class UpdateRelationHandler {
     }
     relationSupport.validateCandidate(
         command.workspaceId(), relation.relationTypeId(), sourceId, targetId, relation.id());
-    var fields =
-        command.fields() == null
-            ? Map.<String, Object>of("_json", relation.fieldsJson())
-            : command.fields();
-    var fieldsJson = command.fields() == null ? relation.fieldsJson() : JsonCodec.encode(fields);
+    var fields = command.fields() == null ? Map.<String, Object>of() : command.fields();
+    var fieldsJson = JsonCodec.encode(fields);
     var now = Instant.now();
     var version =
         relations.updateRelation(relation, sourceId, targetId, fieldsJson, actor.id(), now);

@@ -54,7 +54,7 @@ CREATE TABLE relation_closure (
   ancestor_id UUID NOT NULL REFERENCES data_object(id),
   descendant_id UUID NOT NULL REFERENCES data_object(id),
   depth INTEGER NOT NULL CHECK (depth > 0),
-  PRIMARY KEY (relation_type_id, ancestor_id, descendant_id)
+  PRIMARY KEY (ancestor_id, descendant_id)
 );
 
 CREATE INDEX relation_closure_descendant_idx

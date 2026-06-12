@@ -166,7 +166,7 @@ class RelationRepository {
     var version = relation.version() + 1;
     jdbc.update(
         """
-        UPDATE data_relation SET source_id = ?, target_id = ?, fields = CAST(? AS jsonb),
+        UPDATE data_relation SET source_id = ?, target_id = ?, fields = fields || CAST(? AS jsonb),
           version = ?, updated_by = ?, updated_at = ? WHERE id = ?
         """,
         sourceId,
@@ -181,7 +181,8 @@ class RelationRepository {
         relation.relationTypeId(),
         sourceId,
         targetId,
-        fields,
+        jdbc.queryForObject(
+            "SELECT fields::text FROM data_relation WHERE id = ?", String.class, relation.id()),
         "ACTIVE",
         version,
         actor,
@@ -228,7 +229,7 @@ class RelationRepository {
           SELECT descendant_id, depth FROM relation_closure
           WHERE relation_type_id = ? AND ancestor_id = ?
         ) descendants
-        ON CONFLICT (relation_type_id, ancestor_id, descendant_id)
+        ON CONFLICT (ancestor_id, descendant_id)
         DO UPDATE SET depth = LEAST(relation_closure.depth, EXCLUDED.depth)
         """,
         typeId,
