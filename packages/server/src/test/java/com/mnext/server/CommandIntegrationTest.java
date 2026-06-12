@@ -126,7 +126,7 @@ class CommandIntegrationTest {
 
   @Test
   void rejectsUnknownCommandWithRegisteredCode() {
-    var response = post(envelope("UnknownCommand", "unknown-command", Map.of()));
+    var response = post(envelope("Archive", "unknown-command", Map.of()));
 
     assertEquals(400, response.getStatusCode().value());
     assertEquals("KERNEL-400-UNKNOWN-COMMAND", error(response).get("code"));
