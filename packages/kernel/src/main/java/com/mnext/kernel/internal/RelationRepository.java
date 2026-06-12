@@ -229,7 +229,7 @@ class RelationRepository {
           SELECT descendant_id, depth FROM relation_closure
           WHERE relation_type_id = ? AND ancestor_id = ?
         ) descendants
-        ON CONFLICT (ancestor_id, descendant_id)
+        ON CONFLICT (relation_type_id, ancestor_id, descendant_id)
         DO UPDATE SET depth = LEAST(relation_closure.depth, EXCLUDED.depth)
         """,
         typeId,

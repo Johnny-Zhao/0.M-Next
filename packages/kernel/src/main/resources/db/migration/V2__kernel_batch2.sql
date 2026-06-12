@@ -49,12 +49,13 @@ CREATE TABLE relation_history (
   changed_at TIMESTAMPTZ NOT NULL
 );
 
+-- hierarchical 类型当前仅支持树形(one_to_many);DAG 需改计数法闭包
 CREATE TABLE relation_closure (
   relation_type_id UUID NOT NULL REFERENCES relation_type(id),
   ancestor_id UUID NOT NULL REFERENCES data_object(id),
   descendant_id UUID NOT NULL REFERENCES data_object(id),
   depth INTEGER NOT NULL CHECK (depth > 0),
-  PRIMARY KEY (ancestor_id, descendant_id)
+  PRIMARY KEY (relation_type_id, ancestor_id, descendant_id)
 );
 
 CREATE INDEX relation_closure_descendant_idx
