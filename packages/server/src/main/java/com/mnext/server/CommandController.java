@@ -9,9 +9,14 @@ import com.mnext.kernel.api.CommandRejectedException;
 import com.mnext.kernel.api.CommandResult;
 import com.mnext.kernel.api.KernelCommandService;
 import com.mnext.kernel.api.SourceInfo;
+import com.mnext.kernel.api.commands.ArchiveCommand;
+import com.mnext.kernel.api.commands.BatchCommand;
+import com.mnext.kernel.api.commands.BatchItem;
+import com.mnext.kernel.api.commands.ChangeStateCommand;
 import com.mnext.kernel.api.commands.CreateObjectCommand;
 import com.mnext.kernel.api.commands.CreateRelationCommand;
 import com.mnext.kernel.api.commands.FieldUpdate;
+import com.mnext.kernel.api.commands.SoftDeleteCommand;
 import com.mnext.kernel.api.commands.UnlinkCommand;
 import com.mnext.kernel.api.commands.UpdateFieldsCommand;
 import com.mnext.kernel.api.commands.UpdateRelationCommand;
@@ -43,6 +48,10 @@ public class CommandController {
       throw schema("path workspaceId 与命令信封不一致");
     }
     return switch (request.commandType()) {
+      case "ChangeState" -> commands.changeState(changeState(request), Actor.user(actorId));
+      case "Archive" -> commands.archive(archive(request), Actor.user(actorId));
+      case "SoftDelete" -> commands.softDelete(softDelete(request), Actor.user(actorId));
+      case "BatchCommand" -> commands.batch(batch(request), Actor.user(actorId));
       case "CreateObject" -> commands.createObject(create(request), Actor.user(actorId));
       case "UpdateFields" -> commands.updateFields(update(request), Actor.user(actorId));
       case "CreateRelation" ->
@@ -68,6 +77,86 @@ public class CommandController {
         new SourceInfo(
             required(source.get("type"), "source.type").asText(), text(source.get("ref"))),
         text(payload.get("initialState")));
+  }
+
+  private ChangeStateCommand changeState(CommandRequest request) {
+    var payload = required(request.payload(), "payload");
+    return new ChangeStateCommand(
+        request.workspaceId(),
+        request.correlationId(),
+        request.idempotencyKey(),
+        required(payload.get("targetType"), "targetType").asText(),
+        uuid(payload, "targetId"),
+        required(payload.get("fromState"), "fromState").asText(),
+        required(payload.get("toState"), "toState").asText(),
+        required(payload.get("reason"), "reason").asText(),
+        required(payload.get("expectedVersion"), "expectedVersion").asLong());
+  }
+
+  private ArchiveCommand archive(CommandRequest request) {
+    var payload = required(request.payload(), "payload");
+    return new ArchiveCommand(
+        request.workspaceId(),
+        request.correlationId(),
+        request.idempotencyKey(),
+        required(payload.get("targetType"), "targetType").asText(),
+        uuid(payload, "targetId"),
+        required(payload.get("reason"), "reason").asText(),
+        required(payload.get("expectedVersion"), "expectedVersion").asLong(),
+        text(payload.get("relationPolicy")));
+  }
+
+  private SoftDeleteCommand softDelete(CommandRequest request) {
+    var payload = required(request.payload(), "payload");
+    return new SoftDeleteCommand(
+        request.workspaceId(),
+        request.correlationId(),
+        request.idempotencyKey(),
+        required(payload.get("targetType"), "targetType").asText(),
+        uuid(payload, "targetId"),
+        required(payload.get("reason"), "reason").asText(),
+        required(payload.get("expectedVersion"), "expectedVersion").asLong(),
+        text(payload.get("relationPolicy")));
+  }
+
+  private BatchCommand batch(CommandRequest request) {
+    var payload = required(request.payload(), "payload");
+    var items = new ArrayList<BatchItem>();
+    var index = 0;
+    for (var child : required(payload.get("commands"), "commands")) {
+      var type = required(child.get("commandType"), "commandType").asText();
+      var childRequest =
+          new CommandRequest(
+              type,
+              request.workspaceId(),
+              request.correlationId(),
+              request.idempotencyKey() + "#" + index,
+              required(child.get("payload"), "payload"));
+      items.add(new BatchItem(type, child(type, childRequest)));
+      index++;
+    }
+    return new BatchCommand(
+        request.workspaceId(),
+        request.correlationId(),
+        request.idempotencyKey(),
+        items,
+        required(payload.get("transactionMode"), "transactionMode").asText(),
+        optionalUuid(payload, "previewId"));
+  }
+
+  private Object child(String type, CommandRequest request) {
+    return switch (type) {
+      case "CreateObject" -> create(request);
+      case "UpdateFields" -> update(request);
+      case "ChangeState" -> changeState(request);
+      case "CreateRelation" -> createRelation(request);
+      case "UpdateRelation" -> updateRelation(request);
+      case "Archive" -> archive(request);
+      case "Unlink" -> unlink(request);
+      case "SoftDelete" -> softDelete(request);
+      case "BatchCommand" -> null;
+      default -> null;
+    };
   }
 
   private UpdateFieldsCommand update(CommandRequest request) {

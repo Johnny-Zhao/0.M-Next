@@ -130,7 +130,7 @@ class CommandIntegrationTest {
 
   @Test
   void rejectsUnknownCommandWithRegisteredCode() {
-    var response = post(envelope("Archive", "unknown-command", Map.of()));
+    var response = post(envelope("ConfirmAIChangeSet", "unknown-command", Map.of()));
 
     assertEquals(400, response.getStatusCode().value());
     assertEquals("KERNEL-400-UNKNOWN-COMMAND", error(response).get("code"));
@@ -153,6 +153,24 @@ class CommandIntegrationTest {
         "UNLINKED",
         jdbc.queryForObject(
             "SELECT status FROM data_relation WHERE id = ?", String.class, relationId));
+  }
+
+  @Test
+  void stateArchiveSoftDeleteAndBatchCompleteHttpVerticalSlice() {
+    var stateTarget = createObject("state-http", Map.of("name", "state"));
+    var changed = post(changeStateRequest("state-change", stateTarget));
+    var archived = post(archiveRequest("archive-http", stateTarget, 2));
+    var deleteTarget = createObject("delete-http", Map.of("name", "delete"));
+    var deleted = post(softDeleteRequest("soft-delete-http", deleteTarget));
+    var batch = post(batchRequest("batch-http"));
+
+    assertEquals(200, changed.getStatusCode().value());
+    assertEquals(200, archived.getStatusCode().value());
+    assertEquals(200, deleted.getStatusCode().value());
+    assertEquals(200, batch.getStatusCode().value());
+    assertEquals("VOID", status(stateTarget));
+    assertEquals("DELETED", status(deleteTarget));
+    assertEquals(2, ((List<?>) batch.getBody().get("results")).size());
   }
 
   private UUID createObject(String key, Map<String, Object> fields) {
@@ -212,6 +230,59 @@ class CommandIntegrationTest {
     payload.put("reason", "obsolete");
     payload.put("expectedVersion", version);
     return envelope("Unlink", key, payload);
+  }
+
+  private Map<String, Object> changeStateRequest(String key, UUID targetId) {
+    return envelope(
+        "ChangeState",
+        key,
+        Map.of(
+            "targetType", "object",
+            "targetId", targetId.toString(),
+            "fromState", "DRAFT",
+            "toState", "PENDING_CONFIRM",
+            "reason", "review",
+            "expectedVersion", 1));
+  }
+
+  private Map<String, Object> archiveRequest(String key, UUID targetId, long version) {
+    return envelope(
+        "Archive",
+        key,
+        Map.of(
+            "targetType", "object",
+            "targetId", targetId.toString(),
+            "reason", "obsolete",
+            "expectedVersion", version,
+            "relationPolicy", "reject"));
+  }
+
+  private Map<String, Object> softDeleteRequest(String key, UUID targetId) {
+    return envelope(
+        "SoftDelete",
+        key,
+        Map.of(
+            "targetType", "object",
+            "targetId", targetId.toString(),
+            "reason", "draft cleanup",
+            "expectedVersion", 1,
+            "relationPolicy", "reject"));
+  }
+
+  private Map<String, Object> batchRequest(String key) {
+    var first = createRequest(key + "-ignored-a", Map.of("name", "batch-a"));
+    var second = createRequest(key + "-ignored-b", Map.of("name", "batch-b"));
+    var children =
+        List.of(
+            Map.of("commandType", "CreateObject", "payload", first.get("payload")),
+            Map.of("commandType", "CreateObject", "payload", second.get("payload")));
+    return envelope(
+        "BatchCommand", key, Map.of("commands", children, "transactionMode", "partial"));
+  }
+
+  private String status(UUID objectId) {
+    return jdbc.queryForObject(
+        "SELECT status FROM data_object WHERE id = ?", String.class, objectId);
   }
 
   private Map<String, Object> envelope(
