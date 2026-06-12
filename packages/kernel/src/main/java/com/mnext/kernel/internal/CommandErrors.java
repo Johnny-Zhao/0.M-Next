@@ -36,6 +36,19 @@ final class CommandErrors {
         "选择允许的目标状态后重试");
   }
 
+  static CommandRejectedException activeRelations(List<String> relationIds, long total) {
+    return error(
+        "KERNEL-422-ACTIVE-RELATIONS",
+        "目标存在活动关系",
+        Map.of("relations", relationIds, "total", total, "relationPolicy", "unlink"),
+        "确认影响后使用 relationPolicy=unlink");
+  }
+
+  static CommandRejectedException cascadeTooLarge(long total) {
+    return error(
+        "KERNEL-413-CASCADE-TOO-LARGE", "活动关系超过同步级联上限", Map.of("total", total), "先走预览并使用冷路径批量任务");
+  }
+
   static CommandRejectedException endpointInvalid() {
     return error("KERNEL-422-ENDPOINT-INVALID", "关系端点无效或不可见", Map.of(), "确认端点后重试");
   }

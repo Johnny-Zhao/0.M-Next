@@ -8,6 +8,7 @@ import com.mnext.kernel.api.Actor;
 import com.mnext.kernel.api.CommandRejectedException;
 import com.mnext.kernel.api.KernelCommandService;
 import com.mnext.kernel.api.SourceInfo;
+import com.mnext.kernel.api.commands.ArchiveCommand;
 import com.mnext.kernel.api.commands.CreateObjectCommand;
 import com.mnext.kernel.api.commands.CreateRelationCommand;
 import com.mnext.kernel.api.commands.UnlinkCommand;
@@ -191,6 +192,69 @@ class RelationCommandIntegrationTest {
     assertEquals(1, count("data_relation"));
   }
 
+  @Test
+  void archiveRejectsThenUnlinksThreeRelationsInOneCorrelation() {
+    var objects = endpoints(4);
+    for (var index = 1; index < objects.length; index++) {
+      createRelation("archive-relation-" + index, DEPENDS, objects[0], objects[index]);
+    }
+    var rejected =
+        assertThrows(
+            CommandRejectedException.class,
+            () ->
+                commands.archive(archive("archive-reject", objects[0], "reject"), Actor.user("u")));
+    var correlation = UUID.randomUUID();
+    var beforeEvents = count("event_outbox");
+    var result =
+        commands.archive(
+            archive("archive-unlink", objects[0], "unlink", correlation), Actor.user("u"));
+
+    assertEquals("KERNEL-422-ACTIVE-RELATIONS", rejected.error().code());
+    assertEquals(4, result.events().size());
+    assertEquals(beforeEvents + 4, count("event_outbox"));
+    assertEquals(
+        4,
+        jdbc.queryForObject(
+            "SELECT count(*) FROM event_outbox WHERE payload->>'correlationId' = ?",
+            Integer.class,
+            correlation.toString()));
+  }
+
+  @Test
+  void archiveCascadeOverFiftyRollsBackWithoutResidualChanges() {
+    var objects = endpoints(52);
+    for (var index = 1; index < objects.length; index++) {
+      createRelation("large-cascade-" + index, DEPENDS, objects[0], objects[index]);
+    }
+    var beforeEvents = count("event_outbox");
+    var beforeCommands = count("command_log");
+
+    var error =
+        assertThrows(
+            CommandRejectedException.class,
+            () ->
+                commands.archive(archive("large-cascade", objects[0], "unlink"), Actor.user("u")));
+
+    assertEquals("KERNEL-413-CASCADE-TOO-LARGE", error.error().code());
+    assertEquals(
+        51,
+        jdbc.queryForObject(
+            "SELECT count(*) FROM data_relation WHERE status = 'ACTIVE'", Integer.class));
+    assertEquals(beforeEvents, count("event_outbox"));
+    assertEquals(beforeCommands, count("command_log"));
+  }
+
+  @Test
+  void repeatedArchiveIsIdempotentWithNoSecondEvent() {
+    var object = createObject("archive-repeat-object");
+
+    var first = commands.archive(archive("archive-repeat-a", object, "reject"), Actor.user("u"));
+    var second = commands.archive(archive("archive-repeat-b", object, "reject"), Actor.user("u"));
+
+    assertEquals(1, first.events().size());
+    assertTrue(second.events().isEmpty());
+  }
+
   private CommandRejectedException relationError(String key, UUID source, UUID target) {
     return assertThrows(
         CommandRejectedException.class, () -> createRelation(key, DEPENDS, source, target));
@@ -248,6 +312,15 @@ class RelationCommandIntegrationTest {
         "obsolete",
         version,
         false);
+  }
+
+  private ArchiveCommand archive(String key, UUID targetId, String policy) {
+    return archive(key, targetId, policy, UUID.randomUUID());
+  }
+
+  private ArchiveCommand archive(String key, UUID targetId, String policy, UUID correlation) {
+    return new ArchiveCommand(
+        WORKSPACE, correlation, key, "object", targetId, "obsolete", 1, policy);
   }
 
   private UUID[] endpoints(int count) {

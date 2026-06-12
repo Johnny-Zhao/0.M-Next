@@ -122,6 +122,61 @@ final class EventFactory {
         version);
   }
 
+  static EventEnvelope archived(
+      UUID workspaceId,
+      String targetType,
+      UUID targetId,
+      String beforeState,
+      String reason,
+      long version,
+      Actor actor,
+      Instant now,
+      UUID correlationId,
+      String commandId) {
+    return lifecycle(
+        "Archived",
+        workspaceId,
+        targetType,
+        targetId,
+        beforeState,
+        "VOID",
+        reason,
+        version,
+        actor,
+        now,
+        correlationId,
+        commandId);
+  }
+
+  private static EventEnvelope lifecycle(
+      String eventType,
+      UUID workspaceId,
+      String targetType,
+      UUID targetId,
+      String beforeState,
+      String afterState,
+      String reason,
+      long version,
+      Actor actor,
+      Instant now,
+      UUID correlationId,
+      String commandId) {
+    return envelope(
+        eventType,
+        workspaceId,
+        targetType,
+        targetId.toString(),
+        version,
+        Map.of("status", beforeState),
+        Map.of("status", afterState, "reason", reason),
+        actor,
+        "manual",
+        now,
+        correlationId,
+        commandId,
+        version);
+  }
+
   static EventEnvelope relationCreated(
       UUID workspaceId,
       UUID relationId,

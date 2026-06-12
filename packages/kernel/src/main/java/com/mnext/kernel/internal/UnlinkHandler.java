@@ -4,6 +4,7 @@ import com.mnext.kernel.api.Actor;
 import com.mnext.kernel.api.CommandResult;
 import com.mnext.kernel.api.PermissionChecker;
 import com.mnext.kernel.api.commands.UnlinkCommand;
+import com.mnext.kernel.api.events.EventEnvelope;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -68,26 +69,15 @@ class UnlinkHandler {
       throw CommandErrors.relationVersion(
           relation.id().toString(), command.expectedVersion(), relation.version());
     }
-    // TODO 阶段3 规则引擎接入派生判定
-    var type =
-        relations
-            .relationType(command.workspaceId(), relation.relationTypeId())
-            .orElseThrow(CommandErrors::typeNotFound);
-    if (type.hierarchical()) {
-      relations.deleteClosure(type.id(), relation.sourceId(), relation.targetId());
-    }
-    var version = relations.unlink(relation, actor.id(), now);
     var event =
-        EventFactory.relationUnlinked(
+        unlinkForCascade(
             command.workspaceId(),
             relation,
             command.reason(),
-            version,
             actor,
             now,
             command.correlationId(),
             commandId);
-    repository.insertEvent(event);
     return support.commit(
         command.workspaceId(),
         command.idempotencyKey(),
@@ -96,6 +86,30 @@ class UnlinkHandler {
         payloadHash,
         List.of(event.eventId()),
         now);
+  }
+
+  EventEnvelope unlinkForCascade(
+      java.util.UUID workspaceId,
+      RelationRow relation,
+      String reason,
+      Actor actor,
+      Instant now,
+      java.util.UUID correlationId,
+      String commandId) {
+    // TODO 阶段3 规则引擎接入派生判定
+    var type =
+        relations
+            .relationType(workspaceId, relation.relationTypeId())
+            .orElseThrow(CommandErrors::typeNotFound);
+    if (type.hierarchical()) {
+      relations.deleteClosure(type.id(), relation.sourceId(), relation.targetId());
+    }
+    var version = relations.unlink(relation, actor.id(), now);
+    var event =
+        EventFactory.relationUnlinked(
+            workspaceId, relation, reason, version, actor, now, correlationId, commandId);
+    repository.insertEvent(event);
+    return event;
   }
 
   private void validate(UnlinkCommand command) {

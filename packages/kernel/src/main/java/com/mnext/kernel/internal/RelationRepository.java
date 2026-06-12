@@ -94,6 +94,42 @@ class RelationRepository {
         targetId);
   }
 
+  List<RelationRow> lockActiveForObject(UUID workspaceId, UUID objectId, int limit) {
+    return jdbc.query(
+        """
+        SELECT id, relation_type_id, source_id, target_id, fields::text, status, version, created_by
+        FROM data_relation
+        WHERE workspace_id = ? AND status = 'ACTIVE' AND (source_id = ? OR target_id = ?)
+        ORDER BY id LIMIT ? FOR UPDATE
+        """,
+        (row, ignored) ->
+            new RelationRow(
+                row.getObject(1, UUID.class),
+                row.getObject(2, UUID.class),
+                row.getObject(3, UUID.class),
+                row.getObject(4, UUID.class),
+                row.getString(5),
+                row.getString(6),
+                row.getLong(7),
+                row.getString(8)),
+        workspaceId,
+        objectId,
+        objectId,
+        limit);
+  }
+
+  long activeForObjectCount(UUID workspaceId, UUID objectId) {
+    return jdbc.queryForObject(
+        """
+        SELECT count(*) FROM data_relation
+        WHERE workspace_id = ? AND status = 'ACTIVE' AND (source_id = ? OR target_id = ?)
+        """,
+        Long.class,
+        workspaceId,
+        objectId,
+        objectId);
+  }
+
   long activeTargetCount(UUID workspaceId, UUID typeId, UUID targetId, UUID excludedId) {
     return jdbc.queryForObject(
         """
