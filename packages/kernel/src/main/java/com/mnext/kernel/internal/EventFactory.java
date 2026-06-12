@@ -95,6 +95,33 @@ final class EventFactory {
         version);
   }
 
+  static EventEnvelope stateChanged(
+      UUID workspaceId,
+      String targetType,
+      UUID targetId,
+      String beforeState,
+      String afterState,
+      long version,
+      Actor actor,
+      Instant now,
+      UUID correlationId,
+      String commandId) {
+    return envelope(
+        "StateChanged",
+        workspaceId,
+        targetType,
+        targetId.toString(),
+        version,
+        Map.of("status", beforeState),
+        Map.of("status", afterState),
+        actor,
+        "manual",
+        now,
+        correlationId,
+        commandId,
+        version);
+  }
+
   static EventEnvelope relationCreated(
       UUID workspaceId,
       UUID relationId,

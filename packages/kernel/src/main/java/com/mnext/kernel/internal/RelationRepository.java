@@ -59,7 +59,7 @@ class RelationRepository {
   Optional<RelationRow> findActive(UUID workspaceId, UUID typeId, UUID sourceId, UUID targetId) {
     return find(
         """
-        SELECT id, relation_type_id, source_id, target_id, fields::text, status, version
+        SELECT id, relation_type_id, source_id, target_id, fields::text, status, version, created_by
         FROM data_relation
         WHERE workspace_id = ? AND relation_type_id = ? AND source_id = ? AND target_id = ?
           AND status = 'ACTIVE'
@@ -73,7 +73,7 @@ class RelationRepository {
   Optional<RelationRow> lockRelation(UUID workspaceId, UUID relationId) {
     return find(
         """
-        SELECT id, relation_type_id, source_id, target_id, fields::text, status, version
+        SELECT id, relation_type_id, source_id, target_id, fields::text, status, version, created_by
         FROM data_relation WHERE workspace_id = ? AND id = ? FOR UPDATE
         """,
         workspaceId,
@@ -83,7 +83,7 @@ class RelationRepository {
   Optional<RelationRow> lockRelation(UUID workspaceId, UUID typeId, UUID sourceId, UUID targetId) {
     return find(
         """
-        SELECT id, relation_type_id, source_id, target_id, fields::text, status, version
+        SELECT id, relation_type_id, source_id, target_id, fields::text, status, version, created_by
         FROM data_relation
         WHERE workspace_id = ? AND relation_type_id = ? AND source_id = ? AND target_id = ?
         ORDER BY (status = 'ACTIVE') DESC, version DESC LIMIT 1 FOR UPDATE
@@ -214,6 +214,30 @@ class RelationRepository {
     return version;
   }
 
+  long updateStatus(RelationRow relation, String status, String actor, Instant now) {
+    var version = relation.version() + 1;
+    jdbc.update(
+        """
+        UPDATE data_relation SET status = ?, version = ?, updated_by = ?, updated_at = ? WHERE id = ?
+        """,
+        status,
+        version,
+        actor,
+        Timestamp.from(now),
+        relation.id());
+    insertHistory(
+        relation.id(),
+        relation.relationTypeId(),
+        relation.sourceId(),
+        relation.targetId(),
+        relation.fieldsJson(),
+        status,
+        version,
+        actor,
+        now);
+    return version;
+  }
+
   void insertClosure(UUID typeId, UUID sourceId, UUID targetId) {
     jdbc.update(
         """
@@ -277,7 +301,8 @@ class RelationRepository {
                         result.getObject(4, UUID.class),
                         result.getString(5),
                         result.getString(6),
-                        result.getLong(7)))
+                        result.getLong(7),
+                        result.getString(8)))
                 : Optional.empty(),
         arguments);
   }

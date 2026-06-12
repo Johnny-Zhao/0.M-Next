@@ -8,6 +8,7 @@ import com.mnext.kernel.api.Actor;
 import com.mnext.kernel.api.CommandRejectedException;
 import com.mnext.kernel.api.KernelCommandService;
 import com.mnext.kernel.api.SourceInfo;
+import com.mnext.kernel.api.commands.ChangeStateCommand;
 import com.mnext.kernel.api.commands.CreateObjectCommand;
 import com.mnext.kernel.api.commands.FieldUpdate;
 import com.mnext.kernel.api.commands.UpdateFieldsCommand;
@@ -106,6 +107,50 @@ class KernelCommandIntegrationTest {
     assertEquals(1, count("data_object"));
   }
 
+  @Test
+  void stateMachineRejectsBackwardsAndAllowsVoid() {
+    var objectId = create("state-object", Map.of("name", "state"));
+    jdbc.update("UPDATE data_object SET status = 'CONFIRMED' WHERE id = ?", objectId);
+
+    var error =
+        assertThrows(
+            CommandRejectedException.class,
+            () ->
+                commands.changeState(
+                    state("state-back", objectId, "CONFIRMED", "DRAFT"), Actor.user("u")));
+    var result =
+        commands.changeState(state("state-void", objectId, "CONFIRMED", "VOID"), Actor.user("u"));
+
+    assertEquals("KERNEL-409-STATE-TRANSITION-INVALID", error.error().code());
+    assertTrue(error.error().details().containsKey("allowedTransitions"));
+    assertEquals(1, result.events().size());
+    assertEquals(
+        "VOID",
+        jdbc.queryForObject("SELECT status FROM data_object WHERE id = ?", String.class, objectId));
+  }
+
+  @Test
+  void fieldValueStateIsExplicitlyDeferred() {
+    var error =
+        assertThrows(
+            CommandRejectedException.class,
+            () ->
+                commands.changeState(
+                    new ChangeStateCommand(
+                        WORKSPACE,
+                        UUID.randomUUID(),
+                        "field-state",
+                        "fieldValue",
+                        UUID.randomUUID(),
+                        "DRAFT",
+                        "VOID",
+                        "deferred",
+                        1),
+                    Actor.user("u")));
+
+    assertEquals("KERNEL-400-SCHEMA-INVALID", error.error().code());
+  }
+
   private UUID create(String key, Map<String, Object> fields) {
     commands.createObject(
         new CreateObjectCommand(
@@ -124,6 +169,11 @@ class KernelCommandIntegrationTest {
         objectId,
         objectVersion,
         List.of(new FieldUpdate(code, value, fieldVersion)));
+  }
+
+  private ChangeStateCommand state(String key, UUID targetId, String fromState, String toState) {
+    return new ChangeStateCommand(
+        WORKSPACE, UUID.randomUUID(), key, "object", targetId, fromState, toState, "reason", 1);
   }
 
   private int count(String table) {

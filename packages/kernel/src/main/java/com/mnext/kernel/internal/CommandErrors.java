@@ -28,6 +28,14 @@ final class CommandErrors {
     return error("KERNEL-410-TARGET-ARCHIVED", "目标已废止", Map.of(), "恢复目标后再执行修改");
   }
 
+  static CommandRejectedException stateTransition(String current, List<String> allowed) {
+    return error(
+        "KERNEL-409-STATE-TRANSITION-INVALID",
+        "状态迁移不允许",
+        Map.of("currentState", current, "allowedTransitions", allowed),
+        "选择允许的目标状态后重试");
+  }
+
   static CommandRejectedException endpointInvalid() {
     return error("KERNEL-422-ENDPOINT-INVALID", "关系端点无效或不可见", Map.of(), "确认端点后重试");
   }

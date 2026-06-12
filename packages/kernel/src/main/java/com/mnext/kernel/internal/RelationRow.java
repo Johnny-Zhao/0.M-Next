@@ -9,4 +9,5 @@ record RelationRow(
     UUID targetId,
     String fieldsJson,
     String status,
-    long version) {}
+    long version,
+    String createdBy) {}

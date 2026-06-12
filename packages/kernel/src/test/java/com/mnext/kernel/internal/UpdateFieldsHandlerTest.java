@@ -39,7 +39,7 @@ class UpdateFieldsHandlerTest {
     when(repository.workspaceWritable(workspaceId)).thenReturn(true);
     when(repository.findCommand(eq(workspaceId), any())).thenReturn(Optional.empty());
     when(repository.lockObject(workspaceId, objectId))
-        .thenReturn(Optional.of(new ObjectRow(objectId, typeId, "DRAFT", 1)));
+        .thenReturn(Optional.of(new ObjectRow(objectId, typeId, "DRAFT", 1, "creator")));
     when(repository.fieldDefinitions(typeId))
         .thenReturn(Map.of("name", new FieldDefinition(fieldId, "name", true)));
     when(repository.lockField(objectId, "name")).thenReturn(Optional.of(current));

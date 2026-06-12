@@ -3,6 +3,7 @@ package com.mnext.kernel.internal;
 import com.mnext.kernel.api.Actor;
 import com.mnext.kernel.api.CommandResult;
 import com.mnext.kernel.api.KernelCommandService;
+import com.mnext.kernel.api.commands.ChangeStateCommand;
 import com.mnext.kernel.api.commands.CreateObjectCommand;
 import com.mnext.kernel.api.commands.CreateRelationCommand;
 import com.mnext.kernel.api.commands.UnlinkCommand;
@@ -12,6 +13,7 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class KernelCommandServiceImpl implements KernelCommandService {
+  private final ChangeStateHandler changeStateHandler;
   private final CreateObjectHandler createObjectHandler;
   private final UpdateFieldsHandler updateFieldsHandler;
   private final CreateRelationHandler createRelationHandler;
@@ -19,16 +21,23 @@ public class KernelCommandServiceImpl implements KernelCommandService {
   private final UnlinkHandler unlinkHandler;
 
   public KernelCommandServiceImpl(
+      ChangeStateHandler changeStateHandler,
       CreateObjectHandler createObjectHandler,
       UpdateFieldsHandler updateFieldsHandler,
       CreateRelationHandler createRelationHandler,
       UpdateRelationHandler updateRelationHandler,
       UnlinkHandler unlinkHandler) {
+    this.changeStateHandler = changeStateHandler;
     this.createObjectHandler = createObjectHandler;
     this.updateFieldsHandler = updateFieldsHandler;
     this.createRelationHandler = createRelationHandler;
     this.updateRelationHandler = updateRelationHandler;
     this.unlinkHandler = unlinkHandler;
+  }
+
+  @Override
+  public CommandResult changeState(ChangeStateCommand command, Actor actor) {
+    return changeStateHandler.execute(command, actor);
   }
 
   @Override

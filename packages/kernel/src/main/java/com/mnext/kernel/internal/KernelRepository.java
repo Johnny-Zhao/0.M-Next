@@ -119,7 +119,7 @@ class KernelRepository {
   Optional<ObjectRow> lockObject(UUID workspaceId, UUID objectId) {
     return jdbc.query(
         """
-        SELECT id, object_type_id, status, version FROM data_object
+        SELECT id, object_type_id, status, version, created_by FROM data_object
         WHERE id = ? AND workspace_id = ? FOR UPDATE
         """,
         result ->
@@ -129,7 +129,8 @@ class KernelRepository {
                         result.getObject("id", UUID.class),
                         result.getObject("object_type_id", UUID.class),
                         result.getString("status"),
-                        result.getLong("version")))
+                        result.getLong("version"),
+                        result.getString("created_by")))
                 : Optional.empty(),
         objectId,
         workspaceId);
@@ -199,6 +200,19 @@ class KernelRepository {
         WHERE id = ? RETURNING version
         """,
         Long.class,
+        actor,
+        Timestamp.from(now),
+        objectId);
+  }
+
+  long updateObjectStatus(UUID objectId, String status, String actor, Instant now) {
+    return jdbc.queryForObject(
+        """
+        UPDATE data_object SET status = ?, version = version + 1, updated_by = ?, updated_at = ?
+        WHERE id = ? RETURNING version
+        """,
+        Long.class,
+        status,
         actor,
         Timestamp.from(now),
         objectId);
