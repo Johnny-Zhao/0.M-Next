@@ -28,6 +28,27 @@ final class CommandErrors {
     return error("KERNEL-410-TARGET-ARCHIVED", "目标已废止", Map.of(), "恢复目标后再执行修改");
   }
 
+  static CommandRejectedException endpointInvalid() {
+    return error("KERNEL-422-ENDPOINT-INVALID", "关系端点无效或不可见", Map.of(), "确认端点后重试");
+  }
+
+  static CommandRejectedException duplicateRelation(String relationId) {
+    return error(
+        "KERNEL-409-DUPLICATE-RELATION", "活动关系已存在", Map.of("relationId", relationId), "使用已存在关系");
+  }
+
+  static CommandRejectedException cardinality(String definition, long current) {
+    return error(
+        "KERNEL-422-CARDINALITY-VIOLATION",
+        "关系基数超限",
+        Map.of("cardinality", definition, "current", current),
+        "解除冲突关系后重试");
+  }
+
+  static CommandRejectedException cycle(List<String> path) {
+    return error("KERNEL-409-CYCLE-DETECTED", "层级关系将形成环", Map.of("path", path), "调整端点后重试");
+  }
+
   static CommandRejectedException required(String fieldCode) {
     return error("RULE-422-REQUIRED", "必填字段缺失", Map.of("fieldDefCode", fieldCode), "填写必填字段后重试");
   }

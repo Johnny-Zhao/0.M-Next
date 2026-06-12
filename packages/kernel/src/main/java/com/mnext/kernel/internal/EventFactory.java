@@ -95,6 +95,107 @@ final class EventFactory {
         version);
   }
 
+  static EventEnvelope relationCreated(
+      UUID workspaceId,
+      UUID relationId,
+      UUID typeId,
+      UUID sourceId,
+      UUID targetId,
+      Map<String, Object> fields,
+      Actor actor,
+      String source,
+      Instant now,
+      UUID correlationId,
+      String commandId) {
+    return envelope(
+        "RelationCreated",
+        workspaceId,
+        "relation",
+        relationId.toString(),
+        1,
+        null,
+        relationSummary(typeId, sourceId, targetId, fields),
+        actor,
+        source,
+        now,
+        correlationId,
+        commandId,
+        1);
+  }
+
+  static EventEnvelope relationUpdated(
+      UUID workspaceId,
+      RelationRow before,
+      UUID sourceId,
+      UUID targetId,
+      Map<String, Object> fields,
+      long version,
+      Actor actor,
+      Instant now,
+      UUID correlationId,
+      String commandId) {
+    return envelope(
+        "RelationUpdated",
+        workspaceId,
+        "relation",
+        before.id().toString(),
+        version,
+        relationSummary(
+            before.relationTypeId(),
+            before.sourceId(),
+            before.targetId(),
+            Map.of("_json", before.fieldsJson())),
+        relationSummary(before.relationTypeId(), sourceId, targetId, fields),
+        actor,
+        "manual",
+        now,
+        correlationId,
+        commandId,
+        version);
+  }
+
+  static EventEnvelope relationUnlinked(
+      UUID workspaceId,
+      RelationRow relation,
+      String reason,
+      long version,
+      Actor actor,
+      Instant now,
+      UUID correlationId,
+      String commandId) {
+    var before =
+        relationSummary(
+            relation.relationTypeId(),
+            relation.sourceId(),
+            relation.targetId(),
+            Map.of("_json", relation.fieldsJson()));
+    before.put("status", relation.status());
+    return envelope(
+        "RelationUnlinked",
+        workspaceId,
+        "relation",
+        relation.id().toString(),
+        version,
+        before,
+        Map.of("status", "UNLINKED", "reason", reason),
+        actor,
+        "manual",
+        now,
+        correlationId,
+        commandId,
+        version);
+  }
+
+  private static LinkedHashMap<String, Object> relationSummary(
+      UUID typeId, UUID sourceId, UUID targetId, Map<String, Object> fields) {
+    var summary = new LinkedHashMap<String, Object>();
+    summary.put("relationTypeId", typeId.toString());
+    summary.put("sourceId", sourceId.toString());
+    summary.put("targetId", targetId.toString());
+    summary.put("fields", fields);
+    return summary;
+  }
+
   private static Map<String, Object> valueSummary(String fieldCode, Object value) {
     var summary = new LinkedHashMap<String, Object>();
     summary.put("fieldDefCode", fieldCode);
