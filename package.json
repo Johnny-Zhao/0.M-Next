@@ -1,0 +1,27 @@
+{
+  "name": "m-next",
+  "private": true,
+  "packageManager": "pnpm@10.12.1",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "architecture:check": "node scripts/check-architecture.mjs",
+    "architecture:test": "node scripts/check-architecture.mjs --self-test",
+    "format": "prettier --write . && node scripts/run-maven.mjs spotless:apply",
+    "format:check": "prettier --check . && node scripts/run-maven.mjs spotless:check",
+    "lint": "eslint packages/views/src packages/web/src && node scripts/run-maven.mjs checkstyle:check",
+    "typecheck": "corepack pnpm --filter @m-next/views typecheck && corepack pnpm --filter @m-next/web typecheck && node scripts/run-maven.mjs -DskipTests compile",
+    "test": "corepack pnpm --filter @m-next/views test && corepack pnpm --filter @m-next/web test && node scripts/run-maven.mjs test",
+    "build": "corepack pnpm --filter @m-next/views build && corepack pnpm --filter @m-next/web build && node scripts/run-maven.mjs -DskipTests package",
+    "verify": "corepack pnpm architecture:check && corepack pnpm architecture:test && corepack pnpm format:check && corepack pnpm lint && corepack pnpm typecheck && corepack pnpm test && corepack pnpm build"
+  },
+  "devDependencies": {
+    "@eslint/js": "9.28.0",
+    "eslint": "9.28.0",
+    "eslint-plugin-react-hooks": "5.2.0",
+    "globals": "16.2.0",
+    "prettier": "3.5.3",
+    "typescript-eslint": "8.34.0"
+  }
+}

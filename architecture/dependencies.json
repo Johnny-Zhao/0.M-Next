@@ -1,0 +1,8 @@
+{
+  "shared": [],
+  "kernel": ["shared"],
+  "engines": ["kernel", "shared"],
+  "views": ["shared"],
+  "server": ["kernel", "engines", "shared"],
+  "web": ["views", "shared"]
+}

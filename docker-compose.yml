@@ -1,0 +1,69 @@
+name: m-next
+
+services:
+  postgres:
+    image: ${REGISTRY_PREFIX:-docker.io}/postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-mnext}
+      POSTGRES_USER: ${POSTGRES_USER:-mnext}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mnext}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  minio:
+    image: ${REGISTRY_PREFIX:-docker.io}/minio/minio:RELEASE.2025-04-22T22-12-26Z
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-mnext}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-mnext-local-secret}
+      MINIO_UPDATE: "off"
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio-data:/data
+
+  opensearch:
+    image: ${REGISTRY_PREFIX:-docker.io}/opensearchproject/opensearch:2.19.1
+    environment:
+      discovery.type: single-node
+      DISABLE_INSTALL_DEMO_CONFIG: "true"
+      DISABLE_SECURITY_PLUGIN: "true"
+      OPENSEARCH_JAVA_OPTS: "-Xms512m -Xmx512m"
+    ports:
+      - "9200:9200"
+    volumes:
+      - opensearch-data:/usr/share/opensearch/data
+
+  rabbitmq:
+    image: ${REGISTRY_PREFIX:-docker.io}/rabbitmq:4.0-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER:-mnext}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:-mnext}
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+
+  redis:
+    image: ${REGISTRY_PREFIX:-docker.io}/redis:7.4-alpine
+    command: redis-server --appendonly yes
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+
+volumes:
+  postgres-data:
+  minio-data:
+  opensearch-data:
+  rabbitmq-data:
+  redis-data:

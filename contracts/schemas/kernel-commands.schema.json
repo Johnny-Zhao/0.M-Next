@@ -1,0 +1,187 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform.local/contracts/kernel-commands/1.1",
+  "title": "数据内核命令信封与载荷契约 v1.1",
+  "type": "object",
+  "required": ["commandType", "workspaceId", "correlationId", "idempotencyKey", "payload"],
+  "additionalProperties": false,
+  "properties": {
+    "commandType": {
+      "enum": ["CreateObject", "UpdateFields", "ChangeState", "CreateRelation", "UpdateRelation", "Archive", "Unlink", "SoftDelete", "BatchCommand", "ConfirmAIChangeSet"]
+    },
+    "workspaceId": { "$ref": "#/$defs/uuid" },
+    "correlationId": { "$ref": "#/$defs/uuid" },
+    "idempotencyKey": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "payload": { "type": "object" }
+  },
+  "allOf": [
+    { "if": { "properties": { "commandType": { "const": "CreateObject" } } }, "then": { "properties": { "payload": { "$ref": "#/$defs/CreateObject" } } } },
+    { "if": { "properties": { "commandType": { "const": "UpdateFields" } } }, "then": { "properties": { "payload": { "$ref": "#/$defs/UpdateFields" } } } },
+    { "if": { "properties": { "commandType": { "const": "ChangeState" } } }, "then": { "properties": { "payload": { "$ref": "#/$defs/ChangeState" } } } },
+    { "if": { "properties": { "commandType": { "const": "CreateRelation" } } }, "then": { "properties": { "payload": { "$ref": "#/$defs/CreateRelation" } } } },
+    { "if": { "properties": { "commandType": { "const": "UpdateRelation" } } }, "then": { "properties": { "payload": { "$ref": "#/$defs/UpdateRelation" } } } },
+    { "if": { "properties": { "commandType": { "const": "Archive" } } }, "then": { "properties": { "payload": { "$ref": "#/$defs/Archive" } } } },
+    { "if": { "properties": { "commandType": { "const": "Unlink" } } }, "then": { "properties": { "payload": { "$ref": "#/$defs/Unlink" } } } },
+    { "if": { "properties": { "commandType": { "const": "SoftDelete" } } }, "then": { "properties": { "payload": { "$ref": "#/$defs/SoftDelete" } } } },
+    { "if": { "properties": { "commandType": { "const": "BatchCommand" } } }, "then": { "properties": { "payload": { "$ref": "#/$defs/BatchCommand" } } } },
+    { "if": { "properties": { "commandType": { "const": "ConfirmAIChangeSet" } } }, "then": { "properties": { "payload": { "$ref": "#/$defs/ConfirmAIChangeSet" } } } }
+  ],
+  "$defs": {
+    "uuid": { "type": "string", "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$" },
+    "stateCode": { "enum": ["DRAFT", "PENDING_CONFIRM", "CONFIRMED", "ISSUE", "TO_FIX", "FIXED", "FILED", "VOID", "DELETED", "UNLINKED"] },
+    "sourceInfo": {
+      "type": "object",
+      "required": ["type"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "enum": ["manual", "import", "rule", "AI", "artifact_sync", "asset_reuse"] },
+        "ref": { "type": "string", "maxLength": 512, "description": "来源引用:文件hash、规则编码、changeSetId、制品ID或资产ID" }
+      }
+    },
+    "fieldValueItem": {
+      "type": "object",
+      "required": ["fieldDefCode", "value"],
+      "additionalProperties": false,
+      "properties": {
+        "fieldDefCode": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "value": {},
+        "expectedFieldVersion": { "type": "integer", "minimum": 0, "description": "[R-1] 字段级乐观版本;提供时以字段级判定冲突" }
+      }
+    },
+    "CreateObject": {
+      "type": "object",
+      "required": ["objectTypeId", "fields", "source"],
+      "additionalProperties": false,
+      "properties": {
+        "objectTypeId": { "$ref": "#/$defs/uuid" },
+        "fields": { "type": "object", "maxProperties": 100, "description": "fieldDefCode → value" },
+        "source": { "$ref": "#/$defs/sourceInfo" },
+        "initialState": { "enum": ["DRAFT", "PENDING_CONFIRM"], "default": "DRAFT" }
+      }
+    },
+    "UpdateFields": {
+      "type": "object",
+      "required": ["objectId", "expectedObjectVersion", "fields"],
+      "additionalProperties": false,
+      "properties": {
+        "objectId": { "$ref": "#/$defs/uuid" },
+        "expectedObjectVersion": { "type": "integer", "minimum": 1 },
+        "fields": { "type": "array", "minItems": 1, "maxItems": 100, "items": { "$ref": "#/$defs/fieldValueItem" } }
+      }
+    },
+    "ChangeState": {
+      "type": "object",
+      "required": ["targetType", "targetId", "fromState", "toState", "reason", "expectedVersion"],
+      "additionalProperties": false,
+      "properties": {
+        "targetType": { "enum": ["object", "relation", "fieldValue"] },
+        "targetId": { "$ref": "#/$defs/uuid" },
+        "fromState": { "$ref": "#/$defs/stateCode" },
+        "toState": { "$ref": "#/$defs/stateCode" },
+        "reason": { "type": "string", "minLength": 1, "maxLength": 2000 },
+        "expectedVersion": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "CreateRelation": {
+      "type": "object",
+      "required": ["relationTypeId", "sourceId", "targetId", "source"],
+      "additionalProperties": false,
+      "properties": {
+        "relationTypeId": { "$ref": "#/$defs/uuid" },
+        "sourceId": { "$ref": "#/$defs/uuid" },
+        "targetId": { "$ref": "#/$defs/uuid" },
+        "relationFields": { "type": "object", "maxProperties": 50 },
+        "source": { "$ref": "#/$defs/sourceInfo" }
+      }
+    },
+    "UpdateRelation": {
+      "type": "object",
+      "required": ["relationId", "expectedVersion"],
+      "additionalProperties": false,
+      "properties": {
+        "relationId": { "$ref": "#/$defs/uuid" },
+        "expectedVersion": { "type": "integer", "minimum": 1 },
+        "fields": { "type": "object", "maxProperties": 50 },
+        "sourceId": { "$ref": "#/$defs/uuid", "description": "端点变更按 Unlink+CreateRelation 语义整体校验" },
+        "targetId": { "$ref": "#/$defs/uuid" }
+      },
+      "anyOf": [ { "required": ["fields"] }, { "required": ["sourceId"] }, { "required": ["targetId"] } ]
+    },
+    "Archive": {
+      "type": "object",
+      "required": ["targetType", "targetId", "reason", "expectedVersion"],
+      "additionalProperties": false,
+      "properties": {
+        "targetType": { "enum": ["object", "relation", "artifact"] },
+        "targetId": { "$ref": "#/$defs/uuid" },
+        "reason": { "type": "string", "minLength": 1, "maxLength": 2000 },
+        "expectedVersion": { "type": "integer", "minimum": 1 },
+        "relationPolicy": { "enum": ["reject", "unlink"], "default": "reject", "description": "[R-2] 活动关系处理策略;unlink 级联上限50,超限返回 KERNEL-413-CASCADE-TOO-LARGE" }
+      }
+    },
+    "Unlink": {
+      "type": "object",
+      "required": ["reason", "expectedVersion"],
+      "additionalProperties": false,
+      "properties": {
+        "relationId": { "$ref": "#/$defs/uuid" },
+        "sourceId": { "$ref": "#/$defs/uuid" },
+        "targetId": { "$ref": "#/$defs/uuid" },
+        "relationTypeId": { "$ref": "#/$defs/uuid" },
+        "reason": { "type": "string", "minLength": 1, "maxLength": 2000 },
+        "expectedVersion": { "type": "integer", "minimum": 1 },
+        "acknowledgeImpact": { "type": "boolean", "default": false, "description": "[R-6] 强语义关系含派生数据时必须显式确认" }
+      },
+      "oneOf": [ { "required": ["relationId"] }, { "required": ["sourceId", "targetId", "relationTypeId"] } ]
+    },
+    "SoftDelete": {
+      "type": "object",
+      "required": ["targetType", "targetId", "reason", "expectedVersion"],
+      "additionalProperties": false,
+      "properties": {
+        "targetType": { "enum": ["object", "relation"] },
+        "targetId": { "$ref": "#/$defs/uuid" },
+        "reason": { "type": "string", "minLength": 1, "maxLength": 2000 },
+        "expectedVersion": { "type": "integer", "minimum": 1 },
+        "relationPolicy": { "enum": ["reject", "unlink"], "default": "reject" }
+      }
+    },
+    "BatchCommand": {
+      "type": "object",
+      "required": ["commands", "transactionMode"],
+      "additionalProperties": false,
+      "properties": {
+        "commands": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 200,
+          "description": "[R-8] 超过200子命令返回 KERNEL-413-BATCH-TOO-LARGE;子命令禁止 BatchCommand(KERNEL-400-NESTED-BATCH)",
+          "items": {
+            "type": "object",
+            "required": ["commandType", "payload"],
+            "additionalProperties": false,
+            "properties": {
+              "commandType": { "enum": ["CreateObject", "UpdateFields", "ChangeState", "CreateRelation", "UpdateRelation", "Archive", "Unlink", "SoftDelete"] },
+              "payload": { "type": "object" }
+            }
+          }
+        },
+        "transactionMode": { "enum": ["all_or_nothing", "partial"], "description": "[R-3] partial 模式子命令独立事务,子幂等键=<批次键>#<index>" },
+        "previewId": { "$ref": "#/$defs/uuid" }
+      }
+    },
+    "ConfirmAIChangeSet": {
+      "type": "object",
+      "required": ["changeSetId", "decision"],
+      "additionalProperties": false,
+      "properties": {
+        "changeSetId": { "$ref": "#/$defs/uuid" },
+        "decision": { "enum": ["confirm", "reject"] },
+        "acceptedItems": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+        "rejectedItems": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+        "comment": { "type": "string", "maxLength": 4000 }
+      },
+      "description": "[R-4] 过期判定=超时(默认72h) OR 任一目标 baseVersion 漂移;逐项预检失败返回 AI-422-ITEM-PRECHECK-FAILED,整体不写入"
+    }
+  }
+}

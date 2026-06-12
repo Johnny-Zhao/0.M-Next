@@ -1,0 +1,20 @@
+ARG REGISTRY_PREFIX=docker.io
+FROM ${REGISTRY_PREFIX}/maven:3.9.9-eclipse-temurin-21 AS build
+WORKDIR /workspace
+COPY pom.xml ./
+COPY packages/shared/pom.xml packages/shared/pom.xml
+COPY packages/kernel/pom.xml packages/kernel/pom.xml
+COPY packages/engines/pom.xml packages/engines/pom.xml
+COPY packages/server/pom.xml packages/server/pom.xml
+RUN mvn -B -DskipTests dependency:go-offline
+COPY packages packages
+RUN mvn -B -DskipTests package
+
+ARG REGISTRY_PREFIX=docker.io
+FROM ${REGISTRY_PREFIX}/eclipse-temurin:21-jre-jammy
+WORKDIR /app
+RUN useradd --system --uid 10001 mnext
+COPY --from=build /workspace/packages/server/target/server-*.jar app.jar
+USER 10001
+EXPOSE 8080
+ENTRYPOINT ["java", "-jar", "/app/app.jar"]

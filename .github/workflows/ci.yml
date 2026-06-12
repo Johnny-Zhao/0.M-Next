@@ -1,0 +1,96 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+env:
+  REGISTRY_PREFIX: ${{ vars.REGISTRY_PREFIX || 'docker.io' }}
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+      - uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm architecture:check
+      - run: pnpm architecture:test
+      - run: pnpm format:check
+      - run: pnpm lint
+
+  typecheck:
+    needs: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+      - uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+
+  test:
+    needs: typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+      - uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test
+      - run: pnpm build
+
+  image:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - name: Build server image for amd64 and arm64
+        run: >
+          docker buildx build
+          --platform linux/amd64,linux/arm64
+          --build-arg REGISTRY_PREFIX=${REGISTRY_PREFIX}
+          --tag ${REGISTRY_PREFIX}/m-next/server:ci
+          --output type=oci,dest=/tmp/m-next-server.tar
+          -f Dockerfile.server .
+      - name: Build web image for amd64 and arm64
+        run: >
+          docker buildx build
+          --platform linux/amd64,linux/arm64
+          --build-arg REGISTRY_PREFIX=${REGISTRY_PREFIX}
+          --tag ${REGISTRY_PREFIX}/m-next/web:ci
+          --output type=oci,dest=/tmp/m-next-web.tar
+          -f Dockerfile.web .

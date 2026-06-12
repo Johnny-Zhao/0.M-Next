@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform.local/contracts/kernel-event-envelope/1",
+  "title": "统一事件信封 v1(全平台8类事件强制,对应说明书7.14)",
+  "type": "object",
+  "required": ["eventId", "eventType", "schemaVersion", "workspaceId", "targetType", "targetId", "version", "actor", "source", "occurredAt", "correlationId", "causationId", "sequence"],
+  "additionalProperties": false,
+  "properties": {
+    "eventId": { "type": "string", "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$", "description": "ULID;订阅方幂等去重键" },
+    "eventType": {
+      "enum": [
+        "ObjectCreated", "ObjectUpdated", "FieldChanged", "StateChanged",
+        "RelationCreated", "RelationUpdated", "RelationUnlinked",
+        "Archived", "SoftDeleted", "BatchCommitted", "AIChangeSetConfirmed",
+        "CommentAdded", "ReviewDecision",
+        "CheckCompleted",
+        "ArtifactParsed", "ArtifactSynced",
+        "SimulationCompleted"
+      ],
+      "description": "7.14 八类事件的 canonical 注册表:①Object*/StateChanged/Archived/SoftDeleted ②FieldChanged ③Relation*(RelationChanged 细分为 Updated/Unlinked) ④CommentAdded/ReviewDecision ⑤CheckCompleted ⑥AIChangeSetConfirmed ⑦Artifact* ⑧SimulationCompleted"
+    },
+    "schemaVersion": { "const": 1 },
+    "workspaceId": { "type": "string", "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$" },
+    "targetType": { "enum": ["object", "fieldValue", "relation", "comment", "review", "checkResult", "aiChangeSet", "artifact", "simulation", "batch"] },
+    "targetId": { "type": "string", "minLength": 1, "maxLength": 64 },
+    "version": { "type": "integer", "minimum": 0, "description": "目标提交后的版本号" },
+    "before": {
+      "oneOf": [ { "type": "null" }, { "type": "object" } ],
+      "description": "变更前摘要;>32KB 时为 {\"ref\": \"snapshotUri\"}"
+    },
+    "after": {
+      "oneOf": [ { "type": "null" }, { "type": "object" } ]
+    },
+    "actor": {
+      "type": "object",
+      "required": ["kind", "id"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": { "enum": ["user", "rule", "ai", "artifact_sync", "simulation", "system"] },
+        "id": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "display": { "type": "string", "maxLength": 256 }
+      }
+    },
+    "source": { "enum": ["manual", "rule", "AI", "artifact_sync", "simulation", "system"] },
+    "occurredAt": { "type": "string", "format": "date-time", "description": "事务提交时刻,RFC3339" },
+    "correlationId": { "type": "string", "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$", "description": "一次用户操作/AI确认/制品同步的链路ID" },
+    "causationId": { "type": "string", "minLength": 1, "maxLength": 64, "description": "上游命令或事件ID;source=AI 的主数据事件必须指向 ConfirmAIChangeSet 命令(AG-204)" },
+    "sequence": { "type": "integer", "minimum": 1, "description": "[R-10] 同 aggregate 内单调递增;订阅方乱序检测,乱序时 NACK 延迟重投" },
+    "payload": { "type": "object", "description": "事件类专属扩展:CheckCompleted 必含 dataVersion;Artifact* 必含 taskId/checkpoint;SimulationCompleted 必含 resultHash/configSnapshotId" }
+  },
+  "allOf": [
+    { "if": { "properties": { "eventType": { "const": "CheckCompleted" } } },
+      "then": { "properties": { "payload": { "type": "object", "required": ["dataVersion"] } }, "required": ["payload"] } },
+    { "if": { "properties": { "eventType": { "enum": ["ArtifactParsed", "ArtifactSynced"] } } },
+      "then": { "properties": { "payload": { "type": "object", "required": ["taskId", "checkpoint"] } }, "required": ["payload"] } },
+    { "if": { "properties": { "eventType": { "const": "SimulationCompleted" } } },
+      "then": { "properties": { "payload": { "type": "object", "required": ["resultHash", "configSnapshotId"] } }, "required": ["payload"] } },
+    { "if": { "properties": { "eventType": { "const": "FieldChanged" } } },
+      "then": { "required": ["before", "after"], "description": "7.14:FieldChanged 必须携带前后值与版本" } }
+  ]
+}

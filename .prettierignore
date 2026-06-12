@@ -1,0 +1,10 @@
+**/target/**
+**/dist/**
+**/node_modules/**
+pnpm-lock.yaml
+ADR/**
+AGENTS.md
+contracts/数据内核命令与事件契约.md
+contracts/schemas/**
+V3.3变更影响评估与修正计划.md
+统一数据驱动办公平台技术说明书.docx
