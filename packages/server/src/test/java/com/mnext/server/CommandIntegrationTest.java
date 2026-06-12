@@ -124,6 +124,14 @@ class CommandIntegrationTest {
     assertEquals(1, count("command_log"));
   }
 
+  @Test
+  void rejectsUnknownCommandWithRegisteredCode() {
+    var response = post(envelope("UnknownCommand", "unknown-command", Map.of()));
+
+    assertEquals(400, response.getStatusCode().value());
+    assertEquals("KERNEL-400-UNKNOWN-COMMAND", error(response).get("code"));
+  }
+
   private UUID createObject(String key, Map<String, Object> fields) {
     var response = post(createRequest(key, fields));
     assertEquals(200, response.getStatusCode().value(), String.valueOf(response.getBody()));

@@ -42,7 +42,7 @@ public class CommandController {
     return switch (request.commandType()) {
       case "CreateObject" -> commands.createObject(create(request), Actor.user(actorId));
       case "UpdateFields" -> commands.updateFields(update(request), Actor.user(actorId));
-      default -> throw schema("本批次不支持 commandType: " + request.commandType());
+      default -> throw unknownCommand("本批次不支持 commandType: " + request.commandType());
     };
   }
 
@@ -95,5 +95,10 @@ public class CommandController {
   private static CommandRejectedException schema(String message) {
     return new CommandRejectedException(
         new CommandError("KERNEL-400-SCHEMA-INVALID", message, Map.of(), "按命令 Schema 修正载荷后重试"));
+  }
+
+  private static CommandRejectedException unknownCommand(String message) {
+    return new CommandRejectedException(
+        new CommandError("KERNEL-400-UNKNOWN-COMMAND", message, Map.of(), "按命令 Schema 修正载荷后重试"));
   }
 }
