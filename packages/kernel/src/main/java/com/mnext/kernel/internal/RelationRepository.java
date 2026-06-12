@@ -324,6 +324,13 @@ class RelationRepository {
         targetId);
   }
 
+  void clearClosureIfHierarchical(UUID workspaceId, RelationRow relation) {
+    var type = relationType(workspaceId, relation.relationTypeId()).orElseThrow();
+    if (type.hierarchical()) {
+      deleteClosure(type.id(), relation.sourceId(), relation.targetId());
+    }
+  }
+
   private Optional<RelationRow> find(String sql, Object... arguments) {
     return jdbc.query(
         sql,

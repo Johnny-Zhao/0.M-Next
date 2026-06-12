@@ -113,6 +113,7 @@ class SoftDeleteHandler {
       throw CommandErrors.relationVersion(
           relation.id().toString(), command.expectedVersion(), relation.version());
     }
+    relations.clearClosureIfHierarchical(command.workspaceId(), relation);
     var version = relations.updateStatus(relation, "DELETED", actor.id(), now);
     var event =
         EventFactory.softDeleted(

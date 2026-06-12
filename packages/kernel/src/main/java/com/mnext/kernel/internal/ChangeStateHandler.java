@@ -83,11 +83,7 @@ class ChangeStateHandler {
     var version =
         "object".equals(command.targetType())
             ? repository.updateObjectStatus(command.targetId(), command.toState(), actor.id(), now)
-            : relations.updateStatus(
-                relations.lockRelation(command.workspaceId(), command.targetId()).orElseThrow(),
-                command.toState(),
-                actor.id(),
-                now);
+            : updateRelationState(command, actor, now);
     var event =
         EventFactory.stateChanged(
             command.workspaceId(),
@@ -109,6 +105,14 @@ class ChangeStateHandler {
         payloadHash,
         List.of(event.eventId()),
         now);
+  }
+
+  private long updateRelationState(ChangeStateCommand command, Actor actor, Instant now) {
+    var relation = relations.lockRelation(command.workspaceId(), command.targetId()).orElseThrow();
+    if ("VOID".equals(command.toState())) {
+      relations.clearClosureIfHierarchical(command.workspaceId(), relation);
+    }
+    return relations.updateStatus(relation, command.toState(), actor.id(), now);
   }
 
   private RuntimeException versionError(ChangeStateCommand command, StateTarget target) {

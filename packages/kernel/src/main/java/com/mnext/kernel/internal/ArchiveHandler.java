@@ -109,6 +109,7 @@ class ArchiveHandler {
       throw CommandErrors.relationVersion(
           relation.id().toString(), command.expectedVersion(), relation.version());
     }
+    relations.clearClosureIfHierarchical(command.workspaceId(), relation);
     var version = relations.updateStatus(relation, "VOID", actor.id(), now);
     var event =
         EventFactory.archived(

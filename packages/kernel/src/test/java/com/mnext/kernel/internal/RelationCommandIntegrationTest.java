@@ -266,6 +266,27 @@ class RelationCommandIntegrationTest {
     assertTrue(second.events().isEmpty());
   }
 
+  @Test
+  void archivingHierarchicalRelationClearsClosure() {
+    var endpoints = endpoints(2);
+    var relation =
+        createRelation("archive-hierarchical-create", DECOMPOSES, endpoints[0], endpoints[1]);
+
+    commands.archive(
+        new ArchiveCommand(
+            WORKSPACE,
+            UUID.randomUUID(),
+            "archive-hierarchical",
+            "relation",
+            relation,
+            "obsolete",
+            1,
+            "reject"),
+        Actor.user("u"));
+
+    assertEquals(0, count("relation_closure"));
+  }
+
   private CommandRejectedException relationError(String key, UUID source, UUID target) {
     return assertThrows(
         CommandRejectedException.class, () -> createRelation(key, DEPENDS, source, target));
