@@ -248,17 +248,32 @@ class ReadModelRepository {
   List<RelationView> relations(
       UUID workspaceId, String relationType, String direction, UUID sourceId, int depth) {
     var endpoint = "out".equals(direction) ? "source_id" : "target_id";
+    var next = "out".equals(direction) ? "target_id" : "source_id";
     var sql =
         """
-        SELECT relation_id, relation_type_code, source_id, target_id, fields::text,
+        WITH RECURSIVE edges AS (
+          SELECT relation.*, 1 AS depth, relation.%s AS next_id
+          FROM rm_relation relation
+          WHERE workspace_id = ? AND relation_type_code = ? AND %s = ? AND status = 'ACTIVE'
+          UNION ALL
+          SELECT relation.*, edges.depth + 1, relation.%s AS next_id
+          FROM rm_relation relation JOIN edges ON relation.%s = edges.next_id
+          WHERE relation.workspace_id = ? AND relation.relation_type_code = ?
+            AND relation.status = 'ACTIVE' AND edges.depth < ?)
+        SELECT DISTINCT relation_id, relation_type_code, source_id, target_id, fields::text,
                hierarchical, status, version
-        FROM rm_relation
-        WHERE workspace_id = ? AND relation_type_code = ? AND %s = ? AND status = 'ACTIVE'
-        ORDER BY relation_id LIMIT ?
+        FROM edges ORDER BY relation_id LIMIT 1000
         """
-            .formatted(endpoint);
+            .formatted(next, endpoint, next, endpoint);
     return jdbc.query(
-        sql, (row, index) -> relation(row), workspaceId, relationType, sourceId, depth * 200);
+        sql,
+        (row, index) -> relation(row),
+        workspaceId,
+        relationType,
+        sourceId,
+        workspaceId,
+        relationType,
+        depth);
   }
 
   List<TreeNodeView> tree(UUID workspaceId, String relationType, UUID rootId) {
@@ -289,8 +304,8 @@ class ReadModelRepository {
     return Boolean.TRUE.equals(
         jdbc.queryForObject(
             """
-            SELECT EXISTS(SELECT 1 FROM rm_relation
-              WHERE workspace_id = ? AND relation_type_code = ? AND hierarchical)
+            SELECT EXISTS(SELECT 1 FROM relation_type
+              WHERE workspace_id = ? AND code = ? AND hierarchical)
             """,
             Boolean.class,
             workspaceId,

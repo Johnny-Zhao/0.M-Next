@@ -19,6 +19,7 @@ class ReadModelProjection {
 
   @Transactional
   public boolean apply(EventEnvelope event) {
+    if (repository.consumed(event.eventId())) return false;
     return registry.dispatch(
         this,
         event.eventId(),
