@@ -63,6 +63,13 @@ interface EditingCell {
   readonly value: string;
 }
 
+interface ConflictState {
+  readonly row: ViewObject;
+  readonly cell: EditingCell;
+  readonly currentVersion: number;
+  readonly fields: readonly ConflictField[];
+}
+
 export function TableView(props: TableViewProps): ReactElement {
   const [type, setType] = useState<ObjectType | null>(null);
   const [page, setPage] = useState<ObjectPage>({
@@ -73,7 +80,7 @@ export function TableView(props: TableViewProps): ReactElement {
   });
   const [selected, setSelected] = useState<SelectionRef | null>(null);
   const [editing, setEditing] = useState<EditingCell | null>(null);
-  const [conflicts, setConflicts] = useState<readonly ConflictField[]>([]);
+  const [conflict, setConflict] = useState<ConflictState | null>(null);
   const [failedCell, setFailedCell] = useState<string | null>(null);
 
   useEffect(() => {
@@ -130,7 +137,13 @@ export function TableView(props: TableViewProps): ReactElement {
       error instanceof CommandFailure &&
       error.commandError.code === "KERNEL-409-VERSION-CONFLICT"
     ) {
-      setConflicts(error.commandError.details?.conflictingFields ?? []);
+      setConflict({
+        row,
+        cell,
+        currentVersion:
+          error.commandError.details?.currentVersion ?? row.version,
+        fields: error.commandError.details?.conflictingFields ?? [],
+      });
     } else {
       props.onError?.(error instanceof Error ? error.message : "保存失败");
     }
@@ -145,6 +158,38 @@ export function TableView(props: TableViewProps): ReactElement {
         props.pageSize ?? 50,
       )
       .then(setPage);
+  }
+
+  function resolveConflict(
+    choices: Readonly<Record<string, "mine" | "current">>,
+  ): void {
+    if (!conflict) return;
+    const field = conflict.fields.find(
+      (item) => item.fieldDefCode === conflict.cell.field.code,
+    );
+    if (choices[conflict.cell.field.code] === "mine") {
+      void save(
+        { ...conflict.row, version: conflict.currentVersion },
+        conflict.cell,
+      );
+    } else if (field) {
+      setPage({
+        ...page,
+        items: page.items.map((item) =>
+          item.objectId === conflict.row.objectId
+            ? {
+                ...item,
+                version: conflict.currentVersion,
+                fields: {
+                  ...item.fields,
+                  [field.fieldDefCode]: field.currentValue,
+                },
+              }
+            : item,
+        ),
+      });
+    }
+    setConflict(null);
   }
 
   const fields = tableColumns(type);
@@ -214,8 +259,12 @@ export function TableView(props: TableViewProps): ReactElement {
       >
         下一页
       </button>
-      {conflicts.length > 0 ? (
-        <ConflictDialog fields={conflicts} onClose={() => setConflicts([])} />
+      {conflict && conflict.fields.length > 0 ? (
+        <ConflictDialog
+          fields={conflict.fields}
+          onClose={() => setConflict(null)}
+          onConfirm={resolveConflict}
+        />
       ) : null}
     </section>
   );

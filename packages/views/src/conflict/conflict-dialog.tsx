@@ -4,15 +4,19 @@ import type { ConflictField } from "../api/command-client";
 
 export interface ConflictDialogProps {
   readonly fields: readonly ConflictField[];
+  readonly onConfirm: (
+    choices: Readonly<Record<string, "mine" | "current">>,
+  ) => void;
   readonly onClose: () => void;
 }
 
 export function ConflictDialog({
   fields,
+  onConfirm,
   onClose,
 }: ConflictDialogProps): ReactElement {
   return (
-    <aside aria-label="字段已被他人修改" role="dialog">
+    <form aria-label="字段已被他人修改" role="dialog">
       <h2>字段已被他人修改</h2>
       {fields.map((field) => (
         <section key={field.fieldDefCode}>
@@ -37,9 +41,20 @@ export function ConflictDialog({
           </label>
         </section>
       ))}
+      <button
+        onClick={(event) => {
+          const choices = Object.fromEntries(
+            new FormData(event.currentTarget.form ?? undefined),
+          );
+          onConfirm(choices as Readonly<Record<string, "mine" | "current">>);
+        }}
+        type="button"
+      >
+        确认
+      </button>
       <button onClick={onClose} type="button">
         取消
       </button>
-    </aside>
+    </form>
   );
 }

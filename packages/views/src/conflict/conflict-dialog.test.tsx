@@ -14,6 +14,7 @@ describe("ConflictDialog", () => {
           changedAt: "now",
         },
       ],
+      onConfirm: () => undefined,
       onClose: () => undefined,
     });
     const serialized = JSON.stringify(dialog);
