@@ -20,6 +20,11 @@ import com.mnext.kernel.api.commands.SoftDeleteCommand;
 import com.mnext.kernel.api.commands.UnlinkCommand;
 import com.mnext.kernel.api.commands.UpdateFieldsCommand;
 import com.mnext.kernel.api.commands.UpdateRelationCommand;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import java.util.ArrayList;
 import java.util.Map;
 import java.util.UUID;
@@ -40,6 +45,51 @@ public class CommandController {
   }
 
   @PostMapping("/workspaces/{workspaceId}/commands")
+  @Operation(summary = "提交已注册的数据内核命令")
+  @ApiResponses({
+    @ApiResponse(
+        responseCode = "200",
+        description = "命令已提交",
+        content =
+            @Content(
+                mediaType = "application/json",
+                schema = @Schema(implementation = CommandResult.class))),
+    @ApiResponse(
+        responseCode = "400",
+        description = "命令信封或载荷无效",
+        content =
+            @Content(
+                mediaType = "application/json",
+                schema = @Schema(implementation = CommandResult.class))),
+    @ApiResponse(
+        responseCode = "403",
+        description = "无工作空间或字段权限",
+        content =
+            @Content(
+                mediaType = "application/json",
+                schema = @Schema(implementation = CommandResult.class))),
+    @ApiResponse(
+        responseCode = "409",
+        description = "版本、幂等键或关系冲突",
+        content =
+            @Content(
+                mediaType = "application/json",
+                schema = @Schema(implementation = CommandResult.class))),
+    @ApiResponse(
+        responseCode = "422",
+        description = "规则预检未通过",
+        content =
+            @Content(
+                mediaType = "application/json",
+                schema = @Schema(implementation = CommandResult.class))),
+    @ApiResponse(
+        responseCode = "500",
+        description = "事务执行失败",
+        content =
+            @Content(
+                mediaType = "application/json",
+                schema = @Schema(implementation = CommandResult.class)))
+  })
   public CommandResult execute(
       @PathVariable("workspaceId") UUID workspaceId,
       @RequestHeader("X-Actor-Id") String actorId,

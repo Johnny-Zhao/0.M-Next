@@ -1,0 +1,13 @@
+[
+  "CreateObject",
+  "UpdateFields",
+  "ChangeState",
+  "CreateRelation",
+  "UpdateRelation",
+  "Archive",
+  "Unlink",
+  "SoftDelete",
+  "BatchCommand",
+  "SubmitAIChangeSet",
+  "ConfirmAIChangeSet"
+]
