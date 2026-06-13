@@ -49,10 +49,12 @@ class ReadModelProjection {
 
   private void objectCreated(EventEnvelope event) {
     var after = event.after();
+    var objectTypeCode =
+        repository.objectTypeCode(event.workspaceId(), uuid(after, "objectTypeId"));
     repository.createObject(
         event.workspaceId(),
         uuid(after, "objectId"),
-        text(after, "objectTypeCode", text(after, "objectTypeId", "unknown")),
+        objectTypeCode,
         text(after, "status", "DRAFT"),
         event.version(),
         event.occurredAt());
@@ -86,14 +88,15 @@ class ReadModelProjection {
 
   private void relationCreated(EventEnvelope event) {
     var after = event.after();
+    var relationType = repository.relationType(event.workspaceId(), uuid(after, "relationTypeId"));
     repository.createRelation(
         event.workspaceId(),
         UUID.fromString(event.targetId()),
-        text(after, "relationTypeCode", text(after, "relationTypeId", "unknown")),
+        relationType.code(),
         uuid(after, "sourceId"),
         uuid(after, "targetId"),
         map(after, "fields"),
-        Boolean.TRUE.equals(after.get("hierarchical")),
+        relationType.hierarchical(),
         event.version(),
         event.occurredAt());
   }

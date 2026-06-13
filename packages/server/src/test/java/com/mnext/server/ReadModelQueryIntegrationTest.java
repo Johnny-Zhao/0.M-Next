@@ -133,7 +133,6 @@ class ReadModelQueryIntegrationTest {
         Map.of(
             "objectId", objectId.toString(),
             "objectTypeId", "22222222-2222-4222-8222-222222222222",
-            "objectTypeCode", "demo_object",
             "status", "DRAFT"));
   }
 
@@ -159,16 +158,12 @@ class ReadModelQueryIntegrationTest {
         Map.of(
             "relationTypeId",
             "44444444-4444-4444-8444-444444444442",
-            "relationTypeCode",
-            "decomposes_to",
             "sourceId",
             FIRST.toString(),
             "targetId",
             SECOND.toString(),
             "fields",
-            Map.of(),
-            "hierarchical",
-            true));
+            Map.of()));
   }
 
   private EventEnvelope event(

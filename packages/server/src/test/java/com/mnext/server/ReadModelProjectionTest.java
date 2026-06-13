@@ -19,13 +19,19 @@ import org.junit.jupiter.api.Test;
 class ReadModelProjectionTest {
   private static final UUID WORKSPACE = UUID.randomUUID();
   private static final UUID OBJECT = UUID.randomUUID();
+  private static final UUID OBJECT_TYPE = UUID.randomUUID();
   private static final UUID RELATION = UUID.randomUUID();
+  private static final UUID RELATION_TYPE = UUID.randomUUID();
   private final ReadModelRepository repository = mock(ReadModelRepository.class);
   private final ReadModelProjection projection =
       new ReadModelProjection(repository, new IdempotentConsumerRegistry());
 
   @Test
   void projectsObjectFieldStateAndRelationEvents() {
+    when(repository.objectTypeCode(WORKSPACE, OBJECT_TYPE)).thenReturn("requirement");
+    when(repository.relationType(WORKSPACE, RELATION_TYPE))
+        .thenReturn(new ReadModelRepository.RelationTypeProjection("decomposes", true));
+
     projection.apply(event("e1", "ObjectCreated", "object", OBJECT, 1, objectAfter()));
     projection.apply(event("e2", "FieldChanged", "fieldValue", OBJECT, 2, fieldAfter()));
     projection.apply(
@@ -56,6 +62,7 @@ class ReadModelProjectionTest {
 
   @Test
   void duplicateEventIsAppliedOnlyOnce() {
+    when(repository.objectTypeCode(WORKSPACE, OBJECT_TYPE)).thenReturn("requirement");
     var event = event("duplicate", "ObjectCreated", "object", OBJECT, 1, objectAfter());
 
     assertTrue(projection.apply(event));
@@ -102,14 +109,7 @@ class ReadModelProjectionTest {
 
   private static Map<String, Object> objectAfter() {
     return Map.of(
-        "objectId",
-        OBJECT.toString(),
-        "objectTypeId",
-        UUID.randomUUID().toString(),
-        "objectTypeCode",
-        "requirement",
-        "status",
-        "DRAFT");
+        "objectId", OBJECT.toString(), "objectTypeId", OBJECT_TYPE.toString(), "status", "DRAFT");
   }
 
   private static Map<String, Object> fieldAfter() {
@@ -118,11 +118,9 @@ class ReadModelProjectionTest {
 
   private static Map<String, Object> relationAfter() {
     return Map.of(
-        "relationTypeId", UUID.randomUUID().toString(),
-        "relationTypeCode", "decomposes",
+        "relationTypeId", RELATION_TYPE.toString(),
         "sourceId", OBJECT.toString(),
         "targetId", UUID.randomUUID().toString(),
-        "fields", Map.of(),
-        "hierarchical", true);
+        "fields", Map.of());
   }
 }

@@ -36,6 +36,22 @@ class ReadModelRepository {
         eventId);
   }
 
+  String objectTypeCode(UUID workspaceId, UUID objectTypeId) {
+    return jdbc.queryForObject(
+        "SELECT code FROM object_type WHERE workspace_id = ? AND id = ?",
+        String.class,
+        workspaceId,
+        objectTypeId);
+  }
+
+  RelationTypeProjection relationType(UUID workspaceId, UUID relationTypeId) {
+    return jdbc.queryForObject(
+        "SELECT code, hierarchical FROM relation_type WHERE workspace_id = ? AND id = ?",
+        (row, index) -> new RelationTypeProjection(row.getString(1), row.getBoolean(2)),
+        workspaceId,
+        relationTypeId);
+  }
+
   void createObject(
       UUID workspaceId,
       UUID objectId,
@@ -369,4 +385,6 @@ class ReadModelRepository {
       throw new IllegalStateException(failure);
     }
   }
+
+  record RelationTypeProjection(String code, boolean hierarchical) {}
 }
