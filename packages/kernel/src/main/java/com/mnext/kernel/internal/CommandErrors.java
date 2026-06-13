@@ -61,6 +61,27 @@ final class CommandErrors {
         "先走预览并使用冷路径批量任务");
   }
 
+  static CommandRejectedException templateVersionImmutable() {
+    return error(
+        "KERNEL-409-TEMPLATE-VERSION-IMMUTABLE", "已发布模板版本不可修改", Map.of(), "改在 draft 模板版本下操作");
+  }
+
+  static CommandRejectedException fieldConstraint(List<String> violations) {
+    return error(
+        "KERNEL-422-FIELD-CONSTRAINT-INVALID",
+        "字段约束与类型不相容",
+        Map.of("violations", violations),
+        "修正字段约束后重试");
+  }
+
+  static CommandRejectedException fieldValue(List<Map<String, Object>> violations) {
+    return error(
+        "KERNEL-422-FIELD-VALUE-INVALID",
+        "字段值不符合类型或约束",
+        Map.of("violations", violations),
+        "修正字段值后重试");
+  }
+
   static CommandRejectedException endpointInvalid() {
     return error("KERNEL-422-ENDPOINT-INVALID", "关系端点无效或不可见", Map.of(), "确认端点后重试");
   }
