@@ -99,12 +99,12 @@
 | 约束求解器 | `ConstraintSolver` | Optimizer |
 | 标准适配器 | `StandardAdapter` | StandardImporter、StandardConverter |
 
-- AG-301:命令与事件名**只能**取自 /docs/spec 附录D 已注册集合(命令:CreateObject、UpdateFields、ChangeState、CreateRelation、UpdateRelation、Archive、Unlink、SoftDelete、BatchCommand、SubmitAIChangeSet、ConfirmAIChangeSet;事件:ObjectCreated、FieldChanged、StateChanged、RelationCreated、RelationUpdated、RelationUnlinked、Archived、SoftDeleted、BatchCommitted、AIChangeSetConfirmed、CheckResultUpdated)。新增须先修订契约(见 AG-501)。CI:契约 Schema 校验,未注册 eventType/commandType 直接 fail。
+- AG-301:命令与事件名**只能**取自 /docs/spec 附录D 已注册集合(命令:CreateObject、UpdateFields、ChangeState、CreateRelation、UpdateRelation、Archive、Unlink、SoftDelete、BatchCommand、SubmitAIChangeSet、ConfirmAIChangeSet;事件:ObjectCreated、FieldChanged、StateChanged、RelationCreated、RelationUpdated、RelationUnlinked、Archived、SoftDeleted、BatchCommitted、AIChangeSetConfirmed、CheckResultUpdated)。**v1.1 addendum 注册集**:M2 授权命令(DefineObjectType/DefineFieldDef/DefineRelationType,见 contracts/元模型命令契约.md)、评审命令(CreateAnnotation/ResolveAnnotation/ReopenAnnotation,见 contracts/评审命令契约.md),经独立 meta-commands/review-commands 端点,不混入 M1 `/commands`。新增须先修订契约(见 AG-501)。CI:契约 Schema 校验,未注册 eventType/commandType 直接 fail。
 - AG-302:数据库 snake_case;Java 类 PascalCase;TS 文件 kebab-case;事件名 PascalCase 过去式。CI:checkstyle + ESLint naming。
 
 ### 3.2 错误码(依据 D.2)
 
-- AG-311:错误码格式 `前缀-HTTP状态-原因`,前缀**仅允许**五类:`KERNEL-`(内核/版本/事务/幂等)、`RULE-`(规则失败/阻断)、`PERM-`(权限/越界)、`AI-`(变更集/确认流程)、`ARTIFACT-`(解析/映射/同步)。示例:`KERNEL-409-VERSION-CONFLICT`、`PERM-403-FIELD-DENIED`、`AI-409-CHANGESET-EXPIRED`。所有码登记于 `packages/shared/contracts/error-codes.yaml`,CI 校验代码中出现的码均已登记。
+- AG-311:错误码格式 `前缀-HTTP状态-原因`,前缀**仅允许**六类:`KERNEL-`(内核/版本/事务/幂等)、`RULE-`(规则失败/阻断)、`PERM-`(权限/越界)、`AI-`(变更集/确认流程)、`ARTIFACT-`(解析/映射/同步)、`REVIEW-`(评审批注/状态,见 contracts/评审命令契约.md)。示例:`KERNEL-409-VERSION-CONFLICT`、`PERM-403-FIELD-DENIED`、`AI-409-CHANGESET-EXPIRED`。所有码登记于 `packages/shared/contracts/error-codes.yaml`,CI 校验代码中出现的码均已登记。
 - AG-312:错误响应必须含用户可理解 message 与建议操作(D.2 返回要求);禁止向前端透出裸异常堆栈。CI:错误响应契约测试。
 
 ### 3.3 日志与审计

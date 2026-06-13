@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform.local/contracts/review-commands/1.0",
+  "title": "评审命令信封与载荷契约 v1.0(addendum)",
+  "type": "object",
+  "required": ["commandType", "workspaceId", "correlationId", "idempotencyKey", "payload"],
+  "additionalProperties": false,
+  "properties": {
+    "commandType": {
+      "enum": ["CreateAnnotation", "ResolveAnnotation", "ReopenAnnotation"]
+    },
+    "workspaceId": { "$ref": "#/$defs/uuid" },
+    "correlationId": { "$ref": "#/$defs/uuid" },
+    "idempotencyKey": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "payload": { "type": "object" }
+  },
+  "allOf": [
+    { "if": { "properties": { "commandType": { "const": "CreateAnnotation" } } }, "then": { "properties": { "payload": { "$ref": "#/$defs/CreateAnnotation" } } } },
+    { "if": { "properties": { "commandType": { "const": "ResolveAnnotation" } } }, "then": { "properties": { "payload": { "$ref": "#/$defs/AnnotationStateChange" } } } },
+    { "if": { "properties": { "commandType": { "const": "ReopenAnnotation" } } }, "then": { "properties": { "payload": { "$ref": "#/$defs/AnnotationStateChange" } } } }
+  ],
+  "$defs": {
+    "uuid": { "type": "string", "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$" },
+    "CreateAnnotation": {
+      "type": "object",
+      "required": ["targetType", "targetId", "anchoredDataVersion", "severity", "body"],
+      "additionalProperties": false,
+      "description": "三级锚定:field 级须 fieldCode(缺则 REVIEW-422-FIELD-CODE-REQUIRED);object/relation 级传 fieldCode 则 REVIEW-400-SCHEMA-INVALID;目标不存在 REVIEW-404-TARGET-NOT-FOUND。锚定/越级为跨字段运行期裁决,不在本 Schema 结构层强制。",
+      "properties": {
+        "targetType": { "enum": ["object", "field", "relation"] },
+        "targetId": { "$ref": "#/$defs/uuid", "description": "对象 id 或 关系 id" },
+        "fieldCode": { "type": "string", "minLength": 1, "maxLength": 128, "description": "仅 field 级" },
+        "anchoredDataVersion": { "type": "integer", "minimum": 1, "description": "客户端所见目标版本,固化用于失锚判定" },
+        "severity": { "enum": ["info", "suggest", "issue", "block"] },
+        "body": { "type": "string", "minLength": 1, "maxLength": 4000 },
+        "roundId": { "$ref": "#/$defs/uuid", "description": "可空:评审轮次" }
+      }
+    },
+    "AnnotationStateChange": {
+      "type": "object",
+      "required": ["annotationId"],
+      "additionalProperties": false,
+      "description": "Resolve: open→resolved;Reopen: resolved|wontfix→open;非法迁移 REVIEW-409-INVALID-STATE-TRANSITION。不触碰主数据。",
+      "properties": {
+        "annotationId": { "$ref": "#/$defs/uuid" },
+        "comment": { "type": "string", "maxLength": 2000 }
+      }
+    }
+  }
+}

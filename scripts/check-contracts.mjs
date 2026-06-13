@@ -25,6 +25,18 @@ const schemas = {
       "utf8",
     ),
   ),
+  "meta-commands": JSON.parse(
+    fs.readFileSync(
+      path.join(root, "contracts", "schemas", "meta-commands.schema.json"),
+      "utf8",
+    ),
+  ),
+  "review-commands": JSON.parse(
+    fs.readFileSync(
+      path.join(root, "contracts", "schemas", "review-commands.schema.json"),
+      "utf8",
+    ),
+  ),
 };
 
 const ajv = new Ajv2020({ allErrors: true, strict: false });
@@ -32,6 +44,8 @@ addFormats(ajv);
 const validators = {
   commands: ajv.compile(schemas.commands),
   events: ajv.compile(schemas.events),
+  "meta-commands": ajv.compile(schemas["meta-commands"]),
+  "review-commands": ajv.compile(schemas["review-commands"]),
 };
 
 function walk(directory) {
@@ -51,7 +65,7 @@ for (const fixture of fixtures) {
   const validator = validators[schemaName];
   if (validator === undefined || !["valid", "invalid"].includes(expectation)) {
     console.error(
-      `FAIL ${path.relative(root, fixture)}: expected <commands|events>/<valid|invalid>`,
+      `FAIL ${path.relative(root, fixture)}: expected <commands|events|meta-commands|review-commands>/<valid|invalid>`,
     );
     failures += 1;
     continue;

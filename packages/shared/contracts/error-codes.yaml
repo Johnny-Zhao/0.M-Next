@@ -104,3 +104,31 @@ codes:
     httpStatus: 422
     title: AI 变更项预检失败
     responseRequirement: —
+  - code: KERNEL-409-TEMPLATE-VERSION-IMMUTABLE
+    httpStatus: 409
+    title: 已发布模板版本下定义类型
+    responseRequirement: 提示改在 draft 版本操作
+  - code: KERNEL-422-FIELD-CONSTRAINT-INVALID
+    httpStatus: 422
+    title: 属性定义约束与类型不相容
+    responseRequirement: 列出违例约束项
+  - code: KERNEL-422-FIELD-VALUE-INVALID
+    httpStatus: 422
+    title: 字段值不符合类型或约束
+    responseRequirement: 逐违例字段列出
+  - code: REVIEW-404-TARGET-NOT-FOUND
+    httpStatus: 404
+    title: 批注目标不存在或不可见
+    responseRequirement: 不泄露越权目标存在性
+  - code: REVIEW-422-FIELD-CODE-REQUIRED
+    httpStatus: 422
+    title: 字段级批注缺 fieldCode
+    responseRequirement: 提示补 fieldCode
+  - code: REVIEW-400-SCHEMA-INVALID
+    httpStatus: 400
+    title: 批注载荷不符合 Schema（如对象级传 fieldCode）
+    responseRequirement: 列出违例 JSON Pointer
+  - code: REVIEW-409-INVALID-STATE-TRANSITION
+    httpStatus: 409
+    title: 批注状态迁移非法
+    responseRequirement: 返回当前态与允许迁移

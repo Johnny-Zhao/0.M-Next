@@ -13,3 +13,10 @@ V3.3变更影响评估与修正计划.md
 V3.3*.md
 docs/backlog-v33.md
 docs/tasks/
+
+# v0.5.1 addendum prose docs (consistent with 数据内核契约.md / docs/tasks 既有忽略口径)
+contracts/*.md
+docs/04-metamodel-m2-design.md
+docs/06-review-model.md
+docs/prototype/
+docs/reference/

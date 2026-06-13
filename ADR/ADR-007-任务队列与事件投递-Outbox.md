@@ -64,3 +64,9 @@ Redis 仅作缓存与轻量协调(视图缓存、分布式锁、限流),不承�
 - 涉及标准/事实标准:CloudEvents、AsyncAPI、RabbitMQ AMQP 协议。
 - 采用等级:A/B:内部事件信封与 CloudEvents/AsyncAPI 语义对齐,消息通道与协议直接兼容。
 - 边界:内部事件信封 v1 字段保持不变;如需 CloudEvents 对外格式,由网关适配层转换,本 ADR 不引入 SDK 或转换实现。
+
+## 依赖准入记录(2026-06-13,T-V33-104）
+
+- `org.springframework.boot:spring-boot-starter-amqp`(RabbitMQ 客户端,Apache-2.0,纯 JVM,官方 arm64):本 ADR 已裁决 RabbitMQ + 轮询发布器,准入登记于 `ci/deps-allowlist.yaml`;RabbitMQ 客户端只允许出现在 `RabbitOutboxPublisher` 封装层(AG-506)。
+- `org.testcontainers:rabbitmq`(测试 harness,同 testcontainers 家族):仅测试期使用。
+- 符合 ADR-008 准入(license/arm64/离线私服)。

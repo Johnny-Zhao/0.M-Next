@@ -6,12 +6,15 @@ directDependencies:
   - org.junit.jupiter:junit-jupiter
   - org.springframework.boot:spring-boot-starter-web
   - org.springframework.boot:spring-boot-starter-jdbc
+  - org.springframework.boot:spring-boot-starter-amqp
+  - org.springdoc:springdoc-openapi-starter-webmvc-ui
   - org.springframework.boot:spring-boot-starter-test
   - org.flywaydb:flyway-core
   - org.flywaydb:flyway-database-postgresql
   - org.postgresql:postgresql
   - com.github.f4b6a3:ulid-creator
   - org.testcontainers:postgresql
+  - org.testcontainers:rabbitmq
   - org.testcontainers:junit-jupiter
   - org.testcontainers:testcontainers-bom
 buildPlugins:
