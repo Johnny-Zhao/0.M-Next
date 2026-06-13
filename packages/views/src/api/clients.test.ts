@@ -18,6 +18,20 @@ describe("view and command clients", () => {
     expect(() => client.objects("ws", "demo_object", 0, 201)).toThrow();
   });
 
+  it("bounds relation depth and scopes tree reads", async () => {
+    const fetchFn = vi.fn<FetchFn>(
+      async () => new Response(JSON.stringify([])),
+    );
+    const client = new ViewClient("/api", fetchFn);
+    await client.relations("ws", "depends_on", "out", "root", 9);
+    await client.tree("ws", "decomposes_to", "root");
+
+    expect(fetchFn.mock.calls[0]?.[0]).toContain("depth=5");
+    expect(fetchFn.mock.calls[1]?.[0]).toContain(
+      "relationType=decomposes_to&rootId=root",
+    );
+  });
+
   it("posts UpdateFields with expectedFieldVersion", async () => {
     const fetchFn = vi.fn<FetchFn>(
       async () => new Response(null, { status: 200 }),
