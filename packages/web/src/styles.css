@@ -46,6 +46,14 @@ main {
   outline: 2px solid #1677ff;
 }
 
+.selected-row {
+  background: #e6f4ff;
+}
+
+.selected-node {
+  outline: 2px solid #1677ff;
+}
+
 .failed-cell {
   outline: 2px solid #d4380d;
 }

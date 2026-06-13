@@ -209,6 +209,12 @@ export function TableView(props: TableViewProps): ReactElement {
         <tbody>
           {page.items.map((row, index) => (
             <tr
+              className={
+                selected?.entityType === "object" &&
+                selected.entityId === row.objectId
+                  ? "selected-row"
+                  : ""
+              }
               key={row.objectId}
               onClick={() =>
                 props.selection.select({
