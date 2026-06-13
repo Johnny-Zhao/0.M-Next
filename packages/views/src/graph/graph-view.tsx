@@ -103,11 +103,22 @@ export function GraphView(props: GraphViewProps): ReactElement {
     graph.on(NodeEvent.CLICK, (event: IElementEvent) => {
       selectGraphNode(props.selection, String(event.target.id));
     });
-    const unsubscribe = props.selection.subscribe((selected) => {
+    let rendered = false;
+    let destroyed = false;
+    let selected = props.selection.current();
+    const unsubscribe = props.selection.subscribe((nextSelection) => {
+      selected = nextSelection;
+      if (rendered) {
+        void graph.setElementState(graphSelectedStates(data, selected), false);
+      }
+    });
+    void graph.render().then(() => {
+      if (destroyed) return;
+      rendered = true;
       void graph.setElementState(graphSelectedStates(data, selected), false);
     });
-    void graph.render();
     return () => {
+      destroyed = true;
       unsubscribe();
       graph.destroy();
     };
