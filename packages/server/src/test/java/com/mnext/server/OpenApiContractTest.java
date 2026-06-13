@@ -58,14 +58,7 @@ class OpenApiContractTest {
 
   private Set<String> registeredCommandTypes() throws Exception {
     var fixture =
-        Path.of(
-            "..",
-            "..",
-            "tests",
-            "contracts",
-            "fixtures",
-            "openapi",
-            "registered-command-types.json");
+        Path.of("..", "..", "tests", "contracts", "openapi", "registered-command-types.json");
     return StreamSupport.stream(mapper.readTree(fixture.toFile()).spliterator(), false)
         .map(JsonNode::asText)
         .collect(Collectors.toSet());
