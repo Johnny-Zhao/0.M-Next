@@ -10,6 +10,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 final class CommandSupport {
+  private static final ThreadLocal<String> CAUSATION_ID = new ThreadLocal<>();
   private final KernelRepository repository;
 
   CommandSupport(KernelRepository repository) {
@@ -68,5 +69,17 @@ final class CommandSupport {
       case "manual", "rule", "AI", "artifact_sync" -> sourceType;
       default -> "system";
     };
+  }
+
+  static void batchCausation(String commandId) {
+    CAUSATION_ID.set(commandId);
+  }
+
+  static void clearBatchCausation() {
+    CAUSATION_ID.remove();
+  }
+
+  static String causationId(String fallback) {
+    return CAUSATION_ID.get() == null ? fallback : CAUSATION_ID.get();
   }
 }

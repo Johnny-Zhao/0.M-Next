@@ -119,7 +119,7 @@ class KernelRepository {
   Optional<ObjectRow> lockObject(UUID workspaceId, UUID objectId) {
     return jdbc.query(
         """
-        SELECT id, object_type_id, status, version FROM data_object
+        SELECT id, object_type_id, status, version, created_by FROM data_object
         WHERE id = ? AND workspace_id = ? FOR UPDATE
         """,
         result ->
@@ -129,7 +129,8 @@ class KernelRepository {
                         result.getObject("id", UUID.class),
                         result.getObject("object_type_id", UUID.class),
                         result.getString("status"),
-                        result.getLong("version")))
+                        result.getLong("version"),
+                        result.getString("created_by")))
                 : Optional.empty(),
         objectId,
         workspaceId);
@@ -204,6 +205,19 @@ class KernelRepository {
         objectId);
   }
 
+  long updateObjectStatus(UUID objectId, String status, String actor, Instant now) {
+    return jdbc.queryForObject(
+        """
+        UPDATE data_object SET status = ?, version = version + 1, updated_by = ?, updated_at = ?
+        WHERE id = ? RETURNING version
+        """,
+        Long.class,
+        status,
+        actor,
+        Timestamp.from(now),
+        objectId);
+  }
+
   void insertEvent(EventEnvelope event) {
     jdbc.update(
         """
@@ -218,6 +232,14 @@ class KernelRepository {
         event.sequence(),
         EventJson.encode(event),
         Timestamp.from(event.occurredAt()));
+  }
+
+  long nextEventSequence(String targetType, String targetId) {
+    return jdbc.queryForObject(
+        "SELECT COALESCE(max(sequence), 0) + 1 FROM event_outbox WHERE aggregate_type = ? AND aggregate_id = ?",
+        Long.class,
+        targetType,
+        targetId);
   }
 
   void insertCommand(
@@ -235,6 +257,33 @@ class KernelRepository {
           (workspace_id, idempotency_key, command_id, command_type,
            payload_hash, result_snapshot, decided_at)
         VALUES (?, ?, ?, ?, ?, CAST(? AS jsonb), ?)
+        """,
+        workspaceId,
+        idempotencyKey,
+        commandId,
+        commandType,
+        payloadHash,
+        JsonCodec.encode(result),
+        Timestamp.from(now));
+  }
+
+  void upsertCommand(
+      UUID workspaceId,
+      String idempotencyKey,
+      String commandId,
+      String commandType,
+      String payloadHash,
+      List<String> events,
+      Instant now) {
+    var result = Map.of("status", "COMMITTED", "events", events);
+    jdbc.update(
+        """
+        INSERT INTO command_log
+          (workspace_id, idempotency_key, command_id, command_type,
+           payload_hash, result_snapshot, decided_at)
+        VALUES (?, ?, ?, ?, ?, CAST(? AS jsonb), ?)
+        ON CONFLICT (workspace_id, idempotency_key) DO UPDATE
+          SET result_snapshot = EXCLUDED.result_snapshot, decided_at = EXCLUDED.decided_at
         """,
         workspaceId,
         idempotencyKey,

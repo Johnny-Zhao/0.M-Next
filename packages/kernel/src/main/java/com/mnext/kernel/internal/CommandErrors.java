@@ -28,6 +28,60 @@ final class CommandErrors {
     return error("KERNEL-410-TARGET-ARCHIVED", "目标已废止", Map.of(), "恢复目标后再执行修改");
   }
 
+  static CommandRejectedException stateTransition(String current, List<String> allowed) {
+    return error(
+        "KERNEL-409-STATE-TRANSITION-INVALID",
+        "状态迁移不允许",
+        Map.of("currentState", current, "allowedTransitions", allowed),
+        "选择允许的目标状态后重试");
+  }
+
+  static CommandRejectedException activeRelations(List<String> relationIds, long total) {
+    return error(
+        "KERNEL-422-ACTIVE-RELATIONS",
+        "目标存在活动关系",
+        Map.of("relations", relationIds, "total", total, "relationPolicy", "unlink"),
+        "确认影响后使用 relationPolicy=unlink");
+  }
+
+  static CommandRejectedException cascadeTooLarge(long total) {
+    return error(
+        "KERNEL-413-CASCADE-TOO-LARGE", "活动关系超过同步级联上限", Map.of("total", total), "先走预览并使用冷路径批量任务");
+  }
+
+  static CommandRejectedException nestedBatch() {
+    return error("KERNEL-400-NESTED-BATCH", "BatchCommand 禁止嵌套", Map.of(), "移除嵌套批次后重试");
+  }
+
+  static CommandRejectedException batchTooLarge(long commands, long writes) {
+    return error(
+        "KERNEL-413-BATCH-TOO-LARGE",
+        "批量命令超出热路径限额",
+        Map.of("commands", commands, "estimatedWrites", writes),
+        "先走预览并使用冷路径批量任务");
+  }
+
+  static CommandRejectedException endpointInvalid() {
+    return error("KERNEL-422-ENDPOINT-INVALID", "关系端点无效或不可见", Map.of(), "确认端点后重试");
+  }
+
+  static CommandRejectedException duplicateRelation(String relationId) {
+    return error(
+        "KERNEL-409-DUPLICATE-RELATION", "活动关系已存在", Map.of("relationId", relationId), "使用已存在关系");
+  }
+
+  static CommandRejectedException cardinality(String definition, long current) {
+    return error(
+        "KERNEL-422-CARDINALITY-VIOLATION",
+        "关系基数超限",
+        Map.of("cardinality", definition, "current", current),
+        "解除冲突关系后重试");
+  }
+
+  static CommandRejectedException cycle(List<String> path) {
+    return error("KERNEL-409-CYCLE-DETECTED", "层级关系将形成环", Map.of("path", path), "调整端点后重试");
+  }
+
   static CommandRejectedException required(String fieldCode) {
     return error("RULE-422-REQUIRED", "必填字段缺失", Map.of("fieldDefCode", fieldCode), "填写必填字段后重试");
   }
@@ -55,6 +109,20 @@ final class CommandErrors {
             "currentVersion", currentVersion,
             "conflictingFields", conflictingFields),
         "拉取最新版本对比合并后重试;无重叠字段可直接以字段级版本重提");
+  }
+
+  static CommandRejectedException relationVersion(
+      String targetId, long expectedVersion, long currentVersion) {
+    return error(
+        "KERNEL-409-VERSION-CONFLICT",
+        "关系已被他人修改",
+        Map.of(
+            "targetType", "relation",
+            "targetId", targetId,
+            "expectedVersion", expectedVersion,
+            "currentVersion", currentVersion,
+            "conflictingFields", List.of()),
+        "拉取最新关系版本后重试");
   }
 
   private static CommandRejectedException error(

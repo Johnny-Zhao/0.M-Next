@@ -8,6 +8,9 @@ import com.mnext.kernel.api.Actor;
 import com.mnext.kernel.api.CommandRejectedException;
 import com.mnext.kernel.api.KernelCommandService;
 import com.mnext.kernel.api.SourceInfo;
+import com.mnext.kernel.api.commands.BatchCommand;
+import com.mnext.kernel.api.commands.BatchItem;
+import com.mnext.kernel.api.commands.ChangeStateCommand;
 import com.mnext.kernel.api.commands.CreateObjectCommand;
 import com.mnext.kernel.api.commands.FieldUpdate;
 import com.mnext.kernel.api.commands.UpdateFieldsCommand;
@@ -106,6 +109,139 @@ class KernelCommandIntegrationTest {
     assertEquals(1, count("data_object"));
   }
 
+  @Test
+  void stateMachineRejectsBackwardsAndAllowsVoid() {
+    var objectId = create("state-object", Map.of("name", "state"));
+    jdbc.update("UPDATE data_object SET status = 'CONFIRMED' WHERE id = ?", objectId);
+
+    var error =
+        assertThrows(
+            CommandRejectedException.class,
+            () ->
+                commands.changeState(
+                    state("state-back", objectId, "CONFIRMED", "DRAFT"), Actor.user("u")));
+    var result =
+        commands.changeState(state("state-void", objectId, "CONFIRMED", "VOID"), Actor.user("u"));
+
+    assertEquals("KERNEL-409-STATE-TRANSITION-INVALID", error.error().code());
+    assertTrue(error.error().details().containsKey("allowedTransitions"));
+    assertEquals(1, result.events().size());
+    assertEquals(
+        "VOID",
+        jdbc.queryForObject("SELECT status FROM data_object WHERE id = ?", String.class, objectId));
+  }
+
+  @Test
+  void fieldValueStateIsExplicitlyDeferred() {
+    var error =
+        assertThrows(
+            CommandRejectedException.class,
+            () ->
+                commands.changeState(
+                    new ChangeStateCommand(
+                        WORKSPACE,
+                        UUID.randomUUID(),
+                        "field-state",
+                        "fieldValue",
+                        UUID.randomUUID(),
+                        "DRAFT",
+                        "VOID",
+                        "deferred",
+                        1),
+                    Actor.user("u")));
+
+    assertEquals("KERNEL-400-SCHEMA-INVALID", error.error().code());
+  }
+
+  @Test
+  void allOrNothingBatchFailureRollsBackChildren() {
+    var missingType = UUID.randomUUID();
+    var batch =
+        batch(
+            "batch-all",
+            "all_or_nothing",
+            List.of(
+                new BatchItem("CreateObject", createCommand("batch-all#0", TYPE)),
+                new BatchItem("CreateObject", createCommand("batch-all#1", missingType))));
+
+    var error =
+        assertThrows(CommandRejectedException.class, () -> commands.batch(batch, Actor.user("u")));
+
+    assertEquals("KERNEL-404-TYPE-NOT-FOUND", error.error().code());
+    assertEquals(0, count("data_object"));
+    assertEquals(0, count("command_log"));
+    assertEquals(0, count("event_outbox"));
+  }
+
+  @Test
+  void partialBatchRetryOnlyCommitsPreviouslyFailedChild() {
+    var delayedType = UUID.randomUUID();
+    var batch =
+        batch(
+            "batch-partial",
+            "partial",
+            List.of(
+                new BatchItem("CreateObject", createCommand("batch-partial#0", TYPE)),
+                new BatchItem("CreateObject", createCommand("batch-partial#1", delayedType)),
+                new BatchItem("CreateObject", createCommand("batch-partial#2", TYPE))));
+    var first = commands.batch(batch, Actor.user("u"));
+    insertObjectType(delayedType);
+    var second = commands.batch(batch, Actor.user("u"));
+
+    assertEquals(2, first.results().stream().filter(r -> r.error() == null).count());
+    assertEquals(3, second.results().stream().filter(r -> r.error() == null).count());
+    assertEquals(3, count("data_object"));
+    assertEquals(4, count("command_log"));
+    assertEquals(
+        List.of(1L, 2L),
+        jdbc.queryForList(
+            "SELECT sequence FROM event_outbox WHERE event_type = 'BatchCommitted' ORDER BY sequence",
+            Long.class));
+    assertEquals(
+        0,
+        jdbc.queryForObject(
+            "SELECT count(*) FROM event_outbox WHERE event_type <> 'BatchCommitted' AND payload->>'causationId' <> ?",
+            Integer.class,
+            second.commandId()));
+  }
+
+  @Test
+  void batchRejectsNestedAndOverLimitPayloads() {
+    var nested = batch("nested", "partial", List.of(new BatchItem("BatchCommand", null)));
+    var tooMany = new java.util.ArrayList<BatchItem>();
+    for (var index = 0; index < 201; index++) {
+      tooMany.add(new BatchItem("CreateObject", createCommand("large#" + index, TYPE)));
+    }
+
+    var nestedError =
+        assertThrows(CommandRejectedException.class, () -> commands.batch(nested, Actor.user("u")));
+    var largeError =
+        assertThrows(
+            CommandRejectedException.class,
+            () -> commands.batch(batch("large", "partial", tooMany), Actor.user("u")));
+
+    assertEquals("KERNEL-400-NESTED-BATCH", nestedError.error().code());
+    assertEquals("KERNEL-413-BATCH-TOO-LARGE", largeError.error().code());
+  }
+
+  @Test
+  void updateFieldsRejectsTerminalObjectStates() {
+    for (var state : List.of("VOID", "FILED", "DELETED")) {
+      var object = create("terminal-" + state, Map.of("name", state));
+      jdbc.update("UPDATE data_object SET status = ? WHERE id = ?", state, object);
+
+      var error =
+          assertThrows(
+              CommandRejectedException.class,
+              () ->
+                  commands.updateFields(
+                      update("update-" + state, object, 1, "name", "changed", 1L),
+                      Actor.user("u")));
+
+      assertEquals("KERNEL-410-TARGET-ARCHIVED", error.error().code());
+    }
+  }
+
   private UUID create(String key, Map<String, Object> fields) {
     commands.createObject(
         new CreateObjectCommand(
@@ -113,6 +249,34 @@ class KernelCommandIntegrationTest {
         Actor.user("creator"));
     return jdbc.queryForObject(
         "SELECT id FROM data_object ORDER BY created_at DESC LIMIT 1", UUID.class);
+  }
+
+  private CreateObjectCommand createCommand(String key, UUID type) {
+    return new CreateObjectCommand(
+        WORKSPACE,
+        UUID.randomUUID(),
+        key,
+        type,
+        Map.of("name", key),
+        new SourceInfo("manual", null),
+        null);
+  }
+
+  private BatchCommand batch(String key, String mode, List<BatchItem> items) {
+    return new BatchCommand(WORKSPACE, UUID.randomUUID(), key, items, mode, null);
+  }
+
+  private void insertObjectType(UUID type) {
+    jdbc.update(
+        "INSERT INTO object_type (id, workspace_id, code, name, published) VALUES (?, ?, ?, ?, TRUE)",
+        type,
+        WORKSPACE,
+        type.toString(),
+        "Delayed");
+    jdbc.update(
+        "INSERT INTO field_def (id, object_type_id, code, name, required) VALUES (?, ?, 'name', 'Name', TRUE)",
+        UUID.randomUUID(),
+        type);
   }
 
   private UpdateFieldsCommand update(
@@ -124,6 +288,11 @@ class KernelCommandIntegrationTest {
         objectId,
         objectVersion,
         List.of(new FieldUpdate(code, value, fieldVersion)));
+  }
+
+  private ChangeStateCommand state(String key, UUID targetId, String fromState, String toState) {
+    return new ChangeStateCommand(
+        WORKSPACE, UUID.randomUUID(), key, "object", targetId, fromState, toState, "reason", 1);
   }
 
   private int count(String table) {
