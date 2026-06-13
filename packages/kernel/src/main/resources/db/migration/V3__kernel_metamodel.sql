@@ -60,3 +60,8 @@ ALTER TABLE relation_type
   ALTER COLUMN updated_by DROP DEFAULT,
   ALTER COLUMN created_at DROP DEFAULT,
   ALTER COLUMN updated_at DROP DEFAULT;
+
+UPDATE field_def
+SET data_type = 'number'
+WHERE code = 'cost'
+  AND object_type_id = '22222222-2222-4222-8222-222222222222';

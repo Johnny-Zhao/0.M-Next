@@ -30,7 +30,14 @@ final class FieldValidator {
       ReferenceLookup references) {
     var values = new java.util.LinkedHashMap<String, Object>();
     command.fields().forEach(update -> values.put(update.fieldDefCode(), update.value()));
-    validate(command.workspaceId(), definitions, values, references);
+    var updated = new java.util.LinkedHashMap<String, FieldDefinition>();
+    values
+        .keySet()
+        .forEach(
+            code -> {
+              if (definitions.containsKey(code)) updated.put(code, definitions.get(code));
+            });
+    validate(command.workspaceId(), updated, values, references);
   }
 
   static void validate(

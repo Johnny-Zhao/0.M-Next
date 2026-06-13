@@ -268,13 +268,21 @@ class KernelCommandIntegrationTest {
 
   private void insertObjectType(UUID type) {
     jdbc.update(
-        "INSERT INTO object_type (id, workspace_id, code, name, published) VALUES (?, ?, ?, ?, TRUE)",
+        """
+        INSERT INTO object_type
+          (id, workspace_id, code, name, published, created_by, updated_by, created_at, updated_at)
+        VALUES (?, ?, ?, ?, TRUE, 'test', 'test', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        """,
         type,
         WORKSPACE,
         type.toString(),
         "Delayed");
     jdbc.update(
-        "INSERT INTO field_def (id, object_type_id, code, name, required) VALUES (?, ?, 'name', 'Name', TRUE)",
+        """
+        INSERT INTO field_def
+          (id, object_type_id, code, name, required, created_by, updated_by, created_at, updated_at)
+        VALUES (?, ?, 'name', 'Name', TRUE, 'test', 'test', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        """,
         UUID.randomUUID(),
         type);
   }
