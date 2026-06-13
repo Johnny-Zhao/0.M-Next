@@ -4,6 +4,21 @@ spring:
   threads:
     virtual:
       enabled: true
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USERNAME:guest}
+    password: ${RABBITMQ_PASSWORD:guest}
+    publisher-confirm-type: correlated
+
+springdoc:
+  api-docs:
+    version: OPENAPI_3_1
+
+mnext:
+  outbox:
+    enabled: ${OUTBOX_RELAY_ENABLED:true}
+    poll-delay: ${OUTBOX_RELAY_POLL_DELAY:1000}
 
 server:
   port: ${SERVER_PORT:8080}
