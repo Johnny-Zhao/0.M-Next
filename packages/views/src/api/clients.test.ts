@@ -1,11 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { CommandClient, CommandFailure } from "./command-client";
-import { ViewClient } from "./view-client";
+import { ViewClient, type FetchFn } from "./view-client";
 
 describe("view and command clients", () => {
   it("scopes paged object reads and caps page size", async () => {
-    const fetchFn = vi.fn(async () => new Response(JSON.stringify({ items: [] })));
+    const fetchFn = vi.fn<FetchFn>(
+      async () => new Response(JSON.stringify({ items: [] })),
+    );
     const client = new ViewClient("/api", fetchFn);
 
     await client.objects("ws", "demo_object", 2, 200);
@@ -17,7 +19,9 @@ describe("view and command clients", () => {
   });
 
   it("posts UpdateFields with expectedFieldVersion", async () => {
-    const fetchFn = vi.fn(async () => new Response(null, { status: 200 }));
+    const fetchFn = vi.fn<FetchFn>(
+      async () => new Response(null, { status: 200 }),
+    );
     const client = new CommandClient("/api", fetchFn);
 
     await client.updateFields("ws", "object", 4, [
@@ -32,7 +36,7 @@ describe("view and command clients", () => {
 
 describe("command errors", () => {
   it("maps conflict codes to business titles", async () => {
-    const fetchFn = vi.fn(
+    const fetchFn = vi.fn<FetchFn>(
       async () =>
         new Response(
           JSON.stringify({

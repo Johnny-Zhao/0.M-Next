@@ -49,17 +49,20 @@ export class CommandClient {
     expectedObjectVersion: number,
     fields: readonly FieldUpdate[],
   ): Promise<void> {
-    const response = await this.fetchFn(`${this.baseUrl}/workspaces/${workspaceId}/commands`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        commandType: "UpdateFields",
-        workspaceId,
-        correlationId: crypto.randomUUID(),
-        idempotencyKey: `ck-${crypto.randomUUID()}`,
-        payload: { objectId, expectedObjectVersion, fields },
-      }),
-    });
+    const response = await this.fetchFn(
+      `${this.baseUrl}/workspaces/${workspaceId}/commands`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          commandType: "UpdateFields",
+          workspaceId,
+          correlationId: crypto.randomUUID(),
+          idempotencyKey: `ck-${crypto.randomUUID()}`,
+          payload: { objectId, expectedObjectVersion, fields },
+        }),
+      },
+    );
     if (response.ok) return;
     const failure = (await response.json()) as Omit<CommandError, "title">;
     throw new CommandFailure({

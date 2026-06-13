@@ -46,7 +46,10 @@ export interface SyncStatus {
   readonly caughtUp: boolean;
 }
 
-export type FetchFn = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
+export type FetchFn = (
+  input: RequestInfo | URL,
+  init?: RequestInit,
+) => Promise<Response>;
 
 export class ViewClient {
   constructor(
@@ -64,8 +67,13 @@ export class ViewClient {
     page = 0,
     pageSize = 50,
   ): Promise<ObjectPage> {
-    if (pageSize < 1 || pageSize > 200) throw new Error("pageSize must be 1..200");
-    const query = new URLSearchParams({ objectType, page: `${page}`, pageSize: `${pageSize}` });
+    if (pageSize < 1 || pageSize > 200)
+      throw new Error("pageSize must be 1..200");
+    const query = new URLSearchParams({
+      objectType,
+      page: `${page}`,
+      pageSize: `${pageSize}`,
+    });
     return this.get(`/workspaces/${workspaceId}/views/objects?${query}`);
   }
 
