@@ -14,7 +14,10 @@ import type {
 } from "../api/view-client";
 import { ConflictDialog } from "../conflict/conflict-dialog";
 import type { SelectionCoordinator } from "../selection/selection-coordinator";
-import type { SelectionRef } from "../selection/selection-ref";
+import {
+  isObjectSelected,
+  type SelectionRef,
+} from "../selection/selection-ref";
 
 const terminalStatuses = new Set([
   "CONFIRMED",
@@ -210,10 +213,7 @@ export function TableView(props: TableViewProps): ReactElement {
           {page.items.map((row, index) => (
             <tr
               className={
-                selected?.entityType === "object" &&
-                selected.entityId === row.objectId
-                  ? "selected-row"
-                  : ""
+                isObjectSelected(selected, row.objectId) ? "selected-row" : ""
               }
               key={row.objectId}
               onClick={() =>

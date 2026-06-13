@@ -2,7 +2,10 @@ import { useEffect, useState, type ReactElement } from "react";
 
 import type { TreeNodeSummary, ViewClient } from "../api/view-client";
 import type { SelectionCoordinator } from "../selection/selection-coordinator";
-import type { SelectionRef } from "../selection/selection-ref";
+import {
+  isObjectSelected,
+  type SelectionRef,
+} from "../selection/selection-ref";
 
 export interface TreeBranch {
   readonly id: string;
@@ -69,14 +72,11 @@ function TreeNode(props: {
     <div style={{ marginLeft: `${props.branch.depth * 16}px` }}>
       <button
         className={
-          props.selected?.entityId === props.branch.id ? "selected-node" : ""
+          isObjectSelected(props.selected, props.branch.id)
+            ? "selected-node"
+            : ""
         }
-        onClick={() =>
-          props.selection.select({
-            entityType: "object",
-            entityId: props.branch.id,
-          })
-        }
+        onClick={() => selectTreeNode(props.selection, props.branch.id)}
         type="button"
       >
         {props.branch.id}
@@ -91,4 +91,11 @@ function TreeNode(props: {
       ))}
     </div>
   );
+}
+
+export function selectTreeNode(
+  selection: SelectionCoordinator,
+  entityId: string,
+): void {
+  selection.select({ entityType: "object", entityId });
 }

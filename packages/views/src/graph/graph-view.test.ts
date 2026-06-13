@@ -6,6 +6,8 @@ vi.mock("@antv/g6", () => ({
 }));
 
 import { relationsToGraph } from "./graph-view";
+import { graphSelectedStates, selectGraphNode } from "./graph-view";
+import { SelectionCoordinator } from "../selection/selection-coordinator";
 
 describe("GraphView", () => {
   it("maps bounded relations to unique nodes and typed edges", () => {
@@ -27,5 +29,18 @@ describe("GraphView", () => {
     expect(graph.nodes.map((node) => node.id)).toEqual(["a", "b", "c"]);
     expect(graph.edges).toHaveLength(2);
     expect(graph.edges[0]?.relationType).toBe("depends_on");
+  });
+
+  it("publishes node selection without writes and computes highlight state", () => {
+    const selection = new SelectionCoordinator();
+    const writeRequest = vi.fn();
+    selectGraphNode(selection, "a");
+    const states = graphSelectedStates(
+      { nodes: [{ id: "a" }, { id: "b" }], edges: [] },
+      selection.current(),
+    );
+
+    expect(states).toEqual({ a: ["selected"], b: [] });
+    expect(writeRequest).not.toHaveBeenCalled();
   });
 });

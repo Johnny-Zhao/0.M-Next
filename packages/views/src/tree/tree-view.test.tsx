@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { SelectionCoordinator } from "../selection/selection-coordinator";
-import { buildTree } from "./tree-view";
+import { buildTree, selectTreeNode } from "./tree-view";
 
 describe("TreeView", () => {
   it("builds hierarchy and truncates beyond depth five", () => {
@@ -19,7 +19,7 @@ describe("TreeView", () => {
   it("selection stays in memory without writes", () => {
     const selection = new SelectionCoordinator();
     const writeRequest = vi.fn();
-    selection.select({ entityType: "object", entityId: "node" });
+    selectTreeNode(selection, "node");
 
     expect(selection.current()?.entityId).toBe("node");
     expect(writeRequest).not.toHaveBeenCalled();

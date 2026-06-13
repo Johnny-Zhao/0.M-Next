@@ -7,6 +7,10 @@ import {
   type ViewClient,
 } from "../api/view-client";
 import type { SelectionCoordinator } from "../selection/selection-coordinator";
+import {
+  isObjectSelected,
+  type SelectionRef,
+} from "../selection/selection-ref";
 
 export interface GraphData {
   readonly nodes: { id: string }[];
@@ -33,6 +37,25 @@ export function relationsToGraph(
       relationType: relation.relationType,
     })),
   };
+}
+
+export function graphSelectedStates(
+  data: GraphData,
+  selection: SelectionRef | null,
+): Record<string, string[]> {
+  return Object.fromEntries(
+    data.nodes.map((node) => [
+      node.id,
+      isObjectSelected(selection, node.id) ? ["selected"] : [],
+    ]),
+  );
+}
+
+export function selectGraphNode(
+  selection: SelectionCoordinator,
+  entityId: string,
+): void {
+  selection.select({ entityType: "object", entityId });
 }
 
 export interface GraphViewProps {
@@ -78,19 +101,10 @@ export function GraphView(props: GraphViewProps): ReactElement {
       autoFit: "view",
     });
     graph.on(NodeEvent.CLICK, (event: IElementEvent) => {
-      props.selection.select({
-        entityType: "object",
-        entityId: String(event.target.id),
-      });
+      selectGraphNode(props.selection, String(event.target.id));
     });
     const unsubscribe = props.selection.subscribe((selected) => {
-      const states = Object.fromEntries(
-        data.nodes.map((node) => [
-          node.id,
-          selected?.entityId === node.id ? ["selected"] : [],
-        ]),
-      );
-      void graph.setElementState(states, false);
+      void graph.setElementState(graphSelectedStates(data, selected), false);
     });
     void graph.render();
     return () => {
