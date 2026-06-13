@@ -1,6 +1,7 @@
 package com.mnext.server;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -21,7 +22,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 
-@WebMvcTest(CommandController.class)
+@WebMvcTest({CommandController.class, ViewQueryController.class})
 @ImportAutoConfiguration({
   SpringDocConfiguration.class,
   SpringDocConfigProperties.class,
@@ -29,6 +30,7 @@ import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 })
 class OpenApiContractTest {
   @MockitoBean KernelCommandService commands;
+  @MockitoBean ReadModelRepository readModel;
   @Autowired MockMvc http;
   @Autowired ObjectMapper mapper;
 
@@ -54,6 +56,12 @@ class OpenApiContractTest {
             .map(JsonNode::asText)
             .collect(Collectors.toSet());
     assertEquals(registeredCommandTypes(), actual);
+    for (var path :
+        Set.of("objects", "object-types", "objects~1{objectId}", "relations", "tree", "sync-status")) {
+      assertFalse(
+          document.at("/paths/~1workspaces~1{workspaceId}~1views~1" + path + "/get").isMissingNode(),
+          path);
+    }
   }
 
   private Set<String> registeredCommandTypes() throws Exception {
