@@ -1,0 +1,16 @@
+{
+  "commandType": "DefineRelationType",
+  "workspaceId": "11111111-1111-4111-8111-111111111111",
+  "correlationId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+  "idempotencyKey": "define-rt-invalid-extra",
+  "payload": {
+    "code": "decomposes",
+    "sourceTypeId": "22222222-2222-4222-8222-222222222222",
+    "targetTypeId": "22222222-2222-4222-8222-222222222222",
+    "direction": "directed",
+    "cardinality": "one_to_many",
+    "semantics": "strong",
+    "hierarchical": true,
+    "unexpected": true
+  }
+}
