@@ -1,0 +1,357 @@
+package com.mnext.server;
+
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.time.Instant;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.stereotype.Repository;
+
+@Repository
+class ReadModelRepository {
+  private static final String GROUP = "readmodel";
+  private final JdbcTemplate jdbc;
+  private final ObjectMapper mapper;
+
+  ReadModelRepository(JdbcTemplate jdbc, ObjectMapper mapper) {
+    this.jdbc = jdbc;
+    this.mapper = mapper;
+  }
+
+  boolean consumed(String eventId) {
+    return Boolean.TRUE.equals(
+        jdbc.queryForObject(
+            "SELECT EXISTS(SELECT 1 FROM rm_consumed_event WHERE consumer_group = ? AND event_id = ?)",
+            Boolean.class,
+            GROUP,
+            eventId));
+  }
+
+  void markConsumed(String eventId) {
+    jdbc.update(
+        "INSERT INTO rm_consumed_event (consumer_group, event_id) VALUES (?, ?) ON CONFLICT DO NOTHING",
+        GROUP,
+        eventId);
+  }
+
+  void createObject(
+      UUID workspaceId,
+      UUID objectId,
+      String typeCode,
+      String status,
+      long version,
+      Instant updatedAt) {
+    jdbc.update(
+        """
+        INSERT INTO rm_object
+          (workspace_id, object_id, object_type_code, status, version, fields, updated_at)
+        VALUES (?, ?, ?, ?, ?, '{}'::jsonb, ?)
+        ON CONFLICT (workspace_id, object_id) DO NOTHING
+        """,
+        workspaceId,
+        objectId,
+        typeCode,
+        status,
+        version,
+        java.sql.Timestamp.from(updatedAt));
+  }
+
+  void updateField(
+      UUID workspaceId, UUID objectId, String code, Object value, long version, Instant updatedAt) {
+    jdbc.update(
+        """
+        UPDATE rm_object SET fields = jsonb_set(fields, ARRAY[?], CAST(? AS jsonb), TRUE),
+          version = ?, updated_at = ?
+        WHERE workspace_id = ? AND object_id = ? AND version < ?
+        """,
+        code,
+        json(value),
+        version,
+        java.sql.Timestamp.from(updatedAt),
+        workspaceId,
+        objectId,
+        version);
+  }
+
+  void updateObjectStatus(
+      UUID workspaceId, UUID objectId, String status, long version, Instant updatedAt) {
+    jdbc.update(
+        """
+        UPDATE rm_object SET status = ?, version = ?, updated_at = ?
+        WHERE workspace_id = ? AND object_id = ? AND version < ?
+        """,
+        status,
+        version,
+        java.sql.Timestamp.from(updatedAt),
+        workspaceId,
+        objectId,
+        version);
+  }
+
+  void createRelation(
+      UUID workspaceId,
+      UUID relationId,
+      String typeCode,
+      UUID sourceId,
+      UUID targetId,
+      Map<String, Object> fields,
+      boolean hierarchical,
+      long version,
+      Instant updatedAt) {
+    jdbc.update(
+        """
+        INSERT INTO rm_relation
+          (workspace_id, relation_id, relation_type_code, source_id, target_id, fields,
+           hierarchical, status, version, updated_at)
+        VALUES (?, ?, ?, ?, ?, CAST(? AS jsonb), ?, 'ACTIVE', ?, ?)
+        ON CONFLICT (workspace_id, relation_id) DO NOTHING
+        """,
+        workspaceId,
+        relationId,
+        typeCode,
+        sourceId,
+        targetId,
+        json(fields),
+        hierarchical,
+        version,
+        java.sql.Timestamp.from(updatedAt));
+  }
+
+  void updateRelation(
+      UUID workspaceId,
+      UUID relationId,
+      UUID sourceId,
+      UUID targetId,
+      Map<String, Object> fields,
+      long version,
+      Instant updatedAt) {
+    jdbc.update(
+        """
+        UPDATE rm_relation SET source_id = ?, target_id = ?, fields = CAST(? AS jsonb),
+          version = ?, updated_at = ?
+        WHERE workspace_id = ? AND relation_id = ? AND version < ?
+        """,
+        sourceId,
+        targetId,
+        json(fields),
+        version,
+        java.sql.Timestamp.from(updatedAt),
+        workspaceId,
+        relationId,
+        version);
+  }
+
+  void updateRelationStatus(
+      UUID workspaceId, UUID relationId, String status, long version, Instant updatedAt) {
+    jdbc.update(
+        """
+        UPDATE rm_relation SET status = ?, version = ?, updated_at = ?
+        WHERE workspace_id = ? AND relation_id = ? AND version < ?
+        """,
+        status,
+        version,
+        java.sql.Timestamp.from(updatedAt),
+        workspaceId,
+        relationId,
+        version);
+  }
+
+  List<ObjectTypeView> objectTypes(UUID workspaceId) {
+    return jdbc.query(
+        """
+        SELECT type.id, type.code, type.name, field.code, field.name, field.data_type,
+               field.required, field.constraints::text
+        FROM object_type type LEFT JOIN field_def field ON field.object_type_id = type.id
+        WHERE type.workspace_id = ?
+        ORDER BY type.code, field.code
+        """,
+        result -> {
+          var types = new java.util.LinkedHashMap<UUID, ObjectTypeView>();
+          while (result.next()) {
+            var id = result.getObject(1, UUID.class);
+            var type =
+                types.computeIfAbsent(
+                    id,
+                    ignored ->
+                        new ObjectTypeView(
+                            id,
+                            resultString(result, 2),
+                            resultString(result, 3),
+                            new java.util.ArrayList<>()));
+            if (result.getString(4) != null) {
+              type.fields()
+                  .add(
+                      new FieldDefinitionView(
+                          result.getString(4),
+                          result.getString(5),
+                          result.getString(6),
+                          result.getBoolean(7),
+                          map(result.getString(8))));
+            }
+          }
+          return List.copyOf(types.values());
+        },
+        workspaceId);
+  }
+
+  PageView<ObjectView> objects(UUID workspaceId, String objectType, int page, int pageSize) {
+    var total =
+        jdbc.queryForObject(
+            "SELECT count(*) FROM rm_object WHERE workspace_id = ? AND object_type_code = ?",
+            Long.class,
+            workspaceId,
+            objectType);
+    var items =
+        jdbc.query(
+            """
+            SELECT object_id, object_type_code, status, version, fields::text, updated_at
+            FROM rm_object WHERE workspace_id = ? AND object_type_code = ?
+            ORDER BY object_id LIMIT ? OFFSET ?
+            """,
+            (row, index) -> object(row),
+            workspaceId,
+            objectType,
+            pageSize,
+            page * pageSize);
+    return new PageView<>(items, page, pageSize, total);
+  }
+
+  ObjectDetailView object(UUID workspaceId, UUID objectId) {
+    var object =
+        jdbc.query(
+            """
+            SELECT object_id, object_type_code, status, version, fields::text, updated_at
+            FROM rm_object WHERE workspace_id = ? AND object_id = ?
+            """,
+            result -> result.next() ? object(result) : null,
+            workspaceId,
+            objectId);
+    if (object == null) throw new IllegalArgumentException("对象不存在或不可见");
+    var relations =
+        jdbc.query(
+            """
+            SELECT relation_id, relation_type_code, source_id, target_id, fields::text,
+                   hierarchical, status, version
+            FROM rm_relation
+            WHERE workspace_id = ? AND status = 'ACTIVE' AND (source_id = ? OR target_id = ?)
+            ORDER BY relation_id LIMIT 200
+            """,
+            (row, index) -> relation(row),
+            workspaceId,
+            objectId,
+            objectId);
+    return new ObjectDetailView(object, relations);
+  }
+
+  List<RelationView> relations(
+      UUID workspaceId, String relationType, String direction, UUID sourceId, int depth) {
+    var endpoint = "out".equals(direction) ? "source_id" : "target_id";
+    var sql =
+        """
+        SELECT relation_id, relation_type_code, source_id, target_id, fields::text,
+               hierarchical, status, version
+        FROM rm_relation
+        WHERE workspace_id = ? AND relation_type_code = ? AND %s = ? AND status = 'ACTIVE'
+        ORDER BY relation_id LIMIT ?
+        """
+            .formatted(endpoint);
+    return jdbc.query(
+        sql, (row, index) -> relation(row), workspaceId, relationType, sourceId, depth * 200);
+  }
+
+  List<TreeNodeView> tree(UUID workspaceId, String relationType, UUID rootId) {
+    return jdbc.query(
+        """
+        WITH RECURSIVE tree AS (
+          SELECT source_id, target_id, 1 AS depth FROM rm_relation
+          WHERE workspace_id = ? AND relation_type_code = ? AND source_id = ?
+            AND hierarchical AND status = 'ACTIVE'
+          UNION ALL
+          SELECT relation.source_id, relation.target_id, tree.depth + 1
+          FROM rm_relation relation JOIN tree ON relation.source_id = tree.target_id
+          WHERE relation.workspace_id = ? AND relation.relation_type_code = ?
+            AND relation.hierarchical AND relation.status = 'ACTIVE' AND tree.depth < 5)
+        SELECT source_id, target_id, depth FROM tree ORDER BY depth, target_id
+        """,
+        (row, index) ->
+            new TreeNodeView(
+                row.getObject(1, UUID.class), row.getObject(2, UUID.class), row.getInt(3)),
+        workspaceId,
+        relationType,
+        rootId,
+        workspaceId,
+        relationType);
+  }
+
+  boolean hierarchicalRelationType(UUID workspaceId, String relationType) {
+    return Boolean.TRUE.equals(
+        jdbc.queryForObject(
+            """
+            SELECT EXISTS(SELECT 1 FROM rm_relation
+              WHERE workspace_id = ? AND relation_type_code = ? AND hierarchical)
+            """,
+            Boolean.class,
+            workspaceId,
+            relationType));
+  }
+
+  SyncStatusView syncStatus(UUID workspaceId) {
+    var pending =
+        jdbc.queryForObject(
+            """
+            SELECT count(*) FROM event_outbox
+            WHERE payload->>'workspaceId' = ? AND status = 'PENDING'
+            """,
+            Long.class,
+            workspaceId.toString());
+    return new SyncStatusView(pending, pending == 0);
+  }
+
+  private ObjectView object(java.sql.ResultSet row) throws java.sql.SQLException {
+    return new ObjectView(
+        row.getObject(1, UUID.class),
+        row.getString(2),
+        row.getString(3),
+        row.getLong(4),
+        map(row.getString(5)),
+        row.getTimestamp(6).toInstant());
+  }
+
+  private RelationView relation(java.sql.ResultSet row) throws java.sql.SQLException {
+    return new RelationView(
+        row.getObject(1, UUID.class),
+        row.getString(2),
+        row.getObject(3, UUID.class),
+        row.getObject(4, UUID.class),
+        map(row.getString(5)),
+        row.getBoolean(6),
+        row.getString(7),
+        row.getLong(8));
+  }
+
+  private String json(Object value) {
+    try {
+      return mapper.writeValueAsString(value);
+    } catch (com.fasterxml.jackson.core.JsonProcessingException failure) {
+      throw new IllegalArgumentException("读模型值无法序列化", failure);
+    }
+  }
+
+  private Map<String, Object> map(String value) {
+    try {
+      return mapper.readValue(value, new TypeReference<>() {});
+    } catch (com.fasterxml.jackson.core.JsonProcessingException failure) {
+      throw new IllegalArgumentException("读模型值无法解析", failure);
+    }
+  }
+
+  private static String resultString(java.sql.ResultSet result, int index) {
+    try {
+      return result.getString(index);
+    } catch (java.sql.SQLException failure) {
+      throw new IllegalStateException(failure);
+    }
+  }
+}
