@@ -41,6 +41,7 @@ class CreateObjectHandler {
     if (replay.isPresent()) return replay.get();
 
     var definitions = repository.fieldDefinitions(command.objectTypeId());
+    FieldValidator.validate(command, definitions, repository::validReference);
     validateDefinitions(command, definitions);
     var commandId = CommandSupport.commandId();
     var objectId = UUID.randomUUID();

@@ -50,6 +50,7 @@ class UpdateFieldsHandler {
     if (Set.of("VOID", "FILED", "DELETED").contains(object.status()))
       throw CommandErrors.archived();
     var definitions = repository.fieldDefinitions(object.objectTypeId());
+    FieldValidator.validate(command, definitions, repository::validReference);
     var prepared = prepare(command, definitions);
     var conflicts = conflicts(command, object, prepared);
     if (!conflicts.isEmpty()) {

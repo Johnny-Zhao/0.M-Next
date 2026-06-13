@@ -1,6 +1,9 @@
 package com.mnext.kernel.internal;
 
 import com.mnext.kernel.api.events.EventEnvelope;
+import com.mnext.kernel.api.metamodel.DataType;
+import com.mnext.kernel.api.metamodel.FieldConstraints;
+import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -43,17 +46,49 @@ class KernelRepository {
   Map<String, FieldDefinition> fieldDefinitions(UUID objectTypeId) {
     var definitions = new LinkedHashMap<String, FieldDefinition>();
     jdbc.query(
-        "SELECT id, code, required FROM field_def WHERE object_type_id = ? ORDER BY code",
+        """
+        SELECT id, code, required, data_type,
+          constraints->>'minLength' AS min_length, constraints->>'maxLength' AS max_length,
+          constraints->>'min' AS min_value, constraints->>'max' AS max_value,
+          constraints->>'pattern' AS pattern, constraints->>'refObjectTypeCode' AS ref_type,
+          ARRAY(SELECT jsonb_array_elements_text(
+            COALESCE(constraints->'enumValues', '[]'::jsonb))) AS enum_values
+        FROM field_def WHERE object_type_id = ? ORDER BY code
+        """,
         result -> {
           definitions.put(
               result.getString("code"),
               new FieldDefinition(
                   result.getObject("id", UUID.class),
                   result.getString("code"),
-                  result.getBoolean("required")));
+                  result.getBoolean("required"),
+                  DataType.fromCode(result.getString("data_type")),
+                  new FieldConstraints(
+                      integer(result.getString("min_length")),
+                      integer(result.getString("max_length")),
+                      decimal(result.getString("min_value")),
+                      decimal(result.getString("max_value")),
+                      result.getString("pattern"),
+                      List.of((String[]) result.getArray("enum_values").getArray()),
+                      result.getString("ref_type"))));
         },
         objectTypeId);
     return definitions;
+  }
+
+  boolean validReference(UUID workspaceId, UUID objectId, String objectTypeCode) {
+    return Boolean.TRUE.equals(
+        jdbc.queryForObject(
+            """
+            SELECT EXISTS(
+              SELECT 1 FROM data_object value JOIN object_type type ON type.id = value.object_type_id
+              WHERE value.workspace_id = ? AND value.id = ? AND type.code = ?
+                AND value.status NOT IN ('VOID', 'FILED', 'DELETED'))
+            """,
+            Boolean.class,
+            workspaceId,
+            objectId,
+            objectTypeCode));
   }
 
   Optional<StoredCommand> findCommand(UUID workspaceId, String idempotencyKey) {
@@ -292,6 +327,14 @@ class KernelRepository {
         payloadHash,
         JsonCodec.encode(result),
         Timestamp.from(now));
+  }
+
+  private static Integer integer(String value) {
+    return value == null ? null : Integer.valueOf(value);
+  }
+
+  private static BigDecimal decimal(String value) {
+    return value == null ? null : new BigDecimal(value);
   }
 
   private void insertHistory(
