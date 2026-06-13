@@ -57,9 +57,12 @@ class OpenApiContractTest {
             .collect(Collectors.toSet());
     assertEquals(registeredCommandTypes(), actual);
     for (var path :
-        Set.of("objects", "object-types", "objects~1{objectId}", "relations", "tree", "sync-status")) {
+        Set.of(
+            "objects", "object-types", "objects~1{objectId}", "relations", "tree", "sync-status")) {
       assertFalse(
-          document.at("/paths/~1workspaces~1{workspaceId}~1views~1" + path + "/get").isMissingNode(),
+          document
+              .at("/paths/~1workspaces~1{workspaceId}~1views~1" + path + "/get")
+              .isMissingNode(),
           path);
     }
   }
