@@ -136,6 +136,17 @@ export function TableView(props: TableViewProps): ReactElement {
     }
   }
 
+  function loadPage(pageNumber: number): void {
+    void props.viewClient
+      .objects(
+        props.workspaceId,
+        props.objectType,
+        pageNumber,
+        props.pageSize ?? 50,
+      )
+      .then(setPage);
+  }
+
   const fields = tableColumns(type);
   return (
     <section aria-label="表格视图">
@@ -189,6 +200,20 @@ export function TableView(props: TableViewProps): ReactElement {
       <p>
         第 {page.page + 1} 页 共 {page.total} 条
       </p>
+      <button
+        disabled={page.page === 0}
+        onClick={() => loadPage(page.page - 1)}
+        type="button"
+      >
+        上一页
+      </button>
+      <button
+        disabled={(page.page + 1) * page.pageSize >= page.total}
+        onClick={() => loadPage(page.page + 1)}
+        type="button"
+      >
+        下一页
+      </button>
       {conflicts.length > 0 ? (
         <ConflictDialog fields={conflicts} onClose={() => setConflicts([])} />
       ) : null}
