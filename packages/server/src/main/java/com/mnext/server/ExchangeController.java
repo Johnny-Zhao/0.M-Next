@@ -24,6 +24,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -36,14 +37,25 @@ import org.springframework.web.bind.annotation.RestController;
 public class ExchangeController {
   private static final SourceInfo IMPORT_SOURCE = new SourceInfo("artifact_sync", "import");
   private final ReadModelRepository readModel;
+  private final SnapshotRepository snapshots;
   private final KernelCommandService commands;
   private final JsonCodec codec;
 
   public ExchangeController(
       ReadModelRepository readModel, KernelCommandService commands, ObjectMapper mapper) {
+    this(readModel, commands, mapper, null);
+  }
+
+  @Autowired
+  public ExchangeController(
+      ReadModelRepository readModel,
+      KernelCommandService commands,
+      ObjectMapper mapper,
+      SnapshotRepository snapshots) {
     this.readModel = readModel;
     this.commands = commands;
     this.codec = new JsonCodec(mapper);
+    this.snapshots = snapshots;
   }
 
   @GetMapping("/workspaces/{workspaceId}/exchange/json/export")
@@ -56,10 +68,16 @@ public class ExchangeController {
 
   @PostMapping("/workspaces/{workspaceId}/exchange/json/preview")
   public DiffResult preview(
-      @PathVariable("workspaceId") UUID workspaceId, @RequestBody String json) {
-    var current = readModel.dataSet(workspaceId);
+      @PathVariable("workspaceId") UUID workspaceId,
+      @RequestParam(value = "base", defaultValue = "current") String base,
+      @RequestBody String json) {
+    var current = previewBase(workspaceId, base);
     var artifact = artifact(workspaceId, json);
     return StructuredDiff.diff(current, ArtifactMapper.toDataSet(artifact, current));
+  }
+
+  public DiffResult preview(UUID workspaceId, String json) {
+    return preview(workspaceId, "current", json);
   }
 
   @PostMapping("/workspaces/{workspaceId}/exchange/json/apply")
@@ -82,6 +100,15 @@ public class ExchangeController {
       throw new IllegalArgumentException("artifact workspace 与路径不一致");
     }
     return artifact;
+  }
+
+  private DataSet previewBase(UUID workspaceId, String base) {
+    if ("current".equals(base)) return readModel.dataSet(workspaceId);
+    if (base != null && base.startsWith("snapshot:") && snapshots != null) {
+      var snapshotId = UUID.fromString(base.substring("snapshot:".length()));
+      return snapshots.get(workspaceId, snapshotId).payload();
+    }
+    throw new IllegalArgumentException("base 仅支持 current 或 snapshot:{id}");
   }
 
   private ExchangeApplyResult apply(UUID workspaceId, Actor actor, JsonArtifact artifact) {
