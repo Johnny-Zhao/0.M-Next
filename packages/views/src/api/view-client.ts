@@ -52,6 +52,28 @@ export interface SyncStatus {
   readonly caughtUp: boolean;
 }
 
+export interface MatrixObject {
+  readonly objectId: string;
+  readonly label: string;
+  readonly status: string;
+}
+
+export interface MatrixCell {
+  readonly rowId: string;
+  readonly colId: string;
+  readonly relationId: string;
+  readonly status: string;
+  readonly fields: Readonly<Record<string, unknown>>;
+}
+
+export interface MatrixResult {
+  readonly rows: readonly MatrixObject[];
+  readonly cols: readonly MatrixObject[];
+  readonly cells: readonly MatrixCell[];
+  readonly rowTotal: number;
+  readonly colTotal: number;
+}
+
 export type FetchFn = (
   input: RequestInfo | URL,
   init?: RequestInit,
@@ -112,6 +134,38 @@ export class ViewClient {
     return this.get(`/workspaces/${workspaceId}/views/tree?${query}`);
   }
 
+  matrix(
+    workspaceId: string,
+    rowType: string,
+    colType: string,
+    relationType: string,
+    rowPage = 0,
+    rowSize = 50,
+    colPage = 0,
+    colSize = 50,
+  ): Promise<MatrixResult> {
+    if (
+      rowPage < 0 ||
+      colPage < 0 ||
+      !validMatrixSize(rowSize) ||
+      !validMatrixSize(colSize)
+    ) {
+      throw new Error(
+        "matrix pages must be non-negative and sizes must be 1..50",
+      );
+    }
+    const query = new URLSearchParams({
+      rowType,
+      colType,
+      relationType,
+      rowPage: `${rowPage}`,
+      rowSize: `${rowSize}`,
+      colPage: `${colPage}`,
+      colSize: `${colSize}`,
+    });
+    return this.get(`/workspaces/${workspaceId}/views/matrix?${query}`);
+  }
+
   syncStatus(workspaceId: string): Promise<SyncStatus> {
     return this.get(`/workspaces/${workspaceId}/views/sync-status`);
   }
@@ -126,4 +180,8 @@ export class ViewClient {
 export function boundedDepth(depth: number): number {
   if (!Number.isFinite(depth)) return 1;
   return Math.min(5, Math.max(1, Math.trunc(depth)));
+}
+
+function validMatrixSize(size: number): boolean {
+  return Number.isInteger(size) && size >= 1 && size <= 50;
 }
