@@ -22,7 +22,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 
-@WebMvcTest({CommandController.class, ViewQueryController.class})
+@WebMvcTest({CommandController.class, DiffController.class, ViewQueryController.class})
 @ImportAutoConfiguration({
   SpringDocConfiguration.class,
   SpringDocConfigProperties.class,
@@ -65,6 +65,7 @@ class OpenApiContractTest {
               .isMissingNode(),
           path);
     }
+    assertFalse(document.at("/paths/~1workspaces~1{workspaceId}~1diff/post").isMissingNode());
   }
 
   private Set<String> registeredCommandTypes() throws Exception {
