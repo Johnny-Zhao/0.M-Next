@@ -14,6 +14,11 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.web.client.TestRestTemplate;
+import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -23,7 +28,9 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
 
 @Testcontainers(disabledWithoutDocker = true)
-@SpringBootTest(properties = {"mnext.outbox.enabled=false", "mnext.readmodel.enabled=false"})
+@SpringBootTest(
+    webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
+    properties = {"mnext.outbox.enabled=false", "mnext.readmodel.enabled=false"})
 class ExchangeIntegrationTest {
   private static final UUID WORKSPACE = UUID.fromString("11111111-1111-4111-8111-111111111111");
   private static final UUID OBJECT = UUID.fromString("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
@@ -42,6 +49,8 @@ class ExchangeIntegrationTest {
   @Autowired ExchangeController controller;
   @Autowired JdbcTemplate jdbc;
   @Autowired ObjectMapper mapper;
+  @Autowired TestRestTemplate http;
+  @LocalServerPort int port;
 
   @BeforeEach
   void reset() {
@@ -114,6 +123,24 @@ class ExchangeIntegrationTest {
     assertEquals("9", cost());
   }
 
+  @Test
+  void exposesExportAndPreviewOverHttp() throws JsonProcessingException {
+    var exported = http.getForEntity(base() + "/export?objectType=demo_object", Map.class);
+    var headers = new HttpHeaders();
+    headers.setContentType(MediaType.APPLICATION_JSON);
+    var preview =
+        http.postForEntity(
+            base() + "/preview",
+            new HttpEntity<>(mapper.writeValueAsString(artifact(false)), headers),
+            Map.class);
+
+    assertEquals(200, exported.getStatusCode().value());
+    assertEquals(200, preview.getStatusCode().value());
+    assertEquals(
+        1,
+        ((Number) ((Map<?, ?>) preview.getBody().get("summary")).get("objectsChanged")).intValue());
+  }
+
   private JsonArtifact artifact(boolean includeNewObject) {
     var objects = new java.util.ArrayList<ArtifactObject>();
     objects.add(
@@ -159,5 +186,9 @@ class ExchangeIntegrationTest {
         """,
         String.class,
         OBJECT);
+  }
+
+  private String base() {
+    return "http://localhost:" + port + "/workspaces/" + WORKSPACE + "/exchange/json";
   }
 }
