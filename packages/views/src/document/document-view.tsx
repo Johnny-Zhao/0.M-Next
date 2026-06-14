@@ -121,41 +121,42 @@ export function canEditDocumentField(section: DocumentSection): boolean {
 }
 
 export function DocumentView(props: DocumentViewProps): ReactElement {
+  const {
+    viewClient,
+    selection,
+    workspaceId,
+    rootId,
+    relationType,
+    onError,
+    onEditField,
+  } = props;
   const [sections, setSections] = useState<readonly DocumentSection[]>([]);
   const [selected, setSelected] = useState<SelectionRef | null>(null);
   const targets = useRef(new Map<string, HTMLElement>());
 
   useEffect(() => {
     let active = true;
-    void loadSections(props)
+    void loadSections(viewClient, workspaceId, rootId, relationType)
       .then((loaded) => {
         if (active) setSections(loaded);
       })
       .catch((error: unknown) => {
         if (active)
-          props.onError?.(
-            error instanceof Error ? error.message : "文档加载失败",
-          );
+          onError?.(error instanceof Error ? error.message : "文档加载失败");
       });
     return () => {
       active = false;
     };
-  }, [
-    props.relationType,
-    props.rootId,
-    props.viewClient,
-    props.workspaceId,
-    props.onError,
-  ]);
+  }, [relationType, rootId, viewClient, workspaceId, onError]);
 
   useEffect(
     () =>
-      props.selection.subscribe((next) => {
+      selection.subscribe((next) => {
         setSelected(next);
         const key = selectionKey(next);
         if (key) targets.current.get(key)?.scrollIntoView({ block: "nearest" });
       }),
-    [props.selection],
+    [selection],
   );
 
   return (
@@ -163,10 +164,10 @@ export function DocumentView(props: DocumentViewProps): ReactElement {
       {sections.map((section) => (
         <DocumentSectionView
           key={section.object.objectId}
-          onEditField={props.onEditField}
+          onEditField={onEditField}
           section={section}
           selected={selected}
-          selection={props.selection}
+          selection={selection}
           targets={targets.current}
         />
       ))}
@@ -178,18 +179,21 @@ export function DocumentView(props: DocumentViewProps): ReactElement {
 }
 
 async function loadSections(
-  props: DocumentViewProps,
+  viewClient: ViewClient,
+  workspaceId: string,
+  rootId: string,
+  relationType: string,
 ): Promise<readonly DocumentSection[]> {
   const [edges, types] = await Promise.all([
-    props.viewClient.tree(props.workspaceId, props.relationType, props.rootId),
-    props.viewClient.objectTypes(props.workspaceId),
+    viewClient.tree(workspaceId, relationType, rootId),
+    viewClient.objectTypes(workspaceId),
   ]);
   const pages = await Promise.all(
     types.map((type) =>
-      props.viewClient.objects(props.workspaceId, type.code, 0, MAX_SECTIONS),
+      viewClient.objects(workspaceId, type.code, 0, MAX_SECTIONS),
     ),
   );
-  return buildDocumentSections(props.rootId, edges, pages, types);
+  return buildDocumentSections(rootId, edges, pages, types);
 }
 
 function selectionKey(selection: SelectionRef | null): string | null {
