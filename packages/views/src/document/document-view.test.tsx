@@ -120,8 +120,14 @@ describe("DocumentView", () => {
       "body",
       "Changed body",
     );
+    const before = buildDocumentSections(
+      "child",
+      [{ sourceId: "child", targetId: "other", depth: 1 }],
+      [page(current, object("other", "Other"))],
+      types,
+    );
     const changed = replaceDocumentField(
-      buildDocumentSections("child", [], [page(current)], types),
+      before,
       "child",
       "body",
       "Changed body",
@@ -138,6 +144,7 @@ describe("DocumentView", () => {
     expect(result).toEqual({ kind: "saved" });
     expect(changed[0]?.fields[1]?.value).toBe("Changed body");
     expect(changed[0]?.object.version).toBe(2);
+    expect(changed[1]).toBe(before[1]);
   });
 
   it("returns KERNEL-409 details for the existing conflict dialog", async () => {

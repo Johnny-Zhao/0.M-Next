@@ -193,21 +193,18 @@ export function replaceDocumentField(
   value: unknown,
   version: number,
 ): readonly DocumentSection[] {
-  return sections.map((section) =>
-    section.object.objectId === objectId
-      ? {
-          ...section,
-          object: {
-            ...section.object,
-            version,
-            fields: { ...section.object.fields, [fieldCode]: value },
-          },
-          fields: section.fields.map((field) =>
-            field.definition.code === fieldCode ? { ...field, value } : field,
-          ),
-        }
-      : section,
-  );
+  return sections.map((section) => {
+    if (section.object.objectId !== objectId) return section;
+    const object = {
+      ...section.object,
+      version,
+      fields: { ...section.object.fields, [fieldCode]: value },
+    };
+    const fields = section.fields.map((field) =>
+      field.definition.code === fieldCode ? { ...field, value } : field,
+    );
+    return documentSection(object, section.depth, fields);
+  });
 }
 
 export function DocumentView(props: DocumentViewProps): ReactElement {
