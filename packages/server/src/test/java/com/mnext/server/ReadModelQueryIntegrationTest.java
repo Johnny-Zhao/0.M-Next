@@ -124,6 +124,68 @@ class ReadModelQueryIntegrationTest {
     assertEquals(1, ((Number) get("/views/sync-status").get("pendingEvents")).intValue());
   }
 
+  @Test
+  void diffsWorkspaceScopedCurrentReadModel() {
+    projection.apply(objectCreated(FIRST));
+
+    var response =
+        http.postForEntity(
+            base() + "/diff",
+            Map.of(
+                "base",
+                "current",
+                "other",
+                Map.of("objects", java.util.List.of(), "relations", java.util.List.of())),
+            Map.class);
+
+    assertEquals(200, response.getStatusCode().value(), String.valueOf(response.getBody()));
+    var summary = (Map<?, ?>) response.getBody().get("summary");
+    assertEquals(1, ((Number) summary.get("objectsRemoved")).intValue());
+    assertEquals(0, ((Number) summary.get("objectsAdded")).intValue());
+  }
+
+  @Test
+  void diffsTwoProvidedDataSetsOverHttp() {
+    var first =
+        Map.of(
+            "objectId",
+            "one",
+            "objectTypeCode",
+            "demo",
+            "fields",
+            Map.of(),
+            "status",
+            "DRAFT",
+            "version",
+            1);
+    var second =
+        Map.of(
+            "objectId",
+            "two",
+            "objectTypeCode",
+            "demo",
+            "fields",
+            Map.of(),
+            "status",
+            "DRAFT",
+            "version",
+            1);
+
+    var response =
+        http.postForEntity(
+            base() + "/diff",
+            Map.of(
+                "a", Map.of("objects", java.util.List.of(first), "relations", java.util.List.of()),
+                "b",
+                    Map.of("objects", java.util.List.of(second), "relations", java.util.List.of())),
+            Map.class);
+
+    assertEquals(200, response.getStatusCode().value(), String.valueOf(response.getBody()));
+    var summary = (Map<?, ?>) response.getBody().get("summary");
+    assertEquals(1, ((Number) summary.get("objectsAdded")).intValue());
+    assertEquals(1, ((Number) summary.get("objectsRemoved")).intValue());
+  }
+
   private EventEnvelope objectCreated(UUID objectId) {
     return event(
         "ObjectCreated",

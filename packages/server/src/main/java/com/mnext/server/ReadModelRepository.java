@@ -2,6 +2,9 @@ package com.mnext.server;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.mnext.engines.exchange.DataSet;
+import com.mnext.engines.exchange.DataSet.DataObject;
+import com.mnext.engines.exchange.DataSet.DataRelation;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -338,6 +341,38 @@ class ReadModelRepository {
             Long.class,
             workspaceId.toString());
     return new SyncStatusView(pending, pending == 0);
+  }
+
+  DataSet dataSet(UUID workspaceId) {
+    var objects =
+        jdbc.query(
+            """
+            SELECT object_id, object_type_code, fields::text, status, version
+            FROM rm_object WHERE workspace_id = ? ORDER BY object_id
+            """,
+            (row, index) ->
+                new DataObject(
+                    row.getObject(1, UUID.class).toString(),
+                    row.getString(2),
+                    map(row.getString(3)),
+                    row.getString(4),
+                    row.getLong(5)),
+            workspaceId);
+    var relations =
+        jdbc.query(
+            """
+            SELECT relation_id, relation_type_code, source_id, target_id, fields::text
+            FROM rm_relation WHERE workspace_id = ? ORDER BY relation_id
+            """,
+            (row, index) ->
+                new DataRelation(
+                    row.getObject(1, UUID.class).toString(),
+                    row.getString(2),
+                    row.getObject(3, UUID.class).toString(),
+                    row.getObject(4, UUID.class).toString(),
+                    map(row.getString(5))),
+            workspaceId);
+    return new DataSet(objects, relations);
   }
 
   private ObjectView object(java.sql.ResultSet row) throws java.sql.SQLException {
