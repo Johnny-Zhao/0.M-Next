@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactElement } from "react";
+import { useEffect, useRef, useState, type ReactElement } from "react";
 
 import type {
   MatrixCell,
@@ -88,6 +88,11 @@ export function MatrixView(props: MatrixViewProps): ReactElement {
   const [selected, setSelected] = useState<SelectionRef | null>(null);
   const [rowPage, setRowPage] = useState(0);
   const [colPage, setColPage] = useState(0);
+  const onErrorRef = useRef(onError);
+
+  useEffect(() => {
+    onErrorRef.current = onError;
+  }, [onError]);
 
   useEffect(() => {
     let active = true;
@@ -107,7 +112,9 @@ export function MatrixView(props: MatrixViewProps): ReactElement {
       })
       .catch((error: unknown) => {
         if (active) {
-          onError?.(error instanceof Error ? error.message : "矩阵加载失败");
+          onErrorRef.current?.(
+            error instanceof Error ? error.message : "矩阵加载失败",
+          );
         }
       });
     return () => {
@@ -116,7 +123,6 @@ export function MatrixView(props: MatrixViewProps): ReactElement {
   }, [
     colPage,
     colType,
-    onError,
     relationType,
     rowPage,
     rowType,
