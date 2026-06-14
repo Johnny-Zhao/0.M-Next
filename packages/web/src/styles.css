@@ -119,3 +119,36 @@ main {
   border-radius: 0.25rem;
   padding: 0.25rem 0.4rem;
 }
+
+.matrix-grid {
+  border-collapse: collapse;
+  margin-top: 0.75rem;
+}
+
+.matrix-grid th,
+.matrix-grid td {
+  border: 1px solid #cbd5e1;
+  min-width: 7rem;
+  padding: 0.4rem;
+  text-align: center;
+}
+
+.matrix-grid small {
+  display: block;
+}
+
+.matrix-cell-selected {
+  outline: 2px solid #1677ff;
+}
+
+.matrix-header-selected,
+.matrix-axis-selected,
+.matrix-axis-selected td {
+  background: #e6f4ff;
+}
+
+.matrix-pagination {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}

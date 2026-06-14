@@ -4,6 +4,7 @@ import {
   DetailPanel,
   DocumentView,
   GraphView,
+  MatrixView,
   SelectionCoordinator,
   TableView,
   TreeView,
@@ -26,7 +27,7 @@ export function App({
   const [workspaceId, setWorkspaceId] = useState(demoWorkspace);
   const [errors, setErrors] = useState(0);
   const [activeView, setActiveView] = useState<
-    "table" | "tree" | "graph" | "document"
+    "table" | "tree" | "graph" | "document" | "matrix"
   >("table");
   const [rootId, setRootId] = useState("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
   const [sync, setSync] = useState<SyncStatus | "error">({
@@ -81,6 +82,9 @@ export function App({
           <button onClick={() => setActiveView("document")} type="button">
             文档
           </button>
+          <button onClick={() => setActiveView("matrix")} type="button">
+            矩阵
+          </button>
         </nav>
         <section className="view-area">
           {activeView === "table" ? (
@@ -129,6 +133,17 @@ export function App({
               onError={() => setErrors((value) => value + 1)}
               relationType="decomposes_to"
               rootId={rootId}
+              selection={selection}
+              viewClient={viewClient}
+              workspaceId={workspaceId}
+            />
+          ) : null}
+          {activeView === "matrix" ? (
+            <MatrixView
+              colType="demo_object"
+              onError={() => setErrors((value) => value + 1)}
+              relationType="depends_on"
+              rowType="demo_object"
               selection={selection}
               viewClient={viewClient}
               workspaceId={workspaceId}
