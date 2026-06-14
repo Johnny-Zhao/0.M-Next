@@ -1,4 +1,4 @@
-import { Graph, NodeEvent, type IElementEvent } from "@antv/g6";
+import type { Graph, IElementEvent } from "@antv/g6";
 import { useEffect, useRef, useState, type ReactElement } from "react";
 
 import {
@@ -95,32 +95,37 @@ export function GraphView(props: GraphViewProps): ReactElement {
 
   useEffect(() => {
     if (!container.current) return;
-    const graph = new Graph({
-      container: container.current,
-      data,
-      autoFit: "view",
-    });
-    graph.on(NodeEvent.CLICK, (event: IElementEvent) => {
-      selectGraphNode(props.selection, String(event.target.id));
-    });
-    let rendered = false;
     let destroyed = false;
-    let selected = props.selection.current();
-    const unsubscribe = props.selection.subscribe((nextSelection) => {
-      selected = nextSelection;
-      if (rendered) {
-        void graph.setElementState(graphSelectedStates(data, selected), false);
-      }
-    });
-    void graph.render().then(() => {
-      if (destroyed) return;
-      rendered = true;
-      void graph.setElementState(graphSelectedStates(data, selected), false);
+    let graph: Graph | undefined;
+    let unsubscribe: (() => void) | undefined;
+    void import("@antv/g6").then(({ Graph: G6Graph, NodeEvent }) => {
+      if (destroyed || !container.current) return;
+      graph = new G6Graph({
+        container: container.current,
+        data,
+        autoFit: "view",
+      });
+      graph.on(NodeEvent.CLICK, (event: IElementEvent) => {
+        selectGraphNode(props.selection, String(event.target.id));
+      });
+      let selected = props.selection.current();
+      unsubscribe = props.selection.subscribe((nextSelection) => {
+        selected = nextSelection;
+        void graph?.setElementState(graphSelectedStates(data, selected), false);
+      });
+      void graph.render().then(() => {
+        if (!destroyed) {
+          void graph?.setElementState(
+            graphSelectedStates(data, selected),
+            false,
+          );
+        }
+      });
     });
     return () => {
       destroyed = true;
-      unsubscribe();
-      graph.destroy();
+      unsubscribe?.();
+      graph?.destroy();
     };
   }, [data, props.selection]);
 
