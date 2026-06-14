@@ -1,11 +1,16 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { CommandFailure, type CommandClient } from "../api/command-client";
 import type { ObjectPage, ObjectType, ViewObject } from "../api/view-client";
+import { ConflictDialog } from "../conflict/conflict-dialog";
 import { SelectionCoordinator } from "../selection/selection-coordinator";
 import {
   buildDocumentSections,
   canEditDocumentField,
+  canInlineEditDocumentField,
   isDocumentSelection,
+  replaceDocumentField,
+  saveDocumentField,
   selectDocumentField,
   selectDocumentObject,
 } from "./document-view";
@@ -99,6 +104,94 @@ describe("DocumentView", () => {
 
     expect(sections[0]?.terminal).toBe(true);
     expect(canEditDocumentField(sections[0]!)).toBe(false);
+    expect(canInlineEditDocumentField(sections[0]!, commandClient())).toBe(
+      false,
+    );
+  });
+
+  it("submits UpdateFields and shows the saved value in its section", async () => {
+    const updateFields = vi.fn().mockResolvedValue(undefined);
+    const current = object("child", "Child");
+
+    const result = await saveDocumentField(
+      commandClient(updateFields),
+      "workspace",
+      current,
+      "body",
+      "Changed body",
+    );
+    const before = buildDocumentSections(
+      "child",
+      [{ sourceId: "child", targetId: "other", depth: 1 }],
+      [page(current, object("other", "Other"))],
+      types,
+    );
+    const changed = replaceDocumentField(
+      before,
+      "child",
+      "body",
+      "Changed body",
+      2,
+    );
+
+    expect(updateFields).toHaveBeenCalledWith("workspace", "child", 1, [
+      {
+        fieldDefCode: "body",
+        value: "Changed body",
+        expectedFieldVersion: 1,
+      },
+    ]);
+    expect(result).toEqual({ kind: "saved" });
+    expect(changed[0]?.fields[1]?.value).toBe("Changed body");
+    expect(changed[0]?.object.version).toBe(2);
+    expect(changed[1]).toBe(before[1]);
+  });
+
+  it("returns KERNEL-409 details for the existing conflict dialog", async () => {
+    const failure = new CommandFailure({
+      code: "KERNEL-409-VERSION-CONFLICT",
+      title: "乐观版本冲突",
+      details: {
+        currentVersion: 3,
+        conflictingFields: [
+          {
+            fieldDefCode: "body",
+            yourValue: "Mine",
+            currentValue: "Latest",
+            changedBy: "reviewer",
+            changedAt: "now",
+          },
+        ],
+      },
+    });
+    const result = await saveDocumentField(
+      commandClient(vi.fn().mockRejectedValue(failure)),
+      "workspace",
+      object("child", "Child"),
+      "body",
+      "Mine",
+    );
+
+    expect(result.kind).toBe("conflict");
+    const fields = result.kind === "conflict" ? result.conflict.fields : [];
+    const dialog = ConflictDialog({
+      fields,
+      onConfirm: () => undefined,
+      onClose: () => undefined,
+    });
+    expect(JSON.stringify(dialog)).toContain("字段已被他人修改");
+    expect(JSON.stringify(dialog)).toContain("Latest");
+  });
+
+  it("stays readonly without a command client", () => {
+    const sections = buildDocumentSections(
+      "child",
+      [],
+      [page(object("child", "Child"))],
+      types,
+    );
+
+    expect(canInlineEditDocumentField(sections[0]!)).toBe(false);
   });
 });
 
@@ -127,4 +220,10 @@ function page(...items: readonly ViewObject[]): ObjectPage {
     pageSize: 200,
     total: items.length,
   };
+}
+
+function commandClient(
+  updateFields = vi.fn().mockResolvedValue(undefined),
+): CommandClient {
+  return { updateFields } as unknown as CommandClient;
 }
