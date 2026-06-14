@@ -124,6 +124,7 @@ export function App({
           ) : null}
           {activeView === "document" ? (
             <DocumentView
+              commandClient={commandClient}
               onEditField={() => setActiveView("table")}
               onError={() => setErrors((value) => value + 1)}
               relationType="decomposes_to"
