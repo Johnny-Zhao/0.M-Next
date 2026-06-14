@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactElement } from "react";
 import {
   CommandClient,
   DetailPanel,
+  DocumentView,
   GraphView,
   SelectionCoordinator,
   TableView,
@@ -24,9 +25,9 @@ export function App({
 }: AppProps = {}): ReactElement {
   const [workspaceId, setWorkspaceId] = useState(demoWorkspace);
   const [errors, setErrors] = useState(0);
-  const [activeView, setActiveView] = useState<"table" | "tree" | "graph">(
-    "table",
-  );
+  const [activeView, setActiveView] = useState<
+    "table" | "tree" | "graph" | "document"
+  >("table");
   const [rootId, setRootId] = useState("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
   const [sync, setSync] = useState<SyncStatus | "error">({
     pendingEvents: 0,
@@ -77,8 +78,8 @@ export function App({
           <button onClick={() => setActiveView("graph")} type="button">
             图谱
           </button>
-          <button disabled type="button">
-            文档*
+          <button onClick={() => setActiveView("document")} type="button">
+            文档
           </button>
         </nav>
         <section className="view-area">
@@ -118,6 +119,17 @@ export function App({
               relationType="depends_on"
               selection={selection}
               sourceId={rootId}
+              workspaceId={workspaceId}
+            />
+          ) : null}
+          {activeView === "document" ? (
+            <DocumentView
+              onEditField={() => setActiveView("table")}
+              onError={() => setErrors((value) => value + 1)}
+              relationType="decomposes_to"
+              rootId={rootId}
+              selection={selection}
+              viewClient={viewClient}
               workspaceId={workspaceId}
             />
           ) : null}

@@ -57,3 +57,47 @@ main {
 .failed-cell {
   outline: 2px solid #d4380d;
 }
+
+.document-view {
+  display: block;
+  min-width: 28rem;
+}
+
+.document-section {
+  border-left: 2px solid #d9e2ec;
+  margin-bottom: 1rem;
+  padding: 0.5rem 0.75rem;
+}
+
+.document-section[aria-current="true"],
+.document-field [aria-current="true"],
+.document-text [aria-current="true"] {
+  outline: 2px solid #1677ff;
+}
+
+.document-section-terminal {
+  color: #7b8794;
+  background: #f0f2f5;
+}
+
+.document-title,
+.document-field span,
+.document-text span {
+  cursor: pointer;
+}
+
+.document-field,
+.document-text {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.document-text {
+  align-items: flex-start;
+}
+
+.document-readonly {
+  margin-left: 0.5rem;
+  font-size: 0.8rem;
+}
