@@ -18,5 +18,6 @@ docs/tasks/
 contracts/*.md
 docs/04-metamodel-m2-design.md
 docs/06-review-model.md
+docs/*.md
 docs/prototype/
 docs/reference/
