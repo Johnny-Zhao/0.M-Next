@@ -24,6 +24,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -43,11 +44,19 @@ public class ExchangeController {
 
   public ExchangeController(
       ReadModelRepository readModel, KernelCommandService commands, ObjectMapper mapper) {
-    this(readModel, commands, mapper, null);
+    this(readModel, commands, mapper, (SnapshotRepository) null);
   }
 
   @Autowired
   public ExchangeController(
+      ReadModelRepository readModel,
+      KernelCommandService commands,
+      ObjectMapper mapper,
+      ObjectProvider<SnapshotRepository> snapshotProvider) {
+    this(readModel, commands, mapper, snapshotProvider.getIfAvailable());
+  }
+
+  private ExchangeController(
       ReadModelRepository readModel,
       KernelCommandService commands,
       ObjectMapper mapper,

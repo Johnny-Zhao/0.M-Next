@@ -4,6 +4,7 @@ import com.mnext.engines.exchange.DataSet;
 import com.mnext.engines.exchange.DiffResult;
 import com.mnext.engines.exchange.StructuredDiff;
 import java.util.UUID;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -16,11 +17,16 @@ public class DiffController {
   private final SnapshotRepository snapshots;
 
   public DiffController(ReadModelRepository readModel) {
-    this(readModel, null);
+    this(readModel, (SnapshotRepository) null);
   }
 
   @Autowired
-  public DiffController(ReadModelRepository readModel, SnapshotRepository snapshots) {
+  public DiffController(
+      ReadModelRepository readModel, ObjectProvider<SnapshotRepository> snapshotProvider) {
+    this(readModel, snapshotProvider.getIfAvailable());
+  }
+
+  private DiffController(ReadModelRepository readModel, SnapshotRepository snapshots) {
     this.readModel = readModel;
     this.snapshots = snapshots;
   }
