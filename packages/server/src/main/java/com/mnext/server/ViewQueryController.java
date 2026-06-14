@@ -65,6 +65,33 @@ public class ViewQueryController {
     return repository.tree(workspaceId, relationType, rootId);
   }
 
+  @GetMapping("/workspaces/{workspaceId}/views/matrix")
+  public MatrixView matrix(
+      @PathVariable("workspaceId") UUID workspaceId,
+      @RequestParam("rowType") String rowType,
+      @RequestParam("colType") String colType,
+      @RequestParam("relationType") String relationType,
+      @RequestParam(value = "rowPage", defaultValue = "0") int rowPage,
+      @RequestParam(value = "rowSize", defaultValue = "50") int rowSize,
+      @RequestParam(value = "colPage", defaultValue = "0") int colPage,
+      @RequestParam(value = "colSize", defaultValue = "50") int colSize) {
+    if (rowType.isBlank() || colType.isBlank() || relationType.isBlank()) {
+      throw new IllegalArgumentException("rowType、colType 与 relationType 必填");
+    }
+    if (rowPage < 0 || colPage < 0 || rowSize < 1 || colSize < 1) {
+      throw new IllegalArgumentException("page 必须非负且 size 必须为正数");
+    }
+    return repository.matrix(
+        workspaceId,
+        rowType,
+        colType,
+        relationType,
+        rowPage,
+        Math.min(rowSize, 50),
+        colPage,
+        Math.min(colSize, 50));
+  }
+
   @GetMapping("/workspaces/{workspaceId}/views/sync-status")
   public SyncStatusView syncStatus(@PathVariable("workspaceId") UUID workspaceId) {
     return repository.syncStatus(workspaceId);
