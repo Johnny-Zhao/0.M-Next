@@ -375,6 +375,34 @@ class ReadModelRepository {
     return new DataSet(objects, relations);
   }
 
+  UUID objectTypeId(UUID workspaceId, String code) {
+    return jdbc.queryForObject(
+        "SELECT id FROM object_type WHERE workspace_id = ? AND code = ? AND published",
+        UUID.class,
+        workspaceId,
+        code);
+  }
+
+  UUID relationTypeId(UUID workspaceId, String code) {
+    return jdbc.queryForObject(
+        "SELECT id FROM relation_type WHERE workspace_id = ? AND code = ?",
+        UUID.class,
+        workspaceId,
+        code);
+  }
+
+  UUID createdObjectId(List<String> eventIds) {
+    for (var eventId : eventIds) {
+      var value =
+          jdbc.query(
+              "SELECT payload->'after'->>'objectId' FROM event_outbox WHERE id = ?",
+              result -> result.next() ? result.getString(1) : null,
+              eventId);
+      if (value != null) return UUID.fromString(value);
+    }
+    throw new IllegalStateException("CreateObject 未产生 ObjectCreated 事件");
+  }
+
   private ObjectView object(java.sql.ResultSet row) throws java.sql.SQLException {
     return new ObjectView(
         row.getObject(1, UUID.class),
