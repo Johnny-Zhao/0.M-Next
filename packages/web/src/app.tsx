@@ -2,8 +2,10 @@ import { useEffect, useState, type ReactElement } from "react";
 import {
   CommandClient,
   DetailPanel,
+  GraphView,
   SelectionCoordinator,
   TableView,
+  TreeView,
   ViewClient,
   type FetchFn,
   type SyncStatus,
@@ -22,6 +24,10 @@ export function App({
 }: AppProps = {}): ReactElement {
   const [workspaceId, setWorkspaceId] = useState(demoWorkspace);
   const [errors, setErrors] = useState(0);
+  const [activeView, setActiveView] = useState<"table" | "tree" | "graph">(
+    "table",
+  );
+  const [rootId, setRootId] = useState("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
   const [sync, setSync] = useState<SyncStatus | "error">({
     pendingEvents: 0,
     caughtUp: true,
@@ -62,23 +68,59 @@ export function App({
       </header>
       <div className="workbench-body">
         <nav aria-label="视图栏">
-          <button type="button">表格</button>
+          <button onClick={() => setActiveView("table")} type="button">
+            表格
+          </button>
+          <button onClick={() => setActiveView("tree")} type="button">
+            树
+          </button>
+          <button onClick={() => setActiveView("graph")} type="button">
+            图谱
+          </button>
           <button disabled type="button">
             文档*
           </button>
-          <button disabled type="button">
-            图形*
-          </button>
         </nav>
         <section className="view-area">
-          <TableView
-            commandClient={commandClient}
-            objectType="demo_object"
-            onError={() => setErrors((value) => value + 1)}
-            selection={selection}
-            viewClient={viewClient}
-            workspaceId={workspaceId}
-          />
+          {activeView === "table" ? (
+            <TableView
+              commandClient={commandClient}
+              objectType="demo_object"
+              onError={() => setErrors((value) => value + 1)}
+              selection={selection}
+              viewClient={viewClient}
+              workspaceId={workspaceId}
+            />
+          ) : null}
+          {activeView !== "table" ? (
+            <label>
+              根对象:
+              <input
+                onChange={(event) => setRootId(event.currentTarget.value)}
+                value={rootId}
+              />
+            </label>
+          ) : null}
+          {activeView === "tree" ? (
+            <TreeView
+              client={viewClient}
+              relationType="decomposes_to"
+              rootId={rootId}
+              selection={selection}
+              workspaceId={workspaceId}
+            />
+          ) : null}
+          {activeView === "graph" ? (
+            <GraphView
+              client={viewClient}
+              depth={2}
+              direction="out"
+              relationType="depends_on"
+              selection={selection}
+              sourceId={rootId}
+              workspaceId={workspaceId}
+            />
+          ) : null}
           <DetailPanel
             client={viewClient}
             selection={selection}

@@ -29,6 +29,12 @@ export interface RelationSummary {
   readonly targetId: string;
 }
 
+export interface TreeNodeSummary {
+  readonly sourceId: string;
+  readonly targetId: string;
+  readonly depth: number;
+}
+
 export interface ObjectPage {
   readonly items: readonly ViewObject[];
   readonly page: number;
@@ -81,6 +87,31 @@ export class ViewClient {
     return this.get(`/workspaces/${workspaceId}/views/objects/${objectId}`);
   }
 
+  relations(
+    workspaceId: string,
+    relationType: string,
+    direction: "out" | "in",
+    sourceId: string,
+    depth: number,
+  ): Promise<readonly RelationSummary[]> {
+    const query = new URLSearchParams({
+      relationType,
+      direction,
+      sourceId,
+      depth: `${boundedDepth(depth)}`,
+    });
+    return this.get(`/workspaces/${workspaceId}/views/relations?${query}`);
+  }
+
+  tree(
+    workspaceId: string,
+    relationType: string,
+    rootId: string,
+  ): Promise<readonly TreeNodeSummary[]> {
+    const query = new URLSearchParams({ relationType, rootId });
+    return this.get(`/workspaces/${workspaceId}/views/tree?${query}`);
+  }
+
   syncStatus(workspaceId: string): Promise<SyncStatus> {
     return this.get(`/workspaces/${workspaceId}/views/sync-status`);
   }
@@ -90,4 +121,9 @@ export class ViewClient {
     if (!response.ok) throw new Error("读取视图数据失败");
     return response.json() as Promise<T>;
   }
+}
+
+export function boundedDepth(depth: number): number {
+  if (!Number.isFinite(depth)) return 1;
+  return Math.min(5, Math.max(1, Math.trunc(depth)));
 }
