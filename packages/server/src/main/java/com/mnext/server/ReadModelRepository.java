@@ -319,6 +319,59 @@ class ReadModelRepository {
         relationType);
   }
 
+  MatrixView matrix(
+      UUID workspaceId,
+      String rowType,
+      String colType,
+      String relationType,
+      int rowPage,
+      int rowSize,
+      int colPage,
+      int colSize) {
+    var rows = objects(workspaceId, rowType, rowPage, rowSize);
+    var cols = objects(workspaceId, colType, colPage, colSize);
+    var cells =
+        jdbc.query(
+            """
+            SELECT relation.source_id, relation.target_id, relation.relation_id,
+                   relation.status, relation.fields::text
+            FROM rm_relation relation
+            WHERE relation.workspace_id = ? AND relation.relation_type_code = ?
+              AND relation.source_id IN (
+                SELECT object_id FROM rm_object
+                WHERE workspace_id = ? AND object_type_code = ?
+                ORDER BY object_id LIMIT ? OFFSET ?)
+              AND relation.target_id IN (
+                SELECT object_id FROM rm_object
+                WHERE workspace_id = ? AND object_type_code = ?
+                ORDER BY object_id LIMIT ? OFFSET ?)
+            ORDER BY relation.source_id, relation.target_id, relation.relation_id
+            """,
+            (row, index) ->
+                new MatrixView.MatrixCell(
+                    row.getObject(1, UUID.class),
+                    row.getObject(2, UUID.class),
+                    row.getObject(3, UUID.class),
+                    row.getString(4),
+                    map(row.getString(5))),
+            workspaceId,
+            relationType,
+            workspaceId,
+            rowType,
+            rowSize,
+            rowPage * rowSize,
+            workspaceId,
+            colType,
+            colSize,
+            colPage * colSize);
+    return new MatrixView(
+        rows.items().stream().map(this::matrixObject).toList(),
+        cols.items().stream().map(this::matrixObject).toList(),
+        cells,
+        rows.total(),
+        cols.total());
+  }
+
   boolean hierarchicalRelationType(UUID workspaceId, String relationType) {
     return Boolean.TRUE.equals(
         jdbc.queryForObject(
@@ -423,6 +476,16 @@ class ReadModelRepository {
         row.getBoolean(6),
         row.getString(7),
         row.getLong(8));
+  }
+
+  private MatrixView.MatrixObject matrixObject(ObjectView object) {
+    var label = object.fields().getOrDefault("name", object.fields().get("title"));
+    return new MatrixView.MatrixObject(
+        object.objectId(),
+        label == null
+            ? object.objectType() + " " + object.objectId().toString().substring(0, 8)
+            : label.toString(),
+        object.status());
   }
 
   private String json(Object value) {
