@@ -12,6 +12,7 @@ export * from "./api/command-client";
 export * from "./api/view-client";
 export * from "./conflict/conflict-dialog";
 export * from "./detail/detail-panel";
+export * from "./document/document-view";
 export * from "./graph/graph-view";
 export * from "./selection/selection-coordinator";
 export * from "./selection/selection-ref";
