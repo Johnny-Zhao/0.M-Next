@@ -1,5 +1,7 @@
 package com.mnext.engines.exchange;
 
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -16,7 +18,7 @@ public record DataSet(List<DataObject> objects, List<DataRelation> relations) {
       String status,
       long version) {
     public DataObject {
-      fields = fields == null ? Map.of() : Map.copyOf(fields);
+      fields = fields == null ? Map.of() : Collections.unmodifiableMap(new LinkedHashMap<>(fields));
     }
   }
 
@@ -27,7 +29,7 @@ public record DataSet(List<DataObject> objects, List<DataRelation> relations) {
       String targetId,
       Map<String, Object> fields) {
     public DataRelation {
-      fields = fields == null ? Map.of() : Map.copyOf(fields);
+      fields = fields == null ? Map.of() : Collections.unmodifiableMap(new LinkedHashMap<>(fields));
     }
   }
 }

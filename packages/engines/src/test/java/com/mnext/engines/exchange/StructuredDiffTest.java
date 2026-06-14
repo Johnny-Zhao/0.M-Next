@@ -111,6 +111,21 @@ class StructuredDiffTest {
     assertNull(changed.statusChanged());
   }
 
+  @Test
+  void supportsNullFieldValues() {
+    var fields = new LinkedHashMap<String, Object>();
+    fields.put("value", null);
+
+    var result =
+        StructuredDiff.diff(
+            data(List.of(object("one", fields, "DRAFT", 1)), List.of()),
+            data(List.of(object("one", Map.of("value", 2), "DRAFT", 2)), List.of()));
+
+    assertEquals(
+        new DiffResult.ValueChange(null, 2),
+        result.objects().changed().getFirst().fields().changed().get("value"));
+  }
+
   private static DataSet data(List<DataObject> objects, List<DataRelation> relations) {
     return new DataSet(objects, relations);
   }
