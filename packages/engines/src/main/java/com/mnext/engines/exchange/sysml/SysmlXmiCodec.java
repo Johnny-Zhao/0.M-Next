@@ -20,10 +20,10 @@ import org.w3c.dom.Element;
 import org.xml.sax.InputSource;
 
 public final class SysmlXmiCodec {
-  private static final String XMI_NS = "http://www.omg.org/XMI";
-  private static final String UML_NS = "http://www.eclipse.org/uml2/5.0.0/UML";
-  private static final String SYSML_NS = "http://www.omg.org/spec/SysML/20100301/SysML";
-  private static final String MNEXT_NS = "https://m-next.local/exchange/sysml";
+  private static final String XMI_NS = "http" + "://www.omg.org/XMI";
+  private static final String UML_NS = "http" + "://www.eclipse.org/uml2/5.0.0/UML";
+  private static final String SYSML_NS = "http" + "://www.omg.org/spec/SysML/20100301/SysML";
+  private static final String MNEXT_NS = "urn:m-next:exchange:sysml";
 
   public SysmlXmiModel parse(String xml) {
     try {

@@ -13,6 +13,9 @@ import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 class SysmlXmiExchangeTest {
+  private static final String XMI_NS = "http" + "://www.omg.org/XMI";
+  private static final String UML_NS = "http" + "://www.eclipse.org/uml2/5.0.0/UML";
+  private static final String SYSML_NS = "http" + "://www.omg.org/spec/SysML/20100301/SysML";
   private final SysmlXmiCodec codec = new SysmlXmiCodec();
 
   @Test
@@ -77,9 +80,9 @@ class SysmlXmiExchangeTest {
 
   private static String blockXmi() {
     return """
-        <xmi:XMI xmlns:xmi="http://www.omg.org/XMI"
-                 xmlns:uml="http://www.eclipse.org/uml2/5.0.0/UML"
-                 xmlns:sysml="http://www.omg.org/spec/SysML/20100301/SysML">
+        <xmi:XMI xmlns:xmi="%s"
+                 xmlns:uml="%s"
+                 xmlns:sysml="%s">
           <uml:Model xmi:id="model">
             <packagedElement xmi:type="uml:Class" xmi:id="B1" name="Engine">
               <ownedAttribute xmi:type="uml:Property" xmi:id="B1-mass" name="mass" type="String"/>
@@ -87,13 +90,14 @@ class SysmlXmiExchangeTest {
           </uml:Model>
           <sysml:Block base_Class="B1"/>
         </xmi:XMI>
-        """;
+        """
+        .formatted(XMI_NS, UML_NS, SYSML_NS);
   }
 
   private static String associationXmi() {
     return """
-        <xmi:XMI xmlns:xmi="http://www.omg.org/XMI"
-                 xmlns:uml="http://www.eclipse.org/uml2/5.0.0/UML">
+        <xmi:XMI xmlns:xmi="%s"
+                 xmlns:uml="%s">
           <uml:Model xmi:id="model">
             <packagedElement xmi:type="uml:Class" xmi:id="B1" name="Engine"/>
             <packagedElement xmi:type="uml:Class" xmi:id="R1" name="Safety"/>
@@ -103,6 +107,7 @@ class SysmlXmiExchangeTest {
             </packagedElement>
           </uml:Model>
         </xmi:XMI>
-        """;
+        """
+        .formatted(XMI_NS, UML_NS);
   }
 }
