@@ -6,10 +6,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.TreeSet;
 
-final class RenderSupport {
+public final class RenderSupport {
   private RenderSupport() {}
 
-  static List<DataObject> objects(DataSet snapshot, OutputTemplate template) {
+  public static List<DataObject> objects(DataSet snapshot, OutputTemplate template) {
     return snapshot.objects().stream()
         .filter(
             value ->
@@ -18,14 +18,14 @@ final class RenderSupport {
         .toList();
   }
 
-  static List<String> fields(List<DataObject> objects, OutputTemplate template) {
+  public static List<String> fields(List<DataObject> objects, OutputTemplate template) {
     if (!template.fieldOrder().isEmpty()) return template.fieldOrder();
     var fields = new TreeSet<String>();
     objects.forEach(object -> fields.addAll(object.fields().keySet()));
     return new ArrayList<>(fields);
   }
 
-  static String text(Object value) {
+  public static String text(Object value) {
     return value == null ? "" : String.valueOf(value);
   }
 }

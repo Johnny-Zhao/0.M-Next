@@ -1,3 +1,6 @@
 com.mnext.engines.output.HtmlRenderAdapter
 com.mnext.engines.output.MarkdownRenderAdapter
 com.mnext.engines.output.CsvRenderAdapter
+com.mnext.engines.output.office.DocxRenderAdapter
+com.mnext.engines.output.office.XlsxRenderAdapter
+com.mnext.engines.output.office.PdfRenderAdapter
