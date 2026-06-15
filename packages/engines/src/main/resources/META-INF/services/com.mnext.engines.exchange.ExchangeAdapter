@@ -1,0 +1,2 @@
+com.mnext.engines.exchange.json.JsonAdapter
+com.mnext.engines.exchange.reqif.ReqIfAdapter
