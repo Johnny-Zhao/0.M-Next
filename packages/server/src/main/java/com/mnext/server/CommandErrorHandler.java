@@ -19,6 +19,13 @@ public class CommandErrorHandler {
     return response(exception.error());
   }
 
+  @ExceptionHandler(SimulationException.class)
+  ResponseEntity<CommandResult> simulation(SimulationException exception) {
+    return response(
+        new CommandError(
+            exception.code(), exception.userMessage(), Map.of(), exception.suggestion()));
+  }
+
   @ExceptionHandler({IllegalArgumentException.class, HttpMessageNotReadableException.class})
   ResponseEntity<CommandResult> invalid(Exception exception) {
     return response(
