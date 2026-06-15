@@ -9,6 +9,8 @@ record ExchangeApplyRequest(JsonArtifact artifact, boolean confirmRemovals) {}
 
 record ReqIfApplyRequest(String reqif, boolean confirmRemovals) {}
 
+record GenericExchangeApplyRequest(String payload, boolean confirmRemovals) {}
+
 record ExchangeApplyResult(
     DiffResult diff, List<String> applied, List<ExchangeApplyFailure> unapplied) {}
 
