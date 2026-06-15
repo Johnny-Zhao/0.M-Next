@@ -17,6 +17,10 @@ directDependencies:
   - org.testcontainers:rabbitmq
   - org.testcontainers:junit-jupiter
   - org.testcontainers:testcontainers-bom
+  # —— 成果输出 Office 渲染(ADR-010 草案;708b 专用,传递依赖随 708b PR 补全)——
+  - org.apache.poi:poi-ooxml
+  - org.apache.poi:poi
+  - org.apache.pdfbox:pdfbox
 buildPlugins:
   - org.apache.maven.plugins:maven-compiler-plugin
   - org.apache.maven.plugins:maven-surefire-plugin
