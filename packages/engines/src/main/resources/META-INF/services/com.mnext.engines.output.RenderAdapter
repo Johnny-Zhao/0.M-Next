@@ -1,0 +1,3 @@
+com.mnext.engines.output.HtmlRenderAdapter
+com.mnext.engines.output.MarkdownRenderAdapter
+com.mnext.engines.output.CsvRenderAdapter
