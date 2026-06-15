@@ -428,6 +428,53 @@ class ReadModelRepository {
     return new DataSet(objects, relations);
   }
 
+  DataSet dataSet(UUID workspaceId, String scopeObjectType) {
+    var objects =
+        jdbc.query(
+            """
+            SELECT object_id, object_type_code, fields::text, status, version
+            FROM rm_object
+            WHERE workspace_id = ? AND object_type_code = ?
+            ORDER BY object_id
+            """,
+            (row, index) ->
+                new DataObject(
+                    row.getObject(1, UUID.class).toString(),
+                    row.getString(2),
+                    map(row.getString(3)),
+                    row.getString(4),
+                    row.getLong(5)),
+            workspaceId,
+            scopeObjectType);
+    var relations =
+        jdbc.query(
+            """
+            SELECT relation_id, relation_type_code, source_id, target_id, fields::text
+            FROM rm_relation
+            WHERE workspace_id = ?
+              AND source_id IN (
+                SELECT object_id FROM rm_object
+                WHERE workspace_id = ? AND object_type_code = ?)
+              AND target_id IN (
+                SELECT object_id FROM rm_object
+                WHERE workspace_id = ? AND object_type_code = ?)
+            ORDER BY relation_id
+            """,
+            (row, index) ->
+                new DataRelation(
+                    row.getObject(1, UUID.class).toString(),
+                    row.getString(2),
+                    row.getObject(3, UUID.class).toString(),
+                    row.getObject(4, UUID.class).toString(),
+                    map(row.getString(5))),
+            workspaceId,
+            workspaceId,
+            scopeObjectType,
+            workspaceId,
+            scopeObjectType);
+    return new DataSet(objects, relations);
+  }
+
   UUID objectTypeId(UUID workspaceId, String code) {
     return jdbc.queryForObject(
         "SELECT id FROM object_type WHERE workspace_id = ? AND code = ? AND published",

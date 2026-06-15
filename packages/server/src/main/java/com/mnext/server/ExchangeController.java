@@ -9,6 +9,8 @@ import com.mnext.engines.exchange.DiffResult;
 import com.mnext.engines.exchange.JsonArtifact;
 import com.mnext.engines.exchange.JsonCodec;
 import com.mnext.engines.exchange.StructuredDiff;
+import com.mnext.engines.exchange.reqif.ReqIfCodec;
+import com.mnext.engines.exchange.reqif.ReqIfMapper;
 import com.mnext.kernel.api.Actor;
 import com.mnext.kernel.api.CommandError;
 import com.mnext.kernel.api.CommandRejectedException;
@@ -24,6 +26,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -36,14 +41,34 @@ import org.springframework.web.bind.annotation.RestController;
 public class ExchangeController {
   private static final SourceInfo IMPORT_SOURCE = new SourceInfo("artifact_sync", "import");
   private final ReadModelRepository readModel;
+  private final SnapshotRepository snapshots;
   private final KernelCommandService commands;
   private final JsonCodec codec;
+  private final ReqIfCodec reqIfCodec = new ReqIfCodec();
 
   public ExchangeController(
       ReadModelRepository readModel, KernelCommandService commands, ObjectMapper mapper) {
+    this(readModel, commands, mapper, (SnapshotRepository) null);
+  }
+
+  @Autowired
+  public ExchangeController(
+      ReadModelRepository readModel,
+      KernelCommandService commands,
+      ObjectMapper mapper,
+      ObjectProvider<SnapshotRepository> snapshotProvider) {
+    this(readModel, commands, mapper, snapshotProvider.getIfAvailable());
+  }
+
+  private ExchangeController(
+      ReadModelRepository readModel,
+      KernelCommandService commands,
+      ObjectMapper mapper,
+      SnapshotRepository snapshots) {
     this.readModel = readModel;
     this.commands = commands;
     this.codec = new JsonCodec(mapper);
+    this.snapshots = snapshots;
   }
 
   @GetMapping("/workspaces/{workspaceId}/exchange/json/export")
@@ -54,12 +79,38 @@ public class ExchangeController {
         workspaceId.toString(), objectType, readModel.dataSet(workspaceId));
   }
 
+  @GetMapping(
+      value = "/workspaces/{workspaceId}/exchange/reqif/export",
+      produces = MediaType.APPLICATION_XML_VALUE)
+  public String exportReqIf(
+      @PathVariable("workspaceId") UUID workspaceId,
+      @RequestParam(value = "base", defaultValue = "current") String base,
+      @RequestParam(value = "objectType", required = false) String objectType) {
+    return reqIfCodec.serialize(
+        ReqIfMapper.toReqIf("mnext-" + workspaceId, objectType, previewBase(workspaceId, base)));
+  }
+
   @PostMapping("/workspaces/{workspaceId}/exchange/json/preview")
   public DiffResult preview(
-      @PathVariable("workspaceId") UUID workspaceId, @RequestBody String json) {
-    var current = readModel.dataSet(workspaceId);
+      @PathVariable("workspaceId") UUID workspaceId,
+      @RequestParam(value = "base", defaultValue = "current") String base,
+      @RequestBody String json) {
+    var current = previewBase(workspaceId, base);
     var artifact = artifact(workspaceId, json);
     return StructuredDiff.diff(current, ArtifactMapper.toDataSet(artifact, current));
+  }
+
+  public DiffResult preview(UUID workspaceId, String json) {
+    return preview(workspaceId, "current", json);
+  }
+
+  @PostMapping("/workspaces/{workspaceId}/exchange/reqif/preview")
+  public DiffResult previewReqIf(
+      @PathVariable("workspaceId") UUID workspaceId,
+      @RequestParam(value = "base", defaultValue = "current") String base,
+      @RequestBody String reqif) {
+    var current = previewBase(workspaceId, base);
+    return StructuredDiff.diff(current, ReqIfMapper.toDataSet(reqIfCodec.parse(reqif), current));
   }
 
   @PostMapping("/workspaces/{workspaceId}/exchange/json/apply")
@@ -76,6 +127,25 @@ public class ExchangeController {
     return apply(workspaceId, Actor.user(actorId), request.artifact());
   }
 
+  @PostMapping("/workspaces/{workspaceId}/exchange/reqif/apply")
+  public ExchangeApplyResult applyReqIf(
+      @PathVariable("workspaceId") UUID workspaceId,
+      @RequestHeader("X-Actor-Id") String actorId,
+      @RequestBody ReqIfApplyRequest request) {
+    if (request == null || request.reqif() == null || request.reqif().isBlank()) {
+      throw new IllegalArgumentException("reqif 必填");
+    }
+    if (request.confirmRemovals()) {
+      throw new IllegalArgumentException("本批次不支持 removed 自动删除");
+    }
+    var current = readModel.dataSet(workspaceId);
+    return applyDataSet(
+        workspaceId,
+        Actor.user(actorId),
+        current,
+        ReqIfMapper.toDataSet(reqIfCodec.parse(request.reqif()), current));
+  }
+
   private JsonArtifact artifact(UUID workspaceId, String json) {
     var artifact = codec.parse(json);
     if (artifact.workspace() != null && !workspaceId.toString().equals(artifact.workspace())) {
@@ -84,12 +154,26 @@ public class ExchangeController {
     return artifact;
   }
 
+  private DataSet previewBase(UUID workspaceId, String base) {
+    if ("current".equals(base)) return readModel.dataSet(workspaceId);
+    if (base != null && base.startsWith("snapshot:") && snapshots != null) {
+      var snapshotId = UUID.fromString(base.substring("snapshot:".length()));
+      return snapshots.get(workspaceId, snapshotId).payload();
+    }
+    throw new IllegalArgumentException("base 仅支持 current 或 snapshot:{id}");
+  }
+
   private ExchangeApplyResult apply(UUID workspaceId, Actor actor, JsonArtifact artifact) {
     if (artifact.workspace() != null && !workspaceId.toString().equals(artifact.workspace())) {
       throw new IllegalArgumentException("artifact workspace 与路径不一致");
     }
     var current = readModel.dataSet(workspaceId);
     var target = ArtifactMapper.toDataSet(artifact, current);
+    return applyDataSet(workspaceId, actor, current, target);
+  }
+
+  private ExchangeApplyResult applyDataSet(
+      UUID workspaceId, Actor actor, DataSet current, DataSet target) {
     var diff = StructuredDiff.diff(current, target);
     var applied = new ArrayList<String>();
     var unapplied = new ArrayList<ExchangeApplyFailure>();
