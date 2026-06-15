@@ -1,6 +1,7 @@
 package com.mnext.server;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -100,6 +101,39 @@ class ExchangeControllerTest {
     assertEquals("KERNEL-409-VERSION-CONFLICT", result.unapplied().getFirst().error().code());
     verify(commands, never()).archive(any(ArchiveCommand.class), any());
     verify(commands, never()).softDelete(any(SoftDeleteCommand.class), any());
+  }
+
+  @Test
+  void genericJsonPreviewAndApplyMatchExistingCommandFlow() throws Exception {
+    when(readModel.dataSet(WORKSPACE)).thenReturn(current());
+    var payload = mapper.writeValueAsString(importArtifact());
+
+    var preview = controller.previewGeneric(WORKSPACE, "json", "current", payload);
+    var result =
+        controller.applyGeneric(
+            WORKSPACE, "json", "actor", new GenericExchangeApplyRequest(payload, false));
+
+    assertEquals(1, preview.summary().objectsAdded());
+    assertEquals(3, result.applied().size());
+    verifyCreateObject();
+    verifyUpdateFields();
+    verifyCreateRelation();
+  }
+
+  @Test
+  void genericReqIfPreviewMatchesSpecificPathAndUnknownFormatIsRejected() {
+    when(readModel.dataSet(WORKSPACE)).thenReturn(current());
+    var reqif = controller.exportReqIf(WORKSPACE, "current", "demo");
+
+    var generic = controller.previewGeneric(WORKSPACE, "reqif", "current", reqif);
+    var specific = controller.previewReqIf(WORKSPACE, "current", reqif);
+    var failure =
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> controller.previewGeneric(WORKSPACE, "missing", "current", reqif));
+
+    assertEquals(specific.summary(), generic.summary());
+    assertTrue(failure.getMessage().contains("KERNEL-400-SCHEMA-INVALID"));
   }
 
   private void verifyCreateObject() {

@@ -1,6 +1,7 @@
 package com.mnext.server;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.mnext.engines.exchange.AdapterRegistry;
 import com.mnext.engines.exchange.ArtifactMapper;
 import com.mnext.engines.exchange.DataSet;
 import com.mnext.engines.exchange.DataSet.DataObject;
@@ -9,8 +10,6 @@ import com.mnext.engines.exchange.DiffResult;
 import com.mnext.engines.exchange.JsonArtifact;
 import com.mnext.engines.exchange.JsonCodec;
 import com.mnext.engines.exchange.StructuredDiff;
-import com.mnext.engines.exchange.reqif.ReqIfCodec;
-import com.mnext.engines.exchange.reqif.ReqIfMapper;
 import com.mnext.kernel.api.Actor;
 import com.mnext.kernel.api.CommandError;
 import com.mnext.kernel.api.CommandRejectedException;
@@ -29,6 +28,7 @@ import java.util.UUID;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -44,7 +44,7 @@ public class ExchangeController {
   private final SnapshotRepository snapshots;
   private final KernelCommandService commands;
   private final JsonCodec codec;
-  private final ReqIfCodec reqIfCodec = new ReqIfCodec();
+  private final AdapterRegistry adapters;
 
   public ExchangeController(
       ReadModelRepository readModel, KernelCommandService commands, ObjectMapper mapper) {
@@ -69,6 +69,7 @@ public class ExchangeController {
     this.commands = commands;
     this.codec = new JsonCodec(mapper);
     this.snapshots = snapshots;
+    this.adapters = new AdapterRegistry();
   }
 
   @GetMapping("/workspaces/{workspaceId}/exchange/json/export")
@@ -79,6 +80,21 @@ public class ExchangeController {
         workspaceId.toString(), objectType, readModel.dataSet(workspaceId));
   }
 
+  @GetMapping("/workspaces/{workspaceId}/exchange/{format}/export")
+  public ResponseEntity<String> exportGeneric(
+      @PathVariable("workspaceId") UUID workspaceId,
+      @PathVariable("format") String format,
+      @RequestParam(value = "base", defaultValue = "current") String base,
+      @RequestParam(value = "objectType", required = false) String objectType) {
+    var adapter = adapters.require(format);
+    var payload =
+        adapter.exportFromDataSet(
+            workspaceId.toString(), objectType, previewBase(workspaceId, base));
+    return ResponseEntity.ok()
+        .contentType(MediaType.parseMediaType(adapter.mediaType()))
+        .body(payload);
+  }
+
   @GetMapping(
       value = "/workspaces/{workspaceId}/exchange/reqif/export",
       produces = MediaType.APPLICATION_XML_VALUE)
@@ -86,8 +102,7 @@ public class ExchangeController {
       @PathVariable("workspaceId") UUID workspaceId,
       @RequestParam(value = "base", defaultValue = "current") String base,
       @RequestParam(value = "objectType", required = false) String objectType) {
-    return reqIfCodec.serialize(
-        ReqIfMapper.toReqIf("mnext-" + workspaceId, objectType, previewBase(workspaceId, base)));
+    return exportGeneric(workspaceId, "reqif", base, objectType).getBody();
   }
 
   @PostMapping("/workspaces/{workspaceId}/exchange/json/preview")
@@ -104,13 +119,22 @@ public class ExchangeController {
     return preview(workspaceId, "current", json);
   }
 
+  @PostMapping("/workspaces/{workspaceId}/exchange/{format}/preview")
+  public DiffResult previewGeneric(
+      @PathVariable("workspaceId") UUID workspaceId,
+      @PathVariable("format") String format,
+      @RequestParam(value = "base", defaultValue = "current") String base,
+      @RequestBody String payload) {
+    var current = previewBase(workspaceId, base);
+    return StructuredDiff.diff(current, adapters.require(format).importToDataSet(payload, current));
+  }
+
   @PostMapping("/workspaces/{workspaceId}/exchange/reqif/preview")
   public DiffResult previewReqIf(
       @PathVariable("workspaceId") UUID workspaceId,
       @RequestParam(value = "base", defaultValue = "current") String base,
       @RequestBody String reqif) {
-    var current = previewBase(workspaceId, base);
-    return StructuredDiff.diff(current, ReqIfMapper.toDataSet(reqIfCodec.parse(reqif), current));
+    return previewGeneric(workspaceId, "reqif", base, reqif);
   }
 
   @PostMapping("/workspaces/{workspaceId}/exchange/json/apply")
@@ -127,6 +151,21 @@ public class ExchangeController {
     return apply(workspaceId, Actor.user(actorId), request.artifact());
   }
 
+  @PostMapping("/workspaces/{workspaceId}/exchange/{format}/apply")
+  public ExchangeApplyResult applyGeneric(
+      @PathVariable("workspaceId") UUID workspaceId,
+      @PathVariable("format") String format,
+      @RequestHeader("X-Actor-Id") String actorId,
+      @RequestBody GenericExchangeApplyRequest request) {
+    if (request == null || request.payload() == null || request.payload().isBlank()) {
+      throw new IllegalArgumentException("payload 必填");
+    }
+    if (request.confirmRemovals()) {
+      throw new IllegalArgumentException("本批次不支持 removed 自动删除");
+    }
+    return applyPayload(workspaceId, Actor.user(actorId), format, request.payload());
+  }
+
   @PostMapping("/workspaces/{workspaceId}/exchange/reqif/apply")
   public ExchangeApplyResult applyReqIf(
       @PathVariable("workspaceId") UUID workspaceId,
@@ -138,12 +177,7 @@ public class ExchangeController {
     if (request.confirmRemovals()) {
       throw new IllegalArgumentException("本批次不支持 removed 自动删除");
     }
-    var current = readModel.dataSet(workspaceId);
-    return applyDataSet(
-        workspaceId,
-        Actor.user(actorId),
-        current,
-        ReqIfMapper.toDataSet(reqIfCodec.parse(request.reqif()), current));
+    return applyPayload(workspaceId, Actor.user(actorId), "reqif", request.reqif());
   }
 
   private JsonArtifact artifact(UUID workspaceId, String json) {
@@ -170,6 +204,13 @@ public class ExchangeController {
     var current = readModel.dataSet(workspaceId);
     var target = ArtifactMapper.toDataSet(artifact, current);
     return applyDataSet(workspaceId, actor, current, target);
+  }
+
+  private ExchangeApplyResult applyPayload(
+      UUID workspaceId, Actor actor, String format, String payload) {
+    var current = readModel.dataSet(workspaceId);
+    return applyDataSet(
+        workspaceId, actor, current, adapters.require(format).importToDataSet(payload, current));
   }
 
   private ExchangeApplyResult applyDataSet(
