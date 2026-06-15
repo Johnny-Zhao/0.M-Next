@@ -28,33 +28,41 @@ public final class ReqIfMapper {
     var objectIds = objects.stream().map(DataObject::objectId).collect(Collectors.toSet());
     var relations =
         dataSet.relations().stream()
-            .filter(value -> objectIds.contains(value.sourceId()) && objectIds.contains(value.targetId()))
+            .filter(
+                value ->
+                    objectIds.contains(value.sourceId()) && objectIds.contains(value.targetId()))
             .toList();
     var datatypeByKey = new LinkedHashMap<String, DatatypeDef>();
     var objectTypes = objectTypes(objects, datatypeByKey);
     var relationTypes = relationTypes(relations);
     return new ReqIfDocument(
-        identifier, new ArrayList<>(datatypeByKey.values()), objectTypes, specObjects(objects),
-        relationTypes, specRelations(relations));
+        identifier,
+        new ArrayList<>(datatypeByKey.values()),
+        objectTypes,
+        specObjects(objects),
+        relationTypes,
+        specRelations(relations));
   }
 
   public static DataSet toDataSet(ReqIfDocument document, DataSet current) {
     Objects.requireNonNull(document, "document");
     Objects.requireNonNull(current, "current");
-    var typeById = document.objectTypes().stream()
-        .collect(Collectors.toMap(SpecObjectType::identifier, SpecObjectType::longName));
-    var currentObjects = current.objects().stream()
-        .collect(Collectors.toMap(DataObject::objectId, value -> value));
+    var typeById =
+        document.objectTypes().stream()
+            .collect(Collectors.toMap(SpecObjectType::identifier, SpecObjectType::longName));
+    var currentObjects =
+        current.objects().stream().collect(Collectors.toMap(DataObject::objectId, value -> value));
     var objects = new ArrayList<DataObject>();
     for (var value : document.objects()) {
       required(value.identifier(), "SPEC-OBJECT IDENTIFIER");
       var existing = currentObjects.get(value.identifier());
-      objects.add(new DataObject(
-          value.identifier(),
-          required(typeById.get(value.typeRef()), "SPEC-OBJECT TYPE"),
-          value.values(),
-          existing == null ? "DRAFT" : existing.status(),
-          existing == null ? 1 : existing.version()));
+      objects.add(
+          new DataObject(
+              value.identifier(),
+              required(typeById.get(value.typeRef()), "SPEC-OBJECT TYPE"),
+              value.values(),
+              existing == null ? "DRAFT" : existing.status(),
+              existing == null ? 1 : existing.version()));
     }
     return new DataSet(objects, mapRelations(document, current, objects));
   }
@@ -63,7 +71,8 @@ public final class ReqIfMapper {
       java.util.List<DataObject> objects, Map<String, DatatypeDef> datatypeByKey) {
     var fieldsByType = new TreeMap<String, Map<String, ReqIfDataType>>();
     for (var object : objects) {
-      var fields = fieldsByType.computeIfAbsent(object.objectTypeCode(), ignored -> new TreeMap<>());
+      var fields =
+          fieldsByType.computeIfAbsent(object.objectTypeCode(), ignored -> new TreeMap<>());
       object.fields().forEach((code, value) -> fields.putIfAbsent(code, dataType(value)));
     }
     var result = new ArrayList<SpecObjectType>();
@@ -74,7 +83,9 @@ public final class ReqIfMapper {
               (code, dataType) -> {
                 var datatype = datatype(type, code, dataType);
                 datatypeByKey.putIfAbsent(datatype.identifier(), datatype);
-                attributes.add(new AttributeDef(attributeId(type, code), code, datatype.identifier(), dataType));
+                attributes.add(
+                    new AttributeDef(
+                        attributeId(type, code), code, datatype.identifier(), dataType));
               });
           result.add(new SpecObjectType(typeId(type), type, attributes));
         });
@@ -83,8 +94,13 @@ public final class ReqIfMapper {
 
   private static ArrayList<SpecObject> specObjects(java.util.List<DataObject> objects) {
     return objects.stream()
-        .map(value -> new SpecObject(
-            value.objectId(), value.objectId(), typeId(value.objectTypeCode()), new TreeMap<>(value.fields())))
+        .map(
+            value ->
+                new SpecObject(
+                    value.objectId(),
+                    value.objectId(),
+                    typeId(value.objectTypeCode()),
+                    new TreeMap<>(value.fields())))
         .collect(Collectors.toCollection(ArrayList::new));
   }
 
@@ -99,16 +115,23 @@ public final class ReqIfMapper {
 
   private static ArrayList<SpecRelation> specRelations(java.util.List<DataRelation> relations) {
     return relations.stream()
-        .map(value -> new SpecRelation(
-            relationKey(value), relationTypeId(value.relationTypeCode()), value.sourceId(), value.targetId(), value.fields()))
+        .map(
+            value ->
+                new SpecRelation(
+                    relationKey(value),
+                    relationTypeId(value.relationTypeCode()),
+                    value.sourceId(),
+                    value.targetId(),
+                    value.fields()))
         .collect(Collectors.toCollection(ArrayList::new));
   }
 
   private static java.util.List<DataRelation> mapRelations(
       ReqIfDocument document, DataSet current, java.util.List<DataObject> objects) {
     var objectIds = objects.stream().map(DataObject::objectId).collect(Collectors.toSet());
-    var typeById = document.relationTypes().stream()
-        .collect(Collectors.toMap(SpecRelationType::identifier, SpecRelationType::longName));
+    var typeById =
+        document.relationTypes().stream()
+            .collect(Collectors.toMap(SpecRelationType::identifier, SpecRelationType::longName));
     var existing = new LinkedHashMap<String, String>();
     current.relations().forEach(value -> existing.put(relationKey(value), value.relationId()));
     var relations = new ArrayList<DataRelation>();
@@ -118,7 +141,13 @@ public final class ReqIfMapper {
       }
       var type = required(typeById.get(value.typeRef()), "SPEC-RELATION TYPE");
       var key = relationKey(type, value.sourceRef(), value.targetRef());
-      relations.add(new DataRelation(existing.getOrDefault(key, key), type, value.sourceRef(), value.targetRef(), value.values()));
+      relations.add(
+          new DataRelation(
+              existing.getOrDefault(key, key),
+              type,
+              value.sourceRef(),
+              value.targetRef(),
+              value.values()));
     }
     return relations;
   }
@@ -126,7 +155,9 @@ public final class ReqIfMapper {
   private static ReqIfDataType dataType(Object value) {
     if (value instanceof Integer || value instanceof Long) return ReqIfDataType.INTEGER;
     if (value instanceof Boolean) return ReqIfDataType.BOOLEAN;
-    if (value instanceof Float || value instanceof Double || value instanceof java.math.BigDecimal) {
+    if (value instanceof Float
+        || value instanceof Double
+        || value instanceof java.math.BigDecimal) {
       return ReqIfDataType.REAL;
     }
     return ReqIfDataType.STRING;

@@ -19,7 +19,8 @@ class ReqIfExchangeTest {
     var dataSet =
         new DataSet(
             List.of(
-                new DataObject("REQ-1", "Requirement", Map.of("title", "One", "priority", 1), "DRAFT", 3),
+                new DataObject(
+                    "REQ-1", "Requirement", Map.of("title", "One", "priority", 1), "DRAFT", 3),
                 new DataObject("REQ-2", "Requirement", Map.of("title", "Two"), "DRAFT", 1)),
             List.of(new DataRelation("rel-1", "satisfies", "REQ-1", "REQ-2", Map.of())));
 
@@ -47,7 +48,9 @@ class ReqIfExchangeTest {
   @Test
   void mapsAddedObjectsAndRelationsByIdentifier() {
     var current =
-        new DataSet(List.of(new DataObject("REQ-1", "Requirement", Map.of("title", "One"), "DRAFT", 2)), List.of());
+        new DataSet(
+            List.of(new DataObject("REQ-1", "Requirement", Map.of("title", "One"), "DRAFT", 2)),
+            List.of());
 
     var mapped = ReqIfMapper.toDataSet(codec.parse(twoObjectReqIf()), current);
     var diff = StructuredDiff.diff(current, mapped);
@@ -62,13 +65,18 @@ class ReqIfExchangeTest {
     assertThrows(IllegalArgumentException.class, () -> codec.parse("<REQ-IF>"));
     assertThrows(
         IllegalArgumentException.class,
-        () -> codec.parse(datatypeMatrix().replace("DATATYPE-DEFINITION-STRING", "DATATYPE-DEFINITION-UNKNOWN")));
+        () ->
+            codec.parse(
+                datatypeMatrix()
+                    .replace("DATATYPE-DEFINITION-STRING", "DATATYPE-DEFINITION-UNKNOWN")));
     assertThrows(
         IllegalArgumentException.class,
         () -> codec.parse(twoObjectReqIf().replace("IDENTIFIER=\"REQ-2\"", "LONG-NAME=\"REQ-2\"")));
     assertThrows(
         IllegalArgumentException.class,
-        () -> codec.parse(twoObjectReqIf().replace("REQ-2</SPEC-OBJECT-REF>", "MISSING</SPEC-OBJECT-REF>")));
+        () ->
+            codec.parse(
+                twoObjectReqIf().replace("REQ-2</SPEC-OBJECT-REF>", "MISSING</SPEC-OBJECT-REF>")));
   }
 
   private static String twoObjectReqIf() {

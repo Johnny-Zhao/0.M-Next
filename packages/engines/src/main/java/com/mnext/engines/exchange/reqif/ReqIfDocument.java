@@ -39,7 +39,11 @@ public record ReqIfDocument(
   public record SpecRelationType(String identifier, String longName) {}
 
   public record SpecRelation(
-      String identifier, String typeRef, String sourceRef, String targetRef, Map<String, Object> values) {
+      String identifier,
+      String typeRef,
+      String sourceRef,
+      String targetRef,
+      Map<String, Object> values) {
     public SpecRelation {
       values = values == null ? Map.of() : Map.copyOf(values);
     }

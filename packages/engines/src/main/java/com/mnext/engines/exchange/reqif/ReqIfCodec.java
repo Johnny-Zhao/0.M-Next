@@ -66,7 +66,8 @@ public final class ReqIfCodec {
     var objectIds = new java.util.HashSet<String>();
     objects.forEach(value -> objectIds.add(value.identifier()));
     var relations = relations(document, relationTypes, objectIds);
-    return new ReqIfDocument(headerId(document), datatypes, objectTypes, objects, relationTypes, relations);
+    return new ReqIfDocument(
+        headerId(document), datatypes, objectTypes, objects, relationTypes, relations);
   }
 
   private static void rejectUnsupportedTags(Document document) {
@@ -100,7 +101,9 @@ public final class ReqIfCodec {
       var nodes = document.getElementsByTagName(tag);
       for (int i = 0; i < nodes.getLength(); i++) {
         var node = (Element) nodes.item(i);
-        values.add(new DatatypeDef(required(node, "IDENTIFIER", tag), longName(node), ReqIfDataType.fromTag(tag)));
+        values.add(
+            new DatatypeDef(
+                required(node, "IDENTIFIER", tag), longName(node), ReqIfDataType.fromTag(tag)));
       }
     }
     return values;
@@ -112,10 +115,11 @@ public final class ReqIfCodec {
     var nodes = document.getElementsByTagName("SPEC-OBJECT-TYPE");
     for (int i = 0; i < nodes.getLength(); i++) {
       var node = (Element) nodes.item(i);
-      values.add(new SpecObjectType(
-          required(node, "IDENTIFIER", "SPEC-OBJECT-TYPE"),
-          longName(node),
-          attributeDefs(node, datatypes)));
+      values.add(
+          new SpecObjectType(
+              required(node, "IDENTIFIER", "SPEC-OBJECT-TYPE"),
+              longName(node),
+              attributeDefs(node, datatypes)));
     }
     return values;
   }
@@ -129,8 +133,10 @@ public final class ReqIfCodec {
         var node = (Element) nodes.item(i);
         var type = ReqIfDataType.fromTag(tag);
         var datatypeRef = firstText(node, "DATATYPE-DEFINITION-" + type.suffix() + "-REF");
-        if (!datatypes.containsKey(datatypeRef)) throw new IllegalArgumentException("未知 datatype ref: " + datatypeRef);
-        values.add(new AttributeDef(required(node, "IDENTIFIER", tag), longName(node), datatypeRef, type));
+        if (!datatypes.containsKey(datatypeRef))
+          throw new IllegalArgumentException("未知 datatype ref: " + datatypeRef);
+        values.add(
+            new AttributeDef(required(node, "IDENTIFIER", tag), longName(node), datatypeRef, type));
       }
     }
     return values;
@@ -141,7 +147,8 @@ public final class ReqIfCodec {
     var nodes = document.getElementsByTagName("SPEC-RELATION-TYPE");
     for (int i = 0; i < nodes.getLength(); i++) {
       var node = (Element) nodes.item(i);
-      values.add(new SpecRelationType(required(node, "IDENTIFIER", "SPEC-RELATION-TYPE"), longName(node)));
+      values.add(
+          new SpecRelationType(required(node, "IDENTIFIER", "SPEC-RELATION-TYPE"), longName(node)));
     }
     return values;
   }
@@ -157,16 +164,18 @@ public final class ReqIfCodec {
       var typeRef = firstText(node, "SPEC-OBJECT-TYPE-REF");
       var type = types.get(typeRef);
       if (type == null) throw new IllegalArgumentException("未知 SPEC-OBJECT-TYPE: " + typeRef);
-      values.add(new SpecObject(
-          required(node, "IDENTIFIER", "SPEC-OBJECT"),
-          longName(node),
-          typeRef,
-          attributeValues(node, type.attributes())));
+      values.add(
+          new SpecObject(
+              required(node, "IDENTIFIER", "SPEC-OBJECT"),
+              longName(node),
+              typeRef,
+              attributeValues(node, type.attributes())));
     }
     return values;
   }
 
-  private static Map<String, Object> attributeValues(Element owner, java.util.List<AttributeDef> defs) {
+  private static Map<String, Object> attributeValues(
+      Element owner, java.util.List<AttributeDef> defs) {
     var byId = new LinkedHashMap<String, AttributeDef>();
     defs.forEach(value -> byId.put(value.identifier(), value));
     var values = new LinkedHashMap<String, Object>();
@@ -176,7 +185,8 @@ public final class ReqIfCodec {
         var node = (Element) nodes.item(i);
         var definitionRef = firstDefinitionRef(node);
         var def = byId.get(definitionRef);
-        if (def == null) throw new IllegalArgumentException("未知 ATTRIBUTE-DEFINITION: " + definitionRef);
+        if (def == null)
+          throw new IllegalArgumentException("未知 ATTRIBUTE-DEFINITION: " + definitionRef);
         values.put(def.longName(), readValue(node, def.dataType()));
       }
     }
@@ -184,20 +194,28 @@ public final class ReqIfCodec {
   }
 
   private static ArrayList<SpecRelation> relations(
-      Document document, java.util.List<SpecRelationType> relationTypes, java.util.Set<String> objectIds) {
-    var types = relationTypes.stream().map(SpecRelationType::identifier).collect(java.util.stream.Collectors.toSet());
+      Document document,
+      java.util.List<SpecRelationType> relationTypes,
+      java.util.Set<String> objectIds) {
+    var types =
+        relationTypes.stream()
+            .map(SpecRelationType::identifier)
+            .collect(java.util.stream.Collectors.toSet());
     var values = new ArrayList<SpecRelation>();
     var nodes = document.getElementsByTagName("SPEC-RELATION");
     for (int i = 0; i < nodes.getLength(); i++) {
       var node = (Element) nodes.item(i);
       var typeRef = firstText(node, "SPEC-RELATION-TYPE-REF");
-      if (!types.contains(typeRef)) throw new IllegalArgumentException("未知 SPEC-RELATION-TYPE: " + typeRef);
+      if (!types.contains(typeRef))
+        throw new IllegalArgumentException("未知 SPEC-RELATION-TYPE: " + typeRef);
       var source = firstText(node, "SPEC-OBJECT-REF");
       var target = nthText(node, "SPEC-OBJECT-REF", 1);
       if (!objectIds.contains(source) || !objectIds.contains(target)) {
         throw new IllegalArgumentException("ReqIF relation endpoint 不存在");
       }
-      values.add(new SpecRelation(required(node, "IDENTIFIER", "SPEC-RELATION"), typeRef, source, target, Map.of()));
+      values.add(
+          new SpecRelation(
+              required(node, "IDENTIFIER", "SPEC-RELATION"), typeRef, source, target, Map.of()));
     }
     return values;
   }
@@ -217,7 +235,9 @@ public final class ReqIfCodec {
     reqif.objectTypes().forEach(value -> appendObjectType(document, specTypes, value));
     reqif.relationTypes().forEach(value -> appendRelationType(document, specTypes, value));
     var specObjects = child(document, content, "SPEC-OBJECTS");
-    reqif.objects().forEach(value -> appendObject(document, specObjects, value, reqif.objectTypes()));
+    reqif
+        .objects()
+        .forEach(value -> appendObject(document, specObjects, value, reqif.objectTypes()));
     var specRelations = child(document, content, "SPEC-RELATIONS");
     reqif.relations().forEach(value -> appendRelation(document, specRelations, value));
   }
@@ -245,7 +265,8 @@ public final class ReqIfCodec {
         .setTextContent(value.datatypeRef());
   }
 
-  private static void appendRelationType(Document document, Element parent, SpecRelationType value) {
+  private static void appendRelationType(
+      Document document, Element parent, SpecRelationType value) {
     var node = child(document, parent, "SPEC-RELATION-TYPE");
     node.setAttribute("IDENTIFIER", value.identifier());
     node.setAttribute("LONG-NAME", value.longName());
@@ -259,11 +280,12 @@ public final class ReqIfCodec {
     var type = child(document, node, "TYPE");
     child(document, type, "SPEC-OBJECT-TYPE-REF").setTextContent(value.typeRef());
     var values = child(document, node, "VALUES");
-    var definitions = types.stream()
-        .filter(item -> item.identifier().equals(value.typeRef()))
-        .findFirst()
-        .map(SpecObjectType::attributes)
-        .orElse(List.of());
+    var definitions =
+        types.stream()
+            .filter(item -> item.identifier().equals(value.typeRef()))
+            .findFirst()
+            .map(SpecObjectType::attributes)
+            .orElse(List.of());
     for (var def : definitions) {
       if (value.values().containsKey(def.longName())) {
         appendAttributeValue(document, values, def, value.values().get(def.longName()));
@@ -299,13 +321,16 @@ public final class ReqIfCodec {
 
   private static String required(Element node, String attribute, String owner) {
     var value = node.getAttribute(attribute);
-    if (value == null || value.isBlank()) throw new IllegalArgumentException(owner + " 缺少 " + attribute);
+    if (value == null || value.isBlank())
+      throw new IllegalArgumentException(owner + " 缺少 " + attribute);
     return value;
   }
 
   private static String longName(Element node) {
     var value = node.getAttribute("LONG-NAME");
-    return value == null || value.isBlank() ? required(node, "IDENTIFIER", node.getTagName()) : value;
+    return value == null || value.isBlank()
+        ? required(node, "IDENTIFIER", node.getTagName())
+        : value;
   }
 
   private static String firstDefinitionRef(Element node) {
@@ -317,7 +342,8 @@ public final class ReqIfCodec {
   }
 
   private static Object readValue(Element node, ReqIfDataType type) {
-    var value = node.hasAttribute("THE-VALUE") ? node.getAttribute("THE-VALUE") : node.getTextContent();
+    var value =
+        node.hasAttribute("THE-VALUE") ? node.getAttribute("THE-VALUE") : node.getTextContent();
     return switch (type) {
       case STRING, ENUMERATION, DATE -> value;
       case INTEGER -> integer(value);
