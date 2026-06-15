@@ -104,7 +104,7 @@
 
 ### 3.2 错误码(依据 D.2)
 
-- AG-311:错误码格式 `前缀-HTTP状态-原因`,前缀**仅允许**六类:`KERNEL-`(内核/版本/事务/幂等)、`RULE-`(规则失败/阻断)、`PERM-`(权限/越界)、`AI-`(变更集/确认流程)、`ARTIFACT-`(解析/映射/同步)、`REVIEW-`(评审批注/状态,见 contracts/评审命令契约.md)。示例:`KERNEL-409-VERSION-CONFLICT`、`PERM-403-FIELD-DENIED`、`AI-409-CHANGESET-EXPIRED`。所有码登记于 `packages/shared/contracts/error-codes.yaml`,CI 校验代码中出现的码均已登记。
+- AG-311:错误码格式 `前缀-HTTP状态-原因`,前缀**仅允许**七类:`KERNEL-`(内核/版本/事务/幂等)、`RULE-`(规则失败/阻断)、`PERM-`(权限/越界)、`AI-`(变更集/确认流程)、`ARTIFACT-`(解析/映射/同步)、`REVIEW-`(评审批注/状态,见 contracts/评审命令契约.md)、`SIM-`(仿真运行/事件,见 contracts/仿真事件契约.md)。示例:`KERNEL-409-VERSION-CONFLICT`、`PERM-403-FIELD-DENIED`、`AI-409-CHANGESET-EXPIRED`、`SIM-422-ENGINE-NOT-FOUND`。所有码登记于 `packages/shared/contracts/error-codes.yaml`,CI 校验代码中出现的码均已登记。
 - AG-312:错误响应必须含用户可理解 message 与建议操作(D.2 返回要求);禁止向前端透出裸异常堆栈。CI:错误响应契约测试。
 
 ### 3.3 日志与审计

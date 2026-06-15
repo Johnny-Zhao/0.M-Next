@@ -132,3 +132,19 @@ codes:
     httpStatus: 409
     title: 批注状态迁移非法
     responseRequirement: 返回当前态与允许迁移
+  - code: SIM-404-SNAPSHOT-NOT-FOUND
+    httpStatus: 404
+    title: 仿真输入快照不存在
+    responseRequirement: 提示先捕获快照(snapshotId)
+  - code: SIM-422-ENGINE-NOT-FOUND
+    httpStatus: 422
+    title: 仿真引擎未注册
+    responseRequirement: 列出可用 engineId
+  - code: SIM-409-INVALID-STATE-TRANSITION
+    httpStatus: 409
+    title: 仿真运行状态迁移非法
+    responseRequirement: 返回当前态与允许迁移
+  - code: SIM-500-ENGINE-FAILED
+    httpStatus: 500
+    title: 仿真引擎执行失败
+    responseRequirement: 记 failureReason，run 置 FAILED

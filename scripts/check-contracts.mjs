@@ -37,6 +37,12 @@ const schemas = {
       "utf8",
     ),
   ),
+  "simulation-events": JSON.parse(
+    fs.readFileSync(
+      path.join(root, "contracts", "schemas", "simulation-events.schema.json"),
+      "utf8",
+    ),
+  ),
 };
 
 const ajv = new Ajv2020({ allErrors: true, strict: false });
@@ -46,6 +52,7 @@ const validators = {
   events: ajv.compile(schemas.events),
   "meta-commands": ajv.compile(schemas["meta-commands"]),
   "review-commands": ajv.compile(schemas["review-commands"]),
+  "simulation-events": ajv.compile(schemas["simulation-events"]),
 };
 
 function walk(directory) {
@@ -65,7 +72,7 @@ for (const fixture of fixtures) {
   const validator = validators[schemaName];
   if (validator === undefined || !["valid", "invalid"].includes(expectation)) {
     console.error(
-      `FAIL ${path.relative(root, fixture)}: expected <commands|events|meta-commands|review-commands>/<valid|invalid>`,
+      `FAIL ${path.relative(root, fixture)}: expected <commands|events|meta-commands|review-commands|simulation-events>/<valid|invalid>`,
     );
     failures += 1;
     continue;

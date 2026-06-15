@@ -1,0 +1,15 @@
+{
+  "eventType": "SimulationCompleted",
+  "simulationRunId": "55555555-5555-4555-8555-555555555555",
+  "workspaceId": "22222222-2222-4222-8222-222222222222",
+  "snapshotId": "66666666-6666-4666-8666-666666666666",
+  "engineId": "fuml",
+  "status": "COMPLETED",
+  "resultHash": "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789",
+  "configHash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+  "startedAt": "2026-06-15T11:00:00Z",
+  "completedAt": "2026-06-15T11:02:30Z",
+  "durationMs": 150000,
+  "createdBy": "engineer",
+  "failureReason": null
+}

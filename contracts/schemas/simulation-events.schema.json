@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mnext/contracts/simulation-events.schema.json",
+  "title": "Simulation domain events",
+  "oneOf": [{ "$ref": "#/$defs/SimulationCompleted" }],
+  "$defs": {
+    "SimulationCompleted": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "eventType",
+        "simulationRunId",
+        "workspaceId",
+        "snapshotId",
+        "engineId",
+        "status",
+        "resultHash",
+        "configHash",
+        "startedAt",
+        "completedAt",
+        "durationMs",
+        "createdBy"
+      ],
+      "properties": {
+        "eventType": { "const": "SimulationCompleted" },
+        "simulationRunId": { "type": "string", "format": "uuid" },
+        "workspaceId": { "type": "string", "format": "uuid" },
+        "snapshotId": { "type": "string", "format": "uuid" },
+        "engineId": { "type": "string", "minLength": 1 },
+        "status": { "enum": ["COMPLETED", "FAILED"] },
+        "resultHash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "configHash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "startedAt": { "type": "string", "format": "date-time" },
+        "completedAt": { "type": "string", "format": "date-time" },
+        "durationMs": { "type": "integer", "minimum": 0 },
+        "createdBy": { "type": "string", "minLength": 1 },
+        "failureReason": { "type": ["string", "null"] }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "status": { "const": "FAILED" } } },
+          "then": { "required": ["failureReason"] }
+        }
+      ]
+    }
+  }
+}
