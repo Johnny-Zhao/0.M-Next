@@ -1,6 +1,5 @@
 package com.mnext.server;
 
-import com.mnext.engines.sim.SimConfig;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.task.TaskExecutor;
@@ -39,8 +38,7 @@ class SimulationRunner {
     runs.start(runId);
     try {
       var snapshot = runs.snapshot(workspaceId, run.snapshotId());
-      var engine = runs.engines().require(run.engineId());
-      var result = engine.run(snapshot.payload(), new SimConfig(run.config()));
+      var result = runs.engines().run(run.engineId(), snapshot.payload(), run.config());
       runs.complete(runId, result);
     } catch (Exception failure) {
       runs.fail(runId, "SIM-500-ENGINE-FAILED");

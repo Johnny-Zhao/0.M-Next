@@ -3,16 +3,15 @@ package com.mnext.server;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.mnext.engines.sim.SimConfig;
-import com.mnext.engines.sim.SimEngineRegistry;
-import com.mnext.engines.sim.SimResult;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
+import java.util.Collections;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 import java.util.UUID;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
@@ -24,12 +23,17 @@ class SimulationRunRepository {
   private final JdbcTemplate jdbc;
   private final ObjectMapper mapper;
   private final SnapshotRepository snapshots;
-  private final SimEngineRegistry engines = new SimEngineRegistry();
+  private final SimulationEngineBridge engines;
 
-  SimulationRunRepository(JdbcTemplate jdbc, ObjectMapper mapper, SnapshotRepository snapshots) {
+  SimulationRunRepository(
+      JdbcTemplate jdbc,
+      ObjectMapper mapper,
+      SnapshotRepository snapshots,
+      SimulationEngineBridge engines) {
     this.jdbc = jdbc;
     this.mapper = mapper;
     this.snapshots = snapshots;
+    this.engines = engines;
   }
 
   SimulationRunView create(UUID workspaceId, SimulationCreateRequest request, String actor) {
@@ -42,8 +46,8 @@ class SimulationRunRepository {
     requireEngine(request.engineId());
     var id = UUID.randomUUID();
     var queuedAt = Instant.now();
-    var config = new SimConfig(request.config());
-    var configJson = json(config.parameters());
+    var config = sorted(request.config() == null ? Map.of() : request.config());
+    var configJson = json(config);
     jdbc.update(
         """
         INSERT INTO simulation_run
@@ -71,7 +75,7 @@ class SimulationRunRepository {
     }
   }
 
-  SimEngineRegistry engines() {
+  SimulationEngineBridge engines() {
     return engines;
   }
 
@@ -139,8 +143,8 @@ class SimulationRunRepository {
     if (count != 1) invalidTransition(runId);
   }
 
-  void complete(UUID runId, SimResult result) {
-    var resultJson = json(result.values());
+  void complete(UUID runId, Map<String, Object> result) {
+    var resultJson = json(sorted(result));
     var count =
         jdbc.update(
             """
@@ -181,6 +185,23 @@ class SimulationRunRepository {
   private void invalidTransition(UUID runId) {
     throw new SimulationException(
         "SIM-409-INVALID-STATE-TRANSITION", "仿真运行状态不允许该迁移", "刷新运行状态后重试或新建一次运行");
+  }
+
+  private Map<String, Object> sorted(Map<String, Object> value) {
+    if (value == null) return Map.of();
+    var result = new TreeMap<String, Object>();
+    value.forEach((key, item) -> result.put(key, sortedValue(item)));
+    return Collections.unmodifiableMap(result);
+  }
+
+  private Object sortedValue(Object value) {
+    if (value instanceof Map<?, ?> nested) {
+      var result = new TreeMap<String, Object>();
+      nested.forEach((key, item) -> result.put(String.valueOf(key), sortedValue(item)));
+      return Collections.unmodifiableMap(result);
+    }
+    if (value instanceof List<?> values) return values.stream().map(this::sortedValue).toList();
+    return value;
   }
 
   private SimulationRunView view(java.sql.ResultSet row) throws java.sql.SQLException {

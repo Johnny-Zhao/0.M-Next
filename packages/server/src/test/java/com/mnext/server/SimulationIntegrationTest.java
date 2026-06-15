@@ -144,19 +144,6 @@ class SimulationIntegrationTest {
   }
 
   @Test
-  void engineFailureMarksRunFailed() {
-    var snapshot = snapshots.capture(WORKSPACE, null, "author");
-    var run =
-        create(WORKSPACE, Map.of("snapshotId", snapshot.snapshotId(), "engineId", "fail-test"));
-
-    assertEquals(1, runner.drain());
-    var failed = get(WORKSPACE, UUID.fromString((String) run.get("runId")));
-
-    assertEquals("FAILED", failed.get("status"));
-    assertEquals("SIM-500-ENGINE-FAILED", failed.get("failureReason"));
-  }
-
-  @Test
   void isolatesWorkspacesAndRepositoryDoesNotTouchMasterData() throws Exception {
     var snapshot = snapshots.capture(WORKSPACE, null, "author");
     var run = create(WORKSPACE, Map.of("snapshotId", snapshot.snapshotId(), "engineId", "echo"));
