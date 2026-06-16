@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -55,6 +56,9 @@ class RuleCommandIntegrationTest {
 
   @BeforeEach
   void reset() {
+    jdbc.update("DELETE FROM check_result");
+    jdbc.update("DELETE FROM rm_relation");
+    jdbc.update("DELETE FROM rm_object");
     jdbc.update("DELETE FROM event_outbox");
     jdbc.update("DELETE FROM field_value_history");
     jdbc.update("DELETE FROM data_field_value");
@@ -224,6 +228,84 @@ class RuleCommandIntegrationTest {
     assertEquals(0, count("data_object"));
   }
 
+  @Test
+  void runRuleCheckWritesAllSeveritiesAndEvaluatesNonLightweightRules() {
+    insertReadModelObject("99999999-1111-4111-8111-111111111111", "bad", 20, "nobody");
+    assertEquals(
+        200,
+        post(define("cold-block", "field('name') == 'bad'", "name", "define-cold-block"))
+            .getStatusCode()
+            .value());
+    assertEquals(
+        200,
+        post(define("cold-warn", "field('cost') > 10", "cost", "define-cold-warn", "WARN", false))
+            .getStatusCode()
+            .value());
+    assertEquals(
+        200,
+        post(define(
+                "cold-info",
+                "field('owner') == 'nobody'",
+                "owner",
+                "define-cold-info",
+                "INFO",
+                true))
+            .getStatusCode()
+            .value());
+    assertEquals(200, post(publish("cold-block", "publish-cold-block")).getStatusCode().value());
+    assertEquals(200, post(publish("cold-warn", "publish-cold-warn")).getStatusCode().value());
+    assertEquals(200, post(publish("cold-info", "publish-cold-info")).getStatusCode().value());
+
+    var response = post(runRuleCheck("run-full", null));
+    var runId = runId(response);
+
+    assertEquals(200, response.getStatusCode().value(), String.valueOf(response.getBody()));
+    assertEquals(3, count("check_result WHERE run_id = '" + runId + "'"));
+    assertEquals(1, count("check_result WHERE severity = 'BLOCK'"));
+    assertEquals(1, count("check_result WHERE severity = 'WARN'"));
+    assertEquals(1, count("check_result WHERE severity = 'INFO'"));
+  }
+
+  @Test
+  void runRuleCheckConfigHashIsStableForSameRuleSetAndScope() {
+    insertReadModelObject("99999999-2222-4222-8222-222222222222", "bad", 20, "alice");
+    assertEquals(
+        200,
+        post(define("stable-rule", "field('name') == 'bad'", "name", "define-stable"))
+            .getStatusCode()
+            .value());
+    assertEquals(200, post(publish("stable-rule", "publish-stable")).getStatusCode().value());
+
+    var first = runId(post(runRuleCheck("run-stable-a", "demo_object")));
+    var second = runId(post(runRuleCheck("run-stable-b", "demo_object")));
+
+    assertEquals(configHash(first), configHash(second));
+  }
+
+  @Test
+  void checkResultsQueryIsPagedAndScopedByRunId() {
+    insertReadModelObject("99999999-3333-4333-8333-333333333333", "bad", 20, "nobody");
+    assertEquals(
+        200,
+        post(define("page-block", "field('name') == 'bad'", "name", "define-page-block"))
+            .getStatusCode()
+            .value());
+    assertEquals(
+        200,
+        post(define("page-warn", "field('cost') > 10", "cost", "define-page-warn", "WARN", true))
+            .getStatusCode()
+            .value());
+    assertEquals(200, post(publish("page-block", "publish-page-block")).getStatusCode().value());
+    assertEquals(200, post(publish("page-warn", "publish-page-warn")).getStatusCode().value());
+    var runId = runId(post(runRuleCheck("run-page", "demo_object")));
+
+    var page = get("/views/check-results?runId=" + runId + "&page=0&size=1");
+
+    assertEquals(200, page.getStatusCode().value(), String.valueOf(page.getBody()));
+    assertEquals(2, page.getBody().get("total"));
+    assertEquals(1, ((List<?>) page.getBody().get("items")).size());
+  }
+
   private Map<String, Object> define(
       String ruleCode, String when, String fieldCode, String idempotencyKey) {
     return defineWithScope(ruleCode, "demo_object", fieldCode, idempotencyKey, when);
@@ -283,6 +365,14 @@ class RuleCommandIntegrationTest {
     return command("PublishRule", idempotencyKey, Map.of("ruleCode", ruleCode));
   }
 
+  private Map<String, Object> runRuleCheck(String idempotencyKey, String objectTypeCode) {
+    var payload = new LinkedHashMap<String, Object>();
+    if (objectTypeCode != null) {
+      payload.put("scope", Map.of("objectTypeCode", objectTypeCode));
+    }
+    return command("RunRuleCheck", idempotencyKey, payload);
+  }
+
   private Map<String, Object> command(
       String commandType, String idempotencyKey, Map<String, Object> payload) {
     var request = new LinkedHashMap<String, Object>();
@@ -323,6 +413,16 @@ class RuleCommandIntegrationTest {
         Map.class);
   }
 
+  private ResponseEntity<Map> get(String path) {
+    return http.getForEntity(
+        "http://localhost:" + port + "/workspaces/" + WORKSPACE + path, Map.class);
+  }
+
+  private String runId(ResponseEntity<Map> response) {
+    assertEquals(200, response.getStatusCode().value(), String.valueOf(response.getBody()));
+    return (String) ((List<?>) response.getBody().get("events")).getFirst();
+  }
+
   private String errorCode(ResponseEntity<Map> response) {
     return (String) ((Map<?, ?>) response.getBody().get("error")).get("code");
   }
@@ -333,6 +433,23 @@ class RuleCommandIntegrationTest {
 
   private Object value(String sql) {
     return jdbc.queryForObject(sql, Object.class);
+  }
+
+  private String configHash(String runId) {
+    return jdbc.queryForObject(
+        "SELECT config_hash FROM check_result WHERE run_id = ?::uuid LIMIT 1", String.class, runId);
+  }
+
+  private void insertReadModelObject(String objectId, String name, int cost, String owner) {
+    jdbc.update(
+        """
+        INSERT INTO rm_object
+          (workspace_id, object_id, object_type_code, status, version, fields, updated_at)
+        VALUES (?, ?::uuid, 'demo_object', 'DRAFT', 1, CAST(? AS jsonb), now())
+        """,
+        WORKSPACE,
+        objectId,
+        "{\"name\":\"" + name + "\",\"cost\":" + cost + ",\"owner\":\"" + owner + "\"}");
   }
 
   private void insertOtherTypeAndField() {

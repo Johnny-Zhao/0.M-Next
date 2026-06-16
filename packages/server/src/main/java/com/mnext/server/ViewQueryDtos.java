@@ -35,3 +35,13 @@ record ObjectDetailView(ObjectView object, List<RelationView> relations) {}
 record TreeNodeView(UUID sourceId, UUID targetId, int depth) {}
 
 record SyncStatusView(long pendingEvents, boolean caughtUp) {}
+
+record CheckResultView(
+    UUID runId,
+    String ruleCode,
+    String severity,
+    String message,
+    UUID objectId,
+    String fieldCode,
+    String configHash,
+    Instant createdAt) {}

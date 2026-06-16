@@ -11,9 +11,11 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 public class ViewQueryController {
   private final ReadModelRepository repository;
+  private final CheckResultRepository checkResults;
 
-  public ViewQueryController(ReadModelRepository repository) {
+  public ViewQueryController(ReadModelRepository repository, CheckResultRepository checkResults) {
     this.repository = repository;
+    this.checkResults = checkResults;
   }
 
   @GetMapping("/workspaces/{workspaceId}/views/object-types")
@@ -95,5 +97,17 @@ public class ViewQueryController {
   @GetMapping("/workspaces/{workspaceId}/views/sync-status")
   public SyncStatusView syncStatus(@PathVariable("workspaceId") UUID workspaceId) {
     return repository.syncStatus(workspaceId);
+  }
+
+  @GetMapping("/workspaces/{workspaceId}/views/check-results")
+  public PageView<CheckResultView> checkResults(
+      @PathVariable("workspaceId") UUID workspaceId,
+      @RequestParam("runId") UUID runId,
+      @RequestParam(value = "page", defaultValue = "0") int page,
+      @RequestParam(value = "size", defaultValue = "50") int size) {
+    if (page < 0 || size < 1 || size > 200) {
+      throw new IllegalArgumentException("page 必须非负且 size 必须为 1..200");
+    }
+    return checkResults.find(workspaceId, runId, page, size);
   }
 }
