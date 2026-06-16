@@ -7,6 +7,7 @@ import com.mnext.kernel.api.CommandError;
 import com.mnext.kernel.api.CommandRejectedException;
 import com.mnext.kernel.api.CommandResult;
 import com.mnext.kernel.api.MetaCommandService;
+import com.mnext.kernel.api.metamodel.ApplyTemplateVersionCommand;
 import com.mnext.kernel.api.metamodel.DataType;
 import com.mnext.kernel.api.metamodel.DefineFieldDefCommand;
 import com.mnext.kernel.api.metamodel.DefineObjectTypeCommand;
@@ -50,6 +51,8 @@ public class MetaCommandController {
           commands.publishTemplateVersion(publishTemplateVersion(request), Actor.user(actorId));
       case "InstantiateWorkspace" ->
           commands.instantiateWorkspace(instantiateWorkspace(request), Actor.user(actorId));
+      case "ApplyTemplateVersion" ->
+          commands.applyTemplateVersion(applyTemplateVersion(request), Actor.user(actorId));
       default -> throw schema("本批次不支持 commandType: " + request.commandType());
     };
   }
@@ -130,6 +133,15 @@ public class MetaCommandController {
         required(payload.get("version"), "version").asInt(),
         uuid(payload, "newWorkspaceId"),
         text(payload, "workspaceName"));
+  }
+
+  private ApplyTemplateVersionCommand applyTemplateVersion(CommandRequest request) {
+    var payload = required(request.payload(), "payload");
+    return new ApplyTemplateVersionCommand(
+        request.workspaceId(),
+        request.correlationId(),
+        request.idempotencyKey(),
+        required(payload.get("toVersion"), "toVersion").asInt());
   }
 
   private DataType dataType(JsonNode payload) {

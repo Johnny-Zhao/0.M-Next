@@ -109,6 +109,25 @@ class MetaCommandControllerTest {
   }
 
   @Test
+  void routesApplyTemplateVersionOnSeparateEndpointController() throws Exception {
+    var workspace = UUID.randomUUID();
+    var request =
+        new CommandRequest(
+            "ApplyTemplateVersion",
+            workspace,
+            UUID.randomUUID(),
+            "meta-apply",
+            mapper.readTree("{\"toVersion\":2}"));
+    when(commands.applyTemplateVersion(any(), any()))
+        .thenReturn(new CommandResult("command", CommandStatus.COMMITTED, false, List.of(), null));
+
+    var result = controller.execute(workspace, "author", request);
+
+    assertEquals("command", result.commandId());
+    verify(commands).applyTemplateVersion(any(), eq(com.mnext.kernel.api.Actor.user("author")));
+  }
+
+  @Test
   void rejectsUnknownDataTypeAsSchemaError() throws Exception {
     var workspace = UUID.randomUUID();
     var request =
