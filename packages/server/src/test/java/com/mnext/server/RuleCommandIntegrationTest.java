@@ -33,6 +33,8 @@ class RuleCommandIntegrationTest {
   private static final UUID WORKSPACE = UUID.fromString("11111111-1111-4111-8111-111111111111");
   private static final UUID OTHER_TYPE = UUID.fromString("aaaaaaaa-1111-4111-8111-111111111111");
   private static final UUID OTHER_FIELD = UUID.fromString("aaaaaaaa-2222-4222-8222-222222222222");
+  private static final UUID TYPE = UUID.fromString("22222222-2222-4222-8222-222222222222");
+  private static final UUID CHILD_TYPE = UUID.fromString("bbbbbbbb-1111-4111-8111-111111111111");
 
   @Container
   static final PostgreSQLContainer<?> POSTGRES =
@@ -53,9 +55,14 @@ class RuleCommandIntegrationTest {
 
   @BeforeEach
   void reset() {
+    jdbc.update("DELETE FROM event_outbox");
+    jdbc.update("DELETE FROM field_value_history");
+    jdbc.update("DELETE FROM data_field_value");
+    jdbc.update("DELETE FROM data_object");
     jdbc.update("DELETE FROM rule_def");
     jdbc.update("DELETE FROM command_log");
     jdbc.update("DELETE FROM field_def WHERE id = ?", OTHER_FIELD);
+    jdbc.update("DELETE FROM object_type WHERE id = ?", CHILD_TYPE);
     jdbc.update("DELETE FROM object_type WHERE id = ?", OTHER_TYPE);
   }
 
@@ -151,9 +158,86 @@ class RuleCommandIntegrationTest {
         value("SELECT when_src FROM rule_def WHERE rule_code = 'locked-rule'"));
   }
 
+  @Test
+  void hotPathBlockRejectsCreateObjectWithoutWrites() {
+    assertEquals(
+        200,
+        post(define("block-name", "field('name') == 'bad'", "name", "define-block"))
+            .getStatusCode()
+            .value());
+    assertEquals(200, post(publish("block-name", "publish-block")).getStatusCode().value());
+
+    var response = postCommand(createObject("create-blocked", TYPE, Map.of("name", "bad")));
+
+    assertEquals(422, response.getStatusCode().value(), String.valueOf(response.getBody()));
+    assertEquals("RULE-422-RULE-VIOLATION", errorCode(response));
+    assertEquals(0, count("data_object"));
+    assertEquals(0, count("event_outbox"));
+    assertEquals(0, count("command_log WHERE command_type = 'CreateObject'"));
+  }
+
+  @Test
+  void hotPathWarnDoesNotBlockCreateObject() {
+    assertEquals(
+        200,
+        post(define("warn-name", "field('name') == 'bad'", "name", "define-warn", "WARN", true))
+            .getStatusCode()
+            .value());
+    assertEquals(200, post(publish("warn-name", "publish-warn")).getStatusCode().value());
+
+    var response = postCommand(createObject("create-warn", TYPE, Map.of("name", "bad")));
+
+    assertEquals(200, response.getStatusCode().value(), String.valueOf(response.getBody()));
+    assertEquals(1, count("data_object"));
+  }
+
+  @Test
+  void hotPathIgnoresNonLightweightRules() {
+    assertEquals(
+        200,
+        post(define("cold-only", "field('name') == 'bad'", "name", "define-cold", "BLOCK", false))
+            .getStatusCode()
+            .value());
+    assertEquals(200, post(publish("cold-only", "publish-cold")).getStatusCode().value());
+
+    var response = postCommand(createObject("create-cold", TYPE, Map.of("name", "bad")));
+
+    assertEquals(200, response.getStatusCode().value(), String.valueOf(response.getBody()));
+    assertEquals(1, count("data_object"));
+  }
+
+  @Test
+  void hotPathAppliesParentTypeRulesToSubtypeInstance() {
+    insertChildType();
+    assertEquals(
+        200,
+        post(define("parent-rule", "field('name') == 'bad'", "name", "define-parent-rule"))
+            .getStatusCode()
+            .value());
+    assertEquals(200, post(publish("parent-rule", "publish-parent-rule")).getStatusCode().value());
+
+    var response =
+        postCommand(createObject("create-child-blocked", CHILD_TYPE, Map.of("name", "bad")));
+
+    assertEquals(422, response.getStatusCode().value(), String.valueOf(response.getBody()));
+    assertEquals("RULE-422-RULE-VIOLATION", errorCode(response));
+    assertEquals(0, count("data_object"));
+  }
+
   private Map<String, Object> define(
       String ruleCode, String when, String fieldCode, String idempotencyKey) {
     return defineWithScope(ruleCode, "demo_object", fieldCode, idempotencyKey, when);
+  }
+
+  private Map<String, Object> define(
+      String ruleCode,
+      String when,
+      String fieldCode,
+      String idempotencyKey,
+      String severity,
+      boolean lightweight) {
+    return defineWithScope(
+        ruleCode, "demo_object", fieldCode, idempotencyKey, when, severity, lightweight);
   }
 
   private Map<String, Object> defineWithScope(
@@ -168,6 +252,18 @@ class RuleCommandIntegrationTest {
       String fieldCode,
       String idempotencyKey,
       String when) {
+    return defineWithScope(
+        ruleCode, objectTypeCode, fieldCode, idempotencyKey, when, "BLOCK", true);
+  }
+
+  private Map<String, Object> defineWithScope(
+      String ruleCode,
+      String objectTypeCode,
+      String fieldCode,
+      String idempotencyKey,
+      String when,
+      String severity,
+      boolean lightweight) {
     var scope = new LinkedHashMap<String, Object>();
     scope.put("objectTypeCode", objectTypeCode);
     if (fieldCode != null) {
@@ -176,10 +272,10 @@ class RuleCommandIntegrationTest {
     var payload = new LinkedHashMap<String, Object>();
     payload.put("ruleCode", ruleCode);
     payload.put("scope", scope);
-    payload.put("severity", "BLOCK");
+    payload.put("severity", severity);
     payload.put("when", when);
-    payload.put("message", "message");
-    payload.put("lightweight", true);
+    payload.put("message", "message ${field('name')}");
+    payload.put("lightweight", lightweight);
     return command("DefineRule", idempotencyKey, payload);
   }
 
@@ -198,12 +294,31 @@ class RuleCommandIntegrationTest {
     return request;
   }
 
+  private Map<String, Object> createObject(
+      String idempotencyKey, UUID objectTypeId, Map<String, Object> fields) {
+    var payload = new LinkedHashMap<String, Object>();
+    payload.put("objectTypeId", objectTypeId);
+    payload.put("fields", fields);
+    payload.put("source", Map.of("type", "manual"));
+    return command("CreateObject", idempotencyKey, payload);
+  }
+
   private ResponseEntity<Map> post(Object request) {
     var headers = new HttpHeaders();
     headers.setContentType(MediaType.APPLICATION_JSON);
     headers.set("X-Actor-Id", "rule-user");
     return http.postForEntity(
         "http://localhost:" + port + "/workspaces/" + WORKSPACE + "/rule-commands",
+        new HttpEntity<>(request, headers),
+        Map.class);
+  }
+
+  private ResponseEntity<Map> postCommand(Object request) {
+    var headers = new HttpHeaders();
+    headers.setContentType(MediaType.APPLICATION_JSON);
+    headers.set("X-Actor-Id", "rule-user");
+    return http.postForEntity(
+        "http://localhost:" + port + "/workspaces/" + WORKSPACE + "/commands",
         new HttpEntity<>(request, headers),
         Map.class);
   }
@@ -237,5 +352,18 @@ class RuleCommandIntegrationTest {
         """,
         OTHER_FIELD,
         OTHER_TYPE);
+  }
+
+  private void insertChildType() {
+    jdbc.update(
+        """
+        INSERT INTO object_type
+          (id, workspace_id, code, name, parent_type_id, published,
+           created_by, updated_by, created_at, updated_at)
+        VALUES (?, ?, 'rule_child_object', 'Rule Child Object', ?, TRUE, 'test', 'test', now(), now())
+        """,
+        CHILD_TYPE,
+        WORKSPACE,
+        TYPE);
   }
 }
