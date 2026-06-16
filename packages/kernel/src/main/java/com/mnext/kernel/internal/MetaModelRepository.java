@@ -38,9 +38,11 @@ class MetaModelRepository {
 
   record WorkspaceTemplate(UUID templateId, Integer templateVersion) {}
 
-  record ApplyPlan(List<EnumFieldUpdate> enumUpdates, List<Map<String, Object>> blockingChanges) {}
+  record ApplyPlan(
+      List<AdditiveChange> additiveChanges, List<Map<String, Object>> blockingChanges) {}
 
-  record EnumFieldUpdate(String objectTypeCode, String fieldCode, FieldConstraints constraints) {}
+  private record AdditiveChange(
+      String kind, String objectTypeCode, String fieldCode, String targetCode) {}
 
   private record TemplateObjectType(String code, String name, String parentCode) {}
 
@@ -663,7 +665,7 @@ class MetaModelRepository {
   ApplyPlan planTemplateVersionApply(
       UUID workspaceId, UUID fromTemplateVersionId, UUID toTemplateVersionId) {
     var blocking = new ArrayList<Map<String, Object>>();
-    var enumUpdates = new ArrayList<EnumFieldUpdate>();
+    var additive = new ArrayList<AdditiveChange>();
     var fromObjects = templateObjectTypes(fromTemplateVersionId);
     var toObjects = templateObjectTypes(toTemplateVersionId);
     var fromValues = templateValueTypes(fromTemplateVersionId);
@@ -672,11 +674,11 @@ class MetaModelRepository {
     var toFields = templateFieldDefs(toTemplateVersionId);
     var fromRelations = templateRelationTypes(fromTemplateVersionId);
     var toRelations = templateRelationTypes(toTemplateVersionId);
-    compareObjectTypes(workspaceId, fromObjects, toObjects, blocking);
-    compareValueTypes(workspaceId, fromValues, toValues, blocking);
-    compareFieldDefs(workspaceId, fromFields, toFields, enumUpdates, blocking);
-    compareRelationTypes(workspaceId, fromRelations, toRelations, blocking);
-    return new ApplyPlan(enumUpdates, blocking);
+    compareObjectTypes(workspaceId, fromObjects, toObjects, additive, blocking);
+    compareValueTypes(workspaceId, fromValues, toValues, additive, blocking);
+    compareFieldDefs(workspaceId, fromObjects, toObjects, fromFields, toFields, additive, blocking);
+    compareRelationTypes(workspaceId, fromRelations, toRelations, additive, blocking);
+    return new ApplyPlan(additive, blocking);
   }
 
   void applyTemplateVersion(
@@ -686,23 +688,42 @@ class MetaModelRepository {
       String actor,
       Instant now,
       ApplyPlan plan) {
-    for (var update : plan.enumUpdates()) {
-      jdbc.update(
-          """
-          UPDATE field_def field
-          SET constraints = CAST(? AS jsonb), updated_by = ?, updated_at = ?
-          FROM object_type type
-          WHERE field.object_type_id = type.id
-            AND type.workspace_id = ?
-            AND type.code = ?
-            AND field.code = ?
-          """,
-          JsonCodec.encode(update.constraints().asMap()),
-          actor,
-          Timestamp.from(now),
-          workspaceId,
-          update.objectTypeCode(),
-          update.fieldCode());
+    var toObjects = templateObjectTypes(toTemplateVersionId);
+    var toValues = templateValueTypes(toTemplateVersionId);
+    var toFields = templateFieldDefs(toTemplateVersionId);
+    var toRelations = templateRelationTypes(toTemplateVersionId);
+    for (var change : plan.additiveChanges()) {
+      if ("value".equals(change.kind())) {
+        ensureRuntimeValueType(workspaceId, change.targetCode(), toValues, actor, now);
+      } else if ("object".equals(change.kind())) {
+        ensureRuntimeObjectType(workspaceId, change.objectTypeCode(), toObjects, actor, now);
+      } else if ("field".equals(change.kind())) {
+        insertRuntimeField(
+            workspaceId,
+            change.objectTypeCode(),
+            change.fieldCode(),
+            toObjects,
+            toValues,
+            toFields,
+            actor,
+            now);
+      } else if ("fieldConstraints".equals(change.kind())) {
+        updateRuntimeField(
+            workspaceId,
+            change.objectTypeCode(),
+            change.fieldCode(),
+            toFields,
+            toValues,
+            actor,
+            now);
+      } else if ("valueConstraints".equals(change.kind())) {
+        updateRuntimeValueType(workspaceId, change.targetCode(), toValues, actor, now);
+      } else if ("relation".equals(change.kind())) {
+        insertRuntimeRelationType(
+            workspaceId, change.targetCode(), toObjects, toRelations, actor, now);
+      } else {
+        throw CommandErrors.schema("未知模板演化操作");
+      }
     }
     jdbc.update(
         """
@@ -717,6 +738,7 @@ class MetaModelRepository {
       UUID workspaceId,
       Map<String, TemplateObjectType> from,
       Map<String, TemplateObjectType> to,
+      List<AdditiveChange> additive,
       List<Map<String, Object>> blocking) {
     for (var entry : from.entrySet()) {
       var next = to.get(entry.getKey());
@@ -728,7 +750,7 @@ class MetaModelRepository {
     }
     for (var entry : to.entrySet()) {
       if (!from.containsKey(entry.getKey())) {
-        blocking.add(blocking("newObjectTypeRequiresManualApply", entry.getKey(), null));
+        additive.add(new AdditiveChange("object", entry.getKey(), null, null));
       }
     }
   }
@@ -737,29 +759,37 @@ class MetaModelRepository {
       UUID workspaceId,
       Map<String, TemplateValueType> from,
       Map<String, TemplateValueType> to,
+      List<AdditiveChange> additive,
       List<Map<String, Object>> blocking) {
     for (var entry : from.entrySet()) {
       var next = to.get(entry.getKey());
       if (next == null) {
         blocking.add(blocking("valueTypeDeleted", null, entry.getKey()));
       } else if (entry.getValue().basePrimitive() != next.basePrimitive()
-          || !same(entry.getValue().parentCode(), next.parentCode())
-          || !same(entry.getValue().constraints(), next.constraints())) {
+          || !same(entry.getValue().parentCode(), next.parentCode())) {
         blocking.add(blocking("valueTypeChangedRequiresReview", null, entry.getKey()));
+      } else if (!same(entry.getValue().constraints(), next.constraints())) {
+        if (constraintsRelaxed(workspaceId, entry.getValue().constraints(), next.constraints())) {
+          additive.add(new AdditiveChange("valueConstraints", null, null, entry.getKey()));
+        } else {
+          blocking.add(blocking("valueTypeChangedRequiresReview", null, entry.getKey()));
+        }
       }
     }
     for (var entry : to.entrySet()) {
       if (!from.containsKey(entry.getKey())) {
-        blocking.add(blocking("newValueTypeRequiresManualApply", null, entry.getKey()));
+        additive.add(new AdditiveChange("value", null, null, entry.getKey()));
       }
     }
   }
 
   private void compareFieldDefs(
       UUID workspaceId,
+      Map<String, TemplateObjectType> fromObjects,
+      Map<String, TemplateObjectType> toObjects,
       Map<String, TemplateFieldDef> from,
       Map<String, TemplateFieldDef> to,
-      List<EnumFieldUpdate> enumUpdates,
+      List<AdditiveChange> additive,
       List<Map<String, Object>> blocking) {
     for (var entry : from.entrySet()) {
       var current = entry.getValue();
@@ -768,14 +798,18 @@ class MetaModelRepository {
         blocking.addAll(
             affectedObjects(workspaceId, current.objectTypeCode(), current.code(), "fieldDeleted"));
       } else {
-        compareExistingField(workspaceId, current, next, enumUpdates, blocking);
+        compareExistingField(workspaceId, current, next, toObjects, to, additive, blocking);
       }
     }
     for (var entry : to.entrySet()) {
       if (!from.containsKey(entry.getKey())) {
         var next = entry.getValue();
-        var reason = next.required() ? "newRequiredField" : "newOptionalFieldRequiresManualApply";
-        blocking.addAll(affectedObjects(workspaceId, next.objectTypeCode(), next.code(), reason));
+        if (next.required() && fromObjects.containsKey(next.objectTypeCode())) {
+          blocking.addAll(
+              affectedObjects(workspaceId, next.objectTypeCode(), next.code(), "newRequiredField"));
+        } else if (toObjects.containsKey(next.objectTypeCode())) {
+          additive.add(new AdditiveChange("field", next.objectTypeCode(), next.code(), null));
+        }
       }
     }
   }
@@ -784,7 +818,9 @@ class MetaModelRepository {
       UUID workspaceId,
       TemplateFieldDef current,
       TemplateFieldDef next,
-      List<EnumFieldUpdate> enumUpdates,
+      Map<String, TemplateObjectType> toObjects,
+      Map<String, TemplateFieldDef> toFields,
+      List<AdditiveChange> additive,
       List<Map<String, Object>> blocking) {
     if (current.dataType() != next.dataType()) {
       blocking.addAll(
@@ -810,12 +846,21 @@ class MetaModelRepository {
               workspaceId, current.objectTypeCode(), current.code(), "newRequiredField"));
       return;
     }
-    var enumExpansion = enumExpansion(current, next);
-    if (enumExpansion) {
-      enumUpdates.add(new EnumFieldUpdate(next.objectTypeCode(), next.code(), next.constraints()));
+    if (next.redefinesFieldCode() != null
+        && !validRedefinitionConstraints(next, toObjects, toFields)) {
+      blocking.addAll(
+          affectedObjects(
+              workspaceId, current.objectTypeCode(), current.code(), "redefinitionChanged"));
       return;
     }
-    if (!same(current.constraints(), next.constraints()) || current.required() != next.required()) {
+    if (same(current.constraints(), next.constraints()) && current.required() == next.required()) {
+      return;
+    }
+    if ((current.required() || !next.required())
+        && constraintsRelaxed(workspaceId, current.constraints(), next.constraints())) {
+      additive.add(
+          new AdditiveChange("fieldConstraints", next.objectTypeCode(), next.code(), null));
+    } else {
       blocking.addAll(
           affectedObjects(
               workspaceId, current.objectTypeCode(), current.code(), "fieldConstraintChanged"));
@@ -826,6 +871,7 @@ class MetaModelRepository {
       UUID workspaceId,
       Map<String, TemplateRelationType> from,
       Map<String, TemplateRelationType> to,
+      List<AdditiveChange> additive,
       List<Map<String, Object>> blocking) {
     for (var entry : from.entrySet()) {
       var next = to.get(entry.getKey());
@@ -835,9 +881,193 @@ class MetaModelRepository {
     }
     for (var entry : to.entrySet()) {
       if (!from.containsKey(entry.getKey())) {
-        blocking.add(blocking("newRelationTypeRequiresManualApply", null, entry.getKey()));
+        additive.add(new AdditiveChange("relation", null, null, entry.getKey()));
       }
     }
+  }
+
+  private UUID ensureRuntimeObjectType(
+      UUID workspaceId,
+      String code,
+      Map<String, TemplateObjectType> toObjects,
+      String actor,
+      Instant now) {
+    var existing = runtimeObjectTypeId(workspaceId, code);
+    if (existing != null) return existing;
+    var template = toObjects.get(code);
+    if (template == null) throw CommandErrors.schema("模板对象类型引用不完整");
+    var parentId =
+        template.parentCode() == null
+            ? null
+            : ensureRuntimeObjectType(workspaceId, template.parentCode(), toObjects, actor, now);
+    var id = UUID.randomUUID();
+    jdbc.update(
+        """
+        INSERT INTO object_type
+          (id, workspace_id, template_version_id, code, name, parent_type_id, published,
+           created_by, updated_by, created_at, updated_at)
+        VALUES (?, ?, NULL, ?, ?, ?, TRUE, ?, ?, ?, ?)
+        """,
+        id,
+        workspaceId,
+        template.code(),
+        template.name(),
+        parentId,
+        actor,
+        actor,
+        Timestamp.from(now),
+        Timestamp.from(now));
+    return id;
+  }
+
+  private UUID ensureRuntimeValueType(
+      UUID workspaceId,
+      String code,
+      Map<String, TemplateValueType> toValues,
+      String actor,
+      Instant now) {
+    var existing = runtimeValueTypeId(workspaceId, code);
+    if (existing != null) return existing;
+    var template = toValues.get(code);
+    if (template == null) throw CommandErrors.schema("模板值类型引用不完整");
+    var parentId =
+        template.parentCode() == null
+            ? null
+            : ensureRuntimeValueType(workspaceId, template.parentCode(), toValues, actor, now);
+    var id = UUID.randomUUID();
+    jdbc.update(
+        """
+        INSERT INTO value_type
+          (id, workspace_id, template_version_id, code, name, base_primitive,
+           parent_value_type_id, constraints, published, version)
+        VALUES (?, ?, NULL, ?, ?, ?, ?, CAST(? AS jsonb), TRUE, 1)
+        """,
+        id,
+        workspaceId,
+        template.code(),
+        template.name(),
+        template.basePrimitive().code(),
+        parentId,
+        JsonCodec.encode(template.constraints().asMap()));
+    return id;
+  }
+
+  private void insertRuntimeField(
+      UUID workspaceId,
+      String objectTypeCode,
+      String fieldCode,
+      Map<String, TemplateObjectType> toObjects,
+      Map<String, TemplateValueType> toValues,
+      Map<String, TemplateFieldDef> toFields,
+      String actor,
+      Instant now) {
+    var field = toFields.get(fieldKey(objectTypeCode, fieldCode));
+    if (field == null) throw CommandErrors.schema("模板字段引用不完整");
+    var objectTypeId = ensureRuntimeObjectType(workspaceId, objectTypeCode, toObjects, actor, now);
+    var valueTypeId =
+        field.valueTypeCode() == null
+            ? null
+            : ensureRuntimeValueType(workspaceId, field.valueTypeCode(), toValues, actor, now);
+    var redefinesId = runtimeRedefinedFieldId(objectTypeId, field.redefinesFieldCode());
+    insertFieldDef(
+        UUID.randomUUID(),
+        objectTypeId,
+        null,
+        field.code(),
+        field.name(),
+        field.dataType(),
+        valueTypeId,
+        field.required(),
+        field.constraints(),
+        redefinesId,
+        actor,
+        now);
+  }
+
+  private void updateRuntimeField(
+      UUID workspaceId,
+      String objectTypeCode,
+      String fieldCode,
+      Map<String, TemplateFieldDef> toFields,
+      Map<String, TemplateValueType> toValues,
+      String actor,
+      Instant now) {
+    var field = toFields.get(fieldKey(objectTypeCode, fieldCode));
+    if (field == null) throw CommandErrors.schema("模板字段引用不完整");
+    var valueTypeId =
+        field.valueTypeCode() == null
+            ? null
+            : ensureRuntimeValueType(workspaceId, field.valueTypeCode(), toValues, actor, now);
+    jdbc.update(
+        """
+        UPDATE field_def field
+        SET required = ?, value_type_id = ?, constraints = CAST(? AS jsonb),
+          updated_by = ?, updated_at = ?
+        FROM object_type type
+        WHERE field.object_type_id = type.id
+          AND type.workspace_id = ?
+          AND type.code = ?
+          AND field.code = ?
+        """,
+        field.required(),
+        valueTypeId,
+        JsonCodec.encode(field.constraints().asMap()),
+        actor,
+        Timestamp.from(now),
+        workspaceId,
+        objectTypeCode,
+        fieldCode);
+  }
+
+  private void updateRuntimeValueType(
+      UUID workspaceId,
+      String code,
+      Map<String, TemplateValueType> toValues,
+      String actor,
+      Instant now) {
+    var value = toValues.get(code);
+    if (value == null) throw CommandErrors.schema("模板值类型引用不完整");
+    var parentId =
+        value.parentCode() == null
+            ? null
+            : ensureRuntimeValueType(workspaceId, value.parentCode(), toValues, actor, now);
+    jdbc.update(
+        """
+        UPDATE value_type
+        SET name = ?, parent_value_type_id = ?, constraints = CAST(? AS jsonb),
+          version = version + 1
+        WHERE workspace_id = ? AND code = ?
+        """,
+        value.name(),
+        parentId,
+        JsonCodec.encode(value.constraints().asMap()),
+        workspaceId,
+        code);
+  }
+
+  private void insertRuntimeRelationType(
+      UUID workspaceId,
+      String code,
+      Map<String, TemplateObjectType> toObjects,
+      Map<String, TemplateRelationType> toRelations,
+      String actor,
+      Instant now) {
+    if (relationTypeCodeExists(workspaceId, code)) return;
+    var relation = toRelations.get(code);
+    if (relation == null) throw CommandErrors.schema("模板关系类型引用不完整");
+    insertRelationType(
+        UUID.randomUUID(),
+        workspaceId,
+        null,
+        relation.code(),
+        ensureRuntimeObjectType(workspaceId, relation.sourceTypeCode(), toObjects, actor, now),
+        ensureRuntimeObjectType(workspaceId, relation.targetTypeCode(), toObjects, actor, now),
+        relation.direction(),
+        relation.cardinality(),
+        relation.semantics(),
+        relation.hierarchical(),
+        actor,
+        now);
   }
 
   private Map<String, TemplateObjectType> templateObjectTypes(UUID templateVersionId) {
@@ -961,13 +1191,121 @@ class MetaModelRepository {
     return values;
   }
 
-  private boolean enumExpansion(TemplateFieldDef current, TemplateFieldDef next) {
-    if (current.dataType() != DataType.ENUM || next.dataType() != DataType.ENUM) return false;
-    if (!sameExceptEnumValues(current.constraints(), next.constraints())) return false;
-    var before = current.constraints().enumValues();
-    var after = next.constraints().enumValues();
-    if (before == null || after == null || before.isEmpty() || after.isEmpty()) return false;
-    return after.containsAll(before) && after.size() > before.size();
+  private UUID runtimeObjectTypeId(UUID workspaceId, String code) {
+    return jdbc.query(
+        "SELECT id FROM object_type WHERE workspace_id = ? AND code = ?",
+        result -> result.next() ? result.getObject("id", UUID.class) : null,
+        workspaceId,
+        code);
+  }
+
+  private UUID runtimeValueTypeId(UUID workspaceId, String code) {
+    return jdbc.query(
+        "SELECT id FROM value_type WHERE workspace_id = ? AND code = ?",
+        result -> result.next() ? result.getObject("id", UUID.class) : null,
+        workspaceId,
+        code);
+  }
+
+  private UUID runtimeRedefinedFieldId(UUID objectTypeId, String redefinesFieldCode) {
+    if (redefinesFieldCode == null) return null;
+    return ancestorFieldByCode(objectTypeId, redefinesFieldCode)
+        .map(FieldDefRow::id)
+        .orElseThrow(() -> CommandErrors.schema("重定义字段不存在"));
+  }
+
+  private boolean constraintsRelaxed(
+      UUID workspaceId, FieldConstraints current, FieldConstraints next) {
+    return relaxedMinLength(current.minLength(), next.minLength())
+        && relaxedMaxLength(current.maxLength(), next.maxLength())
+        && relaxedMin(current.min(), next.min())
+        && relaxedMax(current.max(), next.max())
+        && relaxedEnum(current.enumValues(), next.enumValues())
+        && relaxedPattern(current.pattern(), next.pattern())
+        && relaxedRef(workspaceId, current.refObjectTypeCode(), next.refObjectTypeCode())
+        && relaxedMultiline(current.multiline(), next.multiline());
+  }
+
+  private boolean validRedefinitionConstraints(
+      TemplateFieldDef field,
+      Map<String, TemplateObjectType> objectTypes,
+      Map<String, TemplateFieldDef> fields) {
+    var parent = objectTypes.get(field.objectTypeCode());
+    while (parent != null && parent.parentCode() != null) {
+      var redefined = fields.get(fieldKey(parent.parentCode(), field.redefinesFieldCode()));
+      if (redefined != null) {
+        return narrowerOrEqual(redefined.constraints(), field.constraints());
+      }
+      parent = objectTypes.get(parent.parentCode());
+    }
+    return false;
+  }
+
+  private boolean narrowerOrEqual(FieldConstraints parent, FieldConstraints child) {
+    return narrowerMinLength(parent.minLength(), child.minLength())
+        && narrowerMaxLength(parent.maxLength(), child.maxLength())
+        && narrowerMin(parent.min(), child.min())
+        && narrowerMax(parent.max(), child.max())
+        && enumSubset(parent.enumValues(), child.enumValues())
+        && (parent.pattern() == null || same(parent.pattern(), child.pattern()))
+        && same(parent.refObjectTypeCode(), child.refObjectTypeCode())
+        && same(parent.multiline(), child.multiline());
+  }
+
+  private boolean narrowerMinLength(Integer parent, Integer child) {
+    return child == null ? parent == null : parent == null || child >= parent;
+  }
+
+  private boolean narrowerMaxLength(Integer parent, Integer child) {
+    return child == null ? parent == null : parent == null || child <= parent;
+  }
+
+  private boolean narrowerMin(BigDecimal parent, BigDecimal child) {
+    return child == null ? parent == null : parent == null || child.compareTo(parent) >= 0;
+  }
+
+  private boolean narrowerMax(BigDecimal parent, BigDecimal child) {
+    return child == null ? parent == null : parent == null || child.compareTo(parent) <= 0;
+  }
+
+  private boolean relaxedMinLength(Integer current, Integer next) {
+    return next == null || (current != null && next <= current);
+  }
+
+  private boolean relaxedMaxLength(Integer current, Integer next) {
+    return next == null || (current != null && next >= current);
+  }
+
+  private boolean relaxedMin(BigDecimal current, BigDecimal next) {
+    return next == null || (current != null && next.compareTo(current) <= 0);
+  }
+
+  private boolean relaxedMax(BigDecimal current, BigDecimal next) {
+    return next == null || (current != null && next.compareTo(current) >= 0);
+  }
+
+  private boolean relaxedEnum(List<String> current, List<String> next) {
+    if (next == null || next.isEmpty()) return true;
+    return current != null && next.containsAll(current);
+  }
+
+  private boolean enumSubset(List<String> parent, List<String> child) {
+    if (parent == null || parent.isEmpty()) return true;
+    return child != null && parent.containsAll(child);
+  }
+
+  private boolean relaxedPattern(String current, String next) {
+    return next == null || same(current, next);
+  }
+
+  private boolean relaxedRef(UUID workspaceId, String current, String next) {
+    if (next == null || same(current, next)) return true;
+    if (current == null) return false;
+    return objectTypeCodeDescendsFrom(workspaceId, current, next);
+  }
+
+  private boolean relaxedMultiline(Boolean current, Boolean next) {
+    return next == null || same(current, next);
   }
 
   private List<Map<String, Object>> affectedObjects(

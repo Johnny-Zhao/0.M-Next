@@ -550,6 +550,128 @@ class MetaModelIntegrationTest {
   }
 
   @Test
+  void applyTemplateVersionAppliesNewOptionalField() {
+    var actor = Actor.user("template-author");
+    var draft = draftTemplate("apply_optional");
+    insertTemplateObject(WORKSPACE, draft.versionId(), "apply_optional_type", "类型", null);
+    meta.publishTemplateVersion(
+        new PublishTemplateVersionCommand(
+            WORKSPACE, UUID.randomUUID(), "publish-apply-optional-v1", draft.versionId()),
+        actor);
+    var target = instantiate(draft, "apply-optional-instance", actor);
+    var v2Author = authorWorkspace("apply_optional_v2_author");
+    var v2 = templateVersion(draft.templateId(), 2, "published");
+    var nextType = insertTemplateObject(v2Author, v2, "apply_optional_type", "类型", null);
+    insertTemplateField(
+        nextType, v2, "nickname", "昵称", DataType.STRING, false, FieldConstraints.empty(), null);
+
+    meta.applyTemplateVersion(
+        new ApplyTemplateVersionCommand(target, UUID.randomUUID(), "apply-optional-v2", 2), actor);
+
+    assertEquals(
+        1L,
+        jdbc.queryForObject(
+            """
+            SELECT count(*) FROM field_def field
+            JOIN object_type type ON type.id = field.object_type_id
+            WHERE type.workspace_id = ? AND type.code = 'apply_optional_type'
+              AND field.code = 'nickname' AND field.required = FALSE
+            """,
+            Long.class,
+            target));
+    commands.createObject(
+        new CreateObjectCommand(
+            target,
+            UUID.randomUUID(),
+            "apply-optional-object",
+            runtimeType(target, "apply_optional_type"),
+            Map.of("nickname", "safe"),
+            new SourceInfo("manual", null),
+            null),
+        actor);
+    assertEquals(2, workspaceTemplateVersion(target));
+  }
+
+  @Test
+  void applyTemplateVersionAppliesNewSubtypeRelationAndRelaxedConstraint() {
+    var actor = Actor.user("template-author");
+    var draft = draftTemplate("apply_additive");
+    var base =
+        insertTemplateObject(WORKSPACE, draft.versionId(), "apply_additive_base", "基础", null);
+    insertTemplateField(
+        base,
+        draft.versionId(),
+        "name",
+        "名称",
+        DataType.STRING,
+        false,
+        new FieldConstraints(null, 5, null, null, null, null, null),
+        null);
+    meta.publishTemplateVersion(
+        new PublishTemplateVersionCommand(
+            WORKSPACE, UUID.randomUUID(), "publish-apply-additive-v1", draft.versionId()),
+        actor);
+    var target = instantiate(draft, "apply-additive-instance", actor);
+    var v2Author = authorWorkspace("apply_additive_v2_author");
+    var v2 = templateVersion(draft.templateId(), 2, "published");
+    var nextBase = insertTemplateObject(v2Author, v2, "apply_additive_base", "基础", null);
+    insertTemplateField(
+        nextBase,
+        v2,
+        "name",
+        "名称",
+        DataType.STRING,
+        false,
+        new FieldConstraints(null, 10, null, null, null, null, null),
+        null);
+    var child =
+        insertTemplateObject(v2Author, v2, "apply_additive_child", "子类型", "apply_additive_base");
+    insertTemplateRelationType(v2Author, v2, "apply_additive_rel", nextBase, child);
+
+    meta.applyTemplateVersion(
+        new ApplyTemplateVersionCommand(target, UUID.randomUUID(), "apply-additive-v2", 2), actor);
+
+    assertEquals(
+        1L,
+        jdbc.queryForObject(
+            """
+            SELECT count(*) FROM object_type child
+            JOIN object_type parent ON parent.id = child.parent_type_id
+            WHERE child.workspace_id = ? AND parent.workspace_id = ?
+              AND child.code = 'apply_additive_child'
+              AND parent.code = 'apply_additive_base'
+            """,
+            Long.class,
+            target,
+            target));
+    assertEquals(
+        1L,
+        jdbc.queryForObject(
+            """
+            SELECT count(*) FROM relation_type relation
+            JOIN object_type source_type ON source_type.id = relation.source_type
+            JOIN object_type target_type ON target_type.id = relation.target_type
+            WHERE relation.workspace_id = ? AND relation.code = 'apply_additive_rel'
+              AND source_type.workspace_id = ? AND target_type.workspace_id = ?
+            """,
+            Long.class,
+            target,
+            target,
+            target));
+    commands.createObject(
+        new CreateObjectCommand(
+            target,
+            UUID.randomUUID(),
+            "apply-additive-child-object",
+            runtimeType(target, "apply_additive_child"),
+            Map.of("name", "123456789"),
+            new SourceInfo("manual", null),
+            null),
+        actor);
+    assertEquals(2, workspaceTemplateVersion(target));
+  }
+
+  @Test
   void applyTemplateVersionRejectsUnpublishedTargetVersion() {
     var actor = Actor.user("template-author");
     var draft = draftTemplate("apply_unpublished");
@@ -613,6 +735,64 @@ class MetaModelIntegrationTest {
     assertEquals(1, workspaceTemplateVersion(target));
     var affected = (List<?>) error.error().details().get("affected");
     assertEquals(false, affected.isEmpty());
+  }
+
+  @Test
+  void applyTemplateVersionBlocksMixedTighteningWithoutPartialApply() {
+    var actor = Actor.user("template-author");
+    var draft = draftTemplate("apply_mixed");
+    var sourceType =
+        insertTemplateObject(WORKSPACE, draft.versionId(), "apply_mixed_type", "类型", null);
+    insertTemplateField(
+        sourceType,
+        draft.versionId(),
+        "name",
+        "名称",
+        DataType.STRING,
+        false,
+        new FieldConstraints(null, 10, null, null, null, null, null),
+        null);
+    meta.publishTemplateVersion(
+        new PublishTemplateVersionCommand(
+            WORKSPACE, UUID.randomUUID(), "publish-apply-mixed-v1", draft.versionId()),
+        actor);
+    var target = instantiate(draft, "apply-mixed-instance", actor);
+    var v2Author = authorWorkspace("apply_mixed_v2_author");
+    var v2 = templateVersion(draft.templateId(), 2, "published");
+    var nextType = insertTemplateObject(v2Author, v2, "apply_mixed_type", "类型", null);
+    insertTemplateField(
+        nextType,
+        v2,
+        "name",
+        "名称",
+        DataType.STRING,
+        false,
+        new FieldConstraints(null, 5, null, null, null, null, null),
+        null);
+    insertTemplateField(
+        nextType, v2, "nickname", "昵称", DataType.STRING, false, FieldConstraints.empty(), null);
+
+    var error =
+        assertThrows(
+            CommandRejectedException.class,
+            () ->
+                meta.applyTemplateVersion(
+                    new ApplyTemplateVersionCommand(target, UUID.randomUUID(), "apply-mixed-v2", 2),
+                    actor));
+
+    assertEquals("KERNEL-409-TEMPLATE-MIGRATION-REQUIRED", error.error().code());
+    assertEquals(1, workspaceTemplateVersion(target));
+    assertEquals(
+        0L,
+        jdbc.queryForObject(
+            """
+            SELECT count(*) FROM field_def field
+            JOIN object_type type ON type.id = field.object_type_id
+            WHERE type.workspace_id = ? AND type.code = 'apply_mixed_type'
+              AND field.code = 'nickname'
+            """,
+            Long.class,
+            target));
   }
 
   @Test
@@ -867,17 +1047,23 @@ class MetaModelIntegrationTest {
   }
 
   private void insertTemplateRelationType(UUID versionId, UUID sourceType, UUID targetType) {
+    insertTemplateRelationType(WORKSPACE, versionId, "satisfies_tpl", sourceType, targetType);
+  }
+
+  private void insertTemplateRelationType(
+      UUID workspaceId, UUID versionId, String code, UUID sourceType, UUID targetType) {
     jdbc.update(
         """
         INSERT INTO relation_type
           (id, workspace_id, template_version_id, code, source_type, target_type, direction,
            cardinality, semantics, hierarchical, created_by, updated_by, created_at, updated_at)
-        VALUES (?, ?, ?, 'satisfies_tpl', ?, ?, 'directed', 'many_to_many', 'weak', FALSE,
+        VALUES (?, ?, ?, ?, ?, ?, 'directed', 'many_to_many', 'weak', FALSE,
           'test', 'test', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
         """,
         UUID.randomUUID(),
-        WORKSPACE,
+        workspaceId,
         versionId,
+        code,
         sourceType,
         targetType);
   }
