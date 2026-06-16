@@ -26,4 +26,25 @@ class ExchangeArchitectureTest {
     assertFalse(text.contains("update "));
     assertFalse(text.contains("delete from"));
   }
+
+  @Test
+  void sysmlAdapterStaysPure() throws IOException {
+    var text = source(Path.of("src/main/java/com/mnext/engines/exchange/sysml")).toLowerCase();
+    assertFalse(text.contains("org.springframework"));
+    assertFalse(text.contains("java.sql"));
+    assertFalse(text.contains("kernelcommandservice"));
+    assertFalse(text.contains("insert into"));
+    assertFalse(text.contains("update "));
+    assertFalse(text.contains("delete from"));
+  }
+
+  private static String source(Path root) throws IOException {
+    var source = new StringBuilder();
+    try (var files = Files.walk(root)) {
+      for (var file : files.filter(path -> path.toString().endsWith(".java")).toList()) {
+        source.append(Files.readString(file));
+      }
+    }
+    return source.toString();
+  }
 }
