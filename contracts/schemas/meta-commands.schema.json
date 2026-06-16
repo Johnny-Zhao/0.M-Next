@@ -1,13 +1,13 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://platform.local/contracts/meta-commands/1.0",
-  "title": "元模型(M2)授权命令信封与载荷契约 v1.0(addendum)",
+  "$id": "https://platform.local/contracts/meta-commands/1.1",
+  "title": "元模型(M2)授权命令信封与载荷契约 v1.1(addendum:泛化/重定义/值类型)",
   "type": "object",
   "required": ["commandType", "workspaceId", "correlationId", "idempotencyKey", "payload"],
   "additionalProperties": false,
   "properties": {
     "commandType": {
-      "enum": ["DefineObjectType", "DefineFieldDef", "DefineRelationType"]
+      "enum": ["DefineObjectType", "DefineFieldDef", "DefineRelationType", "DefineValueType"]
     },
     "workspaceId": { "$ref": "#/$defs/uuid" },
     "correlationId": { "$ref": "#/$defs/uuid" },
@@ -17,46 +17,69 @@
   "allOf": [
     { "if": { "properties": { "commandType": { "const": "DefineObjectType" } } }, "then": { "properties": { "payload": { "$ref": "#/$defs/DefineObjectType" } } } },
     { "if": { "properties": { "commandType": { "const": "DefineFieldDef" } } }, "then": { "properties": { "payload": { "$ref": "#/$defs/DefineFieldDef" } } } },
-    { "if": { "properties": { "commandType": { "const": "DefineRelationType" } } }, "then": { "properties": { "payload": { "$ref": "#/$defs/DefineRelationType" } } } }
+    { "if": { "properties": { "commandType": { "const": "DefineRelationType" } } }, "then": { "properties": { "payload": { "$ref": "#/$defs/DefineRelationType" } } } },
+    { "if": { "properties": { "commandType": { "const": "DefineValueType" } } }, "then": { "properties": { "payload": { "$ref": "#/$defs/DefineValueType" } } } }
   ],
   "$defs": {
     "uuid": { "type": "string", "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$" },
     "code": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-z][a-z0-9_]*$", "description": "snake_case 标识符" },
     "dataType": { "enum": ["string", "text", "integer", "number", "boolean", "date", "datetime", "enum", "ref", "json"] },
+    "constraints": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "按根原语取用;不相容组合返回 KERNEL-422-FIELD-CONSTRAINT-INVALID",
+      "properties": {
+        "minLength": { "type": "integer", "minimum": 0 },
+        "maxLength": { "type": "integer", "minimum": 1 },
+        "min": { "type": "number" },
+        "max": { "type": "number" },
+        "pattern": { "type": "string", "maxLength": 256, "description": "白名单正则;禁灾难性回溯" },
+        "enumValues": { "type": "array", "items": { "type": "string" }, "minItems": 1, "uniqueItems": true },
+        "refObjectTypeCode": { "$ref": "#/$defs/code", "description": "根原语=ref 时必填,指向对象类型 code" },
+        "multiline": { "type": "boolean", "description": "根原语=text 的子值类型可声明(如自然段);仅声明性" }
+      }
+    },
     "DefineObjectType": {
       "type": "object",
       "required": ["code", "name"],
       "additionalProperties": false,
       "properties": {
-        "templateVersionId": { "$ref": "#/$defs/uuid", "description": "可空:NULL=无模板直挂(兼容 demo);非空必须指向 draft 模板版本,published 版本下定义返回 KERNEL-409-TEMPLATE-VERSION-IMMUTABLE" },
+        "templateVersionId": { "$ref": "#/$defs/uuid", "description": "可空:NULL=无模板直挂(兼容 demo);非空必须指向 draft 模板版本,published 下定义返回 KERNEL-409-TEMPLATE-VERSION-IMMUTABLE" },
         "code": { "$ref": "#/$defs/code", "description": "(workspace, code) 唯一" },
-        "name": { "type": "string", "minLength": 1, "maxLength": 256 }
+        "name": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "parentTypeCode": { "$ref": "#/$defs/code", "description": "可空:父对象类型 code(单继承)。须同 workspace+同模板版本(否则 META-422-PARENT-CROSS-TEMPLATE)、存在(否则 META-422-PARENT-NOT-FOUND)、不成环(否则 META-422-GENERALIZATION-CYCLE)" }
+      }
+    },
+    "DefineValueType": {
+      "type": "object",
+      "required": ["code", "name", "basePrimitive"],
+      "additionalProperties": false,
+      "properties": {
+        "templateVersionId": { "$ref": "#/$defs/uuid", "description": "可空,同 DefineObjectType 语义" },
+        "code": { "$ref": "#/$defs/code", "description": "(workspace, code) 唯一,含内置根" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "basePrimitive": { "$ref": "#/$defs/dataType", "description": "所属根原语;须与父值类型一致,否则 META-422-VALUETYPE-BASE-MISMATCH" },
+        "parentValueTypeCode": { "$ref": "#/$defs/code", "description": "可空:父值类型 code(NULL=自身即根)。不成环;约束相对父只收紧,放宽返回 META-422-REDEFINITION-INCONSISTENT" },
+        "constraints": { "$ref": "#/$defs/constraints" }
       }
     },
     "DefineFieldDef": {
       "type": "object",
-      "required": ["objectTypeId", "code", "name", "dataType"],
+      "required": ["objectTypeId", "code", "name"],
       "additionalProperties": false,
+      "oneOf": [
+        { "required": ["dataType"] },
+        { "required": ["valueTypeCode"] }
+      ],
       "properties": {
         "objectTypeId": { "$ref": "#/$defs/uuid", "description": "归属对象类型,不存在返回 KERNEL-404-TYPE-NOT-FOUND" },
-        "code": { "$ref": "#/$defs/code", "description": "(objectType, code) 唯一" },
+        "code": { "$ref": "#/$defs/code", "description": "(objectType, code) 唯一;若同 code 在祖先链存在则须经 redefinesFieldCode 重定义" },
         "name": { "type": "string", "minLength": 1, "maxLength": 256 },
-        "dataType": { "$ref": "#/$defs/dataType" },
+        "dataType": { "$ref": "#/$defs/dataType", "description": "内置根原语路径;与 valueTypeCode 二选一" },
+        "valueTypeCode": { "$ref": "#/$defs/code", "description": "命名值类型(内置根或自定义子类)路径;与 dataType 二选一。不存在返回 META-422-PARENT-NOT-FOUND" },
         "required": { "type": "boolean", "default": false },
-        "constraints": {
-          "type": "object",
-          "additionalProperties": false,
-          "description": "按 dataType 取用;不相容组合返回 KERNEL-422-FIELD-CONSTRAINT-INVALID",
-          "properties": {
-            "minLength": { "type": "integer", "minimum": 0 },
-            "maxLength": { "type": "integer", "minimum": 1 },
-            "min": { "type": "number" },
-            "max": { "type": "number" },
-            "pattern": { "type": "string", "maxLength": 256, "description": "白名单正则;禁灾难性回溯" },
-            "enumValues": { "type": "array", "items": { "type": "string" }, "minItems": 1, "uniqueItems": true },
-            "refObjectTypeCode": { "$ref": "#/$defs/code", "description": "dataType=ref 时必填,指向对象类型 code" }
-          }
-        }
+        "redefinesFieldCode": { "$ref": "#/$defs/code", "description": "可空:重定义祖先链上同 code 字段;触发协变收紧一致性校验,放宽返回 META-422-REDEFINITION-INCONSISTENT" },
+        "constraints": { "$ref": "#/$defs/constraints" }
       }
     },
     "DefineRelationType": {

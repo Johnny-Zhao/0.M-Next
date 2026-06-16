@@ -148,3 +148,27 @@ codes:
     httpStatus: 500
     title: 仿真引擎执行失败
     responseRequirement: 记 failureReason，run 置 FAILED
+  - code: META-422-PARENT-NOT-FOUND
+    httpStatus: 422
+    title: 父类型或父值类型不存在
+    responseRequirement: 返回缺失的 code
+  - code: META-422-PARENT-CROSS-TEMPLATE
+    httpStatus: 422
+    title: 父子不在同一模板版本或工作空间
+    responseRequirement: —
+  - code: META-422-GENERALIZATION-CYCLE
+    httpStatus: 422
+    title: 继承成环（对象类型或值类型）
+    responseRequirement: 返回环路径
+  - code: META-422-VALUETYPE-BASE-MISMATCH
+    httpStatus: 422
+    title: 子值类型根原语与父不一致
+    responseRequirement: 返回父子根原语
+  - code: META-422-REDEFINITION-INCONSISTENT
+    httpStatus: 422
+    title: 重定义放宽了类型或约束
+    responseRequirement: 返回违例维度与父基准
+  - code: META-409-PUBLISHED-IMMUTABLE
+    httpStatus: 409
+    title: 已发布版本下改继承/值类型/重定义
+    responseRequirement: 提示改在 draft 版本操作
