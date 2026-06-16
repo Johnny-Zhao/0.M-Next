@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform.local/contracts/rule-commands/1.0",
+  "title": "规则 DSL 授权命令信封与载荷契约 v1.0(addendum)",
+  "type": "object",
+  "required": ["commandType", "workspaceId", "correlationId", "idempotencyKey", "payload"],
+  "additionalProperties": false,
+  "properties": {
+    "commandType": { "enum": ["DefineRule", "PublishRule", "RunRuleCheck"] },
+    "workspaceId": { "$ref": "#/$defs/uuid" },
+    "correlationId": { "$ref": "#/$defs/uuid" },
+    "idempotencyKey": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "payload": { "type": "object" }
+  },
+  "allOf": [
+    { "if": { "properties": { "commandType": { "const": "DefineRule" } } }, "then": { "properties": { "payload": { "$ref": "#/$defs/DefineRule" } } } },
+    { "if": { "properties": { "commandType": { "const": "PublishRule" } } }, "then": { "properties": { "payload": { "$ref": "#/$defs/PublishRule" } } } },
+    { "if": { "properties": { "commandType": { "const": "RunRuleCheck" } } }, "then": { "properties": { "payload": { "$ref": "#/$defs/RunRuleCheck" } } } }
+  ],
+  "$defs": {
+    "uuid": { "type": "string", "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$" },
+    "code": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-z][a-z0-9_]*$", "description": "snake_case 标识符" },
+    "DefineRule": {
+      "type": "object",
+      "required": ["ruleCode", "scope", "severity", "when", "message", "lightweight"],
+      "additionalProperties": false,
+      "properties": {
+        "templateVersionId": { "$ref": "#/$defs/uuid", "description": "可空;published 版本下定义返回 RULE-409-PUBLISHED-IMMUTABLE 或复用 KERNEL-409-TEMPLATE-VERSION-IMMUTABLE" },
+        "ruleCode": { "$ref": "#/$defs/code", "description": "(workspace, ruleCode) 唯一" },
+        "scope": {
+          "type": "object",
+          "required": ["objectTypeCode"],
+          "additionalProperties": false,
+          "properties": {
+            "objectTypeCode": { "$ref": "#/$defs/code", "description": "scope 命中该类型及其所有子类型;未发布/不存在返回 RULE-422-SCOPE-UNRESOLVED" },
+            "fieldCode": { "$ref": "#/$defs/code", "description": "可空:字段级 scope" }
+          }
+        },
+        "severity": { "enum": ["BLOCK", "WARN", "INFO"], "description": "仅 BLOCK 阻断热路径写入" },
+        "when": { "type": "string", "minLength": 1, "maxLength": 2000, "description": "布尔表达式;解析失败返回 RULE-400-DSL-SYNTAX-INVALID" },
+        "message": { "type": "string", "minLength": 1, "maxLength": 1024, "description": "模板串,支持 ${field('code')} 只读插值" },
+        "impact": { "type": "array", "items": { "type": "string" }, "description": "声明性受影响清单" },
+        "suggest": { "type": "string", "maxLength": 1024, "description": "声明性修复建议" },
+        "fix": { "type": "object", "description": "仅声明,引擎永不执行" },
+        "lightweight": { "type": "boolean", "description": "true=热路径预检候选(不得含越上限的关系函数)" }
+      }
+    },
+    "PublishRule": {
+      "type": "object",
+      "required": ["ruleCode"],
+      "additionalProperties": false,
+      "properties": {
+        "ruleCode": { "$ref": "#/$defs/code" }
+      }
+    },
+    "RunRuleCheck": {
+      "type": "object",
+      "required": [],
+      "additionalProperties": false,
+      "properties": {
+        "objectTypeCode": { "$ref": "#/$defs/code", "description": "可空:限定 scope;缺省=工作空间全量" },
+        "snapshotId": { "$ref": "#/$defs/uuid", "description": "可空:基于快照跑(AG-208 风格);缺省=当前读模型态" }
+      }
+    }
+  }
+}

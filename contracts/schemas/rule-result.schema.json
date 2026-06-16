@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform.local/contracts/rule-result/1.0",
+  "title": "规则检查结果 / 违例项契约 v1.0",
+  "type": "object",
+  "required": ["ruleCode", "severity", "message"],
+  "additionalProperties": false,
+  "properties": {
+    "ruleCode": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-z][a-z0-9_]*$" },
+    "severity": { "enum": ["BLOCK", "WARN", "INFO"] },
+    "message": { "type": "string", "minLength": 1, "maxLength": 1024, "description": "已插值的用户可读消息" },
+    "objectId": { "$ref": "#/$defs/uuid", "description": "命中违例的对象;热路径预检可缺省(尚未落库)" },
+    "fieldCode": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-z][a-z0-9_]*$", "description": "字段级违例时给出" },
+    "runId": { "$ref": "#/$defs/uuid", "description": "冷路径一次运行;热路径缺省" },
+    "configHash": { "type": "string", "pattern": "^[0-9a-f]{64}$", "description": "冷路径规则集+范围指纹" }
+  },
+  "$defs": {
+    "uuid": { "type": "string", "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$" }
+  }
+}

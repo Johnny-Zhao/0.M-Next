@@ -172,3 +172,23 @@ codes:
     httpStatus: 409
     title: 已发布版本下改继承/值类型/重定义
     responseRequirement: 提示改在 draft 版本操作
+  - code: RULE-422-RULE-VIOLATION
+    httpStatus: 422
+    title: 热路径规则 BLOCK 违例
+    responseRequirement: 返回命中规则 ruleCode/message/severity 清单
+  - code: RULE-422-SCOPE-UNRESOLVED
+    httpStatus: 422
+    title: 规则 scope 引用未发布或不存在的类型/字段
+    responseRequirement: 返回未解析的 objectTypeCode/fieldCode
+  - code: RULE-400-DSL-SYNTAX-INVALID
+    httpStatus: 400
+    title: when 表达式解析失败
+    responseRequirement: 返回解析错误位置
+  - code: RULE-422-EVAL-LIMIT
+    httpStatus: 422
+    title: 规则求值超步数或关系上限
+    responseRequirement: 提示降级冷路径
+  - code: RULE-409-PUBLISHED-IMMUTABLE
+    httpStatus: 409
+    title: 已发布规则版本再 Define
+    responseRequirement: 提示改在 draft 版本操作
