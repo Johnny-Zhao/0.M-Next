@@ -26,6 +26,13 @@ public class CommandErrorHandler {
             exception.code(), exception.userMessage(), Map.of(), exception.suggestion()));
   }
 
+  @ExceptionHandler(RuleCommandException.class)
+  ResponseEntity<CommandResult> rule(RuleCommandException exception) {
+    return response(
+        new CommandError(
+            exception.code(), exception.userMessage(), Map.of(), exception.suggestion()));
+  }
+
   @ExceptionHandler({IllegalArgumentException.class, HttpMessageNotReadableException.class})
   ResponseEntity<CommandResult> invalid(Exception exception) {
     return response(
