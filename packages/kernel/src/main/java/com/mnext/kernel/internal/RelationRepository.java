@@ -56,6 +56,28 @@ class RelationRepository {
         typeId);
   }
 
+  boolean objectTypeDescendsFrom(UUID workspaceId, UUID actualTypeId, UUID expectedTypeId) {
+    return Boolean.TRUE.equals(
+        jdbc.queryForObject(
+            """
+            WITH RECURSIVE ancestors AS (
+              SELECT id, parent_type_id FROM object_type
+              WHERE workspace_id = ? AND id = ?
+              UNION ALL
+              SELECT parent.id, parent.parent_type_id
+              FROM object_type parent
+              JOIN ancestors child ON parent.id = child.parent_type_id
+              WHERE parent.workspace_id = ?
+            )
+            SELECT EXISTS(SELECT 1 FROM ancestors WHERE id = ?)
+            """,
+            Boolean.class,
+            workspaceId,
+            actualTypeId,
+            workspaceId,
+            expectedTypeId));
+  }
+
   Optional<RelationRow> findActive(UUID workspaceId, UUID typeId, UUID sourceId, UUID targetId) {
     return find(
         """

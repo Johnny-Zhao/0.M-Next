@@ -23,8 +23,9 @@ final class RelationCommandSupport {
     }
     var source = endpoint(endpoints, sourceId);
     var target = endpoint(endpoints, targetId);
-    if (!source.objectTypeId().equals(type.sourceType())
-        || !target.objectTypeId().equals(type.targetType())) {
+    if (!relations.objectTypeDescendsFrom(workspaceId, source.objectTypeId(), type.sourceType())
+        || !relations.objectTypeDescendsFrom(
+            workspaceId, target.objectTypeId(), type.targetType())) {
       throw CommandErrors.endpointInvalid();
     }
     validateDuplicate(workspaceId, typeId, sourceId, targetId, excludedRelationId);

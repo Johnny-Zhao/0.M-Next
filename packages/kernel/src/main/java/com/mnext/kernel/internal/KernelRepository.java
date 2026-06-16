@@ -82,13 +82,25 @@ class KernelRepository {
             """
             SELECT EXISTS(
               SELECT 1 FROM data_object value JOIN object_type type ON type.id = value.object_type_id
-              WHERE value.workspace_id = ? AND value.id = ? AND type.code = ?
+              JOIN (
+                WITH RECURSIVE descendants AS (
+                  SELECT id FROM object_type WHERE workspace_id = ? AND code = ?
+                  UNION ALL
+                  SELECT child.id FROM object_type child
+                  JOIN descendants parent ON child.parent_type_id = parent.id
+                  WHERE child.workspace_id = ?
+                )
+                SELECT id FROM descendants
+              ) accepted ON accepted.id = type.id
+              WHERE value.workspace_id = ? AND value.id = ?
                 AND value.status NOT IN ('VOID', 'FILED', 'DELETED'))
             """,
             Boolean.class,
             workspaceId,
-            objectId,
-            objectTypeCode));
+            objectTypeCode,
+            workspaceId,
+            workspaceId,
+            objectId));
   }
 
   Optional<StoredCommand> findCommand(UUID workspaceId, String idempotencyKey) {

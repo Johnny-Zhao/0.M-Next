@@ -10,5 +10,29 @@ public record DefineFieldDefCommand(
     String code,
     String name,
     DataType dataType,
+    String valueTypeCode,
     boolean required,
-    FieldConstraints constraints) {}
+    FieldConstraints constraints) {
+  public DefineFieldDefCommand(
+      UUID workspaceId,
+      UUID correlationId,
+      String idempotencyKey,
+      UUID objectTypeId,
+      String code,
+      String name,
+      DataType dataType,
+      boolean required,
+      FieldConstraints constraints) {
+    this(
+        workspaceId,
+        correlationId,
+        idempotencyKey,
+        objectTypeId,
+        code,
+        name,
+        dataType,
+        null,
+        required,
+        constraints);
+  }
+}

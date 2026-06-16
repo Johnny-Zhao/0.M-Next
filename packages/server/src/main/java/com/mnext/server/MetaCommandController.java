@@ -11,6 +11,7 @@ import com.mnext.kernel.api.metamodel.DataType;
 import com.mnext.kernel.api.metamodel.DefineFieldDefCommand;
 import com.mnext.kernel.api.metamodel.DefineObjectTypeCommand;
 import com.mnext.kernel.api.metamodel.DefineRelationTypeCommand;
+import com.mnext.kernel.api.metamodel.DefineValueTypeCommand;
 import com.mnext.kernel.api.metamodel.FieldConstraints;
 import java.util.Map;
 import java.util.UUID;
@@ -42,6 +43,7 @@ public class MetaCommandController {
       case "DefineFieldDef" -> commands.defineFieldDef(fieldDef(request), Actor.user(actorId));
       case "DefineRelationType" ->
           commands.defineRelationType(relationType(request), Actor.user(actorId));
+      case "DefineValueType" -> commands.defineValueType(valueType(request), Actor.user(actorId));
       default -> throw schema("本批次不支持 commandType: " + request.commandType());
     };
   }
@@ -54,7 +56,8 @@ public class MetaCommandController {
         request.idempotencyKey(),
         optionalUuid(payload, "templateVersionId"),
         text(payload, "code"),
-        text(payload, "name"));
+        text(payload, "name"),
+        optionalText(payload, "parentTypeCode"));
   }
 
   private DefineFieldDefCommand fieldDef(CommandRequest request) {
@@ -66,8 +69,23 @@ public class MetaCommandController {
         uuid(payload, "objectTypeId"),
         text(payload, "code"),
         text(payload, "name"),
-        dataType(payload),
+        payload.has("dataType") ? dataType(payload) : null,
+        optionalText(payload, "valueTypeCode"),
         payload.has("required") && payload.get("required").asBoolean(),
+        constraints(payload));
+  }
+
+  private DefineValueTypeCommand valueType(CommandRequest request) {
+    var payload = required(request.payload(), "payload");
+    return new DefineValueTypeCommand(
+        request.workspaceId(),
+        request.correlationId(),
+        request.idempotencyKey(),
+        optionalUuid(payload, "templateVersionId"),
+        text(payload, "code"),
+        text(payload, "name"),
+        dataType(payload, "basePrimitive"),
+        optionalText(payload, "parentValueTypeCode"),
         constraints(payload));
   }
 
@@ -88,8 +106,12 @@ public class MetaCommandController {
   }
 
   private DataType dataType(JsonNode payload) {
+    return dataType(payload, "dataType");
+  }
+
+  private DataType dataType(JsonNode payload, String name) {
     try {
-      return DataType.fromCode(text(payload, "dataType"));
+      return DataType.fromCode(text(payload, name));
     } catch (IllegalArgumentException error) {
       throw schema(error.getMessage());
     }
@@ -111,6 +133,10 @@ public class MetaCommandController {
 
   private static String text(JsonNode payload, String name) {
     return required(payload.get(name), name).asText();
+  }
+
+  private static String optionalText(JsonNode payload, String name) {
+    return payload.has(name) && !payload.get(name).isNull() ? payload.get(name).asText() : null;
   }
 
   private static JsonNode required(JsonNode value, String name) {

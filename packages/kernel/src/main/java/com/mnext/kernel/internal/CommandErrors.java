@@ -66,6 +66,34 @@ final class CommandErrors {
         "KERNEL-409-TEMPLATE-VERSION-IMMUTABLE", "已发布模板版本不可修改", Map.of(), "改在 draft 模板版本下操作");
   }
 
+  static CommandRejectedException metaParentNotFound() {
+    return error("META-422-PARENT-NOT-FOUND", "父类型不存在", Map.of(), "选择同工作空间内存在的父类型");
+  }
+
+  static CommandRejectedException metaParentCrossTemplate() {
+    return error("META-422-PARENT-CROSS-TEMPLATE", "父子类型不在同一模板版本", Map.of(), "选择同模板版本的父类型");
+  }
+
+  static CommandRejectedException metaGeneralizationCycle() {
+    return error("META-422-GENERALIZATION-CYCLE", "泛化链形成环", Map.of(), "调整父类型后重试");
+  }
+
+  static CommandRejectedException metaValueTypeBaseMismatch() {
+    return error("META-422-VALUETYPE-BASE-MISMATCH", "子值类型根原语与父值类型不一致", Map.of(), "选择相同根原语的父值类型");
+  }
+
+  static CommandRejectedException metaRedefinitionInconsistent(List<String> violations) {
+    return error(
+        "META-422-REDEFINITION-INCONSISTENT",
+        "重定义放宽了父级约束",
+        Map.of("violations", violations),
+        "仅允许更具体或更严格的重定义");
+  }
+
+  static CommandRejectedException metaPublishedImmutable() {
+    return error("META-409-PUBLISHED-IMMUTABLE", "已发布元模型定义不可修改", Map.of(), "改在 draft 定义下操作");
+  }
+
   static CommandRejectedException fieldConstraint(List<String> violations) {
     return error(
         "KERNEL-422-FIELD-CONSTRAINT-INVALID",

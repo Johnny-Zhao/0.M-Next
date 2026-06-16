@@ -3,21 +3,23 @@ package com.mnext.kernel.internal;
 import com.mnext.kernel.api.Actor;
 import com.mnext.kernel.api.CommandResult;
 import com.mnext.kernel.api.PermissionChecker;
-import com.mnext.kernel.api.metamodel.DefineObjectTypeCommand;
+import com.mnext.kernel.api.metamodel.DefineValueTypeCommand;
+import com.mnext.kernel.api.metamodel.FieldConstraints;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 @Component
-class DefineObjectTypeHandler {
+class DefineValueTypeHandler {
   private final MetaModelRepository meta;
   private final PermissionChecker permissions;
   private final CommandSupport support;
 
-  DefineObjectTypeHandler(
+  DefineValueTypeHandler(
       MetaModelRepository meta, KernelRepository repository, PermissionChecker permissions) {
     this.meta = meta;
     this.permissions = permissions;
@@ -25,97 +27,112 @@ class DefineObjectTypeHandler {
   }
 
   @Transactional
-  CommandResult execute(DefineObjectTypeCommand command, Actor actor) {
+  CommandResult execute(DefineValueTypeCommand command, Actor actor) {
     support.validateEnvelope(
         command.workspaceId(), command.correlationId(), command.idempotencyKey());
     permissions.check(
         "metamodel.define", command.workspaceId(), command.templateVersionId(), Set.of(), actor);
-    validate(command);
     var hash = CommandSupport.payloadHash(payload(command));
     var replay = support.replay(command.workspaceId(), command.idempotencyKey(), hash);
     if (replay.isPresent()) return replay.get();
+    var existing = meta.valueTypeByCode(command.workspaceId(), command.code()).orElse(null);
+    var parent = parent(command);
+    validate(command, existing, parent);
     var now = Instant.now();
     var commandId = CommandSupport.commandId();
-    var existing = meta.objectTypeByCode(command.workspaceId(), command.code()).orElse(null);
-    var parent = parent(command);
     if (existing == null) {
-      meta.insertObjectType(
-          java.util.UUID.randomUUID(),
+      meta.insertValueType(
+          UUID.randomUUID(),
           command.workspaceId(),
           command.templateVersionId(),
           command.code(),
           command.name(),
+          command.basePrimitive(),
           parent == null ? null : parent.id(),
+          constraints(command),
           actor.id(),
           now);
     } else {
-      meta.updateObjectType(
-          existing.id(), command.name(), parent == null ? null : parent.id(), actor.id(), now);
+      meta.updateValueType(
+          existing.id(),
+          command.name(),
+          parent == null ? null : parent.id(),
+          constraints(command),
+          now);
     }
     return support.commit(
         command.workspaceId(),
         command.idempotencyKey(),
         commandId,
-        "DefineObjectType",
+        "DefineValueType",
         hash,
         List.of(),
         now);
   }
 
-  private void validate(DefineObjectTypeCommand command) {
+  private MetaModelRepository.ValueTypeRow parent(DefineValueTypeCommand command) {
+    if (command.parentValueTypeCode() == null) return null;
+    return meta.valueTypeByCode(command.workspaceId(), command.parentValueTypeCode())
+        .orElseThrow(CommandErrors::metaParentNotFound);
+  }
+
+  private void validate(
+      DefineValueTypeCommand command,
+      MetaModelRepository.ValueTypeRow existing,
+      MetaModelRepository.ValueTypeRow parent) {
     if (!validCode(command.code())
         || command.name() == null
         || command.name().isBlank()
-        || command.name().length() > 256) {
-      throw CommandErrors.schema("code 或 name 不符合约束");
+        || command.name().length() > 256
+        || command.basePrimitive() == null) {
+      throw CommandErrors.schema("code、name 与 basePrimitive 不符合约束");
     }
     if (command.templateVersionId() != null) {
       var status = meta.templateVersionStatus(command.templateVersionId());
       if (status.isEmpty()) throw CommandErrors.typeNotFound();
       if ("published".equals(status.get())) throw CommandErrors.templateVersionImmutable();
     }
-    var existing = meta.objectTypeByCode(command.workspaceId(), command.code()).orElse(null);
-    var parent = parent(command);
     if (existing != null && existing.published()) throw CommandErrors.metaPublishedImmutable();
     if (existing != null && existing.templateVersionId() != null) {
       var status = meta.templateVersionStatus(existing.templateVersionId());
       if (status.filter("published"::equals).isPresent())
         throw CommandErrors.templateVersionImmutable();
     }
+    if (existing != null && existing.basePrimitive() != command.basePrimitive()) {
+      throw CommandErrors.metaValueTypeBaseMismatch();
+    }
+    if (parent != null && parent.basePrimitive() != command.basePrimitive()) {
+      throw CommandErrors.metaValueTypeBaseMismatch();
+    }
+    if (existing != null
+        && parent != null
+        && meta.valueTypeDescendsFrom(parent.id(), existing.id())) {
+      throw CommandErrors.metaGeneralizationCycle();
+    }
     if (parent != null) {
-      if (!sameTemplate(templateVersion(command, existing), parent.templateVersionId())) {
-        throw CommandErrors.metaParentCrossTemplate();
-      }
-      if (existing != null
-          && meta.objectTypeDescendsFrom(command.workspaceId(), parent.id(), existing.id())) {
-        throw CommandErrors.metaGeneralizationCycle();
-      }
+      var parentEffective = meta.resolveEffectiveValueType(parent.id());
+      var violations =
+          meta.narrowingViolations(
+              command.workspaceId(), parentEffective.constraints(), constraints(command));
+      if (!violations.isEmpty()) throw CommandErrors.metaRedefinitionInconsistent(violations);
     }
   }
 
-  private MetaModelRepository.ObjectTypeRow parent(DefineObjectTypeCommand command) {
-    if (command.parentTypeCode() == null) return null;
-    return meta.objectTypeByCode(command.workspaceId(), command.parentTypeCode())
-        .orElseThrow(CommandErrors::metaParentNotFound);
+  private FieldConstraints constraints(DefineValueTypeCommand command) {
+    return command.constraints() == null ? FieldConstraints.empty() : command.constraints();
   }
 
-  private boolean sameTemplate(java.util.UUID left, java.util.UUID right) {
-    return left == null ? right == null : left.equals(right);
-  }
-
-  private java.util.UUID templateVersion(
-      DefineObjectTypeCommand command, MetaModelRepository.ObjectTypeRow existing) {
-    return existing == null ? command.templateVersionId() : existing.templateVersionId();
-  }
-
-  private LinkedHashMap<String, Object> payload(DefineObjectTypeCommand command) {
+  private LinkedHashMap<String, Object> payload(DefineValueTypeCommand command) {
     var payload = new LinkedHashMap<String, Object>();
     if (command.templateVersionId() != null) {
       payload.put("templateVersionId", command.templateVersionId().toString());
     }
     payload.put("code", command.code());
     payload.put("name", command.name());
-    payload.put("parentTypeCode", command.parentTypeCode());
+    payload.put(
+        "basePrimitive", command.basePrimitive() == null ? null : command.basePrimitive().code());
+    payload.put("parentValueTypeCode", command.parentValueTypeCode());
+    payload.put("constraints", constraints(command).asMap());
     return payload;
   }
 
