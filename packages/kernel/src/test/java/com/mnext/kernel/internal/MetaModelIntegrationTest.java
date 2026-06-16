@@ -16,6 +16,8 @@ import com.mnext.kernel.api.metamodel.DefineObjectTypeCommand;
 import com.mnext.kernel.api.metamodel.DefineRelationTypeCommand;
 import com.mnext.kernel.api.metamodel.DefineValueTypeCommand;
 import com.mnext.kernel.api.metamodel.FieldConstraints;
+import com.mnext.kernel.api.metamodel.InstantiateWorkspaceCommand;
+import com.mnext.kernel.api.metamodel.PublishTemplateVersionCommand;
 import java.math.BigDecimal;
 import java.util.Map;
 import java.util.UUID;
@@ -308,8 +310,295 @@ class MetaModelIntegrationTest {
             requirement));
   }
 
+  @Test
+  void publishTemplateVersionRejectsEmptyAndAlreadyPublishedVersions() {
+    var actor = Actor.user("template-author");
+    var empty = draftTemplate("empty_publish");
+
+    var emptyError =
+        assertThrows(
+            CommandRejectedException.class,
+            () ->
+                meta.publishTemplateVersion(
+                    new PublishTemplateVersionCommand(
+                        WORKSPACE, UUID.randomUUID(), "publish-empty", empty.versionId()),
+                    actor));
+    assertEquals("KERNEL-422-TEMPLATE-EMPTY", emptyError.error().code());
+
+    var draft = draftTemplate("publish_once");
+    defineTemplateObject(draft.versionId(), "publishable_type", "可发布类型", null, actor);
+    meta.publishTemplateVersion(
+        new PublishTemplateVersionCommand(
+            WORKSPACE, UUID.randomUUID(), "publish-ok", draft.versionId()),
+        actor);
+
+    assertEquals(
+        "published",
+        jdbc.queryForObject(
+            "SELECT status FROM scene_template_version WHERE id = ?",
+            String.class,
+            draft.versionId()));
+    var immutable =
+        assertThrows(
+            CommandRejectedException.class,
+            () ->
+                meta.publishTemplateVersion(
+                    new PublishTemplateVersionCommand(
+                        WORKSPACE, UUID.randomUUID(), "publish-again", draft.versionId()),
+                    actor));
+    assertEquals("KERNEL-409-TEMPLATE-VERSION-IMMUTABLE", immutable.error().code());
+  }
+
+  @Test
+  void instantiateWorkspaceRequiresPublishedTemplateVersion() {
+    var draft = draftTemplate("instantiate_draft");
+    var error =
+        assertThrows(
+            CommandRejectedException.class,
+            () ->
+                meta.instantiateWorkspace(
+                    new InstantiateWorkspaceCommand(
+                        WORKSPACE,
+                        UUID.randomUUID(),
+                        "instantiate-draft",
+                        draft.templateId(),
+                        1,
+                        UUID.randomUUID(),
+                        "Draft Instance"),
+                    Actor.user("template-author")));
+
+    assertEquals("KERNEL-422-TEMPLATE-NOT-PUBLISHED", error.error().code());
+  }
+
+  @Test
+  void instantiateWorkspaceCopiesTypesClosesReferencesAndReplaysIdempotently() {
+    var actor = Actor.user("template-author");
+    var draft = draftTemplate("instantiate_full");
+    meta.defineValueType(
+        new DefineValueTypeCommand(
+            WORKSPACE,
+            UUID.randomUUID(),
+            "vt-template-short",
+            draft.versionId(),
+            "short_text_tpl",
+            "短文本",
+            DataType.TEXT,
+            "text",
+            new FieldConstraints(null, 20, null, null, null, null, null, true)),
+        actor);
+    meta.defineValueType(
+        new DefineValueTypeCommand(
+            WORKSPACE,
+            UUID.randomUUID(),
+            "vt-template-tiny",
+            draft.versionId(),
+            "tiny_text_tpl",
+            "更短文本",
+            DataType.TEXT,
+            "short_text_tpl",
+            new FieldConstraints(null, 10, null, null, null, null, null, true)),
+        actor);
+    var requirement = defineTemplateObject(draft.versionId(), "requirement_tpl", "需求", null, actor);
+    meta.defineFieldDef(
+        new DefineFieldDefCommand(
+            WORKSPACE,
+            UUID.randomUUID(),
+            "field-template-name",
+            requirement,
+            "name",
+            "名称",
+            null,
+            "short_text_tpl",
+            true,
+            FieldConstraints.empty()),
+        actor);
+    var performance =
+        defineTemplateObject(
+            draft.versionId(), "performance_requirement_tpl", "性能需求", "requirement_tpl", actor);
+    meta.defineFieldDef(
+        new DefineFieldDefCommand(
+            WORKSPACE,
+            UUID.randomUUID(),
+            "field-template-redefine",
+            performance,
+            "name",
+            "名称",
+            null,
+            "tiny_text_tpl",
+            true,
+            "name",
+            FieldConstraints.empty()),
+        actor);
+    insertTemplateRelationType(draft.versionId(), requirement, performance);
+    meta.publishTemplateVersion(
+        new PublishTemplateVersionCommand(
+            WORKSPACE, UUID.randomUUID(), "publish-full-template", draft.versionId()),
+        actor);
+
+    var newWorkspace = UUID.randomUUID();
+    var command =
+        new InstantiateWorkspaceCommand(
+            WORKSPACE,
+            UUID.randomUUID(),
+            "instantiate-full",
+            draft.templateId(),
+            1,
+            newWorkspace,
+            "实例化工作空间");
+    var first = meta.instantiateWorkspace(command, actor);
+    var second = meta.instantiateWorkspace(command, actor);
+
+    assertEquals(false, first.idempotentReplay());
+    assertEquals(true, second.idempotentReplay());
+    assertEquals(
+        1L,
+        jdbc.queryForObject(
+            """
+            SELECT count(*) FROM workspace
+            WHERE id = ? AND template_id = ? AND template_version = 1 AND status = 'ACTIVE'
+            """,
+            Long.class,
+            newWorkspace,
+            draft.templateId()));
+    assertCopiedTypeGraph(newWorkspace);
+    var newPerformance =
+        jdbc.queryForObject(
+            """
+            SELECT id FROM object_type
+            WHERE workspace_id = ? AND code = 'performance_requirement_tpl'
+            """,
+            UUID.class,
+            newWorkspace);
+    commands.createObject(
+        new CreateObjectCommand(
+            newWorkspace,
+            UUID.randomUUID(),
+            "instantiate-create-object",
+            newPerformance,
+            Map.of("name", "fast"),
+            new SourceInfo("manual", null),
+            null),
+        actor);
+
+    assertEquals(
+        1L,
+        jdbc.queryForObject(
+            "SELECT count(*) FROM data_object WHERE workspace_id = ?", Long.class, newWorkspace));
+  }
+
   private static CreateObjectCommand create(UUID typeId, String key, Object budget) {
     return create(typeId, key, Map.of("budget", budget));
+  }
+
+  private record DraftTemplate(UUID templateId, UUID versionId) {}
+
+  private DraftTemplate draftTemplate(String code) {
+    var template = UUID.randomUUID();
+    var version = UUID.randomUUID();
+    jdbc.update(
+        """
+        INSERT INTO scene_template (id, code, name, created_by, created_at)
+        VALUES (?, ?, ?, 'test', CURRENT_TIMESTAMP)
+        """,
+        template,
+        code,
+        code);
+    jdbc.update(
+        """
+        INSERT INTO scene_template_version (id, template_id, version, status)
+        VALUES (?, ?, 1, 'draft')
+        """,
+        version,
+        template);
+    return new DraftTemplate(template, version);
+  }
+
+  private UUID defineTemplateObject(
+      UUID versionId, String code, String name, String parentCode, Actor actor) {
+    meta.defineObjectType(
+        new DefineObjectTypeCommand(
+            WORKSPACE, UUID.randomUUID(), "object-" + code, versionId, code, name, parentCode),
+        actor);
+    return jdbc.queryForObject(
+        "SELECT id FROM object_type WHERE workspace_id = ? AND code = ?",
+        UUID.class,
+        WORKSPACE,
+        code);
+  }
+
+  private void insertTemplateRelationType(UUID versionId, UUID sourceType, UUID targetType) {
+    jdbc.update(
+        """
+        INSERT INTO relation_type
+          (id, workspace_id, template_version_id, code, source_type, target_type, direction,
+           cardinality, semantics, hierarchical, created_by, updated_by, created_at, updated_at)
+        VALUES (?, ?, ?, 'satisfies_tpl', ?, ?, 'directed', 'many_to_many', 'weak', FALSE,
+          'test', 'test', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        """,
+        UUID.randomUUID(),
+        WORKSPACE,
+        versionId,
+        sourceType,
+        targetType);
+  }
+
+  private void assertCopiedTypeGraph(UUID workspace) {
+    assertEquals(
+        0L,
+        jdbc.queryForObject(
+            "SELECT count(*) FROM object_type WHERE workspace_id = ? AND template_version_id IS NOT NULL",
+            Long.class,
+            workspace));
+    assertEquals(
+        1L,
+        jdbc.queryForObject(
+            """
+            SELECT count(*) FROM object_type child
+            JOIN object_type parent ON parent.id = child.parent_type_id
+            WHERE child.workspace_id = ? AND parent.workspace_id = ?
+              AND child.code = 'performance_requirement_tpl'
+              AND parent.code = 'requirement_tpl'
+            """,
+            Long.class,
+            workspace,
+            workspace));
+    assertEquals(
+        2L,
+        jdbc.queryForObject(
+            """
+            SELECT count(*) FROM field_def field
+            JOIN value_type value_type ON value_type.id = field.value_type_id
+            WHERE field.code = 'name' AND value_type.workspace_id = ?
+            """,
+            Long.class,
+            workspace));
+    assertEquals(
+        1L,
+        jdbc.queryForObject(
+            """
+            SELECT count(*) FROM field_def child
+            JOIN field_def parent ON parent.id = child.redefines_field_def_id
+            JOIN object_type child_type ON child_type.id = child.object_type_id
+            JOIN object_type parent_type ON parent_type.id = parent.object_type_id
+            WHERE child_type.workspace_id = ? AND parent_type.workspace_id = ?
+            """,
+            Long.class,
+            workspace,
+            workspace));
+    assertEquals(
+        1L,
+        jdbc.queryForObject(
+            """
+            SELECT count(*) FROM relation_type relation
+            JOIN object_type source_type ON source_type.id = relation.source_type
+            JOIN object_type target_type ON target_type.id = relation.target_type
+            WHERE relation.workspace_id = ? AND source_type.workspace_id = ?
+              AND target_type.workspace_id = ?
+            """,
+            Long.class,
+            workspace,
+            workspace,
+            workspace));
   }
 
   private static CreateObjectCommand create(UUID typeId, String key, Map<String, Object> fields) {

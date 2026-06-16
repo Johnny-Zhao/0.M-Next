@@ -67,6 +67,14 @@ final class CommandErrors {
         "KERNEL-409-TEMPLATE-VERSION-IMMUTABLE", "已发布模板版本不可修改", Map.of(), "改在 draft 模板版本下操作");
   }
 
+  static CommandRejectedException templateNotPublished() {
+    return error("KERNEL-422-TEMPLATE-NOT-PUBLISHED", "模板版本尚未发布", Map.of(), "先发布模板版本后再实例化工作空间");
+  }
+
+  static CommandRejectedException templateEmpty() {
+    return error("KERNEL-422-TEMPLATE-EMPTY", "模板版本为空", Map.of(), "至少定义一个对象类型后再发布");
+  }
+
   static CommandRejectedException metaParentNotFound() {
     return error("META-422-PARENT-NOT-FOUND", "父类型不存在", Map.of(), "选择同工作空间内存在的父类型");
   }
