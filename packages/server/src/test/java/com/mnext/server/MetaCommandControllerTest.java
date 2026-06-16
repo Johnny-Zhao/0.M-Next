@@ -19,8 +19,10 @@ import org.junit.jupiter.api.Test;
 
 class MetaCommandControllerTest {
   private final MetaCommandService commands = mock(MetaCommandService.class);
+  private final TemplateLifecycleService lifecycle = mock(TemplateLifecycleService.class);
   private final ObjectMapper mapper = new ObjectMapper();
-  private final MetaCommandController controller = new MetaCommandController(commands, mapper);
+  private final MetaCommandController controller =
+      new MetaCommandController(commands, lifecycle, mapper);
 
   @Test
   void routesDefineObjectTypeOnSeparateEndpointController() throws Exception {
@@ -99,13 +101,13 @@ class MetaCommandControllerTest {
                     + "\",\"version\":1,\"newWorkspaceId\":\""
                     + newWorkspace
                     + "\",\"workspaceName\":\"实例\"}"));
-    when(commands.instantiateWorkspace(any(), any()))
+    when(lifecycle.instantiateWorkspace(any(), any()))
         .thenReturn(new CommandResult("command", CommandStatus.COMMITTED, false, List.of(), null));
 
     var result = controller.execute(workspace, "author", request);
 
     assertEquals("command", result.commandId());
-    verify(commands).instantiateWorkspace(any(), eq(com.mnext.kernel.api.Actor.user("author")));
+    verify(lifecycle).instantiateWorkspace(any(), eq(com.mnext.kernel.api.Actor.user("author")));
   }
 
   @Test
@@ -118,13 +120,13 @@ class MetaCommandControllerTest {
             UUID.randomUUID(),
             "meta-apply",
             mapper.readTree("{\"toVersion\":2}"));
-    when(commands.applyTemplateVersion(any(), any()))
+    when(lifecycle.applyTemplateVersion(any(), any()))
         .thenReturn(new CommandResult("command", CommandStatus.COMMITTED, false, List.of(), null));
 
     var result = controller.execute(workspace, "author", request);
 
     assertEquals("command", result.commandId());
-    verify(commands).applyTemplateVersion(any(), eq(com.mnext.kernel.api.Actor.user("author")));
+    verify(lifecycle).applyTemplateVersion(any(), eq(com.mnext.kernel.api.Actor.user("author")));
   }
 
   @Test
