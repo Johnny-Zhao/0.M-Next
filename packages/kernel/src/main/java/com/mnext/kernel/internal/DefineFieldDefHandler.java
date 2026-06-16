@@ -48,6 +48,7 @@ class DefineFieldDefHandler {
         meta.objectTypeTemplateVersion(command.workspaceId(), command.objectTypeId());
     if (templateVersion == null) throw CommandErrors.typeNotFound();
     templateVersion.ifPresent(this::validateMutable);
+    validateMutableObjectType(command);
     var resolved = resolveFieldType(command);
     var now = Instant.now();
     var commandId = CommandSupport.commandId();
@@ -61,6 +62,7 @@ class DefineFieldDefHandler {
         resolved.valueTypeId(),
         command.required(),
         constraints(command),
+        redefinedField(command, resolved),
         actor.id(),
         now);
     return support.commit(
@@ -87,8 +89,22 @@ class DefineFieldDefHandler {
     if (meta.fieldCodeExists(command.objectTypeId(), command.code())) {
       throw CommandErrors.schema("字段 code 已存在");
     }
+    validateExplicitRedefinition(command);
     var violations = constraintViolations(command);
     if (!violations.isEmpty()) throw CommandErrors.fieldConstraint(violations);
+  }
+
+  private void validateExplicitRedefinition(DefineFieldDefCommand command) {
+    var ancestor = meta.ancestorFieldByCode(command.objectTypeId(), command.code());
+    if (command.redefinesFieldCode() == null) {
+      if (ancestor.isPresent()) {
+        throw CommandErrors.metaRedefinitionInconsistent(List.of("redefinesFieldCode"));
+      }
+      return;
+    }
+    if (!command.code().equals(command.redefinesFieldCode()) || ancestor.isEmpty()) {
+      throw CommandErrors.metaParentNotFound();
+    }
   }
 
   private List<String> constraintViolations(DefineFieldDefCommand command) {
@@ -156,10 +172,46 @@ class DefineFieldDefHandler {
         MetaModelRepository.mergeConstraints(effective.constraints(), constraints(command)));
   }
 
+  private java.util.UUID redefinedField(DefineFieldDefCommand command, ResolvedFieldType resolved) {
+    if (command.redefinesFieldCode() == null) return null;
+    var parent =
+        meta.ancestorFieldByCode(command.objectTypeId(), command.redefinesFieldCode())
+            .orElseThrow(CommandErrors::metaParentNotFound);
+    var violations = redefinitionViolations(command, resolved, parent);
+    if (!violations.isEmpty()) throw CommandErrors.metaRedefinitionInconsistent(violations);
+    return parent.id();
+  }
+
+  private List<String> redefinitionViolations(
+      DefineFieldDefCommand command,
+      ResolvedFieldType child,
+      MetaModelRepository.FieldDefRow parent) {
+    var violations = new ArrayList<String>();
+    if (parent.required() && !command.required()) violations.add("required");
+    if (parent.valueTypeId() != null) {
+      if (child.valueTypeId() == null
+          || !meta.valueTypeDescendsFrom(child.valueTypeId(), parent.valueTypeId())) {
+        violations.add("valueType");
+      }
+    } else if (parent.dataType() != child.dataType()) {
+      violations.add("dataType");
+    }
+    violations.addAll(
+        meta.narrowingViolations(command.workspaceId(), parent.constraints(), child.constraints()));
+    return violations;
+  }
+
   private void validateMutable(java.util.UUID templateVersionId) {
     if (meta.templateVersionStatus(templateVersionId).filter("published"::equals).isPresent()) {
       throw CommandErrors.templateVersionImmutable();
     }
+  }
+
+  private void validateMutableObjectType(DefineFieldDefCommand command) {
+    var objectType =
+        meta.objectTypeById(command.workspaceId(), command.objectTypeId())
+            .orElseThrow(CommandErrors::typeNotFound);
+    if (objectType.published()) throw CommandErrors.metaPublishedImmutable();
   }
 
   private FieldConstraints constraints(DefineFieldDefCommand command) {
@@ -174,6 +226,7 @@ class DefineFieldDefHandler {
     if (command.dataType() != null) payload.put("dataType", command.dataType().code());
     if (command.valueTypeCode() != null) payload.put("valueTypeCode", command.valueTypeCode());
     payload.put("required", command.required());
+    payload.put("redefinesFieldCode", command.redefinesFieldCode());
     payload.put("constraints", constraints(command).asMap());
     return payload;
   }
