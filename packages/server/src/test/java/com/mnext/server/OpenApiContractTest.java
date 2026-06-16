@@ -31,6 +31,7 @@ import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 class OpenApiContractTest {
   @MockitoBean KernelCommandService commands;
   @MockitoBean ReadModelRepository readModel;
+  @MockitoBean CheckResultRepository checkResults;
   @Autowired MockMvc http;
   @Autowired ObjectMapper mapper;
 
@@ -58,7 +59,13 @@ class OpenApiContractTest {
     assertEquals(registeredCommandTypes(), actual);
     for (var path :
         Set.of(
-            "objects", "object-types", "objects~1{objectId}", "relations", "tree", "sync-status")) {
+            "objects",
+            "object-types",
+            "objects~1{objectId}",
+            "relations",
+            "tree",
+            "sync-status",
+            "check-results")) {
       assertFalse(
           document
               .at("/paths/~1workspaces~1{workspaceId}~1views~1" + path + "/get")

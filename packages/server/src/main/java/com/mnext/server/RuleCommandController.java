@@ -15,9 +15,11 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 public class RuleCommandController {
   private final RuleDefRepository rules;
+  private final RuleCheckRunner checks;
 
-  public RuleCommandController(RuleDefRepository rules) {
+  public RuleCommandController(RuleDefRepository rules, RuleCheckRunner checks) {
     this.rules = rules;
+    this.checks = checks;
   }
 
   @PostMapping("/workspaces/{workspaceId}/rule-commands")
@@ -29,6 +31,7 @@ public class RuleCommandController {
     return switch (request.commandType()) {
       case "DefineRule" -> rules.defineRule(defineRule(request), actorId);
       case "PublishRule" -> rules.publishRule(publishRule(request), actorId);
+      case "RunRuleCheck" -> checks.run(runRuleCheck(request));
       default -> throw schema("本批次不支持 commandType: " + request.commandType());
     };
   }
@@ -58,6 +61,16 @@ public class RuleCommandController {
         request.correlationId(),
         request.idempotencyKey(),
         text(payload, "ruleCode"));
+  }
+
+  private static RunRuleCheckRequest runRuleCheck(CommandRequest request) {
+    var payload = request.payload();
+    var scope =
+        payload != null && payload.has("scope") && !payload.get("scope").isNull()
+            ? scope(payload.get("scope"))
+            : null;
+    return new RunRuleCheckRequest(
+        request.workspaceId(), request.correlationId(), request.idempotencyKey(), scope);
   }
 
   private static RuleScopeRequest scope(JsonNode payload) {

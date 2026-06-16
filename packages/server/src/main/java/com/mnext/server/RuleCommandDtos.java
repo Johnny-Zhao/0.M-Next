@@ -22,3 +22,6 @@ record DefineRuleRequest(
 
 record PublishRuleRequest(
     UUID workspaceId, UUID correlationId, String idempotencyKey, String ruleCode) {}
+
+record RunRuleCheckRequest(
+    UUID workspaceId, UUID correlationId, String idempotencyKey, RuleScopeRequest scope) {}
