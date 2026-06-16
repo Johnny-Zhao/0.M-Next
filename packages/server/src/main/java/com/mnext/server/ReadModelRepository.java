@@ -180,9 +180,58 @@ class ReadModelRepository {
   List<ObjectTypeView> objectTypes(UUID workspaceId) {
     return jdbc.query(
         """
-        SELECT type.id, type.code, type.name, field.code, field.name, field.data_type,
-               field.required, field.constraints::text
-        FROM object_type type LEFT JOIN field_def field ON field.object_type_id = type.id
+        WITH RECURSIVE type_chain AS (
+          SELECT type.id AS type_id, type.id AS ancestor_type_id, 0 AS depth
+          FROM object_type type
+          WHERE type.workspace_id = ?
+          UNION ALL
+          SELECT chain.type_id, parent.id, chain.depth + 1
+          FROM type_chain chain
+          JOIN object_type child ON child.id = chain.ancestor_type_id
+          JOIN object_type parent ON parent.id = child.parent_type_id
+          WHERE parent.workspace_id = ? AND chain.depth < 32
+        ),
+        field_candidate AS (
+          SELECT chain.type_id, chain.depth, field.id AS field_id, field.code, field.name,
+                 field.data_type, field.value_type_id, field.required, field.constraints
+          FROM type_chain chain
+          JOIN field_def field ON field.object_type_id = chain.ancestor_type_id
+        ),
+        effective_field AS (
+          SELECT DISTINCT ON (type_id, code)
+                 type_id, field_id, code, name, data_type, value_type_id, required, constraints
+          FROM field_candidate
+          ORDER BY type_id, code, depth ASC
+        )
+        SELECT type.id, type.code, type.name, field.code, field.name,
+               COALESCE(value_type.base_primitive, field.data_type) AS data_type,
+               field.required,
+               (COALESCE(value_type.constraints, '{}'::jsonb)
+                 || COALESCE(field.constraints, '{}'::jsonb))::text AS constraints
+        FROM object_type type
+        LEFT JOIN effective_field field ON field.type_id = type.id
+        LEFT JOIN LATERAL (
+          WITH RECURSIVE value_type_chain AS (
+            SELECT value_type.id, value_type.base_primitive, value_type.parent_value_type_id,
+                   value_type.constraints, 0 AS depth
+            FROM value_type
+            WHERE value_type.id = field.value_type_id
+            UNION ALL
+            SELECT parent.id, parent.base_primitive, parent.parent_value_type_id,
+                   parent.constraints, child.depth + 1
+            FROM value_type parent
+            JOIN value_type_chain child ON parent.id = child.parent_value_type_id
+            WHERE child.depth < 32
+          )
+          SELECT (SELECT base_primitive FROM value_type_chain ORDER BY depth DESC LIMIT 1)
+                   AS base_primitive,
+                 COALESCE(
+                   jsonb_object_agg(entry.key, entry.value ORDER BY value_type_chain.depth DESC)
+                     FILTER (WHERE entry.key IS NOT NULL),
+                   '{}'::jsonb) AS constraints
+          FROM value_type_chain
+          LEFT JOIN LATERAL jsonb_each(value_type_chain.constraints) entry ON TRUE
+        ) value_type ON field.value_type_id IS NOT NULL
         WHERE type.workspace_id = ?
         ORDER BY type.code, field.code
         """,
@@ -212,6 +261,8 @@ class ReadModelRepository {
           }
           return List.copyOf(types.values());
         },
+        workspaceId,
+        workspaceId,
         workspaceId);
   }
 
