@@ -11,8 +11,8 @@ import com.mnext.kernel.api.PermissionChecker;
 import com.mnext.kernel.api.commands.FieldUpdate;
 import com.mnext.kernel.api.commands.UpdateFieldsCommand;
 import java.time.Instant;
+import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -22,6 +22,7 @@ class UpdateFieldsHandlerTest {
   @Test
   void invokesFieldPermissionChecker() {
     var repository = mock(KernelRepository.class);
+    var meta = mock(MetaModelRepository.class);
     var permission = mock(PermissionChecker.class);
     var workspaceId = UUID.randomUUID();
     var objectId = UUID.randomUUID();
@@ -40,12 +41,13 @@ class UpdateFieldsHandlerTest {
     when(repository.findCommand(eq(workspaceId), any())).thenReturn(Optional.empty());
     when(repository.lockObject(workspaceId, objectId))
         .thenReturn(Optional.of(new ObjectRow(objectId, typeId, "DRAFT", 1, "creator")));
-    when(repository.fieldDefinitions(typeId))
-        .thenReturn(Map.of("name", new FieldDefinition(fieldId, "name", true)));
+    var definitions = new LinkedHashMap<String, FieldDefinition>();
+    definitions.put("name", new FieldDefinition(fieldId, "name", true));
+    when(meta.resolveEffectiveFields(typeId)).thenReturn(definitions);
     when(repository.lockField(objectId, "name")).thenReturn(Optional.of(current));
     when(repository.sameJson("\"same\"", "\"same\"")).thenReturn(true);
 
-    new UpdateFieldsHandler(repository, permission).execute(command, Actor.user("actor-1"));
+    new UpdateFieldsHandler(repository, meta, permission).execute(command, Actor.user("actor-1"));
 
     verify(permission)
         .check("field.update", workspaceId, objectId, Set.of("name"), Actor.user("actor-1"));

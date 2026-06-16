@@ -10,6 +10,7 @@ import com.mnext.kernel.api.Actor;
 import com.mnext.kernel.api.PermissionChecker;
 import com.mnext.kernel.api.SourceInfo;
 import com.mnext.kernel.api.commands.CreateObjectCommand;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -20,6 +21,7 @@ class CreateObjectHandlerTest {
   @Test
   void invokesPermissionCheckerBeforeWriting() {
     var repository = mock(KernelRepository.class);
+    var meta = mock(MetaModelRepository.class);
     var permission = mock(PermissionChecker.class);
     var workspaceId = UUID.randomUUID();
     var typeId = UUID.randomUUID();
@@ -36,10 +38,11 @@ class CreateObjectHandlerTest {
     when(repository.workspaceWritable(workspaceId)).thenReturn(true);
     when(repository.findCommand(eq(workspaceId), any())).thenReturn(Optional.empty());
     when(repository.objectTypePublished(workspaceId, typeId)).thenReturn(true);
-    when(repository.fieldDefinitions(typeId))
-        .thenReturn(Map.of("name", new FieldDefinition(fieldId, "name", true)));
+    var definitions = new LinkedHashMap<String, FieldDefinition>();
+    definitions.put("name", new FieldDefinition(fieldId, "name", true));
+    when(meta.resolveEffectiveFields(typeId)).thenReturn(definitions);
 
-    new CreateObjectHandler(repository, permission).execute(command, Actor.user("actor-1"));
+    new CreateObjectHandler(repository, meta, permission).execute(command, Actor.user("actor-1"));
 
     verify(permission)
         .check("object.create", workspaceId, typeId, Set.of("name"), Actor.user("actor-1"));

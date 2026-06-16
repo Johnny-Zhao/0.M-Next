@@ -20,6 +20,9 @@ class DefineFieldDefHandler {
   private final PermissionChecker permissions;
   private final CommandSupport support;
 
+  private record ResolvedFieldType(
+      DataType dataType, java.util.UUID valueTypeId, FieldConstraints constraints) {}
+
   DefineFieldDefHandler(
       MetaModelRepository meta, KernelRepository repository, PermissionChecker permissions) {
     this.meta = meta;
@@ -45,6 +48,7 @@ class DefineFieldDefHandler {
         meta.objectTypeTemplateVersion(command.workspaceId(), command.objectTypeId());
     if (templateVersion == null) throw CommandErrors.typeNotFound();
     templateVersion.ifPresent(this::validateMutable);
+    var resolved = resolveFieldType(command);
     var now = Instant.now();
     var commandId = CommandSupport.commandId();
     meta.insertFieldDef(
@@ -53,7 +57,8 @@ class DefineFieldDefHandler {
         templateVersion.orElse(null),
         command.code(),
         command.name(),
-        command.dataType(),
+        resolved.dataType(),
+        resolved.valueTypeId(),
         command.required(),
         constraints(command),
         actor.id(),
@@ -70,12 +75,14 @@ class DefineFieldDefHandler {
 
   private void validate(DefineFieldDefCommand command) {
     if (command.objectTypeId() == null
-        || command.dataType() == null
         || !validCode(command.code())
         || command.name() == null
         || command.name().isBlank()
         || command.name().length() > 256) {
-      throw CommandErrors.schema("objectTypeId、code、name 与 dataType 不符合约束");
+      throw CommandErrors.schema("objectTypeId、code、name 与类型不符合约束");
+    }
+    if ((command.dataType() == null) == (command.valueTypeCode() == null)) {
+      throw CommandErrors.schema("dataType 与 valueTypeCode 必须二选一");
     }
     if (meta.fieldCodeExists(command.objectTypeId(), command.code())) {
       throw CommandErrors.schema("字段 code 已存在");
@@ -85,7 +92,9 @@ class DefineFieldDefHandler {
   }
 
   private List<String> constraintViolations(DefineFieldDefCommand command) {
-    var constraints = constraints(command);
+    var resolved = resolveFieldType(command);
+    var constraints = resolved.constraints();
+    var dataType = resolved.dataType();
     var violations = new ArrayList<String>();
     if (constraints.minLength() != null
         && constraints.maxLength() != null
@@ -94,11 +103,11 @@ class DefineFieldDefHandler {
     if (constraints.min() != null
         && constraints.max() != null
         && constraints.min().compareTo(constraints.max()) > 0) violations.add("min 不得大于 max");
-    if (command.dataType() == DataType.ENUM
+    if (dataType == DataType.ENUM
         && (constraints.enumValues() == null || constraints.enumValues().isEmpty())) {
       violations.add("enum 必须提供非空 enumValues");
     }
-    if (command.dataType() == DataType.REF
+    if (dataType == DataType.REF
         && (constraints.refObjectTypeCode() == null
             || !meta.objectTypeCodeExists(
                 command.workspaceId(), constraints.refObjectTypeCode()))) {
@@ -109,24 +118,42 @@ class DefineFieldDefHandler {
       violations.add("pattern 超长或可能产生灾难性回溯");
     }
     if ((constraints.min() != null || constraints.max() != null)
-        && command.dataType() != DataType.NUMBER
-        && command.dataType() != DataType.INTEGER) {
+        && dataType != DataType.NUMBER
+        && dataType != DataType.INTEGER) {
       violations.add("min/max 仅适用于 number 或 integer");
     }
     if ((constraints.minLength() != null
             || constraints.maxLength() != null
             || constraints.pattern() != null)
-        && command.dataType() != DataType.STRING
-        && command.dataType() != DataType.TEXT) {
+        && dataType != DataType.STRING
+        && dataType != DataType.TEXT) {
       violations.add("长度与 pattern 约束仅适用于 string 或 text");
     }
-    if (constraints.enumValues() != null && command.dataType() != DataType.ENUM) {
+    if (constraints.enumValues() != null && dataType != DataType.ENUM) {
       violations.add("enumValues 仅适用于 enum");
     }
-    if (constraints.refObjectTypeCode() != null && command.dataType() != DataType.REF) {
+    if (constraints.refObjectTypeCode() != null && dataType != DataType.REF) {
       violations.add("refObjectTypeCode 仅适用于 ref");
     }
     return violations;
+  }
+
+  private ResolvedFieldType resolveFieldType(DefineFieldDefCommand command) {
+    if (command.valueTypeCode() == null) {
+      return new ResolvedFieldType(command.dataType(), null, constraints(command));
+    }
+    var valueType =
+        meta.valueTypeByCode(command.workspaceId(), command.valueTypeCode())
+            .orElseThrow(CommandErrors::metaParentNotFound);
+    var effective = meta.resolveEffectiveValueType(valueType.id());
+    var violations =
+        meta.narrowingViolations(
+            command.workspaceId(), effective.constraints(), constraints(command));
+    if (!violations.isEmpty()) throw CommandErrors.metaRedefinitionInconsistent(violations);
+    return new ResolvedFieldType(
+        effective.basePrimitive(),
+        valueType.id(),
+        MetaModelRepository.mergeConstraints(effective.constraints(), constraints(command)));
   }
 
   private void validateMutable(java.util.UUID templateVersionId) {
@@ -144,7 +171,8 @@ class DefineFieldDefHandler {
     payload.put("objectTypeId", command.objectTypeId().toString());
     payload.put("code", command.code());
     payload.put("name", command.name());
-    payload.put("dataType", command.dataType().code());
+    if (command.dataType() != null) payload.put("dataType", command.dataType().code());
+    if (command.valueTypeCode() != null) payload.put("valueTypeCode", command.valueTypeCode());
     payload.put("required", command.required());
     payload.put("constraints", constraints(command).asMap());
     return payload;

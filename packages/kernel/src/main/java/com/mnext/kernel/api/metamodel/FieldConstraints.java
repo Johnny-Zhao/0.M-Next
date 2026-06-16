@@ -12,7 +12,19 @@ public record FieldConstraints(
     BigDecimal max,
     String pattern,
     List<String> enumValues,
-    String refObjectTypeCode) {
+    String refObjectTypeCode,
+    Boolean multiline) {
+  public FieldConstraints(
+      Integer minLength,
+      Integer maxLength,
+      BigDecimal min,
+      BigDecimal max,
+      String pattern,
+      List<String> enumValues,
+      String refObjectTypeCode) {
+    this(minLength, maxLength, min, max, pattern, enumValues, refObjectTypeCode, null);
+  }
+
   public Map<String, Object> asMap() {
     var values = new LinkedHashMap<String, Object>();
     if (minLength != null) values.put("minLength", minLength);
@@ -22,10 +34,11 @@ public record FieldConstraints(
     if (pattern != null) values.put("pattern", pattern);
     if (enumValues != null) values.put("enumValues", enumValues);
     if (refObjectTypeCode != null) values.put("refObjectTypeCode", refObjectTypeCode);
+    if (multiline != null) values.put("multiline", multiline);
     return values;
   }
 
   public static FieldConstraints empty() {
-    return new FieldConstraints(null, null, null, null, null, null, null);
+    return new FieldConstraints(null, null, null, null, null, null, null, null);
   }
 }

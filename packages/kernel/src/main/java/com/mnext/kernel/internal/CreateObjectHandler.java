@@ -16,11 +16,14 @@ import org.springframework.transaction.annotation.Transactional;
 @Component
 class CreateObjectHandler {
   private final KernelRepository repository;
+  private final MetaModelRepository meta;
   private final PermissionChecker permissionChecker;
   private final CommandSupport support;
 
-  CreateObjectHandler(KernelRepository repository, PermissionChecker permissionChecker) {
+  CreateObjectHandler(
+      KernelRepository repository, MetaModelRepository meta, PermissionChecker permissionChecker) {
     this.repository = repository;
+    this.meta = meta;
     this.permissionChecker = permissionChecker;
     this.support = new CommandSupport(repository);
   }
@@ -40,7 +43,7 @@ class CreateObjectHandler {
     var replay = support.replay(command.workspaceId(), command.idempotencyKey(), payloadHash);
     if (replay.isPresent()) return replay.get();
 
-    var definitions = repository.fieldDefinitions(command.objectTypeId());
+    var definitions = meta.resolveEffectiveFields(command.objectTypeId());
     FieldValidator.validate(command, definitions, repository::validReference);
     validateDefinitions(command, definitions);
     var commandId = CommandSupport.commandId();

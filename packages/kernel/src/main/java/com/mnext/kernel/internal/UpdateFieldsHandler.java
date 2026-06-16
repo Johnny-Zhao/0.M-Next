@@ -17,11 +17,14 @@ import org.springframework.transaction.annotation.Transactional;
 @Component
 class UpdateFieldsHandler {
   private final KernelRepository repository;
+  private final MetaModelRepository meta;
   private final PermissionChecker permissionChecker;
   private final CommandSupport support;
 
-  UpdateFieldsHandler(KernelRepository repository, PermissionChecker permissionChecker) {
+  UpdateFieldsHandler(
+      KernelRepository repository, MetaModelRepository meta, PermissionChecker permissionChecker) {
     this.repository = repository;
+    this.meta = meta;
     this.permissionChecker = permissionChecker;
     this.support = new CommandSupport(repository);
   }
@@ -49,7 +52,7 @@ class UpdateFieldsHandler {
             .orElseThrow(CommandErrors::targetNotFound);
     if (Set.of("VOID", "FILED", "DELETED").contains(object.status()))
       throw CommandErrors.archived();
-    var definitions = repository.fieldDefinitions(object.objectTypeId());
+    var definitions = meta.resolveEffectiveFields(object.objectTypeId());
     FieldValidator.validate(command, definitions, repository::validReference);
     var prepared = prepare(command, definitions);
     var conflicts = conflicts(command, object, prepared);

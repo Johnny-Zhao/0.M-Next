@@ -8,4 +8,15 @@ public record DefineObjectTypeCommand(
     String idempotencyKey,
     UUID templateVersionId,
     String code,
-    String name) {}
+    String name,
+    String parentTypeCode) {
+  public DefineObjectTypeCommand(
+      UUID workspaceId,
+      UUID correlationId,
+      String idempotencyKey,
+      UUID templateVersionId,
+      String code,
+      String name) {
+    this(workspaceId, correlationId, idempotencyKey, templateVersionId, code, name, null);
+  }
+}

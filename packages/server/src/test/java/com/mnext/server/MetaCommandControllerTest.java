@@ -42,6 +42,27 @@ class MetaCommandControllerTest {
   }
 
   @Test
+  void routesDefineValueTypeOnSeparateEndpointController() throws Exception {
+    var workspace = UUID.randomUUID();
+    var request =
+        new CommandRequest(
+            "DefineValueType",
+            workspace,
+            UUID.randomUUID(),
+            "meta-value-type",
+            mapper.readTree(
+                "{\"code\":\"paragraph\",\"name\":\"自然段\","
+                    + "\"basePrimitive\":\"text\",\"parentValueTypeCode\":\"text\"}"));
+    when(commands.defineValueType(any(), any()))
+        .thenReturn(new CommandResult("command", CommandStatus.COMMITTED, false, List.of(), null));
+
+    var result = controller.execute(workspace, "author", request);
+
+    assertEquals("command", result.commandId());
+    verify(commands).defineValueType(any(), eq(com.mnext.kernel.api.Actor.user("author")));
+  }
+
+  @Test
   void rejectsUnknownDataTypeAsSchemaError() throws Exception {
     var workspace = UUID.randomUUID();
     var request =
