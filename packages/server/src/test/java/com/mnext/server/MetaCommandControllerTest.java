@@ -63,6 +63,52 @@ class MetaCommandControllerTest {
   }
 
   @Test
+  void routesPublishTemplateVersionOnSeparateEndpointController() throws Exception {
+    var workspace = UUID.randomUUID();
+    var version = UUID.randomUUID();
+    var request =
+        new CommandRequest(
+            "PublishTemplateVersion",
+            workspace,
+            UUID.randomUUID(),
+            "meta-publish",
+            mapper.readTree("{\"templateVersionId\":\"" + version + "\"}"));
+    when(commands.publishTemplateVersion(any(), any()))
+        .thenReturn(new CommandResult("command", CommandStatus.COMMITTED, false, List.of(), null));
+
+    var result = controller.execute(workspace, "author", request);
+
+    assertEquals("command", result.commandId());
+    verify(commands).publishTemplateVersion(any(), eq(com.mnext.kernel.api.Actor.user("author")));
+  }
+
+  @Test
+  void routesInstantiateWorkspaceOnSeparateEndpointController() throws Exception {
+    var workspace = UUID.randomUUID();
+    var template = UUID.randomUUID();
+    var newWorkspace = UUID.randomUUID();
+    var request =
+        new CommandRequest(
+            "InstantiateWorkspace",
+            workspace,
+            UUID.randomUUID(),
+            "meta-instantiate",
+            mapper.readTree(
+                "{\"templateId\":\""
+                    + template
+                    + "\",\"version\":1,\"newWorkspaceId\":\""
+                    + newWorkspace
+                    + "\",\"workspaceName\":\"实例\"}"));
+    when(commands.instantiateWorkspace(any(), any()))
+        .thenReturn(new CommandResult("command", CommandStatus.COMMITTED, false, List.of(), null));
+
+    var result = controller.execute(workspace, "author", request);
+
+    assertEquals("command", result.commandId());
+    verify(commands).instantiateWorkspace(any(), eq(com.mnext.kernel.api.Actor.user("author")));
+  }
+
+  @Test
   void rejectsUnknownDataTypeAsSchemaError() throws Exception {
     var workspace = UUID.randomUUID();
     var request =

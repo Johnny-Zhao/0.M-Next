@@ -34,6 +34,20 @@ class KernelRepository {
     return "ACTIVE".equals(status);
   }
 
+  void insertWorkspace(
+      UUID workspaceId, String name, UUID templateId, int templateVersion, Instant now) {
+    jdbc.update(
+        """
+        INSERT INTO workspace (id, name, status, created_at, template_id, template_version)
+        VALUES (?, ?, 'ACTIVE', ?, ?, ?)
+        """,
+        workspaceId,
+        name,
+        Timestamp.from(now),
+        templateId,
+        templateVersion);
+  }
+
   boolean objectTypePublished(UUID workspaceId, UUID objectTypeId) {
     return Boolean.TRUE.equals(
         jdbc.query(

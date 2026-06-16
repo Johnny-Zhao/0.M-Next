@@ -8,8 +8,10 @@ import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -32,6 +34,40 @@ class MetaModelRepository {
 
   record EffectiveValueType(UUID id, DataType basePrimitive, FieldConstraints constraints) {}
 
+  record TemplateVersion(UUID id, UUID templateId, int version, String status) {}
+
+  private record CopyValueTypeRow(
+      UUID id,
+      String code,
+      String name,
+      String basePrimitive,
+      UUID parentValueTypeId,
+      String constraintsJson,
+      long version) {}
+
+  private record CopyObjectTypeRow(UUID id, String code, String name, UUID parentTypeId) {}
+
+  private record CopyFieldDefRow(
+      UUID id,
+      UUID objectTypeId,
+      String code,
+      String name,
+      boolean required,
+      String dataType,
+      UUID valueTypeId,
+      String constraintsJson,
+      UUID redefinesFieldDefId) {}
+
+  private record CopyRelationTypeRow(
+      UUID id,
+      String code,
+      UUID sourceType,
+      UUID targetType,
+      String direction,
+      String cardinality,
+      String semantics,
+      boolean hierarchical) {}
+
   record FieldDefRow(
       UUID id,
       String code,
@@ -50,6 +86,67 @@ class MetaModelRepository {
         "SELECT status FROM scene_template_version WHERE id = ?",
         result -> result.next() ? Optional.of(result.getString(1)) : Optional.empty(),
         templateVersionId);
+  }
+
+  TemplateVersion templateVersion(UUID templateId, int version) {
+    return jdbc.query(
+        """
+        SELECT id, template_id, version, status
+        FROM scene_template_version
+        WHERE template_id = ? AND version = ?
+        """,
+        result ->
+            result.next()
+                ? new TemplateVersion(
+                    result.getObject("id", UUID.class),
+                    result.getObject("template_id", UUID.class),
+                    result.getInt("version"),
+                    result.getString("status"))
+                : null,
+        templateId,
+        version);
+  }
+
+  long countObjectTypes(UUID templateVersionId) {
+    return jdbc.queryForObject(
+        "SELECT count(*) FROM object_type WHERE template_version_id = ?",
+        Long.class,
+        templateVersionId);
+  }
+
+  long templateTypeCount(UUID templateVersionId) {
+    return jdbc.queryForObject(
+        """
+        SELECT
+          (SELECT count(*) FROM value_type WHERE template_version_id = ?)
+          + (SELECT count(*) FROM object_type WHERE template_version_id = ?)
+          + (SELECT count(*) FROM field_def WHERE template_version_id = ?)
+          + (SELECT count(*) FROM relation_type WHERE template_version_id = ?)
+        """,
+        Long.class,
+        templateVersionId,
+        templateVersionId,
+        templateVersionId,
+        templateVersionId);
+  }
+
+  void publishTemplateVersion(UUID templateVersionId, String actor, Instant now) {
+    jdbc.update(
+        """
+        UPDATE scene_template_version
+        SET status = 'published', published_by = ?, published_at = ?
+        WHERE id = ?
+        """,
+        actor,
+        Timestamp.from(now),
+        templateVersionId);
+  }
+
+  void markTemplateTypesPublished(UUID templateVersionId) {
+    jdbc.update(
+        "UPDATE object_type SET published = TRUE WHERE template_version_id = ?", templateVersionId);
+    jdbc.update(
+        "UPDATE value_type SET published = TRUE WHERE template_version_id = ?", templateVersionId);
   }
 
   boolean objectTypeExists(UUID workspaceId, UUID objectTypeId) {
@@ -496,6 +593,297 @@ class MetaModelRepository {
         actor,
         Timestamp.from(now),
         Timestamp.from(now));
+  }
+
+  void instantiateTemplateVersion(
+      UUID templateVersionId,
+      UUID sourceWorkspaceId,
+      UUID targetWorkspaceId,
+      String actor,
+      Instant now) {
+    var valueTypeIds = new HashMap<UUID, UUID>();
+    var objectTypeIds = new HashMap<UUID, UUID>();
+    var fieldDefIds = new HashMap<UUID, UUID>();
+    seedRootValueTypes(sourceWorkspaceId, targetWorkspaceId, actor, now, valueTypeIds);
+    copyValueTypes(templateVersionId, targetWorkspaceId, actor, now, valueTypeIds);
+    copyObjectTypes(templateVersionId, targetWorkspaceId, actor, now, objectTypeIds);
+    copyFieldDefs(templateVersionId, actor, now, valueTypeIds, objectTypeIds, fieldDefIds);
+    copyRelationTypes(templateVersionId, targetWorkspaceId, actor, now, objectTypeIds);
+  }
+
+  private void seedRootValueTypes(
+      UUID sourceWorkspaceId,
+      UUID targetWorkspaceId,
+      String actor,
+      Instant now,
+      Map<UUID, UUID> valueTypeIds) {
+    var roots =
+        jdbc.query(
+            """
+            SELECT id, code, name, base_primitive, parent_value_type_id,
+              constraints::text AS constraints_json, version
+            FROM value_type
+            WHERE workspace_id = ? AND template_version_id IS NULL
+              AND parent_value_type_id IS NULL
+              AND code = base_primitive
+              AND published = TRUE
+            ORDER BY code
+            """,
+            (result, ignored) -> copyValueTypeRow(result),
+            sourceWorkspaceId);
+    for (var root : roots) {
+      var newId = UUID.randomUUID();
+      valueTypeIds.put(root.id(), newId);
+      insertCopiedValueType(newId, targetWorkspaceId, root, null, actor, now);
+    }
+  }
+
+  private void copyValueTypes(
+      UUID templateVersionId,
+      UUID targetWorkspaceId,
+      String actor,
+      Instant now,
+      Map<UUID, UUID> valueTypeIds) {
+    var rows =
+        jdbc.query(
+            """
+            SELECT id, code, name, base_primitive, parent_value_type_id,
+              constraints::text AS constraints_json, version
+            FROM value_type
+            WHERE template_version_id = ?
+            ORDER BY code
+            """,
+            (result, ignored) -> copyValueTypeRow(result),
+            templateVersionId);
+    for (var row : rows) {
+      var newId = UUID.randomUUID();
+      valueTypeIds.put(row.id(), newId);
+      insertCopiedValueType(newId, targetWorkspaceId, row, null, actor, now);
+    }
+    for (var row : rows) {
+      if (row.parentValueTypeId() != null) {
+        updateValueTypeParent(
+            valueTypeIds.get(row.id()), mapped(valueTypeIds, row.parentValueTypeId()));
+      }
+    }
+  }
+
+  private void insertCopiedValueType(
+      UUID id,
+      UUID workspaceId,
+      CopyValueTypeRow row,
+      UUID parentValueTypeId,
+      String actor,
+      Instant now) {
+    jdbc.update(
+        """
+        INSERT INTO value_type
+          (id, workspace_id, template_version_id, code, name, base_primitive,
+           parent_value_type_id, constraints, published, version)
+        VALUES (?, ?, NULL, ?, ?, ?, ?, CAST(? AS jsonb), TRUE, ?)
+        """,
+        id,
+        workspaceId,
+        row.code(),
+        row.name(),
+        row.basePrimitive(),
+        parentValueTypeId,
+        row.constraintsJson(),
+        row.version());
+  }
+
+  private void updateValueTypeParent(UUID id, UUID parentValueTypeId) {
+    jdbc.update(
+        "UPDATE value_type SET parent_value_type_id = ? WHERE id = ?", parentValueTypeId, id);
+  }
+
+  private void copyObjectTypes(
+      UUID templateVersionId,
+      UUID targetWorkspaceId,
+      String actor,
+      Instant now,
+      Map<UUID, UUID> objectTypeIds) {
+    var rows =
+        jdbc.query(
+            """
+            SELECT id, code, name, parent_type_id
+            FROM object_type
+            WHERE template_version_id = ?
+            ORDER BY code
+            """,
+            (result, ignored) ->
+                new CopyObjectTypeRow(
+                    result.getObject("id", UUID.class),
+                    result.getString("code"),
+                    result.getString("name"),
+                    result.getObject("parent_type_id", UUID.class)),
+            templateVersionId);
+    for (var row : rows) {
+      var newId = UUID.randomUUID();
+      objectTypeIds.put(row.id(), newId);
+      jdbc.update(
+          """
+          INSERT INTO object_type
+            (id, workspace_id, template_version_id, code, name, parent_type_id, published,
+             created_by, updated_by, created_at, updated_at)
+          VALUES (?, ?, NULL, ?, ?, NULL, TRUE, ?, ?, ?, ?)
+          """,
+          newId,
+          targetWorkspaceId,
+          row.code(),
+          row.name(),
+          actor,
+          actor,
+          Timestamp.from(now),
+          Timestamp.from(now));
+    }
+    for (var row : rows) {
+      if (row.parentTypeId() != null) {
+        jdbc.update(
+            "UPDATE object_type SET parent_type_id = ? WHERE id = ?",
+            mapped(objectTypeIds, row.parentTypeId()),
+            objectTypeIds.get(row.id()));
+      }
+    }
+  }
+
+  private void copyFieldDefs(
+      UUID templateVersionId,
+      String actor,
+      Instant now,
+      Map<UUID, UUID> valueTypeIds,
+      Map<UUID, UUID> objectTypeIds,
+      Map<UUID, UUID> fieldDefIds) {
+    var rows =
+        jdbc.query(
+            """
+            SELECT id, object_type_id, code, name, required, data_type, value_type_id,
+              constraints::text AS constraints_json, redefines_field_def_id
+            FROM field_def
+            WHERE template_version_id = ?
+            ORDER BY code
+            """,
+            (result, ignored) -> copyFieldDefRow(result),
+            templateVersionId);
+    for (var row : rows) {
+      var newId = UUID.randomUUID();
+      fieldDefIds.put(row.id(), newId);
+      jdbc.update(
+          """
+          INSERT INTO field_def
+            (id, object_type_id, template_version_id, code, name, required, data_type,
+             value_type_id, constraints, redefines_field_def_id, created_by, updated_by,
+             created_at, updated_at)
+          VALUES (?, ?, NULL, ?, ?, ?, ?, ?, CAST(? AS jsonb), NULL, ?, ?, ?, ?)
+          """,
+          newId,
+          mapped(objectTypeIds, row.objectTypeId()),
+          row.code(),
+          row.name(),
+          row.required(),
+          row.dataType(),
+          nullableMapped(valueTypeIds, row.valueTypeId()),
+          row.constraintsJson(),
+          actor,
+          actor,
+          Timestamp.from(now),
+          Timestamp.from(now));
+    }
+    for (var row : rows) {
+      if (row.redefinesFieldDefId() != null) {
+        jdbc.update(
+            "UPDATE field_def SET redefines_field_def_id = ? WHERE id = ?",
+            mapped(fieldDefIds, row.redefinesFieldDefId()),
+            fieldDefIds.get(row.id()));
+      }
+    }
+  }
+
+  private void copyRelationTypes(
+      UUID templateVersionId,
+      UUID targetWorkspaceId,
+      String actor,
+      Instant now,
+      Map<UUID, UUID> objectTypeIds) {
+    var rows =
+        jdbc.query(
+            """
+            SELECT id, code, source_type, target_type, direction, cardinality, semantics,
+              hierarchical
+            FROM relation_type
+            WHERE template_version_id = ?
+            ORDER BY code
+            """,
+            (result, ignored) -> copyRelationTypeRow(result),
+            templateVersionId);
+    for (var row : rows) {
+      jdbc.update(
+          """
+          INSERT INTO relation_type
+            (id, workspace_id, template_version_id, code, source_type, target_type, direction,
+             cardinality, semantics, hierarchical, created_by, updated_by, created_at, updated_at)
+          VALUES (?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          """,
+          UUID.randomUUID(),
+          targetWorkspaceId,
+          row.code(),
+          mapped(objectTypeIds, row.sourceType()),
+          mapped(objectTypeIds, row.targetType()),
+          row.direction(),
+          row.cardinality(),
+          row.semantics(),
+          row.hierarchical(),
+          actor,
+          actor,
+          Timestamp.from(now),
+          Timestamp.from(now));
+    }
+  }
+
+  private CopyValueTypeRow copyValueTypeRow(ResultSet result) throws SQLException {
+    return new CopyValueTypeRow(
+        result.getObject("id", UUID.class),
+        result.getString("code"),
+        result.getString("name"),
+        result.getString("base_primitive"),
+        result.getObject("parent_value_type_id", UUID.class),
+        result.getString("constraints_json"),
+        result.getLong("version"));
+  }
+
+  private CopyFieldDefRow copyFieldDefRow(ResultSet result) throws SQLException {
+    return new CopyFieldDefRow(
+        result.getObject("id", UUID.class),
+        result.getObject("object_type_id", UUID.class),
+        result.getString("code"),
+        result.getString("name"),
+        result.getBoolean("required"),
+        result.getString("data_type"),
+        result.getObject("value_type_id", UUID.class),
+        result.getString("constraints_json"),
+        result.getObject("redefines_field_def_id", UUID.class));
+  }
+
+  private CopyRelationTypeRow copyRelationTypeRow(ResultSet result) throws SQLException {
+    return new CopyRelationTypeRow(
+        result.getObject("id", UUID.class),
+        result.getString("code"),
+        result.getObject("source_type", UUID.class),
+        result.getObject("target_type", UUID.class),
+        result.getString("direction"),
+        result.getString("cardinality"),
+        result.getString("semantics"),
+        result.getBoolean("hierarchical"));
+  }
+
+  private UUID mapped(Map<UUID, UUID> ids, UUID oldId) {
+    var newId = ids.get(oldId);
+    if (newId == null) throw CommandErrors.schema("模板类型引用不完整");
+    return newId;
+  }
+
+  private UUID nullableMapped(Map<UUID, UUID> ids, UUID oldId) {
+    return oldId == null ? null : mapped(ids, oldId);
   }
 
   private List<ValueTypeRow> valueTypeChain(UUID valueTypeId) {

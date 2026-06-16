@@ -13,6 +13,8 @@ import com.mnext.kernel.api.metamodel.DefineObjectTypeCommand;
 import com.mnext.kernel.api.metamodel.DefineRelationTypeCommand;
 import com.mnext.kernel.api.metamodel.DefineValueTypeCommand;
 import com.mnext.kernel.api.metamodel.FieldConstraints;
+import com.mnext.kernel.api.metamodel.InstantiateWorkspaceCommand;
+import com.mnext.kernel.api.metamodel.PublishTemplateVersionCommand;
 import java.util.Map;
 import java.util.UUID;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -44,6 +46,10 @@ public class MetaCommandController {
       case "DefineRelationType" ->
           commands.defineRelationType(relationType(request), Actor.user(actorId));
       case "DefineValueType" -> commands.defineValueType(valueType(request), Actor.user(actorId));
+      case "PublishTemplateVersion" ->
+          commands.publishTemplateVersion(publishTemplateVersion(request), Actor.user(actorId));
+      case "InstantiateWorkspace" ->
+          commands.instantiateWorkspace(instantiateWorkspace(request), Actor.user(actorId));
       default -> throw schema("本批次不支持 commandType: " + request.commandType());
     };
   }
@@ -103,6 +109,27 @@ public class MetaCommandController {
         text(payload, "cardinality"),
         text(payload, "semantics"),
         payload.has("hierarchical") && payload.get("hierarchical").asBoolean());
+  }
+
+  private PublishTemplateVersionCommand publishTemplateVersion(CommandRequest request) {
+    var payload = required(request.payload(), "payload");
+    return new PublishTemplateVersionCommand(
+        request.workspaceId(),
+        request.correlationId(),
+        request.idempotencyKey(),
+        uuid(payload, "templateVersionId"));
+  }
+
+  private InstantiateWorkspaceCommand instantiateWorkspace(CommandRequest request) {
+    var payload = required(request.payload(), "payload");
+    return new InstantiateWorkspaceCommand(
+        request.workspaceId(),
+        request.correlationId(),
+        request.idempotencyKey(),
+        uuid(payload, "templateId"),
+        required(payload.get("version"), "version").asInt(),
+        uuid(payload, "newWorkspaceId"),
+        text(payload, "workspaceName"));
   }
 
   private DataType dataType(JsonNode payload) {
