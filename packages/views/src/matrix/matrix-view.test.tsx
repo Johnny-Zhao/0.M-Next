@@ -1,14 +1,22 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { type MatrixResult, ViewClient } from "../api/view-client";
+import { CommandFailure } from "../api/command-client";
+import {
+  type MatrixCell,
+  type MatrixResult,
+  ViewClient,
+} from "../api/view-client";
 import { SelectionCoordinator } from "../selection/selection-coordinator";
 import {
   MatrixGrid,
+  canEditMatrixCell,
   matrixAxisClass,
   matrixCellClass,
   matrixHeaderClass,
+  saveMatrixCell,
   selectMatrixObject,
   selectMatrixRelation,
+  type MatrixCommandClient,
 } from "./matrix-view";
 
 const matrix: MatrixResult = {
@@ -26,6 +34,8 @@ const matrix: MatrixResult = {
   rowTotal: 1,
   colTotal: 1,
 };
+const editableRow = { objectId: "row", label: "需求 A", status: "DRAFT" };
+const editableCol = { objectId: "col", label: "功能 B", status: "DRAFT" };
 
 describe("MatrixView", () => {
   it("renders row, column and matching relation cell", () => {
@@ -103,4 +113,117 @@ describe("MatrixView", () => {
       client.matrix("workspace", "requirement", "function", "traces_to", 0, 51),
     ).toThrow("sizes must be 1..50");
   });
+
+  it("connects an empty editable cell through the command client", async () => {
+    const commandClient = matrixCommandClient();
+
+    const result = await saveMatrixCell({
+      commandClient,
+      workspaceId: "workspace",
+      relationType: "depends_on",
+      row: editableRow,
+      col: editableCol,
+    });
+
+    expect(result.kind).toBe("saved");
+    expect(commandClient.createRelation).toHaveBeenCalledWith(
+      "workspace",
+      "depends_on",
+      "row",
+      "col",
+    );
+    expect(commandClient.unlink).not.toHaveBeenCalled();
+  });
+
+  it("disconnects an existing editable relation with its expected version", async () => {
+    const commandClient = matrixCommandClient();
+
+    const result = await saveMatrixCell({
+      commandClient,
+      workspaceId: "workspace",
+      relationType: "depends_on",
+      row: editableRow,
+      col: editableCol,
+      cell: { ...matrix.cells[0], expectedVersion: 7 } as MatrixCell & {
+        readonly expectedVersion: number;
+      },
+    });
+
+    expect(result.kind).toBe("saved");
+    expect(commandClient.unlink).toHaveBeenCalledWith(
+      "workspace",
+      "relation",
+      7,
+    );
+    expect(commandClient.createRelation).not.toHaveBeenCalled();
+  });
+
+  it("returns a conflict result for KERNEL-409 command failures", async () => {
+    const commandClient = matrixCommandClient({
+      createRelation: vi.fn().mockRejectedValue(
+        new CommandFailure({
+          code: "KERNEL-409-VERSION-CONFLICT",
+          title: "乐观版本冲突",
+          details: { conflictingFields: [] },
+        }),
+      ),
+    });
+
+    const result = await saveMatrixCell({
+      commandClient,
+      workspaceId: "workspace",
+      relationType: "depends_on",
+      row: editableRow,
+      col: editableCol,
+    });
+
+    expect(result.kind).toBe("conflict");
+  });
+
+  it("keeps terminal cells readonly even when a command client is injected", () => {
+    const commandClient = matrixCommandClient();
+
+    expect(
+      canEditMatrixCell(
+        { ...editableRow, status: "FILED" },
+        editableCol,
+        commandClient,
+      ),
+    ).toBe(false);
+    expect(
+      JSON.stringify(
+        MatrixGrid({
+          commandClient,
+          matrix,
+          selected: null,
+          selection: new SelectionCoordinator(),
+        }),
+      ),
+    ).not.toContain("断开");
+  });
+
+  it("keeps matrix cells readonly without an injected command client", () => {
+    expect(canEditMatrixCell(editableRow, editableCol)).toBe(false);
+    expect(
+      JSON.stringify(
+        MatrixGrid({
+          matrix: { ...matrix, cols: [editableCol] },
+          selected: null,
+          selection: new SelectionCoordinator(),
+        }),
+      ),
+    ).not.toContain("空格提交");
+  });
 });
+
+function matrixCommandClient(
+  overrides: Partial<MatrixCommandClient> = {},
+): MatrixCommandClient &
+  Readonly<Record<keyof MatrixCommandClient, ReturnType<typeof vi.fn>>> {
+  return {
+    createRelation: vi.fn().mockResolvedValue(undefined),
+    unlink: vi.fn().mockResolvedValue(undefined),
+    ...overrides,
+  } as MatrixCommandClient &
+    Readonly<Record<keyof MatrixCommandClient, ReturnType<typeof vi.fn>>>;
+}

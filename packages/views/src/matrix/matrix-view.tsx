@@ -1,15 +1,31 @@
 import { useEffect, useRef, useState, type ReactElement } from "react";
 
+import {
+  CommandFailure,
+  type ConflictField,
+  type RelationCommandResult,
+} from "../api/command-client";
 import type {
   MatrixCell,
   MatrixObject,
   MatrixResult,
   ViewClient,
 } from "../api/view-client";
+import { ConflictDialog } from "../conflict/conflict-dialog";
 import type { SelectionCoordinator } from "../selection/selection-coordinator";
 import type { SelectionRef } from "../selection/selection-ref";
 
 const PAGE_SIZE = 50;
+const terminalStatuses = new Set([
+  "ARCHIVED",
+  "CONFIRMED",
+  "DELETED",
+  "FILED",
+  "SOFT_DELETED",
+  "VOID",
+  "archived",
+  "soft-deleted",
+]);
 const emptyMatrix: MatrixResult = {
   rows: [],
   cols: [],
@@ -25,8 +41,32 @@ export interface MatrixViewProps {
   readonly rowType: string;
   readonly colType: string;
   readonly relationType: string;
+  readonly commandClient?: MatrixCommandClient;
   readonly onError?: (title: string) => void;
 }
+
+export interface MatrixCommandClient {
+  createRelation(
+    workspaceId: string,
+    relationType: string,
+    rowObjectId: string,
+    colObjectId: string,
+  ): Promise<RelationCommandResult | void>;
+  unlink(
+    workspaceId: string,
+    relationId: string,
+    expectedVersion: number,
+  ): Promise<void>;
+}
+
+export interface MatrixCellConflict {
+  readonly fields: readonly ConflictField[];
+}
+
+export type MatrixCellSaveResult =
+  | { readonly kind: "saved" }
+  | { readonly kind: "conflict"; readonly conflict: MatrixCellConflict }
+  | { readonly kind: "error"; readonly message: string };
 
 export function selectMatrixRelation(
   selection: SelectionCoordinator,
@@ -74,6 +114,77 @@ export function matrixAxisClass(
     : "";
 }
 
+export function isTerminalMatrixObject(object: MatrixObject): boolean {
+  return terminalStatuses.has(object.status);
+}
+
+export function canEditMatrixCell(
+  row: MatrixObject,
+  col: MatrixObject,
+  commandClient?: MatrixCommandClient,
+): boolean {
+  return (
+    commandClient !== undefined &&
+    !isTerminalMatrixObject(row) &&
+    !isTerminalMatrixObject(col)
+  );
+}
+
+export function matrixRelationExpectedVersion(cell: MatrixCell): number {
+  const version =
+    (
+      cell as MatrixCell & {
+        readonly version?: unknown;
+        readonly expectedVersion?: unknown;
+      }
+    ).expectedVersion ??
+    (cell as MatrixCell & { readonly version?: unknown }).version;
+  return typeof version === "number" && Number.isFinite(version) ? version : 1;
+}
+
+export async function saveMatrixCell(params: {
+  readonly commandClient: MatrixCommandClient;
+  readonly workspaceId: string;
+  readonly relationType: string;
+  readonly row: MatrixObject;
+  readonly col: MatrixObject;
+  readonly cell?: MatrixCell;
+}): Promise<MatrixCellSaveResult> {
+  try {
+    if (params.cell) {
+      await params.commandClient.unlink(
+        params.workspaceId,
+        params.cell.relationId,
+        matrixRelationExpectedVersion(params.cell),
+      );
+    } else {
+      await params.commandClient.createRelation(
+        params.workspaceId,
+        params.relationType,
+        params.row.objectId,
+        params.col.objectId,
+      );
+    }
+    return { kind: "saved" };
+  } catch (error) {
+    if (
+      error instanceof CommandFailure &&
+      error.commandError.code.startsWith("KERNEL-409")
+    ) {
+      return {
+        kind: "conflict",
+        conflict: {
+          fields: error.commandError.details?.conflictingFields ?? [],
+        },
+      };
+    }
+    return {
+      kind: "error",
+      message: error instanceof Error ? error.message : "矩阵单元格保存失败",
+    };
+  }
+}
+
 export function MatrixView(props: MatrixViewProps): ReactElement {
   const {
     viewClient,
@@ -82,12 +193,14 @@ export function MatrixView(props: MatrixViewProps): ReactElement {
     rowType,
     colType,
     relationType,
+    commandClient,
     onError,
   } = props;
   const [matrix, setMatrix] = useState<MatrixResult>(emptyMatrix);
   const [selected, setSelected] = useState<SelectionRef | null>(null);
   const [rowPage, setRowPage] = useState(0);
   const [colPage, setColPage] = useState(0);
+  const [conflict, setConflict] = useState<MatrixCellConflict | null>(null);
   const onErrorRef = useRef(onError);
 
   useEffect(() => {
@@ -132,9 +245,59 @@ export function MatrixView(props: MatrixViewProps): ReactElement {
 
   useEffect(() => selection.subscribe(setSelected), [selection]);
 
+  async function refreshMatrix(): Promise<void> {
+    try {
+      setMatrix(
+        await viewClient.matrix(
+          workspaceId,
+          rowType,
+          colType,
+          relationType,
+          rowPage,
+          PAGE_SIZE,
+          colPage,
+          PAGE_SIZE,
+        ),
+      );
+    } catch (error) {
+      onErrorRef.current?.(
+        error instanceof Error ? error.message : "矩阵加载失败",
+      );
+    }
+  }
+
+  async function saveCell(
+    row: MatrixObject,
+    col: MatrixObject,
+    cell?: MatrixCell,
+  ): Promise<void> {
+    if (!commandClient || !canEditMatrixCell(row, col, commandClient)) return;
+    const result = await saveMatrixCell({
+      commandClient,
+      workspaceId,
+      relationType,
+      row,
+      col,
+      cell,
+    });
+    if (result.kind === "saved") {
+      await refreshMatrix();
+    } else if (result.kind === "conflict") {
+      setConflict(result.conflict);
+    } else {
+      onErrorRef.current?.(result.message);
+    }
+  }
+
   return (
     <section aria-label="矩阵视图">
-      <MatrixGrid matrix={matrix} selected={selected} selection={selection} />
+      <MatrixGrid
+        commandClient={commandClient}
+        matrix={matrix}
+        onSaveCell={(row, col, cell) => void saveCell(row, col, cell)}
+        selected={selected}
+        selection={selection}
+      />
       <div className="matrix-pagination">
         <button
           disabled={rowPage === 0}
@@ -165,6 +328,13 @@ export function MatrixView(props: MatrixViewProps): ReactElement {
           下一列页
         </button>
       </div>
+      {conflict ? (
+        <ConflictDialog
+          fields={conflict.fields}
+          onClose={() => setConflict(null)}
+          onConfirm={() => setConflict(null)}
+        />
+      ) : null}
     </section>
   );
 }
@@ -173,6 +343,12 @@ export function MatrixGrid(props: {
   readonly matrix: MatrixResult;
   readonly selected: SelectionRef | null;
   readonly selection: SelectionCoordinator;
+  readonly commandClient?: MatrixCommandClient;
+  readonly onSaveCell?: (
+    row: MatrixObject,
+    col: MatrixObject,
+    cell?: MatrixCell,
+  ) => void;
 }): ReactElement {
   const selectedRelation = props.matrix.cells.find(
     (cell) =>
@@ -208,6 +384,8 @@ export function MatrixGrid(props: {
             selected={props.selected}
             selectedRelation={selectedRelation}
             selection={props.selection}
+            commandClient={props.commandClient}
+            onSaveCell={props.onSaveCell}
           />
         ))}
       </tbody>
@@ -250,6 +428,12 @@ function MatrixRow(props: {
   readonly selected: SelectionRef | null;
   readonly selectedRelation: MatrixCell | undefined;
   readonly selection: SelectionCoordinator;
+  readonly commandClient?: MatrixCommandClient;
+  readonly onSaveCell?: (
+    row: MatrixObject,
+    col: MatrixObject,
+    cell?: MatrixCell,
+  ) => void;
 }): ReactElement {
   return (
     <tr className={matrixAxisClass(props.row.objectId, props.selected)}>
@@ -273,6 +457,7 @@ function MatrixRow(props: {
       </th>
       {props.cols.map((col) => {
         const cell = props.cells.get(`${props.row.objectId}:${col.objectId}`);
+        const editable = canEditMatrixCell(props.row, col, props.commandClient);
         return (
           <td
             aria-current={
@@ -281,18 +466,37 @@ function MatrixRow(props: {
             className={`${matrixCellClass(cell, props.selected)} ${matrixAxisClass(
               col.objectId,
               props.selected,
-            )}`}
+            )} ${editable ? "matrix-cell-editable" : ""}`}
             key={col.objectId}
           >
             {cell ? (
+              <>
+                <button
+                  aria-label={`${props.row.label} 到 ${col.label} 的关系`}
+                  onClick={() =>
+                    selectMatrixRelation(props.selection, cell.relationId)
+                  }
+                  type="button"
+                >
+                  ● {cell.status}
+                </button>
+                {editable ? (
+                  <button
+                    aria-label={`断开 ${props.row.label} 到 ${col.label}`}
+                    onClick={() => props.onSaveCell?.(props.row, col, cell)}
+                    type="button"
+                  >
+                    断开
+                  </button>
+                ) : null}
+              </>
+            ) : editable ? (
               <button
-                aria-label={`${props.row.label} 到 ${col.label} 的关系`}
-                onClick={() =>
-                  selectMatrixRelation(props.selection, cell.relationId)
-                }
+                aria-label={`连接 ${props.row.label} 到 ${col.label}`}
+                onClick={() => props.onSaveCell?.(props.row, col)}
                 type="button"
               >
-                ● {cell.status}
+                空格提交
               </button>
             ) : null}
           </td>

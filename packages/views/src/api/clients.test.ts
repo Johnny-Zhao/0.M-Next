@@ -46,6 +46,31 @@ describe("view and command clients", () => {
     expect(request.commandType).toBe("UpdateFields");
     expect(request.payload.fields[0].expectedFieldVersion).toBe(4);
   });
+
+  it("posts CreateRelation and Unlink through the command endpoint", async () => {
+    const fetchFn = vi.fn<FetchFn>(
+      async () => new Response(null, { status: 204 }),
+    );
+    const client = new CommandClient("/api", fetchFn);
+
+    await client.createRelation("ws", "rel", "source", "target");
+    await client.unlink("ws", "relation", 3);
+
+    const create = JSON.parse(String(fetchFn.mock.calls[0]?.[1]?.body));
+    const unlink = JSON.parse(String(fetchFn.mock.calls[1]?.[1]?.body));
+    expect(create.commandType).toBe("CreateRelation");
+    expect(create.payload).toMatchObject({
+      relationTypeId: "rel",
+      sourceId: "source",
+      targetId: "target",
+    });
+    expect(unlink.commandType).toBe("Unlink");
+    expect(unlink.payload).toMatchObject({
+      relationId: "relation",
+      expectedVersion: 3,
+      acknowledgeImpact: true,
+    });
+  });
 });
 
 describe("command errors", () => {

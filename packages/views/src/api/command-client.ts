@@ -6,6 +6,11 @@ export interface FieldUpdate {
   readonly expectedFieldVersion: number;
 }
 
+export interface RelationCommandResult {
+  readonly relationId?: string;
+  readonly version?: number;
+}
+
 export interface ConflictField {
   readonly fieldDefCode: string;
   readonly yourValue: unknown;
@@ -49,21 +54,65 @@ export class CommandClient {
     expectedObjectVersion: number,
     fields: readonly FieldUpdate[],
   ): Promise<void> {
+    await this.post("UpdateFields", workspaceId, {
+      objectId,
+      expectedObjectVersion,
+      fields,
+    });
+  }
+
+  async createRelation(
+    workspaceId: string,
+    relationType: string,
+    sourceId: string,
+    targetId: string,
+  ): Promise<RelationCommandResult | void> {
+    return this.post("CreateRelation", workspaceId, {
+      relationTypeId: relationType,
+      sourceId,
+      targetId,
+      relationFields: {},
+      source: { type: "manual", ref: "matrix" },
+    });
+  }
+
+  async unlink(
+    workspaceId: string,
+    relationId: string,
+    expectedVersion: number,
+  ): Promise<void> {
+    await this.post("Unlink", workspaceId, {
+      relationId,
+      reason: "matrix-cell-edit",
+      expectedVersion,
+      acknowledgeImpact: true,
+    });
+  }
+
+  private async post<T = void>(
+    commandType: string,
+    workspaceId: string,
+    payload: Readonly<Record<string, unknown>>,
+  ): Promise<T> {
     const response = await this.fetchFn(
       `${this.baseUrl}/workspaces/${workspaceId}/commands`,
       {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          commandType: "UpdateFields",
+          commandType,
           workspaceId,
           correlationId: crypto.randomUUID(),
           idempotencyKey: `ck-${crypto.randomUUID()}`,
-          payload: { objectId, expectedObjectVersion, fields },
+          payload,
         }),
       },
     );
-    if (response.ok) return;
+    if (response.ok) {
+      if (response.status === 204) return undefined as T;
+      const text = await response.text();
+      return (text === "" ? undefined : JSON.parse(text)) as T;
+    }
     const failure = (await response.json()) as Omit<CommandError, "title">;
     throw new CommandFailure({
       ...failure,
