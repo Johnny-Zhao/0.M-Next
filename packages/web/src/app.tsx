@@ -141,6 +141,7 @@ export function App({
           {activeView === "matrix" ? (
             <MatrixView
               colType="demo_object"
+              commandClient={commandClient}
               onError={() => setErrors((value) => value + 1)}
               relationType="depends_on"
               rowType="demo_object"

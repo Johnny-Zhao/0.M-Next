@@ -152,3 +152,11 @@ main {
   gap: 0.5rem;
   margin-top: 0.75rem;
 }
+
+.matrix-cell-editable {
+  background: #fffbe6;
+}
+
+.matrix-cell-editable button + button {
+  margin-left: 0.35rem;
+}
