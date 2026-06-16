@@ -75,6 +75,14 @@ final class CommandErrors {
     return error("KERNEL-422-TEMPLATE-EMPTY", "模板版本为空", Map.of(), "至少定义一个对象类型后再发布");
   }
 
+  static CommandRejectedException migrationRequired(List<Map<String, Object>> affected) {
+    return error(
+        "KERNEL-409-TEMPLATE-MIGRATION-REQUIRED",
+        "模板演化包含收紧项, 需要人工迁移",
+        Map.of("affected", affected),
+        "先处理受影响存量数据后再应用模板版本");
+  }
+
   static CommandRejectedException metaParentNotFound() {
     return error("META-422-PARENT-NOT-FOUND", "父类型不存在", Map.of(), "选择同工作空间内存在的父类型");
   }

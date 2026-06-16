@@ -36,6 +36,40 @@ class MetaModelRepository {
 
   record TemplateVersion(UUID id, UUID templateId, int version, String status) {}
 
+  record WorkspaceTemplate(UUID templateId, Integer templateVersion) {}
+
+  record ApplyPlan(List<EnumFieldUpdate> enumUpdates, List<Map<String, Object>> blockingChanges) {}
+
+  record EnumFieldUpdate(String objectTypeCode, String fieldCode, FieldConstraints constraints) {}
+
+  private record TemplateObjectType(String code, String name, String parentCode) {}
+
+  private record TemplateValueType(
+      String code,
+      String name,
+      DataType basePrimitive,
+      String parentCode,
+      FieldConstraints constraints) {}
+
+  private record TemplateFieldDef(
+      String objectTypeCode,
+      String code,
+      String name,
+      boolean required,
+      DataType dataType,
+      String valueTypeCode,
+      FieldConstraints constraints,
+      String redefinesFieldCode) {}
+
+  private record TemplateRelationType(
+      String code,
+      String sourceTypeCode,
+      String targetTypeCode,
+      String direction,
+      String cardinality,
+      String semantics,
+      boolean hierarchical) {}
+
   private record CopyValueTypeRow(
       UUID id,
       String code,
@@ -105,6 +139,21 @@ class MetaModelRepository {
                 : null,
         templateId,
         version);
+  }
+
+  WorkspaceTemplate workspaceTemplate(UUID workspaceId) {
+    return jdbc.query(
+        """
+        SELECT template_id, template_version
+        FROM workspace WHERE id = ?
+        """,
+        result ->
+            result.next()
+                ? new WorkspaceTemplate(
+                    result.getObject("template_id", UUID.class),
+                    (Integer) result.getObject("template_version"))
+                : null,
+        workspaceId);
   }
 
   long countObjectTypes(UUID templateVersionId) {
@@ -609,6 +658,384 @@ class MetaModelRepository {
     copyObjectTypes(templateVersionId, targetWorkspaceId, actor, now, objectTypeIds);
     copyFieldDefs(templateVersionId, actor, now, valueTypeIds, objectTypeIds, fieldDefIds);
     copyRelationTypes(templateVersionId, targetWorkspaceId, actor, now, objectTypeIds);
+  }
+
+  ApplyPlan planTemplateVersionApply(
+      UUID workspaceId, UUID fromTemplateVersionId, UUID toTemplateVersionId) {
+    var blocking = new ArrayList<Map<String, Object>>();
+    var enumUpdates = new ArrayList<EnumFieldUpdate>();
+    var fromObjects = templateObjectTypes(fromTemplateVersionId);
+    var toObjects = templateObjectTypes(toTemplateVersionId);
+    var fromValues = templateValueTypes(fromTemplateVersionId);
+    var toValues = templateValueTypes(toTemplateVersionId);
+    var fromFields = templateFieldDefs(fromTemplateVersionId);
+    var toFields = templateFieldDefs(toTemplateVersionId);
+    var fromRelations = templateRelationTypes(fromTemplateVersionId);
+    var toRelations = templateRelationTypes(toTemplateVersionId);
+    compareObjectTypes(workspaceId, fromObjects, toObjects, blocking);
+    compareValueTypes(workspaceId, fromValues, toValues, blocking);
+    compareFieldDefs(workspaceId, fromFields, toFields, enumUpdates, blocking);
+    compareRelationTypes(workspaceId, fromRelations, toRelations, blocking);
+    return new ApplyPlan(enumUpdates, blocking);
+  }
+
+  void applyTemplateVersion(
+      UUID workspaceId,
+      UUID toTemplateVersionId,
+      int toVersion,
+      String actor,
+      Instant now,
+      ApplyPlan plan) {
+    for (var update : plan.enumUpdates()) {
+      jdbc.update(
+          """
+          UPDATE field_def field
+          SET constraints = CAST(? AS jsonb), updated_by = ?, updated_at = ?
+          FROM object_type type
+          WHERE field.object_type_id = type.id
+            AND type.workspace_id = ?
+            AND type.code = ?
+            AND field.code = ?
+          """,
+          JsonCodec.encode(update.constraints().asMap()),
+          actor,
+          Timestamp.from(now),
+          workspaceId,
+          update.objectTypeCode(),
+          update.fieldCode());
+    }
+    jdbc.update(
+        """
+        UPDATE workspace SET template_version = ?
+        WHERE id = ?
+        """,
+        toVersion,
+        workspaceId);
+  }
+
+  private void compareObjectTypes(
+      UUID workspaceId,
+      Map<String, TemplateObjectType> from,
+      Map<String, TemplateObjectType> to,
+      List<Map<String, Object>> blocking) {
+    for (var entry : from.entrySet()) {
+      var next = to.get(entry.getKey());
+      if (next == null) {
+        blocking.addAll(affectedObjects(workspaceId, entry.getKey(), null, "objectTypeDeleted"));
+      } else if (!same(entry.getValue().parentCode(), next.parentCode())) {
+        blocking.addAll(affectedObjects(workspaceId, entry.getKey(), null, "parentTypeChanged"));
+      }
+    }
+    for (var entry : to.entrySet()) {
+      if (!from.containsKey(entry.getKey())) {
+        blocking.add(blocking("newObjectTypeRequiresManualApply", entry.getKey(), null));
+      }
+    }
+  }
+
+  private void compareValueTypes(
+      UUID workspaceId,
+      Map<String, TemplateValueType> from,
+      Map<String, TemplateValueType> to,
+      List<Map<String, Object>> blocking) {
+    for (var entry : from.entrySet()) {
+      var next = to.get(entry.getKey());
+      if (next == null) {
+        blocking.add(blocking("valueTypeDeleted", null, entry.getKey()));
+      } else if (entry.getValue().basePrimitive() != next.basePrimitive()
+          || !same(entry.getValue().parentCode(), next.parentCode())
+          || !same(entry.getValue().constraints(), next.constraints())) {
+        blocking.add(blocking("valueTypeChangedRequiresReview", null, entry.getKey()));
+      }
+    }
+    for (var entry : to.entrySet()) {
+      if (!from.containsKey(entry.getKey())) {
+        blocking.add(blocking("newValueTypeRequiresManualApply", null, entry.getKey()));
+      }
+    }
+  }
+
+  private void compareFieldDefs(
+      UUID workspaceId,
+      Map<String, TemplateFieldDef> from,
+      Map<String, TemplateFieldDef> to,
+      List<EnumFieldUpdate> enumUpdates,
+      List<Map<String, Object>> blocking) {
+    for (var entry : from.entrySet()) {
+      var current = entry.getValue();
+      var next = to.get(entry.getKey());
+      if (next == null) {
+        blocking.addAll(
+            affectedObjects(workspaceId, current.objectTypeCode(), current.code(), "fieldDeleted"));
+      } else {
+        compareExistingField(workspaceId, current, next, enumUpdates, blocking);
+      }
+    }
+    for (var entry : to.entrySet()) {
+      if (!from.containsKey(entry.getKey())) {
+        var next = entry.getValue();
+        var reason = next.required() ? "newRequiredField" : "newOptionalFieldRequiresManualApply";
+        blocking.addAll(affectedObjects(workspaceId, next.objectTypeCode(), next.code(), reason));
+      }
+    }
+  }
+
+  private void compareExistingField(
+      UUID workspaceId,
+      TemplateFieldDef current,
+      TemplateFieldDef next,
+      List<EnumFieldUpdate> enumUpdates,
+      List<Map<String, Object>> blocking) {
+    if (current.dataType() != next.dataType()) {
+      blocking.addAll(
+          affectedObjects(
+              workspaceId, current.objectTypeCode(), current.code(), "dataTypeChanged"));
+      return;
+    }
+    if (!same(current.valueTypeCode(), next.valueTypeCode())) {
+      blocking.addAll(
+          affectedObjects(
+              workspaceId, current.objectTypeCode(), current.code(), "valueTypeChanged"));
+      return;
+    }
+    if (!same(current.redefinesFieldCode(), next.redefinesFieldCode())) {
+      blocking.addAll(
+          affectedObjects(
+              workspaceId, current.objectTypeCode(), current.code(), "redefinitionChanged"));
+      return;
+    }
+    if (!current.required() && next.required()) {
+      blocking.addAll(
+          affectedObjects(
+              workspaceId, current.objectTypeCode(), current.code(), "newRequiredField"));
+      return;
+    }
+    var enumExpansion = enumExpansion(current, next);
+    if (enumExpansion) {
+      enumUpdates.add(new EnumFieldUpdate(next.objectTypeCode(), next.code(), next.constraints()));
+      return;
+    }
+    if (!same(current.constraints(), next.constraints()) || current.required() != next.required()) {
+      blocking.addAll(
+          affectedObjects(
+              workspaceId, current.objectTypeCode(), current.code(), "fieldConstraintChanged"));
+    }
+  }
+
+  private void compareRelationTypes(
+      UUID workspaceId,
+      Map<String, TemplateRelationType> from,
+      Map<String, TemplateRelationType> to,
+      List<Map<String, Object>> blocking) {
+    for (var entry : from.entrySet()) {
+      var next = to.get(entry.getKey());
+      if (next == null || !same(entry.getValue(), next)) {
+        blocking.add(blocking("relationTypeChangedRequiresReview", null, entry.getKey()));
+      }
+    }
+    for (var entry : to.entrySet()) {
+      if (!from.containsKey(entry.getKey())) {
+        blocking.add(blocking("newRelationTypeRequiresManualApply", null, entry.getKey()));
+      }
+    }
+  }
+
+  private Map<String, TemplateObjectType> templateObjectTypes(UUID templateVersionId) {
+    var values = new LinkedHashMap<String, TemplateObjectType>();
+    var rows =
+        jdbc.query(
+            """
+            SELECT type.code, type.name, parent.code AS parent_code
+            FROM object_type type
+            LEFT JOIN object_type parent ON parent.id = type.parent_type_id
+            WHERE type.template_version_id = ?
+            ORDER BY type.code
+            """,
+            (result, ignored) ->
+                new TemplateObjectType(
+                    result.getString("code"),
+                    result.getString("name"),
+                    result.getString("parent_code")),
+            templateVersionId);
+    for (var row : rows) values.put(row.code(), row);
+    return values;
+  }
+
+  private Map<String, TemplateValueType> templateValueTypes(UUID templateVersionId) {
+    var values = new LinkedHashMap<String, TemplateValueType>();
+    var rows =
+        jdbc.query(
+            """
+            SELECT value.code, value.name, value.base_primitive, parent.code AS parent_code,
+              value.constraints->>'minLength' AS min_length,
+              value.constraints->>'maxLength' AS max_length,
+              value.constraints->>'min' AS min_value,
+              value.constraints->>'max' AS max_value,
+              value.constraints->>'pattern' AS pattern,
+              value.constraints->>'refObjectTypeCode' AS ref_type,
+              value.constraints->>'multiline' AS multiline,
+              ARRAY(SELECT jsonb_array_elements_text(
+                COALESCE(value.constraints->'enumValues', '[]'::jsonb))) AS enum_values
+            FROM value_type value
+            LEFT JOIN value_type parent ON parent.id = value.parent_value_type_id
+            WHERE value.template_version_id = ?
+            ORDER BY value.code
+            """,
+            (result, ignored) ->
+                new TemplateValueType(
+                    result.getString("code"),
+                    result.getString("name"),
+                    DataType.fromCode(result.getString("base_primitive")),
+                    result.getString("parent_code"),
+                    constraints(result)),
+            templateVersionId);
+    for (var row : rows) values.put(row.code(), row);
+    return values;
+  }
+
+  private Map<String, TemplateFieldDef> templateFieldDefs(UUID templateVersionId) {
+    var values = new LinkedHashMap<String, TemplateFieldDef>();
+    jdbc.query(
+        """
+        SELECT object_type.code AS object_type_code, field.code, field.name, field.required,
+          field.data_type, value_type.code AS value_type_code,
+          field.constraints->>'minLength' AS min_length,
+          field.constraints->>'maxLength' AS max_length,
+          field.constraints->>'min' AS min_value,
+          field.constraints->>'max' AS max_value,
+          field.constraints->>'pattern' AS pattern,
+          field.constraints->>'refObjectTypeCode' AS ref_type,
+          field.constraints->>'multiline' AS multiline,
+          ARRAY(SELECT jsonb_array_elements_text(
+            COALESCE(field.constraints->'enumValues', '[]'::jsonb))) AS enum_values,
+          redefined.code AS redefines_field_code
+        FROM field_def field
+        JOIN object_type object_type ON object_type.id = field.object_type_id
+        LEFT JOIN value_type value_type ON value_type.id = field.value_type_id
+        LEFT JOIN field_def redefined ON redefined.id = field.redefines_field_def_id
+        WHERE field.template_version_id = ?
+        ORDER BY object_type.code, field.code
+        """,
+        result -> {
+          var row =
+              new TemplateFieldDef(
+                  result.getString("object_type_code"),
+                  result.getString("code"),
+                  result.getString("name"),
+                  result.getBoolean("required"),
+                  DataType.fromCode(result.getString("data_type")),
+                  result.getString("value_type_code"),
+                  constraints(result),
+                  result.getString("redefines_field_code"));
+          values.put(fieldKey(row.objectTypeCode(), row.code()), row);
+        },
+        templateVersionId);
+    return values;
+  }
+
+  private Map<String, TemplateRelationType> templateRelationTypes(UUID templateVersionId) {
+    var values = new LinkedHashMap<String, TemplateRelationType>();
+    var rows =
+        jdbc.query(
+            """
+            SELECT relation.code, source_type.code AS source_type_code,
+              target_type.code AS target_type_code, relation.direction, relation.cardinality,
+              relation.semantics, relation.hierarchical
+            FROM relation_type relation
+            JOIN object_type source_type ON source_type.id = relation.source_type
+            JOIN object_type target_type ON target_type.id = relation.target_type
+            WHERE relation.template_version_id = ?
+            ORDER BY relation.code
+            """,
+            (result, ignored) ->
+                new TemplateRelationType(
+                    result.getString("code"),
+                    result.getString("source_type_code"),
+                    result.getString("target_type_code"),
+                    result.getString("direction"),
+                    result.getString("cardinality"),
+                    result.getString("semantics"),
+                    result.getBoolean("hierarchical")),
+            templateVersionId);
+    for (var row : rows) values.put(row.code(), row);
+    return values;
+  }
+
+  private boolean enumExpansion(TemplateFieldDef current, TemplateFieldDef next) {
+    if (current.dataType() != DataType.ENUM || next.dataType() != DataType.ENUM) return false;
+    if (!sameExceptEnumValues(current.constraints(), next.constraints())) return false;
+    var before = current.constraints().enumValues();
+    var after = next.constraints().enumValues();
+    if (before == null || after == null || before.isEmpty() || after.isEmpty()) return false;
+    return after.containsAll(before) && after.size() > before.size();
+  }
+
+  private List<Map<String, Object>> affectedObjects(
+      UUID workspaceId, String objectTypeCode, String fieldCode, String reason) {
+    var affected = new ArrayList<Map<String, Object>>();
+    jdbc.query(
+        """
+        WITH RECURSIVE descendants AS (
+          SELECT id, code FROM object_type WHERE workspace_id = ? AND code = ?
+          UNION ALL
+          SELECT child.id, child.code
+          FROM object_type child
+          JOIN descendants parent ON child.parent_type_id = parent.id
+          WHERE child.workspace_id = ?
+        )
+        SELECT object.id, type.code
+        FROM data_object object
+        JOIN descendants type ON type.id = object.object_type_id
+        WHERE object.workspace_id = ? AND object.status NOT IN ('VOID', 'FILED', 'DELETED')
+        ORDER BY object.created_at, object.id
+        LIMIT 200
+        """,
+        result -> {
+          var item = new LinkedHashMap<String, Object>();
+          item.put("reason", reason);
+          item.put("objectTypeCode", result.getString("code"));
+          item.put("objectId", result.getObject("id", UUID.class).toString());
+          if (fieldCode != null) item.put("fieldCode", fieldCode);
+          affected.add(item);
+        },
+        workspaceId,
+        objectTypeCode,
+        workspaceId,
+        workspaceId);
+    if (affected.isEmpty()) {
+      affected.add(blocking(reason, objectTypeCode, fieldCode));
+    }
+    return affected;
+  }
+
+  private Map<String, Object> blocking(String reason, String objectTypeCode, String targetCode) {
+    var item = new LinkedHashMap<String, Object>();
+    item.put("reason", reason);
+    if (objectTypeCode != null) item.put("objectTypeCode", objectTypeCode);
+    if (targetCode != null) item.put("targetCode", targetCode);
+    return item;
+  }
+
+  private String fieldKey(String objectTypeCode, String fieldCode) {
+    return objectTypeCode + "." + fieldCode;
+  }
+
+  private boolean same(Object left, Object right) {
+    return left == null ? right == null : left.equals(right);
+  }
+
+  private boolean same(FieldConstraints left, FieldConstraints right) {
+    return same(left.asMap(), right.asMap());
+  }
+
+  private boolean sameExceptEnumValues(FieldConstraints left, FieldConstraints right) {
+    return same(left.minLength(), right.minLength())
+        && same(left.maxLength(), right.maxLength())
+        && same(left.min(), right.min())
+        && same(left.max(), right.max())
+        && same(left.pattern(), right.pattern())
+        && same(left.refObjectTypeCode(), right.refObjectTypeCode())
+        && same(left.multiline(), right.multiline());
   }
 
   private void seedRootValueTypes(

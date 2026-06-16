@@ -3,6 +3,7 @@ package com.mnext.kernel.internal;
 import com.mnext.kernel.api.Actor;
 import com.mnext.kernel.api.CommandResult;
 import com.mnext.kernel.api.MetaCommandService;
+import com.mnext.kernel.api.metamodel.ApplyTemplateVersionCommand;
 import com.mnext.kernel.api.metamodel.DefineFieldDefCommand;
 import com.mnext.kernel.api.metamodel.DefineObjectTypeCommand;
 import com.mnext.kernel.api.metamodel.DefineRelationTypeCommand;
@@ -19,6 +20,7 @@ public class MetaCommandServiceImpl implements MetaCommandService {
   private final DefineValueTypeHandler valueTypes;
   private final PublishTemplateVersionHandler publishTemplateVersions;
   private final InstantiateWorkspaceHandler instantiateWorkspaces;
+  private final ApplyTemplateVersionHandler applyTemplateVersions;
 
   public MetaCommandServiceImpl(
       DefineObjectTypeHandler objectTypes,
@@ -26,13 +28,15 @@ public class MetaCommandServiceImpl implements MetaCommandService {
       DefineRelationTypeHandler relations,
       DefineValueTypeHandler valueTypes,
       PublishTemplateVersionHandler publishTemplateVersions,
-      InstantiateWorkspaceHandler instantiateWorkspaces) {
+      InstantiateWorkspaceHandler instantiateWorkspaces,
+      ApplyTemplateVersionHandler applyTemplateVersions) {
     this.objectTypes = objectTypes;
     this.fields = fields;
     this.relations = relations;
     this.valueTypes = valueTypes;
     this.publishTemplateVersions = publishTemplateVersions;
     this.instantiateWorkspaces = instantiateWorkspaces;
+    this.applyTemplateVersions = applyTemplateVersions;
   }
 
   @Override
@@ -63,5 +67,10 @@ public class MetaCommandServiceImpl implements MetaCommandService {
   @Override
   public CommandResult instantiateWorkspace(InstantiateWorkspaceCommand command, Actor actor) {
     return instantiateWorkspaces.execute(command, actor);
+  }
+
+  @Override
+  public CommandResult applyTemplateVersion(ApplyTemplateVersionCommand command, Actor actor) {
+    return applyTemplateVersions.execute(command, actor);
   }
 }

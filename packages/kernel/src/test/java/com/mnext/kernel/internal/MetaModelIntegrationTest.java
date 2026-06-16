@@ -10,6 +10,7 @@ import com.mnext.kernel.api.MetaCommandService;
 import com.mnext.kernel.api.SourceInfo;
 import com.mnext.kernel.api.commands.CreateObjectCommand;
 import com.mnext.kernel.api.commands.CreateRelationCommand;
+import com.mnext.kernel.api.metamodel.ApplyTemplateVersionCommand;
 import com.mnext.kernel.api.metamodel.DataType;
 import com.mnext.kernel.api.metamodel.DefineFieldDefCommand;
 import com.mnext.kernel.api.metamodel.DefineObjectTypeCommand;
@@ -19,6 +20,7 @@ import com.mnext.kernel.api.metamodel.FieldConstraints;
 import com.mnext.kernel.api.metamodel.InstantiateWorkspaceCommand;
 import com.mnext.kernel.api.metamodel.PublishTemplateVersionCommand;
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -486,6 +488,213 @@ class MetaModelIntegrationTest {
             "SELECT count(*) FROM data_object WHERE workspace_id = ?", Long.class, newWorkspace));
   }
 
+  @Test
+  void applyTemplateVersionAppliesEnumExpansionOnly() {
+    var actor = Actor.user("template-author");
+    var draft = draftTemplate("apply_enum");
+    var sourceType =
+        insertTemplateObject(WORKSPACE, draft.versionId(), "apply_requirement_enum", "需求", null);
+    insertTemplateField(
+        sourceType,
+        draft.versionId(),
+        "status",
+        "状态",
+        DataType.ENUM,
+        false,
+        enumConstraints("draft"),
+        null);
+    meta.publishTemplateVersion(
+        new PublishTemplateVersionCommand(
+            WORKSPACE, UUID.randomUUID(), "publish-apply-enum-v1", draft.versionId()),
+        actor);
+    var target = instantiate(draft, "apply-enum-instance", actor);
+    var v2Author = authorWorkspace("apply_enum_v2_author");
+    var v2 = templateVersion(draft.templateId(), 2, "published");
+    var targetType = insertTemplateObject(v2Author, v2, "apply_requirement_enum", "需求", null);
+    insertTemplateField(
+        targetType,
+        v2,
+        "status",
+        "状态",
+        DataType.ENUM,
+        false,
+        enumConstraints("draft", "approved"),
+        null);
+
+    meta.applyTemplateVersion(
+        new ApplyTemplateVersionCommand(target, UUID.randomUUID(), "apply-enum-v2", 2), actor);
+
+    assertEquals(
+        1L,
+        jdbc.queryForObject(
+            """
+            SELECT count(*) FROM field_def field
+            JOIN object_type type ON type.id = field.object_type_id
+            WHERE type.workspace_id = ? AND field.code = 'status'
+              AND jsonb_exists(field.constraints->'enumValues', 'approved')
+            """,
+            Long.class,
+            target));
+    var runtimeType = runtimeType(target, "apply_requirement_enum");
+    commands.createObject(
+        new CreateObjectCommand(
+            target,
+            UUID.randomUUID(),
+            "apply-enum-approved",
+            runtimeType,
+            Map.of("status", "approved"),
+            new SourceInfo("manual", null),
+            null),
+        actor);
+    assertEquals(2, workspaceTemplateVersion(target));
+  }
+
+  @Test
+  void applyTemplateVersionRejectsUnpublishedTargetVersion() {
+    var actor = Actor.user("template-author");
+    var draft = draftTemplate("apply_unpublished");
+    insertTemplateObject(WORKSPACE, draft.versionId(), "apply_unpublished_type", "类型", null);
+    meta.publishTemplateVersion(
+        new PublishTemplateVersionCommand(
+            WORKSPACE, UUID.randomUUID(), "publish-apply-unpublished-v1", draft.versionId()),
+        actor);
+    var target = instantiate(draft, "apply-unpublished-instance", actor);
+    templateVersion(draft.templateId(), 2, "draft");
+
+    var error =
+        assertThrows(
+            CommandRejectedException.class,
+            () ->
+                meta.applyTemplateVersion(
+                    new ApplyTemplateVersionCommand(
+                        target, UUID.randomUUID(), "apply-unpublished-v2", 2),
+                    actor));
+
+    assertEquals("KERNEL-422-TEMPLATE-NOT-PUBLISHED", error.error().code());
+  }
+
+  @Test
+  void applyTemplateVersionBlocksNewRequiredFieldWithAffectedObjects() {
+    var actor = Actor.user("template-author");
+    var draft = draftTemplate("apply_required");
+    insertTemplateObject(WORKSPACE, draft.versionId(), "apply_required_type", "类型", null);
+    meta.publishTemplateVersion(
+        new PublishTemplateVersionCommand(
+            WORKSPACE, UUID.randomUUID(), "publish-apply-required-v1", draft.versionId()),
+        actor);
+    var target = instantiate(draft, "apply-required-instance", actor);
+    var runtimeType = runtimeType(target, "apply_required_type");
+    commands.createObject(
+        new CreateObjectCommand(
+            target,
+            UUID.randomUUID(),
+            "apply-required-object",
+            runtimeType,
+            Map.of(),
+            new SourceInfo("manual", null),
+            null),
+        actor);
+    var v2Author = authorWorkspace("apply_required_v2_author");
+    var v2 = templateVersion(draft.templateId(), 2, "published");
+    var nextType = insertTemplateObject(v2Author, v2, "apply_required_type", "类型", null);
+    insertTemplateField(
+        nextType, v2, "name", "名称", DataType.STRING, true, FieldConstraints.empty(), null);
+
+    var error =
+        assertThrows(
+            CommandRejectedException.class,
+            () ->
+                meta.applyTemplateVersion(
+                    new ApplyTemplateVersionCommand(
+                        target, UUID.randomUUID(), "apply-required-v2", 2),
+                    actor));
+
+    assertEquals("KERNEL-409-TEMPLATE-MIGRATION-REQUIRED", error.error().code());
+    assertEquals(1, workspaceTemplateVersion(target));
+    var affected = (List<?>) error.error().details().get("affected");
+    assertEquals(false, affected.isEmpty());
+  }
+
+  @Test
+  void applyTemplateVersionBlocksParentTypeChangeAndRedefinitionWidening() {
+    var actor = Actor.user("template-author");
+    var draft = draftTemplate("apply_gend");
+    var base = insertTemplateObject(WORKSPACE, draft.versionId(), "apply_base_type", "基础", null);
+    insertTemplateField(
+        base,
+        draft.versionId(),
+        "name",
+        "名称",
+        DataType.STRING,
+        false,
+        new FieldConstraints(null, 10, null, null, null, null, null),
+        null);
+    var child =
+        insertTemplateObject(
+            WORKSPACE, draft.versionId(), "apply_child_type", "子类", "apply_base_type");
+    insertTemplateObject(
+        WORKSPACE, draft.versionId(), "apply_parent_change_type", "父级变更类", "apply_base_type");
+    insertTemplateField(
+        child,
+        draft.versionId(),
+        "name",
+        "名称",
+        DataType.STRING,
+        false,
+        new FieldConstraints(null, 5, null, null, null, null, null),
+        "name");
+    meta.publishTemplateVersion(
+        new PublishTemplateVersionCommand(
+            WORKSPACE, UUID.randomUUID(), "publish-apply-gend-v1", draft.versionId()),
+        actor);
+    var target = instantiate(draft, "apply-gend-instance", actor);
+    var childRuntime = runtimeType(target, "apply_child_type");
+    commands.createObject(
+        new CreateObjectCommand(
+            target,
+            UUID.randomUUID(),
+            "apply-gend-object",
+            childRuntime,
+            Map.of("name", "abc"),
+            new SourceInfo("manual", null),
+            null),
+        actor);
+    var v2Author = authorWorkspace("apply_gend_v2_author");
+    var v2 = templateVersion(draft.templateId(), 2, "published");
+    var nextBase = insertTemplateObject(v2Author, v2, "apply_base_type", "基础", null);
+    insertTemplateField(
+        nextBase,
+        v2,
+        "name",
+        "名称",
+        DataType.STRING,
+        false,
+        new FieldConstraints(null, 10, null, null, null, null, null),
+        null);
+    insertTemplateObject(v2Author, v2, "apply_parent_change_type", "父级变更类", null);
+    var nextChild = insertTemplateObject(v2Author, v2, "apply_child_type", "子类", "apply_base_type");
+    insertTemplateField(
+        nextChild,
+        v2,
+        "name",
+        "名称",
+        DataType.STRING,
+        false,
+        new FieldConstraints(null, 20, null, null, null, null, null),
+        "name");
+
+    var error =
+        assertThrows(
+            CommandRejectedException.class,
+            () ->
+                meta.applyTemplateVersion(
+                    new ApplyTemplateVersionCommand(target, UUID.randomUUID(), "apply-gend-v2", 2),
+                    actor));
+
+    assertEquals("KERNEL-409-TEMPLATE-MIGRATION-REQUIRED", error.error().code());
+    assertEquals(1, workspaceTemplateVersion(target));
+  }
+
   private static CreateObjectCommand create(UUID typeId, String key, Object budget) {
     return create(typeId, key, Map.of("budget", budget));
   }
@@ -511,6 +720,137 @@ class MetaModelIntegrationTest {
         version,
         template);
     return new DraftTemplate(template, version);
+  }
+
+  private UUID templateVersion(UUID templateId, int versionNumber, String status) {
+    var version = UUID.randomUUID();
+    jdbc.update(
+        """
+        INSERT INTO scene_template_version (id, template_id, version, status)
+        VALUES (?, ?, ?, ?)
+        """,
+        version,
+        templateId,
+        versionNumber,
+        status);
+    return version;
+  }
+
+  private UUID authorWorkspace(String name) {
+    var workspace = UUID.randomUUID();
+    jdbc.update(
+        "INSERT INTO workspace (id, name, status) VALUES (?, ?, 'ACTIVE')", workspace, name);
+    return workspace;
+  }
+
+  private UUID insertTemplateObject(
+      UUID workspaceId, UUID versionId, String code, String name, String parentCode) {
+    var id = UUID.randomUUID();
+    var parentId =
+        parentCode == null
+            ? null
+            : jdbc.queryForObject(
+                """
+                SELECT id FROM object_type
+                WHERE workspace_id = ? AND code = ?
+                """,
+                UUID.class,
+                workspaceId,
+                parentCode);
+    jdbc.update(
+        """
+        INSERT INTO object_type
+          (id, workspace_id, template_version_id, code, name, parent_type_id, published,
+           created_by, updated_by, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, FALSE, 'test', 'test', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        """,
+        id,
+        workspaceId,
+        versionId,
+        code,
+        name,
+        parentId);
+    return id;
+  }
+
+  private UUID insertTemplateField(
+      UUID objectTypeId,
+      UUID versionId,
+      String code,
+      String name,
+      DataType dataType,
+      boolean required,
+      FieldConstraints constraints,
+      String redefinesFieldCode) {
+    var id = UUID.randomUUID();
+    var redefines =
+        redefinesFieldCode == null
+            ? null
+            : jdbc.queryForObject(
+                """
+                WITH RECURSIVE ancestors AS (
+                  SELECT parent.id, parent.parent_type_id
+                  FROM object_type child
+                  JOIN object_type parent ON parent.id = child.parent_type_id
+                  WHERE child.id = ?
+                  UNION ALL
+                  SELECT parent.id, parent.parent_type_id
+                  FROM object_type parent
+                  JOIN ancestors child ON parent.id = child.parent_type_id
+                )
+                SELECT field.id FROM field_def field
+                JOIN ancestors ON ancestors.id = field.object_type_id
+                WHERE field.code = ?
+                LIMIT 1
+                """,
+                UUID.class,
+                objectTypeId,
+                redefinesFieldCode);
+    jdbc.update(
+        """
+        INSERT INTO field_def
+          (id, object_type_id, template_version_id, code, name, required, data_type,
+           value_type_id, constraints, redefines_field_def_id, created_by, updated_by,
+           created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, NULL, CAST(? AS jsonb), ?, 'test', 'test',
+          CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        """,
+        id,
+        objectTypeId,
+        versionId,
+        code,
+        name,
+        required,
+        dataType.code(),
+        JsonCodec.encode(constraints.asMap()),
+        redefines);
+    return id;
+  }
+
+  private FieldConstraints enumConstraints(String... values) {
+    return new FieldConstraints(null, null, null, null, null, List.of(values), null);
+  }
+
+  private UUID instantiate(DraftTemplate draft, String key, Actor actor) {
+    var workspace = UUID.randomUUID();
+    meta.instantiateWorkspace(
+        new InstantiateWorkspaceCommand(
+            WORKSPACE, UUID.randomUUID(), key, draft.templateId(), 1, workspace, key),
+        actor);
+    return workspace;
+  }
+
+  private UUID runtimeType(UUID workspace, String code) {
+    return jdbc.queryForObject(
+        "SELECT id FROM object_type WHERE workspace_id = ? AND code = ?",
+        UUID.class,
+        workspace,
+        code);
+  }
+
+  private int workspaceTemplateVersion(UUID workspace) {
+    return jdbc.queryForObject(
+        "SELECT template_version FROM workspace WHERE id = ?", Integer.class, workspace);
   }
 
   private UUID defineTemplateObject(
