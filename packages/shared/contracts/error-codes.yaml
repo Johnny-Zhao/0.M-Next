@@ -192,3 +192,11 @@ codes:
     httpStatus: 409
     title: 已发布规则版本再 Define
     responseRequirement: 提示改在 draft 版本操作
+  - code: RULE-400-SCHEMA-INVALID
+    httpStatus: 400
+    title: 规则命令载荷不符合 Schema
+    responseRequirement: 按规则命令 Schema 修正载荷
+  - code: RULE-409-IDEMPOTENCY-CONFLICT
+    httpStatus: 409
+    title: 同幂等键不同载荷（规则命令）
+    responseRequirement: 更换 idempotencyKey 后重试
