@@ -71,6 +71,20 @@ class SysmlXmiExchangeTest {
   }
 
   @Test
+  void rejectsDoctypeToBlockXxe() {
+    var malicious =
+        "<?xml version=\"1.0\"?>"
+            + "<!DOCTYPE xmi:XMI [<!ENTITY xxe SYSTEM \"file:///etc/passwd\">]>"
+            + "<xmi:XMI xmlns:xmi=\""
+            + XMI_NS
+            + "\" xmlns:uml=\""
+            + UML_NS
+            + "\"><uml:Model xmi:id=\"model\">&xxe;</uml:Model></xmi:XMI>";
+
+    assertThrows(IllegalArgumentException.class, () -> codec.parse(malicious));
+  }
+
+  @Test
   void adapterRegistryFindsSysmlXmi() {
     var adapter = new AdapterRegistry().require("sysml-xmi");
 

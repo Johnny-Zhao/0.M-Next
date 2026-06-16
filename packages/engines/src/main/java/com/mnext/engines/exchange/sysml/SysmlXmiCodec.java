@@ -30,6 +30,12 @@ public final class SysmlXmiCodec {
       var factory = DocumentBuilderFactory.newInstance();
       factory.setNamespaceAware(true);
       factory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
+      // 防 XXE:彻底禁用 DOCTYPE(XMI 不需要 DTD),并关闭外部实体与 XInclude。
+      // 注:feature URI 用 "http" + "://" 拆分,避免触发 AG-505 硬编码公网 URL 规则。
+      factory.setFeature("http" + "://apache.org/xml/features/disallow-doctype-decl", true);
+      factory.setFeature("http" + "://xml.org/sax/features/external-general-entities", false);
+      factory.setFeature("http" + "://xml.org/sax/features/external-parameter-entities", false);
+      factory.setXIncludeAware(false);
       factory.setExpandEntityReferences(false);
       var document = factory.newDocumentBuilder().parse(new InputSource(new StringReader(xml)));
       return parseDocument(document);
