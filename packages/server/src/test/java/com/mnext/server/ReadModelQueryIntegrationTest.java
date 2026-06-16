@@ -33,6 +33,12 @@ class ReadModelQueryIntegrationTest {
   private static final UUID FIRST = UUID.fromString("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
   private static final UUID SECOND = UUID.fromString("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb");
   private static final UUID RELATION = UUID.fromString("cccccccc-cccc-4ccc-8ccc-cccccccccccc");
+  private static final UUID BASE_TYPE = UUID.fromString("55555555-5555-4555-8555-555555555551");
+  private static final UUID CHILD_TYPE = UUID.fromString("55555555-5555-4555-8555-555555555552");
+  private static final UUID NATURAL_TEXT_TYPE =
+      UUID.fromString("66666666-6666-4666-8666-666666666662");
+  private static final UUID REQUIREMENT_TEXT_TYPE =
+      UUID.fromString("66666666-6666-4666-8666-666666666663");
   private static final AtomicInteger IDS = new AtomicInteger();
 
   @Container
@@ -122,6 +128,32 @@ class ReadModelQueryIntegrationTest {
     assertEquals(400, status("/views/objects?objectType=demo_object&pageSize=201"));
     assertEquals(400, status("/views/relations?relationType=x&direction=all&sourceId=" + FIRST));
     assertEquals(1, ((Number) get("/views/sync-status").get("pendingEvents")).intValue());
+  }
+
+  @Test
+  void objectTypesExposeEffectiveInheritedRedefinedAndValueTypeFields() {
+    insertEffectiveFieldTypes();
+
+    var types = getList("/views/object-types");
+    var child =
+        types.stream()
+            .filter(type -> "performance_requirement".equals(type.get("code")))
+            .findFirst()
+            .orElseThrow();
+    var fields = fieldsByCode(child);
+
+    assertTrue(fields.containsKey("name"));
+    assertEquals("Name", fields.get("name").get("name"));
+    assertEquals("string", fields.get("name").get("dataType"));
+    assertEquals("Priority (tight)", fields.get("priority").get("name"));
+    assertTrue((Boolean) fields.get("priority").get("required"));
+    assertEquals(5, ((Number) constraints(fields.get("priority")).get("max")).intValue());
+    assertEquals("text", fields.get("description").get("dataType"));
+    assertEquals(5, ((Number) constraints(fields.get("description")).get("minLength")).intValue());
+    assertEquals(
+        120, ((Number) constraints(fields.get("description")).get("maxLength")).intValue());
+    assertEquals("REQ-.*", constraints(fields.get("description")).get("pattern"));
+    assertTrue((Boolean) constraints(fields.get("description")).get("multiline"));
   }
 
   @Test
@@ -277,6 +309,83 @@ class ReadModelQueryIntegrationTest {
 
   private int count(String table) {
     return jdbc.queryForObject("SELECT count(*) FROM " + table, Integer.class);
+  }
+
+  private void insertEffectiveFieldTypes() {
+    var rootTextType =
+        jdbc.queryForObject(
+            "SELECT id FROM value_type WHERE workspace_id = ? AND code = 'text'",
+            UUID.class,
+            WORKSPACE);
+    jdbc.update("DELETE FROM field_def WHERE object_type_id IN (?, ?)", BASE_TYPE, CHILD_TYPE);
+    jdbc.update("DELETE FROM object_type WHERE id IN (?, ?)", CHILD_TYPE, BASE_TYPE);
+    jdbc.update(
+        "DELETE FROM value_type WHERE id IN (?, ?)", REQUIREMENT_TEXT_TYPE, NATURAL_TEXT_TYPE);
+    jdbc.update(
+        """
+        INSERT INTO object_type
+          (id, workspace_id, code, name, parent_type_id, published,
+           created_by, updated_by, created_at, updated_at)
+        VALUES
+          (?, ?, 'base_requirement', 'Base Requirement', NULL, TRUE,
+           'test', 'test', now(), now()),
+          (?, ?, 'performance_requirement', 'Performance Requirement', ?, TRUE,
+           'test', 'test', now(), now())
+        """,
+        BASE_TYPE,
+        WORKSPACE,
+        CHILD_TYPE,
+        WORKSPACE,
+        BASE_TYPE);
+    jdbc.update(
+        """
+        INSERT INTO value_type
+          (id, workspace_id, code, name, base_primitive, parent_value_type_id,
+           constraints, published, version)
+        VALUES
+          (?, ?, 'natural_text_test', 'Natural Text', 'text', ?, ?::jsonb, TRUE, 1),
+          (?, ?, 'requirement_text_test', 'Requirement Text', 'text', ?, ?::jsonb, TRUE, 1)
+        """,
+        NATURAL_TEXT_TYPE,
+        WORKSPACE,
+        rootTextType,
+        "{\"maxLength\":200,\"multiline\":true}",
+        REQUIREMENT_TEXT_TYPE,
+        WORKSPACE,
+        NATURAL_TEXT_TYPE,
+        "{\"maxLength\":120,\"pattern\":\"REQ-.*\"}");
+    jdbc.update(
+        """
+        INSERT INTO field_def
+          (id, object_type_id, code, name, required, data_type, value_type_id,
+           constraints, created_by, updated_by, created_at, updated_at)
+        VALUES
+          ('77777777-7777-4777-8777-777777777771', ?, 'name', 'Name', TRUE,
+           'string', NULL, '{}'::jsonb, 'test', 'test', now(), now()),
+          ('77777777-7777-4777-8777-777777777772', ?, 'priority', 'Priority', FALSE,
+           'number', NULL, '{"max":10}'::jsonb, 'test', 'test', now(), now()),
+          ('77777777-7777-4777-8777-777777777773', ?, 'description', 'Description', FALSE,
+           'text', ?, '{"minLength":5}'::jsonb, 'test', 'test', now(), now()),
+          ('77777777-7777-4777-8777-777777777774', ?, 'priority', 'Priority (tight)', TRUE,
+           'number', NULL, '{"max":5}'::jsonb, 'test', 'test', now(), now())
+        """,
+        BASE_TYPE,
+        BASE_TYPE,
+        BASE_TYPE,
+        REQUIREMENT_TEXT_TYPE,
+        CHILD_TYPE);
+  }
+
+  private Map<String, Map<String, Object>> fieldsByCode(Map<String, Object> type) {
+    var fields = new java.util.LinkedHashMap<String, Map<String, Object>>();
+    for (var field : (java.util.List<Map<String, Object>>) type.get("fields")) {
+      fields.put((String) field.get("code"), field);
+    }
+    return fields;
+  }
+
+  private Map<String, Object> constraints(Map<String, Object> field) {
+    return (Map<String, Object>) field.get("constraints");
   }
 
   private String base() {
