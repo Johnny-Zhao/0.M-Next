@@ -7,7 +7,7 @@
   "additionalProperties": false,
   "properties": {
     "commandType": {
-      "enum": ["DefineObjectType", "DefineFieldDef", "DefineRelationType", "DefineValueType"]
+      "enum": ["DefineObjectType", "DefineFieldDef", "DefineRelationType", "DefineValueType", "PublishTemplateVersion", "InstantiateWorkspace", "ApplyTemplateVersion"]
     },
     "workspaceId": { "$ref": "#/$defs/uuid" },
     "correlationId": { "$ref": "#/$defs/uuid" },
@@ -18,7 +18,10 @@
     { "if": { "properties": { "commandType": { "const": "DefineObjectType" } } }, "then": { "properties": { "payload": { "$ref": "#/$defs/DefineObjectType" } } } },
     { "if": { "properties": { "commandType": { "const": "DefineFieldDef" } } }, "then": { "properties": { "payload": { "$ref": "#/$defs/DefineFieldDef" } } } },
     { "if": { "properties": { "commandType": { "const": "DefineRelationType" } } }, "then": { "properties": { "payload": { "$ref": "#/$defs/DefineRelationType" } } } },
-    { "if": { "properties": { "commandType": { "const": "DefineValueType" } } }, "then": { "properties": { "payload": { "$ref": "#/$defs/DefineValueType" } } } }
+    { "if": { "properties": { "commandType": { "const": "DefineValueType" } } }, "then": { "properties": { "payload": { "$ref": "#/$defs/DefineValueType" } } } },
+    { "if": { "properties": { "commandType": { "const": "PublishTemplateVersion" } } }, "then": { "properties": { "payload": { "$ref": "#/$defs/PublishTemplateVersion" } } } },
+    { "if": { "properties": { "commandType": { "const": "InstantiateWorkspace" } } }, "then": { "properties": { "payload": { "$ref": "#/$defs/InstantiateWorkspace" } } } },
+    { "if": { "properties": { "commandType": { "const": "ApplyTemplateVersion" } } }, "then": { "properties": { "payload": { "$ref": "#/$defs/ApplyTemplateVersion" } } } }
   ],
   "$defs": {
     "uuid": { "type": "string", "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$" },
@@ -95,6 +98,33 @@
         "cardinality": { "enum": ["one_to_one", "one_to_many", "many_to_many"] },
         "semantics": { "enum": ["weak", "strong"] },
         "hierarchical": { "type": "boolean", "default": false, "description": "true 必须 cardinality=one_to_many(承 V2 约束),违反返回 KERNEL-422-FIELD-CONSTRAINT-INVALID" }
+      }
+    },
+    "PublishTemplateVersion": {
+      "type": "object",
+      "required": ["templateVersionId"],
+      "additionalProperties": false,
+      "properties": {
+        "templateVersionId": { "$ref": "#/$defs/uuid", "description": "draft→published;已 published 重复发布返回 KERNEL-409-TEMPLATE-VERSION-IMMUTABLE;空模板版本可返回 KERNEL-422-TEMPLATE-EMPTY" }
+      }
+    },
+    "InstantiateWorkspace": {
+      "type": "object",
+      "required": ["templateId", "version", "newWorkspaceId", "workspaceName"],
+      "additionalProperties": false,
+      "properties": {
+        "templateId": { "$ref": "#/$defs/uuid" },
+        "version": { "type": "integer", "minimum": 1, "description": "必须为该模板已 published 的版本号,否则 KERNEL-422-TEMPLATE-NOT-PUBLISHED" },
+        "newWorkspaceId": { "$ref": "#/$defs/uuid", "description": "客户端提供的新工作空间 id(幂等);信封 workspaceId 为操作上下文" },
+        "workspaceName": { "type": "string", "minLength": 1, "maxLength": 256 }
+      }
+    },
+    "ApplyTemplateVersion": {
+      "type": "object",
+      "required": ["toVersion"],
+      "additionalProperties": false,
+      "properties": {
+        "toVersion": { "type": "integer", "minimum": 1, "description": "目标工作空间=信封 workspaceId;含收紧项返回 KERNEL-409-TEMPLATE-MIGRATION-REQUIRED + 受影响存量" }
       }
     }
   }

@@ -200,3 +200,15 @@ codes:
     httpStatus: 409
     title: 同幂等键不同载荷（规则命令）
     responseRequirement: 更换 idempotencyKey 后重试
+  - code: KERNEL-422-TEMPLATE-NOT-PUBLISHED
+    httpStatus: 422
+    title: 实例化引用未发布的模板版本
+    responseRequirement: 提示先 PublishTemplateVersion
+  - code: KERNEL-409-TEMPLATE-MIGRATION-REQUIRED
+    httpStatus: 409
+    title: 模板演化含收紧项，需人工迁移
+    responseRequirement: 返回受影响存量清单与收紧项
+  - code: KERNEL-422-TEMPLATE-EMPTY
+    httpStatus: 422
+    title: 发布的模板版本无对象类型
+    responseRequirement: 提示至少定义一个对象类型后再发布
