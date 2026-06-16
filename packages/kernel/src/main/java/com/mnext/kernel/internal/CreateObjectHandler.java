@@ -3,6 +3,7 @@ package com.mnext.kernel.internal;
 import com.mnext.kernel.api.Actor;
 import com.mnext.kernel.api.CommandResult;
 import com.mnext.kernel.api.PermissionChecker;
+import com.mnext.kernel.api.RuleChecker;
 import com.mnext.kernel.api.commands.CreateObjectCommand;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -18,13 +19,18 @@ class CreateObjectHandler {
   private final KernelRepository repository;
   private final MetaModelRepository meta;
   private final PermissionChecker permissionChecker;
+  private final RuleChecker ruleChecker;
   private final CommandSupport support;
 
   CreateObjectHandler(
-      KernelRepository repository, MetaModelRepository meta, PermissionChecker permissionChecker) {
+      KernelRepository repository,
+      MetaModelRepository meta,
+      PermissionChecker permissionChecker,
+      RuleChecker ruleChecker) {
     this.repository = repository;
     this.meta = meta;
     this.permissionChecker = permissionChecker;
+    this.ruleChecker = ruleChecker;
     this.support = new CommandSupport(repository);
   }
 
@@ -46,6 +52,11 @@ class CreateObjectHandler {
     var definitions = meta.resolveEffectiveFields(command.objectTypeId());
     FieldValidator.validate(command, definitions, repository::validReference);
     validateDefinitions(command, definitions);
+    enforceRules(
+        command.workspaceId(),
+        command.objectTypeId(),
+        effectiveValues(command, definitions),
+        actor);
     var commandId = CommandSupport.commandId();
     var objectId = UUID.randomUUID();
     var now = Instant.now();
@@ -151,6 +162,22 @@ class CreateObjectHandler {
             definition -> {
               throw CommandErrors.required(definition.code());
             });
+  }
+
+  private void enforceRules(
+      UUID workspaceId, UUID objectTypeId, Map<String, Object> effectiveFieldValues, Actor actor) {
+    var violations = ruleChecker.check(workspaceId, objectTypeId, effectiveFieldValues, actor);
+    var blocking = violations.stream().filter(v -> "BLOCK".equals(v.severity())).toList();
+    if (!blocking.isEmpty()) throw CommandErrors.ruleViolation(blocking);
+  }
+
+  private Map<String, Object> effectiveValues(
+      CreateObjectCommand command, Map<String, FieldDefinition> definitions) {
+    var values = new LinkedHashMap<String, Object>();
+    for (var code : definitions.keySet()) {
+      values.put(code, command.fields().get(code));
+    }
+    return values;
   }
 
   private Map<String, Object> payload(CreateObjectCommand command) {

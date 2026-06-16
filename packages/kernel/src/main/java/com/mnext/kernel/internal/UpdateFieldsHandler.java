@@ -3,6 +3,7 @@ package com.mnext.kernel.internal;
 import com.mnext.kernel.api.Actor;
 import com.mnext.kernel.api.CommandResult;
 import com.mnext.kernel.api.PermissionChecker;
+import com.mnext.kernel.api.RuleChecker;
 import com.mnext.kernel.api.commands.FieldUpdate;
 import com.mnext.kernel.api.commands.UpdateFieldsCommand;
 import java.time.Instant;
@@ -19,13 +20,18 @@ class UpdateFieldsHandler {
   private final KernelRepository repository;
   private final MetaModelRepository meta;
   private final PermissionChecker permissionChecker;
+  private final RuleChecker ruleChecker;
   private final CommandSupport support;
 
   UpdateFieldsHandler(
-      KernelRepository repository, MetaModelRepository meta, PermissionChecker permissionChecker) {
+      KernelRepository repository,
+      MetaModelRepository meta,
+      PermissionChecker permissionChecker,
+      RuleChecker ruleChecker) {
     this.repository = repository;
     this.meta = meta;
     this.permissionChecker = permissionChecker;
+    this.ruleChecker = ruleChecker;
     this.support = new CommandSupport(repository);
   }
 
@@ -63,6 +69,7 @@ class UpdateFieldsHandler {
           object.version(),
           conflicts);
     }
+    enforceRules(command, object, definitions, prepared, actor);
 
     var commandId = CommandSupport.commandId();
     var now = Instant.now();
@@ -141,6 +148,33 @@ class UpdateFieldsHandler {
     return field.current() == null
         || !repository.sameJson(
             field.current().valueJson(), JsonCodec.encode(field.update().value()));
+  }
+
+  private void enforceRules(
+      UpdateFieldsCommand command,
+      ObjectRow object,
+      Map<String, FieldDefinition> definitions,
+      List<PreparedField> prepared,
+      Actor actor) {
+    var effective = currentValues(command, definitions);
+    for (var field : prepared) {
+      effective.put(field.update().fieldDefCode(), field.update().value());
+    }
+    var violations =
+        ruleChecker.check(command.workspaceId(), object.objectTypeId(), effective, actor);
+    var blocking = violations.stream().filter(v -> "BLOCK".equals(v.severity())).toList();
+    if (!blocking.isEmpty()) throw CommandErrors.ruleViolation(blocking);
+  }
+
+  private Map<String, Object> currentValues(
+      UpdateFieldsCommand command, Map<String, FieldDefinition> definitions) {
+    var values = new LinkedHashMap<String, Object>();
+    values.put("$objectId", command.objectId());
+    for (var code : definitions.keySet()) {
+      var current = repository.lockField(command.objectId(), code).orElse(null);
+      values.put(code, current == null ? null : JsonCodec.decodeScalar(current.valueJson()));
+    }
+    return values;
   }
 
   private void applyField(

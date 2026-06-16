@@ -2,6 +2,7 @@ package com.mnext.kernel.internal;
 
 import com.mnext.kernel.api.CommandError;
 import com.mnext.kernel.api.CommandRejectedException;
+import com.mnext.kernel.api.RuleViolation;
 import java.util.List;
 import java.util.Map;
 
@@ -133,6 +134,23 @@ final class CommandErrors {
 
   static CommandRejectedException required(String fieldCode) {
     return error("RULE-422-REQUIRED", "必填字段缺失", Map.of("fieldDefCode", fieldCode), "填写必填字段后重试");
+  }
+
+  static CommandRejectedException ruleViolation(List<RuleViolation> violations) {
+    var details =
+        violations.stream()
+            .map(
+                violation ->
+                    Map.of(
+                        "ruleCode",
+                        violation.ruleCode(),
+                        "severity",
+                        violation.severity(),
+                        "message",
+                        violation.message()))
+            .toList();
+    return error(
+        "RULE-422-RULE-VIOLATION", "命中阻断规则", Map.of("violations", details), "按规则提示修正字段后重试");
   }
 
   static CommandRejectedException idempotency(String commandId) {
