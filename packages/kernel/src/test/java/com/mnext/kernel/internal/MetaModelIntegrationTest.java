@@ -234,6 +234,80 @@ class MetaModelIntegrationTest {
             relationType("traces_gen")));
   }
 
+  @Test
+  void fieldRedefinitionNarrowsInheritedFieldAndValidatesObjects() {
+    var actor = Actor.user("model-author");
+    meta.defineValueType(
+        new DefineValueTypeCommand(
+            WORKSPACE,
+            UUID.randomUUID(),
+            "vt-short-paragraph",
+            null,
+            "short_paragraph_genb",
+            "短自然段",
+            DataType.TEXT,
+            "text",
+            new FieldConstraints(null, 5, null, null, null, null, null, true)),
+        actor);
+    var requirement = defineObject("requirement_genb", "需求", null, actor);
+    meta.defineFieldDef(
+        new DefineFieldDefCommand(
+            WORKSPACE,
+            UUID.randomUUID(),
+            "field-base-name",
+            requirement,
+            "name",
+            "名称",
+            null,
+            "text",
+            false,
+            new FieldConstraints(null, 10, null, null, null, null, null)),
+        actor);
+    var performance =
+        defineObject("performance_requirement_genb", "性能需求", "requirement_genb", actor);
+    meta.defineFieldDef(
+        new DefineFieldDefCommand(
+            WORKSPACE,
+            UUID.randomUUID(),
+            "field-redefine-name",
+            performance,
+            "name",
+            "名称",
+            null,
+            "short_paragraph_genb",
+            true,
+            "name",
+            FieldConstraints.empty()),
+        actor);
+    publish(requirement, performance);
+
+    var missing =
+        assertThrows(
+            CommandRejectedException.class,
+            () -> commands.createObject(create(performance, "redefined-missing", Map.of()), actor));
+    var tooLong =
+        assertThrows(
+            CommandRejectedException.class,
+            () ->
+                commands.createObject(
+                    create(performance, "redefined-too-long", Map.of("name", "123456")), actor));
+    commands.createObject(create(performance, "redefined-valid", Map.of("name", "12345")), actor);
+
+    assertEquals("KERNEL-422-FIELD-VALUE-INVALID", missing.error().code());
+    assertEquals("KERNEL-422-FIELD-VALUE-INVALID", tooLong.error().code());
+    assertEquals(
+        1L,
+        jdbc.queryForObject(
+            """
+            SELECT count(*) FROM field_def child
+            JOIN field_def parent ON parent.id = child.redefines_field_def_id
+            WHERE child.object_type_id = ? AND child.code = 'name' AND parent.object_type_id = ?
+            """,
+            Long.class,
+            performance,
+            requirement));
+  }
+
   private static CreateObjectCommand create(UUID typeId, String key, Object budget) {
     return create(typeId, key, Map.of("budget", budget));
   }

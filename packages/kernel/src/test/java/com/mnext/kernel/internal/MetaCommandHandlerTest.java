@@ -2,6 +2,7 @@ package com.mnext.kernel.internal;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -18,6 +19,7 @@ import com.mnext.kernel.api.metamodel.DefineRelationTypeCommand;
 import com.mnext.kernel.api.metamodel.DefineValueTypeCommand;
 import com.mnext.kernel.api.metamodel.FieldConstraints;
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -256,6 +258,260 @@ class MetaCommandHandlerTest {
   void dangerousPatternIsRejected() {
     assertFieldConstraint(
         DataType.STRING, new FieldConstraints(null, null, null, null, "(a+)+", null, null));
+  }
+
+  @Test
+  void fieldRedefinitionRequiresExplicitCode() {
+    when(meta.ancestorFieldByCode(type, "name"))
+        .thenReturn(
+            Optional.of(
+                new MetaModelRepository.FieldDefRow(
+                    UUID.randomUUID(),
+                    "name",
+                    false,
+                    DataType.TEXT,
+                    null,
+                    FieldConstraints.empty())));
+    var command =
+        new DefineFieldDefCommand(
+            workspace,
+            UUID.randomUUID(),
+            "meta-shadow",
+            type,
+            "name",
+            "名称",
+            DataType.TEXT,
+            false,
+            FieldConstraints.empty());
+
+    assertCode(
+        "META-422-REDEFINITION-INCONSISTENT",
+        () ->
+            new DefineFieldDefHandler(meta, repository, permissions)
+                .execute(command, Actor.user("author")));
+  }
+
+  @Test
+  void fieldRedefinitionRejectsRequiredWidening() {
+    when(meta.objectTypeTemplateVersion(workspace, type)).thenReturn(Optional.empty());
+    when(meta.objectTypeById(workspace, type))
+        .thenReturn(Optional.of(new MetaModelRepository.ObjectTypeRow(type, null, null, false)));
+    when(meta.ancestorFieldByCode(type, "name"))
+        .thenReturn(
+            Optional.of(
+                new MetaModelRepository.FieldDefRow(
+                    UUID.randomUUID(),
+                    "name",
+                    true,
+                    DataType.TEXT,
+                    null,
+                    FieldConstraints.empty())));
+    var command =
+        new DefineFieldDefCommand(
+            workspace,
+            UUID.randomUUID(),
+            "meta-required-wide",
+            type,
+            "name",
+            "名称",
+            DataType.TEXT,
+            null,
+            false,
+            "name",
+            FieldConstraints.empty());
+
+    assertCode(
+        "META-422-REDEFINITION-INCONSISTENT",
+        () ->
+            new DefineFieldDefHandler(meta, repository, permissions)
+                .execute(command, Actor.user("author")));
+  }
+
+  @Test
+  void fieldRedefinitionAllowsChildValueTypeAndRecordsParentField() {
+    var parentField = UUID.randomUUID();
+    var parentValueType = UUID.randomUUID();
+    var childValueType = UUID.randomUUID();
+    when(meta.objectTypeTemplateVersion(workspace, type)).thenReturn(Optional.empty());
+    when(meta.objectTypeById(workspace, type))
+        .thenReturn(Optional.of(new MetaModelRepository.ObjectTypeRow(type, null, null, false)));
+    when(meta.ancestorFieldByCode(type, "name"))
+        .thenReturn(
+            Optional.of(
+                new MetaModelRepository.FieldDefRow(
+                    parentField,
+                    "name",
+                    false,
+                    DataType.TEXT,
+                    parentValueType,
+                    new FieldConstraints(null, 100, null, null, null, null, null))));
+    when(meta.valueTypeByCode(workspace, "paragraph"))
+        .thenReturn(
+            Optional.of(
+                new MetaModelRepository.ValueTypeRow(
+                    childValueType,
+                    null,
+                    "paragraph",
+                    DataType.TEXT,
+                    parentValueType,
+                    FieldConstraints.empty(),
+                    false)));
+    when(meta.resolveEffectiveValueType(childValueType))
+        .thenReturn(
+            new MetaModelRepository.EffectiveValueType(
+                childValueType, DataType.TEXT, FieldConstraints.empty()));
+    when(meta.valueTypeDescendsFrom(childValueType, parentValueType)).thenReturn(true);
+    when(meta.narrowingViolations(eq(workspace), any(), any())).thenReturn(List.of());
+    var command =
+        new DefineFieldDefCommand(
+            workspace,
+            UUID.randomUUID(),
+            "meta-value-child",
+            type,
+            "name",
+            "名称",
+            null,
+            "paragraph",
+            true,
+            "name",
+            new FieldConstraints(null, 50, null, null, null, null, null));
+
+    new DefineFieldDefHandler(meta, repository, permissions).execute(command, Actor.user("author"));
+
+    verify(meta)
+        .insertFieldDef(
+            any(),
+            eq(type),
+            eq(null),
+            eq("name"),
+            eq("名称"),
+            eq(DataType.TEXT),
+            eq(childValueType),
+            eq(true),
+            any(),
+            eq(parentField),
+            eq("author"),
+            any());
+  }
+
+  @Test
+  void fieldRedefinitionRejectsValueTypeWidening() {
+    var parentField = UUID.randomUUID();
+    var parentValueType = UUID.randomUUID();
+    var rootValueType = UUID.randomUUID();
+    when(meta.objectTypeTemplateVersion(workspace, type)).thenReturn(Optional.empty());
+    when(meta.objectTypeById(workspace, type))
+        .thenReturn(Optional.of(new MetaModelRepository.ObjectTypeRow(type, null, null, false)));
+    when(meta.ancestorFieldByCode(type, "name"))
+        .thenReturn(
+            Optional.of(
+                new MetaModelRepository.FieldDefRow(
+                    parentField,
+                    "name",
+                    false,
+                    DataType.TEXT,
+                    parentValueType,
+                    FieldConstraints.empty())));
+    when(meta.valueTypeByCode(workspace, "text"))
+        .thenReturn(
+            Optional.of(
+                new MetaModelRepository.ValueTypeRow(
+                    rootValueType,
+                    null,
+                    "text",
+                    DataType.TEXT,
+                    null,
+                    FieldConstraints.empty(),
+                    false)));
+    when(meta.resolveEffectiveValueType(rootValueType))
+        .thenReturn(
+            new MetaModelRepository.EffectiveValueType(
+                rootValueType, DataType.TEXT, FieldConstraints.empty()));
+    when(meta.valueTypeDescendsFrom(rootValueType, parentValueType)).thenReturn(false);
+    var command =
+        new DefineFieldDefCommand(
+            workspace,
+            UUID.randomUUID(),
+            "meta-value-parent",
+            type,
+            "name",
+            "名称",
+            null,
+            "text",
+            false,
+            "name",
+            FieldConstraints.empty());
+
+    assertCode(
+        "META-422-REDEFINITION-INCONSISTENT",
+        () ->
+            new DefineFieldDefHandler(meta, repository, permissions)
+                .execute(command, Actor.user("author")));
+  }
+
+  @Test
+  void narrowingViolationMatrixRejectsWiderConstraints() {
+    var repository =
+        new MetaModelRepository(mock(org.springframework.jdbc.core.JdbcTemplate.class));
+
+    assertTrue(
+        repository
+            .narrowingViolations(
+                workspace,
+                new FieldConstraints(5, 10, null, null, null, null, null),
+                new FieldConstraints(4, 11, null, null, null, null, null))
+            .containsAll(List.of("minLength", "maxLength")));
+    assertTrue(
+        repository
+            .narrowingViolations(
+                workspace,
+                new FieldConstraints(null, null, BigDecimal.ONE, BigDecimal.TEN, null, null, null),
+                new FieldConstraints(
+                    null, null, BigDecimal.ZERO, BigDecimal.valueOf(11), null, null, null))
+            .containsAll(List.of("min", "max")));
+    assertTrue(
+        repository
+            .narrowingViolations(
+                workspace,
+                new FieldConstraints(null, null, null, null, null, List.of("a", "b"), null),
+                new FieldConstraints(null, null, null, null, null, List.of("a", "c"), null))
+            .contains("enumValues"));
+  }
+
+  @Test
+  void publishedObjectTypeRejectsFieldRedefinition() {
+    when(meta.objectTypeTemplateVersion(workspace, type)).thenReturn(Optional.empty());
+    when(meta.objectTypeById(workspace, type))
+        .thenReturn(Optional.of(new MetaModelRepository.ObjectTypeRow(type, null, null, true)));
+    when(meta.ancestorFieldByCode(type, "name"))
+        .thenReturn(
+            Optional.of(
+                new MetaModelRepository.FieldDefRow(
+                    UUID.randomUUID(),
+                    "name",
+                    false,
+                    DataType.TEXT,
+                    null,
+                    FieldConstraints.empty())));
+    var command =
+        new DefineFieldDefCommand(
+            workspace,
+            UUID.randomUUID(),
+            "meta-published-redefine",
+            type,
+            "name",
+            "名称",
+            DataType.TEXT,
+            null,
+            false,
+            "name",
+            FieldConstraints.empty());
+
+    assertCode(
+        "META-409-PUBLISHED-IMMUTABLE",
+        () ->
+            new DefineFieldDefHandler(meta, repository, permissions)
+                .execute(command, Actor.user("author")));
   }
 
   @Test

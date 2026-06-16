@@ -32,6 +32,14 @@ class MetaModelRepository {
 
   record EffectiveValueType(UUID id, DataType basePrimitive, FieldConstraints constraints) {}
 
+  record FieldDefRow(
+      UUID id,
+      String code,
+      boolean required,
+      DataType dataType,
+      UUID valueTypeId,
+      FieldConstraints constraints) {}
+
   MetaModelRepository(JdbcTemplate jdbc) {
     this.jdbc = jdbc;
   }
@@ -209,14 +217,16 @@ class MetaModelRepository {
       UUID valueTypeId,
       boolean required,
       FieldConstraints constraints,
+      UUID redefinesFieldDefId,
       String actor,
       Instant now) {
     jdbc.update(
         """
         INSERT INTO field_def
           (id, object_type_id, template_version_id, code, name, required, data_type,
-           value_type_id, constraints, created_by, updated_by, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, CAST(? AS jsonb), ?, ?, ?, ?)
+           value_type_id, constraints, redefines_field_def_id, created_by, updated_by, created_at,
+           updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, CAST(? AS jsonb), ?, ?, ?, ?, ?)
         """,
         id,
         objectTypeId,
@@ -227,10 +237,46 @@ class MetaModelRepository {
         dataType.code(),
         valueTypeId,
         JsonCodec.encode(constraints.asMap()),
+        redefinesFieldDefId,
         actor,
         actor,
         Timestamp.from(now),
         Timestamp.from(now));
+  }
+
+  Optional<FieldDefRow> ancestorFieldByCode(UUID objectTypeId, String code) {
+    return jdbc.query(
+        """
+        WITH RECURSIVE ancestors AS (
+          SELECT parent.id, parent.parent_type_id, 1 AS depth
+          FROM object_type child
+          JOIN object_type parent ON parent.id = child.parent_type_id
+          WHERE child.id = ?
+          UNION ALL
+          SELECT parent.id, parent.parent_type_id, child.depth + 1
+          FROM object_type parent
+          JOIN ancestors child ON parent.id = child.parent_type_id
+          WHERE child.depth < 32
+        )
+        SELECT field.id, field.code, field.required, field.data_type, field.value_type_id,
+          field.constraints->>'minLength' AS min_length,
+          field.constraints->>'maxLength' AS max_length,
+          field.constraints->>'min' AS min_value,
+          field.constraints->>'max' AS max_value,
+          field.constraints->>'pattern' AS pattern,
+          field.constraints->>'refObjectTypeCode' AS ref_type,
+          field.constraints->>'multiline' AS multiline,
+          ARRAY(SELECT jsonb_array_elements_text(
+            COALESCE(field.constraints->'enumValues', '[]'::jsonb))) AS enum_values
+        FROM ancestors
+        JOIN field_def field ON field.object_type_id = ancestors.id
+        WHERE field.code = ?
+        ORDER BY ancestors.depth ASC
+        LIMIT 1
+        """,
+        result -> result.next() ? Optional.of(fieldDefRow(result)) : Optional.empty(),
+        objectTypeId,
+        code);
   }
 
   Optional<ValueTypeRow> valueTypeByCode(UUID workspaceId, String code) {
@@ -497,6 +543,16 @@ class MetaModelRepository {
         result.getObject("parent_value_type_id", UUID.class),
         constraints(result),
         result.getBoolean("published"));
+  }
+
+  private FieldDefRow fieldDefRow(ResultSet result) throws SQLException {
+    return new FieldDefRow(
+        result.getObject("id", UUID.class),
+        result.getString("code"),
+        result.getBoolean("required"),
+        DataType.fromCode(result.getString("data_type")),
+        result.getObject("value_type_id", UUID.class),
+        constraints(result));
   }
 
   private FieldConstraints constraints(ResultSet result) throws SQLException {
