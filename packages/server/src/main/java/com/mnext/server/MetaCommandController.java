@@ -27,10 +27,13 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 public class MetaCommandController {
   private final MetaCommandService commands;
+  private final TemplateLifecycleService lifecycle;
   private final ObjectMapper mapper;
 
-  public MetaCommandController(MetaCommandService commands, ObjectMapper mapper) {
+  public MetaCommandController(
+      MetaCommandService commands, TemplateLifecycleService lifecycle, ObjectMapper mapper) {
     this.commands = commands;
+    this.lifecycle = lifecycle;
     this.mapper = mapper;
   }
 
@@ -50,9 +53,9 @@ public class MetaCommandController {
       case "PublishTemplateVersion" ->
           commands.publishTemplateVersion(publishTemplateVersion(request), Actor.user(actorId));
       case "InstantiateWorkspace" ->
-          commands.instantiateWorkspace(instantiateWorkspace(request), Actor.user(actorId));
+          lifecycle.instantiateWorkspace(instantiateWorkspace(request), Actor.user(actorId));
       case "ApplyTemplateVersion" ->
-          commands.applyTemplateVersion(applyTemplateVersion(request), Actor.user(actorId));
+          lifecycle.applyTemplateVersion(applyTemplateVersion(request), Actor.user(actorId));
       default -> throw schema("本批次不支持 commandType: " + request.commandType());
     };
   }
