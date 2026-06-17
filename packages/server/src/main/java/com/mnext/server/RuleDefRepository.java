@@ -37,7 +37,7 @@ class RuleDefRepository {
     if (replay != null) return replay.replayed();
     validateWhen(request.when());
     validateSeverity(request.severity());
-    var scope = resolveScope(request.workspaceId(), request.scope());
+    var scope = resolveScope(request.workspaceId(), request.templateVersionId(), request.scope());
     var existing = existing(request.workspaceId(), request.ruleCode());
     if (existing != null && existing.published()) {
       throw rule("RULE-409-PUBLISHED-IMMUTABLE", "已发布规则不可覆盖", "复制为新的 ruleCode 或等待新版本规则流程");
@@ -148,19 +148,14 @@ class RuleDefRepository {
         ruleId);
   }
 
-  private ScopeIds resolveScope(UUID workspaceId, RuleScopeRequest scope) {
+  private ScopeIds resolveScope(UUID workspaceId, UUID templateVersionId, RuleScopeRequest scope) {
     if (scope == null || blank(scope.objectTypeCode())) {
       throw rule("RULE-422-SCOPE-UNRESOLVED", "规则 scope 类型不存在", "确认 objectTypeCode 已发布且属于当前工作空间");
     }
     var typeId =
-        jdbc.query(
-            """
-            SELECT id FROM object_type
-            WHERE workspace_id = ? AND code = ? AND published = TRUE
-            """,
-            (row, index) -> row.getObject(1, UUID.class),
-            workspaceId,
-            scope.objectTypeCode());
+        templateVersionId == null
+            ? publishedObjectType(workspaceId, scope.objectTypeCode())
+            : templateObjectType(workspaceId, templateVersionId, scope.objectTypeCode());
     if (typeId.isEmpty()) {
       throw rule("RULE-422-SCOPE-UNRESOLVED", "规则 scope 类型不存在", "确认 objectTypeCode 已发布且属于当前工作空间");
     }
@@ -168,6 +163,29 @@ class RuleDefRepository {
       return new ScopeIds(typeId.getFirst(), null);
     }
     return new ScopeIds(typeId.getFirst(), resolveField(typeId.getFirst(), scope.fieldCode()));
+  }
+
+  private List<UUID> publishedObjectType(UUID workspaceId, String code) {
+    return jdbc.query(
+        """
+        SELECT id FROM object_type
+        WHERE workspace_id = ? AND code = ? AND published = TRUE
+        """,
+        (row, index) -> row.getObject(1, UUID.class),
+        workspaceId,
+        code);
+  }
+
+  private List<UUID> templateObjectType(UUID workspaceId, UUID templateVersionId, String code) {
+    return jdbc.query(
+        """
+        SELECT id FROM object_type
+        WHERE workspace_id = ? AND template_version_id = ? AND code = ?
+        """,
+        (row, index) -> row.getObject(1, UUID.class),
+        workspaceId,
+        templateVersionId,
+        code);
   }
 
   private UUID resolveField(UUID objectTypeId, String fieldCode) {
