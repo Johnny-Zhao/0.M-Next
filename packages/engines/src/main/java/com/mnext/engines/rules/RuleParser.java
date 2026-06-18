@@ -53,12 +53,39 @@ public final class RuleParser {
   }
 
   private RuleExpression parseComparison() {
-    var expression = parsePrimary();
+    var expression = parseAdditive();
     var operator = comparisonOperator();
     if (operator == null) {
       return expression;
     }
-    return new Comparison(expression, operator, parsePrimary());
+    return new Comparison(expression, operator, parseAdditive());
+  }
+
+  private RuleExpression parseAdditive() {
+    var expression = parseMultiplicative();
+    while (true) {
+      if (match("+")) {
+        expression = new Arithmetic(expression, Arithmetic.Operator.ADD, parseMultiplicative());
+      } else if (match("-")) {
+        expression =
+            new Arithmetic(expression, Arithmetic.Operator.SUBTRACT, parseMultiplicative());
+      } else {
+        return expression;
+      }
+    }
+  }
+
+  private RuleExpression parseMultiplicative() {
+    var expression = parsePrimary();
+    while (true) {
+      if (match("*")) {
+        expression = new Arithmetic(expression, Arithmetic.Operator.MULTIPLY, parsePrimary());
+      } else if (match("/")) {
+        expression = new Arithmetic(expression, Arithmetic.Operator.DIVIDE, parsePrimary());
+      } else {
+        return expression;
+      }
+    }
   }
 
   private RuleExpression parsePrimary() {
@@ -91,7 +118,7 @@ public final class RuleParser {
   }
 
   private RuleExpression parseFunction(String name) {
-    if (!RuleFunctions.isAllowed(name) && !"field".equals(name)) {
+    if (!RuleFunctions.isAllowed(name) && !isSpecialFunction(name)) {
       throw error("unknown function " + name);
     }
     expect("(");
@@ -105,6 +132,32 @@ public final class RuleParser {
         throw error("field expects one string literal");
       }
       return new FieldRef(code);
+    }
+    if ("traverse".equals(name)) {
+      expectArgumentCount(name, arguments, 2);
+      return new Traverse(stringLiteral(name, arguments.get(0)), direction(name, arguments.get(1)));
+    }
+    if ("traverseFrom".equals(name)) {
+      expectArgumentCount(name, arguments, 3);
+      return new TraverseFrom(
+          arguments.get(0),
+          stringLiteral(name, arguments.get(1)),
+          direction(name, arguments.get(2)));
+    }
+    if ("traverseDeep".equals(name)) {
+      expectArgumentCount(name, arguments, 3);
+      return new TraverseDeep(
+          stringLiteral(name, arguments.get(0)),
+          direction(name, arguments.get(1)),
+          arguments.get(2));
+    }
+    if ("if".equals(name)) {
+      expectArgumentCount(name, arguments, 3);
+      return new Conditional(arguments.get(0), arguments.get(1), arguments.get(2));
+    }
+    var aggregate = aggregateOperator(name);
+    if (aggregate != null) {
+      return aggregate(name, aggregate, arguments);
     }
     return new FunctionCall(name, arguments);
   }
@@ -120,6 +173,68 @@ public final class RuleParser {
       skipWhitespace();
     } while (match(","));
     return arguments;
+  }
+
+  private RuleExpression aggregate(
+      String name, Aggregate.Operator operator, List<RuleExpression> arguments) {
+    if (operator == Aggregate.Operator.COUNT) {
+      expectArgumentCount(name, arguments, 1);
+      return new Aggregate(operator, arguments.getFirst(), null, null);
+    }
+    if (operator == Aggregate.Operator.ANY || operator == Aggregate.Operator.ALL) {
+      expectArgumentCount(name, arguments, 2);
+      return new Aggregate(operator, arguments.getFirst(), null, arguments.get(1));
+    }
+    expectArgumentCount(name, arguments, 2);
+    return new Aggregate(
+        operator, arguments.getFirst(), stringLiteral(name, arguments.get(1)), null);
+  }
+
+  private Aggregate.Operator aggregateOperator(String name) {
+    return switch (name) {
+      case "sum" -> Aggregate.Operator.SUM;
+      case "avg" -> Aggregate.Operator.AVG;
+      case "max" -> Aggregate.Operator.MAX;
+      case "min" -> Aggregate.Operator.MIN;
+      case "count" -> Aggregate.Operator.COUNT;
+      case "any" -> Aggregate.Operator.ANY;
+      case "all" -> Aggregate.Operator.ALL;
+      default -> null;
+    };
+  }
+
+  private boolean isSpecialFunction(String name) {
+    return "field".equals(name)
+        || "traverse".equals(name)
+        || "traverseFrom".equals(name)
+        || "traverseDeep".equals(name)
+        || "if".equals(name)
+        || aggregateOperator(name) != null;
+  }
+
+  private void expectArgumentCount(
+      String name, List<RuleExpression> arguments, int expectedArguments) {
+    if (arguments.size() != expectedArguments) {
+      throw error(name + " expects " + expectedArguments + " arguments");
+    }
+  }
+
+  private String stringLiteral(String name, RuleExpression expression) {
+    if (!(expression instanceof Literal literal) || !(literal.value() instanceof String value)) {
+      throw error(name + " expects string literal arguments");
+    }
+    if (value.isBlank()) {
+      throw error(name + " expects non-blank string literal arguments");
+    }
+    return value;
+  }
+
+  private String direction(String name, RuleExpression expression) {
+    var value = stringLiteral(name, expression);
+    if (!"out".equals(value) && !"in".equals(value)) {
+      throw error(name + " direction must be 'out' or 'in'");
+    }
+    return value;
   }
 
   private Comparison.Operator comparisonOperator() {
