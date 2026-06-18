@@ -1,0 +1,8 @@
+{
+  "ruleCode": "budget_positive",
+  "severity": "WARN",
+  "message": "预算偏低",
+  "objectId": "33333333-3333-4333-8333-333333333333",
+  "runId": "44444444-4444-4444-8444-444444444444",
+  "configHash": "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789"
+}
