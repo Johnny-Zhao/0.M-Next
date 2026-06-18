@@ -22,10 +22,12 @@ public class EnginesRuleChecker implements RuleChecker {
   private static final Pattern FIELD_PLACEHOLDER =
       Pattern.compile("\\$\\{field\\('([a-z][a-z0-9_]{0,127})'\\)\\}");
   private final JdbcTemplate jdbc;
+  private final DerivedEvaluator derivedEvaluator;
   private final RuleEvaluator evaluator = new RuleEvaluator();
 
-  EnginesRuleChecker(JdbcTemplate jdbc) {
+  EnginesRuleChecker(JdbcTemplate jdbc, DerivedEvaluator derivedEvaluator) {
     this.jdbc = jdbc;
+    this.derivedEvaluator = derivedEvaluator;
   }
 
   @Override
@@ -37,12 +39,11 @@ public class EnginesRuleChecker implements RuleChecker {
         continue;
       }
       var expression = RuleParser.parse(rule.whenSrc());
-      if (evaluator.evaluate(expression, context(workspaceId, effectiveFieldValues))) {
+      var context = context(workspaceId, objectTypeId, effectiveFieldValues);
+      if (evaluator.evaluate(expression, context)) {
         violations.add(
             new RuleViolation(
-                rule.ruleCode(),
-                rule.severity(),
-                interpolate(rule.message(), effectiveFieldValues)));
+                rule.ruleCode(), rule.severity(), interpolate(rule.message(), context)));
       }
     }
     return violations;
@@ -82,12 +83,21 @@ public class EnginesRuleChecker implements RuleChecker {
         workspaceId);
   }
 
-  private EvalContext context(UUID workspaceId, Map<String, Object> effectiveFieldValues) {
+  private EvalContext context(
+      UUID workspaceId, UUID objectTypeId, Map<String, Object> effectiveFieldValues) {
     var objectId = effectiveFieldValues.get("$objectId");
     return new EvalContext() {
       @Override
       public Object fieldValue(String code) {
-        return effectiveFieldValues.get(code);
+        if (effectiveFieldValues.containsKey(code)) {
+          return effectiveFieldValues.get(code);
+        }
+        return derivedEvaluator.evaluate(
+            workspaceId,
+            objectId instanceof UUID currentObjectId ? currentObjectId : null,
+            objectTypeId,
+            effectiveFieldValues,
+            code);
       }
 
       @Override
@@ -124,11 +134,11 @@ public class EnginesRuleChecker implements RuleChecker {
         objectId);
   }
 
-  private static String interpolate(String message, Map<String, Object> effectiveFieldValues) {
+  private static String interpolate(String message, EvalContext context) {
     var matcher = FIELD_PLACEHOLDER.matcher(message);
     var interpolated = new StringBuilder();
     while (matcher.find()) {
-      var value = effectiveFieldValues.get(matcher.group(1));
+      var value = context.fieldValue(matcher.group(1));
       matcher.appendReplacement(
           interpolated, Matcher.quoteReplacement(value == null ? "" : String.valueOf(value)));
     }

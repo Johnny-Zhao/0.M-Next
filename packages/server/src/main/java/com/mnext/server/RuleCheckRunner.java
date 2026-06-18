@@ -32,12 +32,18 @@ class RuleCheckRunner {
   private final JdbcTemplate jdbc;
   private final ObjectMapper mapper;
   private final CheckResultRepository results;
+  private final DerivedEvaluator derivedEvaluator;
   private final RuleEvaluator evaluator = new RuleEvaluator();
 
-  RuleCheckRunner(JdbcTemplate jdbc, ObjectMapper mapper, CheckResultRepository results) {
+  RuleCheckRunner(
+      JdbcTemplate jdbc,
+      ObjectMapper mapper,
+      CheckResultRepository results,
+      DerivedEvaluator derivedEvaluator) {
     this.jdbc = jdbc;
     this.mapper = mapper;
     this.results = results;
+    this.derivedEvaluator = derivedEvaluator;
   }
 
   @Transactional
@@ -56,13 +62,14 @@ class RuleCheckRunner {
       values.put("$objectId", object.objectId());
       for (var rule : applicableRules(request.workspaceId(), object.objectTypeId())) {
         var expression = RuleParser.parse(rule.whenSrc());
-        if (evaluator.evaluate(expression, context(request.workspaceId(), values))) {
+        var context = context(request.workspaceId(), object.objectTypeId(), values);
+        if (evaluator.evaluate(expression, context)) {
           results.insert(
               request.workspaceId(),
               runId,
               rule.ruleCode(),
               rule.severity(),
-              interpolate(rule.message(), values),
+              interpolate(rule.message(), context),
               object.objectId(),
               rule.fieldCode(),
               configHash,
@@ -240,12 +247,20 @@ class RuleCheckRunner {
         args.toArray());
   }
 
-  private EvalContext context(UUID workspaceId, Map<String, Object> values) {
+  private EvalContext context(UUID workspaceId, UUID objectTypeId, Map<String, Object> values) {
     var objectId = values.get("$objectId");
     return new EvalContext() {
       @Override
       public Object fieldValue(String code) {
-        return values.get(code);
+        if (values.containsKey(code)) {
+          return values.get(code);
+        }
+        return derivedEvaluator.evaluate(
+            workspaceId,
+            objectId instanceof UUID currentObjectId ? currentObjectId : null,
+            objectTypeId,
+            values,
+            code);
       }
 
       @Override
@@ -352,11 +367,11 @@ class RuleCheckRunner {
     }
   }
 
-  private static String interpolate(String message, Map<String, Object> values) {
+  private static String interpolate(String message, EvalContext context) {
     var matcher = FIELD_PLACEHOLDER.matcher(message);
     var interpolated = new StringBuilder();
     while (matcher.find()) {
-      var value = values.get(matcher.group(1));
+      var value = context.fieldValue(matcher.group(1));
       matcher.appendReplacement(
           interpolated, Matcher.quoteReplacement(value == null ? "" : String.valueOf(value)));
     }
