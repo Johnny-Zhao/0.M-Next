@@ -18,6 +18,7 @@ import com.mnext.kernel.api.metamodel.InstantiateWorkspaceCommand;
 import com.mnext.kernel.api.metamodel.PublishTemplateVersionCommand;
 import java.util.Map;
 import java.util.UUID;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -29,17 +30,32 @@ public class MetaCommandController {
   private final MetaCommandService commands;
   private final TemplateLifecycleService lifecycle;
   private final DerivedFieldRepository derivedFields;
+  private final TransformationRepository transformations;
+  private final TransformationRunner transformationRunner;
   private final ObjectMapper mapper;
 
+  @Autowired
   public MetaCommandController(
       MetaCommandService commands,
       TemplateLifecycleService lifecycle,
       DerivedFieldRepository derivedFields,
+      TransformationRepository transformations,
+      TransformationRunner transformationRunner,
       ObjectMapper mapper) {
     this.commands = commands;
     this.lifecycle = lifecycle;
     this.derivedFields = derivedFields;
+    this.transformations = transformations;
+    this.transformationRunner = transformationRunner;
     this.mapper = mapper;
+  }
+
+  MetaCommandController(
+      MetaCommandService commands,
+      TemplateLifecycleService lifecycle,
+      DerivedFieldRepository derivedFields,
+      ObjectMapper mapper) {
+    this(commands, lifecycle, derivedFields, null, null, mapper);
   }
 
   @PostMapping("/workspaces/{workspaceId}/meta-commands")
@@ -62,6 +78,9 @@ public class MetaCommandController {
       case "ApplyTemplateVersion" ->
           lifecycle.applyTemplateVersion(applyTemplateVersion(request), Actor.user(actorId));
       case "DefineDerivedField" -> derivedFields.define(derivedField(request), actorId);
+      case "DefineTransformation" -> transformations.define(transformation(request), actorId);
+      case "RunTransformation" ->
+          transformationRunner.run(runTransformation(request), Actor.user(actorId));
       default -> throw schema("本批次不支持 commandType: " + request.commandType());
     };
   }
@@ -165,6 +184,39 @@ public class MetaCommandController {
         text(payload, "name"),
         text(payload, "resultType"),
         text(payload, "derivation"));
+  }
+
+  private DefineTransformationRequest transformation(CommandRequest request) {
+    var payload = required(request.payload(), "payload");
+    return new DefineTransformationRequest(
+        request.workspaceId(),
+        request.correlationId(),
+        request.idempotencyKey(),
+        optionalUuid(payload, "templateVersionId"),
+        text(payload, "code"),
+        text(payload, "name"),
+        text(payload, "correspondenceRelationCode"),
+        mapper.convertValue(
+            required(payload.get("objectMappings"), "objectMappings"),
+            mapper
+                .getTypeFactory()
+                .constructCollectionType(java.util.List.class, ObjectMapping.class)),
+        payload.has("relationMappings")
+            ? mapper.convertValue(
+                payload.get("relationMappings"),
+                mapper
+                    .getTypeFactory()
+                    .constructCollectionType(java.util.List.class, RelationMapping.class))
+            : java.util.List.of());
+  }
+
+  private RunTransformationRequest runTransformation(CommandRequest request) {
+    var payload = required(request.payload(), "payload");
+    return new RunTransformationRequest(
+        request.workspaceId(),
+        request.correlationId(),
+        request.idempotencyKey(),
+        text(payload, "transformationCode"));
   }
 
   private DataType dataType(JsonNode payload) {
