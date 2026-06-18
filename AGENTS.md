@@ -121,6 +121,7 @@
 - AG-403:Conventional Commits;一 commit 一逻辑变更。CI:commitlint。
 - AG-404:合并前置(全部必过):format、lint、类型检查、内核命令单测(核心命令覆盖率≥80%,含异常路径/权限前置/幂等键,11.1)、契约测试、`pnpm architecture:check`、构建、双架构镜像构建、性能基准无回退(P95 超阈值阻断或登记例外)。CI:必选 stage,顺序如上。
 - AG-405:**代理写入纪律**(T-V33-001 截断事故根因 P-T01 固化):禁止对 >50 行的既有文件做整文件重写,修改一律最小补丁;新增长内容分段追加(每段 ≤40 行);每个文件写完立即核验——文本跑 `wc -l` 与 `tail -3`,JSON/YAML 跑解析校验——并将核验输出贴入 PR。CI:PR 模板"写后自检输出"段必填,缺失即拒。
+- AG-406:**契约夹具必须随契约入库**(fed-1 夹具漏提交事故固化):凡契约 addendum(`contracts/**`、`packages/shared/contracts/**`)新增或改动,其配套 `tests/contracts/fixtures/**`(valid/invalid)与 `tests/contracts/**` 用例**必须**列入该卡封闭清单并 `git add` 同提交;严禁夹具只落本地磁盘而不入 git(否则本地 verify 假绿、全新 clone/CI 无夹具可校)。完成时 `git status` 必须 clean(无 Untracked 的 fixtures)。CI:`scripts/check-contracts.mjs` 在干净 checkout 上运行,缺夹具即 fail;PR 校验 `git status --porcelain` 为空。
 
 ## 5. 禁止事项
 
