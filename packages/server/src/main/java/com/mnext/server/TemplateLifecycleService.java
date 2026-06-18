@@ -14,12 +14,17 @@ import org.springframework.transaction.annotation.Transactional;
 class TemplateLifecycleService {
   private final MetaCommandService commands;
   private final TemplateRuleCopier rules;
+  private final DerivedFieldCopier derivedFields;
   private final JdbcTemplate jdbc;
 
   TemplateLifecycleService(
-      MetaCommandService commands, TemplateRuleCopier rules, JdbcTemplate jdbc) {
+      MetaCommandService commands,
+      TemplateRuleCopier rules,
+      DerivedFieldCopier derivedFields,
+      JdbcTemplate jdbc) {
     this.commands = commands;
     this.rules = rules;
+    this.derivedFields = derivedFields;
     this.jdbc = jdbc;
   }
 
@@ -28,6 +33,7 @@ class TemplateLifecycleService {
     var result = commands.instantiateWorkspace(command, actor);
     var versionId = templateVersionId(command.templateId(), command.version());
     rules.copyForInstantiate(versionId, command.newWorkspaceId());
+    derivedFields.copyForInstantiate(versionId, command.newWorkspaceId());
     return result;
   }
 
@@ -37,6 +43,7 @@ class TemplateLifecycleService {
     var templateId = workspaceTemplateId(command.workspaceId());
     var versionId = templateVersionId(templateId, command.toVersion());
     rules.copyNewRules(versionId, command.workspaceId());
+    derivedFields.copyNewFields(versionId, command.workspaceId());
     return result;
   }
 
