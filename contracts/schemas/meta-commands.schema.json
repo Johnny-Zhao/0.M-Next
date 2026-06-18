@@ -7,7 +7,7 @@
   "additionalProperties": false,
   "properties": {
     "commandType": {
-      "enum": ["DefineObjectType", "DefineFieldDef", "DefineRelationType", "DefineValueType", "PublishTemplateVersion", "InstantiateWorkspace", "ApplyTemplateVersion", "DefineDerivedField"]
+      "enum": ["DefineObjectType", "DefineFieldDef", "DefineRelationType", "DefineValueType", "PublishTemplateVersion", "InstantiateWorkspace", "ApplyTemplateVersion", "DefineDerivedField", "DefineTransformation", "RunTransformation"]
     },
     "workspaceId": { "$ref": "#/$defs/uuid" },
     "correlationId": { "$ref": "#/$defs/uuid" },
@@ -22,7 +22,9 @@
     { "if": { "properties": { "commandType": { "const": "PublishTemplateVersion" } } }, "then": { "properties": { "payload": { "$ref": "#/$defs/PublishTemplateVersion" } } } },
     { "if": { "properties": { "commandType": { "const": "InstantiateWorkspace" } } }, "then": { "properties": { "payload": { "$ref": "#/$defs/InstantiateWorkspace" } } } },
     { "if": { "properties": { "commandType": { "const": "ApplyTemplateVersion" } } }, "then": { "properties": { "payload": { "$ref": "#/$defs/ApplyTemplateVersion" } } } },
-    { "if": { "properties": { "commandType": { "const": "DefineDerivedField" } } }, "then": { "properties": { "payload": { "$ref": "#/$defs/DefineDerivedField" } } } }
+    { "if": { "properties": { "commandType": { "const": "DefineDerivedField" } } }, "then": { "properties": { "payload": { "$ref": "#/$defs/DefineDerivedField" } } } },
+    { "if": { "properties": { "commandType": { "const": "DefineTransformation" } } }, "then": { "properties": { "payload": { "$ref": "#/$defs/DefineTransformation" } } } },
+    { "if": { "properties": { "commandType": { "const": "RunTransformation" } } }, "then": { "properties": { "payload": { "$ref": "#/$defs/RunTransformation" } } } }
   ],
   "$defs": {
     "uuid": { "type": "string", "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$" },
@@ -139,6 +141,62 @@
         "name": { "type": "string", "minLength": 1, "maxLength": 256 },
         "resultType": { "$ref": "#/$defs/dataType", "description": "派生结果类型(number/integer/boolean/text 等)" },
         "derivation": { "type": "string", "minLength": 1, "maxLength": 4000, "description": "派生表达式;语法错→DERIVE-400-SYNTAX-INVALID;依赖成环→DERIVE-409-DEPENDENCY-CYCLE;求值超界→DERIVE-422-EVAL-LIMIT" }
+      }
+    },
+    "DefineTransformation": {
+      "type": "object",
+      "required": ["code", "name", "correspondenceRelationCode", "objectMappings"],
+      "additionalProperties": false,
+      "properties": {
+        "templateVersionId": { "$ref": "#/$defs/uuid", "description": "可空,同 DefineObjectType 语义" },
+        "code": { "$ref": "#/$defs/code", "description": "(workspace, code) 唯一" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "correspondenceRelationCode": { "$ref": "#/$defs/code", "description": "生成目标对象后,用此关系类型回指源对象(target→source);不存在→M2M-422-TARGET-UNRESOLVED" },
+        "objectMappings": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["sourceTypeCode", "targetTypeCode"],
+            "additionalProperties": false,
+            "properties": {
+              "sourceTypeCode": { "$ref": "#/$defs/code", "description": "源对象类型;不存在→M2M-422-SOURCE-UNRESOLVED" },
+              "targetTypeCode": { "$ref": "#/$defs/code", "description": "目标对象类型;不存在→M2M-422-TARGET-UNRESOLVED" },
+              "fieldMappings": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["targetFieldCode", "expression"],
+                  "additionalProperties": false,
+                  "properties": {
+                    "targetFieldCode": { "$ref": "#/$defs/code" },
+                    "expression": { "type": "string", "minLength": 1, "maxLength": 4000, "description": "对源对象求值的表达式(复用派生/规则表达式);语法错→M2M-400-MAPPING-INVALID" }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "relationMappings": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["sourceRelationCode", "targetRelationCode"],
+            "additionalProperties": false,
+            "properties": {
+              "sourceRelationCode": { "$ref": "#/$defs/code", "description": "源关系类型;两端的源对象须各有已生成的目标对象(经 correspondence)" },
+              "targetRelationCode": { "$ref": "#/$defs/code", "description": "在对应目标对象间建立的关系类型" }
+            }
+          }
+        }
+      }
+    },
+    "RunTransformation": {
+      "type": "object",
+      "required": ["transformationCode"],
+      "additionalProperties": false,
+      "properties": {
+        "transformationCode": { "$ref": "#/$defs/code", "description": "对信封 workspaceId 的源模型执行转换;幂等(按 correspondence 找已生成目标则更新)" }
       }
     }
   }

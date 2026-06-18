@@ -224,3 +224,15 @@ codes:
     httpStatus: 422
     title: 派生求值超遍历深度/结果集/步数上限
     responseRequirement: 提示收窄遍历或拆分派生
+  - code: M2M-400-MAPPING-INVALID
+    httpStatus: 400
+    title: 转换映射结构或表达式无效
+    responseRequirement: 返回违例映射项/表达式位置
+  - code: M2M-422-SOURCE-UNRESOLVED
+    httpStatus: 422
+    title: 转换映射引用的源类型/关系不存在
+    responseRequirement: 返回未解析的 sourceTypeCode/sourceRelationCode
+  - code: M2M-422-TARGET-UNRESOLVED
+    httpStatus: 422
+    title: 转换映射的目标类型/关系/对应关系不存在
+    responseRequirement: 返回未解析的 target/correspondence code
