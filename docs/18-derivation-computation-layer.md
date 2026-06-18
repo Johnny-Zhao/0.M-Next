@@ -20,7 +20,9 @@
 
 ## 2. 定义方式(M2,可配置)
 
-新命令 `DefineDerivedField`(meta-commands 家族):`objectTypeCode/code/name/resultType/derivation(表达式串)`;随模板版本发布锁版;参与泛化(子类型继承/可重定义派生,后置)。落 `field_def` 扩列(`derivation TEXT NULL` + `is_derived BOOL`)或独立 `derived_field` 表——设计稿定:**扩 field_def**(派生属性也是字段,统一进有效字段集与视图)。
+新命令 `DefineDerivedField`(meta-commands 家族):`objectTypeId/code/name/resultType/derivation(表达式串)`;随模板版本发布锁版;参与泛化(子类型继承,server 沿祖先链解析)。
+
+**存储落点(2026-06-18 修正)**:落**独立 `derived_field` 表(server 域)**,而非扩 field_def。理由:`DefineDerivedField` 需用 `engines/rules` 解析器做语法校验 + 提取依赖,而 **kernel 不可依赖 engines**(同 DefineRule);故 DefineDerivedField 全在 server(解析→环检测→落库),与 `rule_def`/`check_result` 同型,kernel 不动。派生字段在视图/规则中的暴露与求值由 der-c(server)负责;继承(子类型可见父的派生)由 server 沿 object_type 祖先链解析。
 
 ## 3. 求值
 
