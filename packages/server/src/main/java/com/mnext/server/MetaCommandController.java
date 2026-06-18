@@ -28,12 +28,17 @@ import org.springframework.web.bind.annotation.RestController;
 public class MetaCommandController {
   private final MetaCommandService commands;
   private final TemplateLifecycleService lifecycle;
+  private final DerivedFieldRepository derivedFields;
   private final ObjectMapper mapper;
 
   public MetaCommandController(
-      MetaCommandService commands, TemplateLifecycleService lifecycle, ObjectMapper mapper) {
+      MetaCommandService commands,
+      TemplateLifecycleService lifecycle,
+      DerivedFieldRepository derivedFields,
+      ObjectMapper mapper) {
     this.commands = commands;
     this.lifecycle = lifecycle;
+    this.derivedFields = derivedFields;
     this.mapper = mapper;
   }
 
@@ -56,6 +61,7 @@ public class MetaCommandController {
           lifecycle.instantiateWorkspace(instantiateWorkspace(request), Actor.user(actorId));
       case "ApplyTemplateVersion" ->
           lifecycle.applyTemplateVersion(applyTemplateVersion(request), Actor.user(actorId));
+      case "DefineDerivedField" -> derivedFields.define(derivedField(request), actorId);
       default -> throw schema("本批次不支持 commandType: " + request.commandType());
     };
   }
@@ -145,6 +151,20 @@ public class MetaCommandController {
         request.correlationId(),
         request.idempotencyKey(),
         required(payload.get("toVersion"), "toVersion").asInt());
+  }
+
+  private DefineDerivedFieldRequest derivedField(CommandRequest request) {
+    var payload = required(request.payload(), "payload");
+    return new DefineDerivedFieldRequest(
+        request.workspaceId(),
+        request.correlationId(),
+        request.idempotencyKey(),
+        optionalUuid(payload, "templateVersionId"),
+        uuid(payload, "objectTypeId"),
+        text(payload, "code"),
+        text(payload, "name"),
+        text(payload, "resultType"),
+        text(payload, "derivation"));
   }
 
   private DataType dataType(JsonNode payload) {

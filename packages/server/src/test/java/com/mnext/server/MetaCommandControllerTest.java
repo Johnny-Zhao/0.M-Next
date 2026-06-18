@@ -20,9 +20,10 @@ import org.junit.jupiter.api.Test;
 class MetaCommandControllerTest {
   private final MetaCommandService commands = mock(MetaCommandService.class);
   private final TemplateLifecycleService lifecycle = mock(TemplateLifecycleService.class);
+  private final DerivedFieldRepository derivedFields = mock(DerivedFieldRepository.class);
   private final ObjectMapper mapper = new ObjectMapper();
   private final MetaCommandController controller =
-      new MetaCommandController(commands, lifecycle, mapper);
+      new MetaCommandController(commands, lifecycle, derivedFields, mapper);
 
   @Test
   void routesDefineObjectTypeOnSeparateEndpointController() throws Exception {
@@ -127,6 +128,30 @@ class MetaCommandControllerTest {
 
     assertEquals("command", result.commandId());
     verify(lifecycle).applyTemplateVersion(any(), eq(com.mnext.kernel.api.Actor.user("author")));
+  }
+
+  @Test
+  void routesDefineDerivedFieldOnSeparateEndpointController() throws Exception {
+    var workspace = UUID.randomUUID();
+    var type = UUID.randomUUID();
+    var request =
+        new CommandRequest(
+            "DefineDerivedField",
+            workspace,
+            UUID.randomUUID(),
+            "meta-derived",
+            mapper.readTree(
+                "{\"objectTypeId\":\""
+                    + type
+                    + "\",\"code\":\"total_load\",\"name\":\"总负载\","
+                    + "\"resultType\":\"number\",\"derivation\":\"sum(traverse('carries','out'),'load')\"}"));
+    when(derivedFields.define(any(), eq("author")))
+        .thenReturn(new CommandResult("command", CommandStatus.ACCEPTED, false, List.of(), null));
+
+    var result = controller.execute(workspace, "author", request);
+
+    assertEquals("command", result.commandId());
+    verify(derivedFields).define(any(), eq("author"));
   }
 
   @Test
