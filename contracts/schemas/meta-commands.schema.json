@@ -7,7 +7,7 @@
   "additionalProperties": false,
   "properties": {
     "commandType": {
-      "enum": ["DefineObjectType", "DefineFieldDef", "DefineRelationType", "DefineValueType", "PublishTemplateVersion", "InstantiateWorkspace", "ApplyTemplateVersion", "DefineDerivedField", "DefineTransformation", "RunTransformation"]
+      "enum": ["CreateTemplate", "CreateTemplateVersion", "DefineObjectType", "DefineFieldDef", "DefineRelationType", "DefineValueType", "PublishTemplateVersion", "InstantiateWorkspace", "ApplyTemplateVersion", "DefineDerivedField", "DefineTransformation", "RunTransformation"]
     },
     "workspaceId": { "$ref": "#/$defs/uuid" },
     "correlationId": { "$ref": "#/$defs/uuid" },
@@ -15,6 +15,8 @@
     "payload": { "type": "object" }
   },
   "allOf": [
+    { "if": { "properties": { "commandType": { "const": "CreateTemplate" } } }, "then": { "properties": { "payload": { "$ref": "#/$defs/CreateTemplate" } } } },
+    { "if": { "properties": { "commandType": { "const": "CreateTemplateVersion" } } }, "then": { "properties": { "payload": { "$ref": "#/$defs/CreateTemplateVersion" } } } },
     { "if": { "properties": { "commandType": { "const": "DefineObjectType" } } }, "then": { "properties": { "payload": { "$ref": "#/$defs/DefineObjectType" } } } },
     { "if": { "properties": { "commandType": { "const": "DefineFieldDef" } } }, "then": { "properties": { "payload": { "$ref": "#/$defs/DefineFieldDef" } } } },
     { "if": { "properties": { "commandType": { "const": "DefineRelationType" } } }, "then": { "properties": { "payload": { "$ref": "#/$defs/DefineRelationType" } } } },
@@ -100,7 +102,25 @@
         "direction": { "enum": ["directed", "undirected"] },
         "cardinality": { "enum": ["one_to_one", "one_to_many", "many_to_many"] },
         "semantics": { "enum": ["weak", "strong"] },
-        "hierarchical": { "type": "boolean", "default": false, "description": "true 必须 cardinality=one_to_many(承 V2 约束),违反返回 KERNEL-422-FIELD-CONSTRAINT-INVALID" }
+        "hierarchical": { "type": "boolean", "default": false, "description": "true 必须 cardinality=one_to_many(承 V2 约束),违反返回 KERNEL-422-FIELD-CONSTRAINT-INVALID" },
+        "templateVersionId": { "$ref": "#/$defs/uuid", "description": "可空:NULL=无模板直挂(兼容);非空必须指向 draft 模板版本,published 下定义返回 KERNEL-409-TEMPLATE-VERSION-IMMUTABLE,不存在返回 KERNEL-404-TEMPLATE-NOT-FOUND" }
+      }
+    },
+    "CreateTemplate": {
+      "type": "object",
+      "required": ["code", "name"],
+      "additionalProperties": false,
+      "properties": {
+        "code": { "$ref": "#/$defs/code", "description": "模板 code 全局唯一;重复返回 KERNEL-409-TEMPLATE-CODE-CONFLICT" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 256 }
+      }
+    },
+    "CreateTemplateVersion": {
+      "type": "object",
+      "required": ["templateId"],
+      "additionalProperties": false,
+      "properties": {
+        "templateId": { "$ref": "#/$defs/uuid", "description": "目标模板;不存在返回 KERNEL-404-TEMPLATE-NOT-FOUND。新建 version=max+1 的 draft 版本" }
       }
     },
     "PublishTemplateVersion": {

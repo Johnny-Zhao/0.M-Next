@@ -108,6 +108,14 @@ codes:
     httpStatus: 409
     title: 已发布模板版本下定义类型
     responseRequirement: 提示改在 draft 版本操作
+  - code: KERNEL-409-TEMPLATE-CODE-CONFLICT
+    httpStatus: 409
+    title: 模板 code 已存在
+    responseRequirement: 更换模板 code
+  - code: KERNEL-404-TEMPLATE-NOT-FOUND
+    httpStatus: 404
+    title: 模板或模板版本不存在
+    responseRequirement: 确认 templateId/templateVersionId 后重试
   - code: KERNEL-422-FIELD-CONSTRAINT-INVALID
     httpStatus: 422
     title: 属性定义约束与类型不相容

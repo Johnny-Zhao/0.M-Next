@@ -29,6 +29,8 @@
 
 **零碰**:全部生产代码、contracts、迁移、kernel、engines、views/web;**不得修改任何共享测试工具**(只新增本测试文件,helper 用复制而非改公共类)。
 
+**模板骨架例外(2026-06-19 放宽,因 e2e 暴露缺口)**:当前**无创建模板的 API**(模板创作链缺 CreateTemplate/Version 端点,见 T-V33-TPL-API),故**允许**像 `BusProfileE2EIntegrationTest` 一样,在测试内用 JdbcTemplate **仅**创建 `scene_template`/`scene_template_version` 空骨架并 patch `relation_type.template_version_id`——这是既有 e2e 通行的测试脚手架,非产品写路径。**除此之外**所有建型/字段/关系/派生/规则/业务数据/规则检查仍**必须走端点**。待 TPL-API 合入后,本测试应改为纯端点、删除该 SQL 脚手架。
+
 ## 红线 / 门禁
 
 - 只经现有命令/端点驱动(meta-commands 建型/发布、commands 建对象/关系、DefineDerivedField、DefineRule、派生求值/规则查询端点);不直插库、不加生产代码/契约。
