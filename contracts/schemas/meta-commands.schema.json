@@ -7,7 +7,7 @@
   "additionalProperties": false,
   "properties": {
     "commandType": {
-      "enum": ["DefineObjectType", "DefineFieldDef", "DefineRelationType", "DefineValueType", "PublishTemplateVersion", "InstantiateWorkspace", "ApplyTemplateVersion"]
+      "enum": ["DefineObjectType", "DefineFieldDef", "DefineRelationType", "DefineValueType", "PublishTemplateVersion", "InstantiateWorkspace", "ApplyTemplateVersion", "DefineDerivedField"]
     },
     "workspaceId": { "$ref": "#/$defs/uuid" },
     "correlationId": { "$ref": "#/$defs/uuid" },
@@ -21,7 +21,8 @@
     { "if": { "properties": { "commandType": { "const": "DefineValueType" } } }, "then": { "properties": { "payload": { "$ref": "#/$defs/DefineValueType" } } } },
     { "if": { "properties": { "commandType": { "const": "PublishTemplateVersion" } } }, "then": { "properties": { "payload": { "$ref": "#/$defs/PublishTemplateVersion" } } } },
     { "if": { "properties": { "commandType": { "const": "InstantiateWorkspace" } } }, "then": { "properties": { "payload": { "$ref": "#/$defs/InstantiateWorkspace" } } } },
-    { "if": { "properties": { "commandType": { "const": "ApplyTemplateVersion" } } }, "then": { "properties": { "payload": { "$ref": "#/$defs/ApplyTemplateVersion" } } } }
+    { "if": { "properties": { "commandType": { "const": "ApplyTemplateVersion" } } }, "then": { "properties": { "payload": { "$ref": "#/$defs/ApplyTemplateVersion" } } } },
+    { "if": { "properties": { "commandType": { "const": "DefineDerivedField" } } }, "then": { "properties": { "payload": { "$ref": "#/$defs/DefineDerivedField" } } } }
   ],
   "$defs": {
     "uuid": { "type": "string", "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$" },
@@ -125,6 +126,19 @@
       "additionalProperties": false,
       "properties": {
         "toVersion": { "type": "integer", "minimum": 1, "description": "目标工作空间=信封 workspaceId;含收紧项返回 KERNEL-409-TEMPLATE-MIGRATION-REQUIRED + 受影响存量" }
+      }
+    },
+    "DefineDerivedField": {
+      "type": "object",
+      "required": ["objectTypeId", "code", "name", "resultType", "derivation"],
+      "additionalProperties": false,
+      "properties": {
+        "templateVersionId": { "$ref": "#/$defs/uuid", "description": "可空,同 DefineObjectType 语义" },
+        "objectTypeId": { "$ref": "#/$defs/uuid", "description": "归属对象类型,不存在返回 KERNEL-404-TYPE-NOT-FOUND" },
+        "code": { "$ref": "#/$defs/code", "description": "(objectType, code) 唯一;不可与已有 stored 字段同 code" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "resultType": { "$ref": "#/$defs/dataType", "description": "派生结果类型(number/integer/boolean/text 等)" },
+        "derivation": { "type": "string", "minLength": 1, "maxLength": 4000, "description": "派生表达式;语法错→DERIVE-400-SYNTAX-INVALID;依赖成环→DERIVE-409-DEPENDENCY-CYCLE;求值超界→DERIVE-422-EVAL-LIMIT" }
       }
     }
   }

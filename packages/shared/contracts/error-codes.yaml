@@ -212,3 +212,15 @@ codes:
     httpStatus: 422
     title: 发布的模板版本无对象类型
     responseRequirement: 提示至少定义一个对象类型后再发布
+  - code: DERIVE-400-SYNTAX-INVALID
+    httpStatus: 400
+    title: 派生表达式语法无效
+    responseRequirement: 返回解析错误位置
+  - code: DERIVE-409-DEPENDENCY-CYCLE
+    httpStatus: 409
+    title: 派生属性依赖成环
+    responseRequirement: 返回环路径
+  - code: DERIVE-422-EVAL-LIMIT
+    httpStatus: 422
+    title: 派生求值超遍历深度/结果集/步数上限
+    responseRequirement: 提示收窄遍历或拆分派生
