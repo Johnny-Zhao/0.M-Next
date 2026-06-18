@@ -1,5 +1,6 @@
 package com.mnext.server;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.mnext.kernel.api.events.EventEnvelope;
 import java.util.Map;
 import java.util.UUID;
@@ -67,7 +68,7 @@ class ReadModelProjection {
         event.workspaceId(),
         objectId,
         text(after, "fieldDefCode", "unknown"),
-        after.get("value"),
+        scalar(after.get("value")),
         event.version(),
         event.occurredAt());
   }
@@ -132,6 +133,15 @@ class ReadModelProjection {
 
   private static String text(Map<String, Object> values, String key, String fallback) {
     return values != null && values.get(key) != null ? values.get(key).toString() : fallback;
+  }
+
+  private static Object scalar(Object value) {
+    if (!(value instanceof JsonNode node)) return value;
+    if (node.isNull()) return null;
+    if (node.isNumber()) return node.numberValue();
+    if (node.isBoolean()) return node.booleanValue();
+    if (node.isTextual()) return node.textValue();
+    return value;
   }
 
   @SuppressWarnings("unchecked")

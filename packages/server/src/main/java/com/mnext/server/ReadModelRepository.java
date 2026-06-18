@@ -82,8 +82,9 @@ class ReadModelRepository {
     jdbc.update(
         """
         UPDATE rm_object SET fields = jsonb_set(fields, ARRAY[?], CAST(? AS jsonb), TRUE),
-          version = ?, updated_at = ?
-        WHERE workspace_id = ? AND object_id = ? AND version < ?
+          version = GREATEST(version, ?), updated_at = ?
+        WHERE workspace_id = ? AND object_id = ?
+          AND (NOT jsonb_exists(fields, ?) OR version < ?)
         """,
         code,
         json(value),
@@ -91,6 +92,7 @@ class ReadModelRepository {
         java.sql.Timestamp.from(updatedAt),
         workspaceId,
         objectId,
+        code,
         version);
   }
 
