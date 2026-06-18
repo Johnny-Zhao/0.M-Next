@@ -45,3 +45,10 @@ record CheckResultView(
     String fieldCode,
     String configHash,
     Instant createdAt) {}
+
+record CorrespondenceView(
+    UUID relationId,
+    UUID objectId,
+    String objectType,
+    Map<String, Object> fields,
+    String direction) {}
