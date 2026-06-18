@@ -437,6 +437,68 @@ class ReadModelRepository {
             relationType));
   }
 
+  PageView<CorrespondenceView> correspondences(
+      UUID workspaceId, UUID objectId, String relationType, int page, int size) {
+    var total =
+        jdbc.queryForObject(
+            """
+            SELECT count(*)
+            FROM rm_relation
+            WHERE workspace_id = ?
+              AND relation_type_code = ?
+              AND status = 'ACTIVE'
+              AND (source_id = ? OR target_id = ?)
+            """,
+            Long.class,
+            workspaceId,
+            relationType,
+            objectId,
+            objectId);
+    var items =
+        jdbc.query(
+            """
+            WITH matches AS (
+              SELECT relation_id, target_id AS object_id, 'out' AS direction
+              FROM rm_relation
+              WHERE workspace_id = ?
+                AND relation_type_code = ?
+                AND status = 'ACTIVE'
+                AND source_id = ?
+              UNION ALL
+              SELECT relation_id, source_id AS object_id, 'in' AS direction
+              FROM rm_relation
+              WHERE workspace_id = ?
+                AND relation_type_code = ?
+                AND status = 'ACTIVE'
+                AND target_id = ?
+            )
+            SELECT matches.relation_id, object.object_id, object.object_type_code,
+                   object.fields::text, matches.direction
+            FROM matches
+            JOIN rm_object object
+              ON object.workspace_id = ? AND object.object_id = matches.object_id
+            ORDER BY matches.direction, object.object_id
+            LIMIT ? OFFSET ?
+            """,
+            (row, index) ->
+                new CorrespondenceView(
+                    row.getObject(1, UUID.class),
+                    row.getObject(2, UUID.class),
+                    row.getString(3),
+                    map(row.getString(4)),
+                    row.getString(5)),
+            workspaceId,
+            relationType,
+            objectId,
+            workspaceId,
+            relationType,
+            objectId,
+            workspaceId,
+            size,
+            page * size);
+    return new PageView<>(items, page, size, total);
+  }
+
   SyncStatusView syncStatus(UUID workspaceId) {
     var pending =
         jdbc.queryForObject(

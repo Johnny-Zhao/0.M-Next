@@ -99,6 +99,20 @@ public class ViewQueryController {
     return repository.syncStatus(workspaceId);
   }
 
+  @GetMapping("/workspaces/{workspaceId}/views/correspondences")
+  public PageView<CorrespondenceView> correspondences(
+      @PathVariable("workspaceId") UUID workspaceId,
+      @RequestParam("objectId") UUID objectId,
+      @RequestParam("relationType") String relationType,
+      @RequestParam(value = "page", defaultValue = "0") int page,
+      @RequestParam(value = "size", defaultValue = "50") int size) {
+    if (relationType.isBlank()) throw new IllegalArgumentException("relationType 必填");
+    if (page < 0 || size < 1 || size > 200) {
+      throw new IllegalArgumentException("page 必须非负且 size 必须为 1..200");
+    }
+    return repository.correspondences(workspaceId, objectId, relationType, page, size);
+  }
+
   @GetMapping("/workspaces/{workspaceId}/views/check-results")
   public PageView<CheckResultView> checkResults(
       @PathVariable("workspaceId") UUID workspaceId,
