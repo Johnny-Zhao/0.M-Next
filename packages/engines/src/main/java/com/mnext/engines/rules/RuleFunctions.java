@@ -1,6 +1,7 @@
 package com.mnext.engines.rules;
 
 import java.math.BigDecimal;
+import java.math.MathContext;
 import java.util.List;
 import java.util.Set;
 import java.util.regex.Pattern;
@@ -17,6 +18,8 @@ public final class RuleFunctions {
           "toNumber",
           "inSet",
           "coalesce",
+          "interp",
+          "lookup",
           "relationCount",
           "hasRelation");
 
@@ -34,6 +37,8 @@ public final class RuleFunctions {
       case "toNumber" -> toNumber(one(name, args));
       case "inSet" -> inSet(args);
       case "coalesce" -> coalesce(args);
+      case "interp" -> interp(args);
+      case "lookup" -> lookup(args);
       case "relationCount" -> context.relationCount(stringArg(name, one(name, args)));
       case "hasRelation" -> context.hasRelation(stringArg(name, one(name, args)));
       default -> throw new RuleSyntaxException("unknown function " + name, 0);
@@ -106,6 +111,41 @@ public final class RuleFunctions {
     return null;
   }
 
+  private static BigDecimal interp(List<Object> args) {
+    var table = table("interp", args);
+    if (table.xs().size() == 1 || table.key().compareTo(table.xs().getFirst()) <= 0) {
+      return table.ys().getFirst();
+    }
+    var last = table.xs().size() - 1;
+    if (table.key().compareTo(table.xs().get(last)) >= 0) {
+      return table.ys().get(last);
+    }
+    for (var index = 0; index < last; index++) {
+      var leftX = table.xs().get(index);
+      var rightX = table.xs().get(index + 1);
+      if (table.key().compareTo(rightX) <= 0) {
+        var leftY = table.ys().get(index);
+        var rightY = table.ys().get(index + 1);
+        var ratio =
+            table.key().subtract(leftX).divide(rightX.subtract(leftX), MathContext.DECIMAL128);
+        return leftY.add(rightY.subtract(leftY).multiply(ratio, MathContext.DECIMAL128));
+      }
+    }
+    return table.ys().get(last);
+  }
+
+  private static BigDecimal lookup(List<Object> args) {
+    var table = table("lookup", args);
+    var result = table.ys().getFirst();
+    for (var index = 0; index < table.xs().size(); index++) {
+      if (table.key().compareTo(table.xs().get(index)) < 0) {
+        return result;
+      }
+      result = table.ys().get(index);
+    }
+    return result;
+  }
+
   private static Object one(String name, List<Object> args) {
     if (args.size() != 1) {
       throw new RuleSyntaxException(name + " expects 1 argument", 0);
@@ -127,5 +167,34 @@ public final class RuleFunctions {
     return string;
   }
 
+  private static Table table(String name, List<Object> args) {
+    if (args.size() < 3 || args.size() % 2 == 0) {
+      throw new RuleSyntaxException(name + " expects key and at least one x,y pair", 0);
+    }
+    var key = numberArg(name, args.getFirst());
+    var xs = new java.util.ArrayList<BigDecimal>();
+    var ys = new java.util.ArrayList<BigDecimal>();
+    for (var index = 1; index < args.size(); index += 2) {
+      var x = numberArg(name, args.get(index));
+      var y = numberArg(name, args.get(index + 1));
+      if (!xs.isEmpty() && x.compareTo(xs.getLast()) <= 0) {
+        throw new RuleSyntaxException(name + " expects strictly increasing x values", 0);
+      }
+      xs.add(x);
+      ys.add(y);
+    }
+    return new Table(key, xs, ys);
+  }
+
+  private static BigDecimal numberArg(String name, Object value) {
+    var number = toNumber(value);
+    if (number == null) {
+      throw new RuleSyntaxException(name + " expects numeric arguments", 0);
+    }
+    return number;
+  }
+
   private record Pair(Object first, Object second) {}
+
+  private record Table(BigDecimal key, List<BigDecimal> xs, List<BigDecimal> ys) {}
 }
