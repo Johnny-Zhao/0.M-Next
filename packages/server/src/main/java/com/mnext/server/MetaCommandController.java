@@ -8,6 +8,8 @@ import com.mnext.kernel.api.CommandRejectedException;
 import com.mnext.kernel.api.CommandResult;
 import com.mnext.kernel.api.MetaCommandService;
 import com.mnext.kernel.api.metamodel.ApplyTemplateVersionCommand;
+import com.mnext.kernel.api.metamodel.CreateTemplateCommand;
+import com.mnext.kernel.api.metamodel.CreateTemplateVersionCommand;
 import com.mnext.kernel.api.metamodel.DataType;
 import com.mnext.kernel.api.metamodel.DefineFieldDefCommand;
 import com.mnext.kernel.api.metamodel.DefineObjectTypeCommand;
@@ -65,6 +67,10 @@ public class MetaCommandController {
       @RequestBody CommandRequest request) {
     if (!workspaceId.equals(request.workspaceId())) throw schema("path workspaceId 与命令信封不一致");
     return switch (request.commandType()) {
+      case "CreateTemplate" ->
+          commands.createTemplate(createTemplate(request), Actor.user(actorId));
+      case "CreateTemplateVersion" ->
+          commands.createTemplateVersion(createTemplateVersion(request), Actor.user(actorId));
       case "DefineObjectType" ->
           commands.defineObjectType(objectType(request), Actor.user(actorId));
       case "DefineFieldDef" -> commands.defineFieldDef(fieldDef(request), Actor.user(actorId));
@@ -83,6 +89,25 @@ public class MetaCommandController {
           transformationRunner.run(runTransformation(request), Actor.user(actorId));
       default -> throw schema("本批次不支持 commandType: " + request.commandType());
     };
+  }
+
+  private CreateTemplateCommand createTemplate(CommandRequest request) {
+    var payload = required(request.payload(), "payload");
+    return new CreateTemplateCommand(
+        request.workspaceId(),
+        request.correlationId(),
+        request.idempotencyKey(),
+        text(payload, "code"),
+        text(payload, "name"));
+  }
+
+  private CreateTemplateVersionCommand createTemplateVersion(CommandRequest request) {
+    var payload = required(request.payload(), "payload");
+    return new CreateTemplateVersionCommand(
+        request.workspaceId(),
+        request.correlationId(),
+        request.idempotencyKey(),
+        uuid(payload, "templateId"));
   }
 
   private DefineObjectTypeCommand objectType(CommandRequest request) {
@@ -139,7 +164,8 @@ public class MetaCommandController {
         text(payload, "direction"),
         text(payload, "cardinality"),
         text(payload, "semantics"),
-        payload.has("hierarchical") && payload.get("hierarchical").asBoolean());
+        payload.has("hierarchical") && payload.get("hierarchical").asBoolean(),
+        optionalUuid(payload, "templateVersionId"));
   }
 
   private PublishTemplateVersionCommand publishTemplateVersion(CommandRequest request) {

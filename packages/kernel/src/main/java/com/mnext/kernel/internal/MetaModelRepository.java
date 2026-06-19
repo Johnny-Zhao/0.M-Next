@@ -116,6 +116,50 @@ class MetaModelRepository {
     this.jdbc = jdbc;
   }
 
+  boolean templateCodeExists(String code) {
+    return Boolean.TRUE.equals(
+        jdbc.queryForObject(
+            "SELECT EXISTS(SELECT 1 FROM scene_template WHERE code = ?)", Boolean.class, code));
+  }
+
+  boolean templateExists(UUID templateId) {
+    return Boolean.TRUE.equals(
+        jdbc.queryForObject(
+            "SELECT EXISTS(SELECT 1 FROM scene_template WHERE id = ?)", Boolean.class, templateId));
+  }
+
+  int nextTemplateVersion(UUID templateId) {
+    return jdbc.queryForObject(
+        "SELECT COALESCE(max(version), 0) + 1 FROM scene_template_version WHERE template_id = ?",
+        Integer.class,
+        templateId);
+  }
+
+  void insertTemplate(UUID id, String code, String name, String actor, Instant now) {
+    jdbc.update(
+        """
+        INSERT INTO scene_template (id, code, name, created_by, created_at)
+        VALUES (?, ?, ?, ?, ?)
+        """,
+        id,
+        code,
+        name,
+        actor,
+        Timestamp.from(now));
+  }
+
+  void insertTemplateVersion(UUID id, UUID templateId, int version, String status) {
+    jdbc.update(
+        """
+        INSERT INTO scene_template_version (id, template_id, version, status)
+        VALUES (?, ?, ?, ?)
+        """,
+        id,
+        templateId,
+        version,
+        status);
+  }
+
   Optional<String> templateVersionStatus(UUID templateVersionId) {
     if (templateVersionId == null) return Optional.empty();
     return jdbc.query(

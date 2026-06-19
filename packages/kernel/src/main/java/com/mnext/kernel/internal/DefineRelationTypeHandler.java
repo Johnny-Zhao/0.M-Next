@@ -1,6 +1,8 @@
 package com.mnext.kernel.internal;
 
 import com.mnext.kernel.api.Actor;
+import com.mnext.kernel.api.CommandError;
+import com.mnext.kernel.api.CommandRejectedException;
 import com.mnext.kernel.api.CommandResult;
 import com.mnext.kernel.api.PermissionChecker;
 import com.mnext.kernel.api.metamodel.DefineRelationTypeCommand;
@@ -8,6 +10,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,7 +32,8 @@ class DefineRelationTypeHandler {
   CommandResult execute(DefineRelationTypeCommand command, Actor actor) {
     support.validateEnvelope(
         command.workspaceId(), command.correlationId(), command.idempotencyKey());
-    permissions.check("metamodel.define", command.workspaceId(), null, Set.of(), actor);
+    permissions.check(
+        "metamodel.define", command.workspaceId(), command.templateVersionId(), Set.of(), actor);
     validate(command);
     var hash = CommandSupport.payloadHash(payload(command));
     var replay = support.replay(command.workspaceId(), command.idempotencyKey(), hash);
@@ -39,7 +43,7 @@ class DefineRelationTypeHandler {
     meta.insertRelationType(
         java.util.UUID.randomUUID(),
         command.workspaceId(),
-        null,
+        command.templateVersionId(),
         command.code(),
         command.sourceTypeId(),
         command.targetTypeId(),
@@ -75,6 +79,7 @@ class DefineRelationTypeHandler {
     if (meta.relationTypeCodeExists(command.workspaceId(), command.code())) {
       throw CommandErrors.schema("关系类型 code 已存在");
     }
+    validateTemplateVersion(command);
     var violations = new ArrayList<String>();
     if (command.hierarchical() && !"one_to_many".equals(command.cardinality())) {
       violations.add("hierarchical 关系必须使用 one_to_many");
@@ -82,9 +87,30 @@ class DefineRelationTypeHandler {
     if (!violations.isEmpty()) throw CommandErrors.fieldConstraint(violations);
   }
 
+  private void validateTemplateVersion(DefineRelationTypeCommand command) {
+    if (command.templateVersionId() == null) return;
+    var status = meta.templateVersionStatus(command.templateVersionId());
+    if (status.isEmpty()) throw templateNotFound();
+    if ("published".equals(status.get())) throw CommandErrors.templateVersionImmutable();
+    var sourceVersion =
+        meta.objectTypeTemplateVersion(command.workspaceId(), command.sourceTypeId());
+    var targetVersion =
+        meta.objectTypeTemplateVersion(command.workspaceId(), command.targetTypeId());
+    if (sourceVersion.isEmpty()
+        || targetVersion.isEmpty()
+        || !command.templateVersionId().equals(sourceVersion.get())
+        || !command.templateVersionId().equals(targetVersion.get())) {
+      throw CommandErrors.schema("关系类型端点必须属于同一模板版本");
+    }
+  }
+
   private LinkedHashMap<String, Object> payload(DefineRelationTypeCommand command) {
     var payload = new LinkedHashMap<String, Object>();
+    if (command.templateVersionId() != null) {
+      payload.put("templateVersionId", command.templateVersionId().toString());
+    }
     payload.put("code", command.code());
+    payload.put("name", command.name());
     payload.put("sourceTypeId", command.sourceTypeId().toString());
     payload.put("targetTypeId", command.targetTypeId().toString());
     payload.put("direction", command.direction());
@@ -96,5 +122,11 @@ class DefineRelationTypeHandler {
 
   private boolean validCode(String code) {
     return code != null && code.matches("[a-z][a-z0-9_]{0,127}");
+  }
+
+  private CommandRejectedException templateNotFound() {
+    return new CommandRejectedException(
+        new CommandError(
+            "KERNEL-404-TEMPLATE-NOT-FOUND", "模板或模板版本不存在", Map.of(), "确认 templateVersionId 后重试"));
   }
 }
