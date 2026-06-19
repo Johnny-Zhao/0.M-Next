@@ -4,6 +4,8 @@ import com.mnext.kernel.api.Actor;
 import com.mnext.kernel.api.CommandResult;
 import com.mnext.kernel.api.MetaCommandService;
 import com.mnext.kernel.api.metamodel.ApplyTemplateVersionCommand;
+import com.mnext.kernel.api.metamodel.CreateTemplateCommand;
+import com.mnext.kernel.api.metamodel.CreateTemplateVersionCommand;
 import com.mnext.kernel.api.metamodel.DefineFieldDefCommand;
 import com.mnext.kernel.api.metamodel.DefineObjectTypeCommand;
 import com.mnext.kernel.api.metamodel.DefineRelationTypeCommand;
@@ -14,6 +16,8 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class MetaCommandServiceImpl implements MetaCommandService {
+  private final CreateTemplateHandler createTemplates;
+  private final CreateTemplateVersionHandler createTemplateVersions;
   private final DefineObjectTypeHandler objectTypes;
   private final DefineFieldDefHandler fields;
   private final DefineRelationTypeHandler relations;
@@ -23,6 +27,8 @@ public class MetaCommandServiceImpl implements MetaCommandService {
   private final ApplyTemplateVersionHandler applyTemplateVersions;
 
   public MetaCommandServiceImpl(
+      CreateTemplateHandler createTemplates,
+      CreateTemplateVersionHandler createTemplateVersions,
       DefineObjectTypeHandler objectTypes,
       DefineFieldDefHandler fields,
       DefineRelationTypeHandler relations,
@@ -30,6 +36,8 @@ public class MetaCommandServiceImpl implements MetaCommandService {
       PublishTemplateVersionHandler publishTemplateVersions,
       InstantiateWorkspaceHandler instantiateWorkspaces,
       ApplyTemplateVersionHandler applyTemplateVersions) {
+    this.createTemplates = createTemplates;
+    this.createTemplateVersions = createTemplateVersions;
     this.objectTypes = objectTypes;
     this.fields = fields;
     this.relations = relations;
@@ -37,6 +45,16 @@ public class MetaCommandServiceImpl implements MetaCommandService {
     this.publishTemplateVersions = publishTemplateVersions;
     this.instantiateWorkspaces = instantiateWorkspaces;
     this.applyTemplateVersions = applyTemplateVersions;
+  }
+
+  @Override
+  public CommandResult createTemplate(CreateTemplateCommand command, Actor actor) {
+    return createTemplates.execute(command, actor);
+  }
+
+  @Override
+  public CommandResult createTemplateVersion(CreateTemplateVersionCommand command, Actor actor) {
+    return createTemplateVersions.execute(command, actor);
   }
 
   @Override

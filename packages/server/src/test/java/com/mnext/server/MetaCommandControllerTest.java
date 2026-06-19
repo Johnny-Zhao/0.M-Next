@@ -26,6 +26,45 @@ class MetaCommandControllerTest {
       new MetaCommandController(commands, lifecycle, derivedFields, mapper);
 
   @Test
+  void routesCreateTemplateOnSeparateEndpointController() throws Exception {
+    var workspace = UUID.randomUUID();
+    var request =
+        new CommandRequest(
+            "CreateTemplate",
+            workspace,
+            UUID.randomUUID(),
+            "meta-create-template",
+            mapper.readTree("{\"code\":\"api_template\",\"name\":\"API 模板\"}"));
+    when(commands.createTemplate(any(), any()))
+        .thenReturn(new CommandResult("command", CommandStatus.COMMITTED, false, List.of(), null));
+
+    var result = controller.execute(workspace, "author", request);
+
+    assertEquals("command", result.commandId());
+    verify(commands).createTemplate(any(), eq(com.mnext.kernel.api.Actor.user("author")));
+  }
+
+  @Test
+  void routesCreateTemplateVersionOnSeparateEndpointController() throws Exception {
+    var workspace = UUID.randomUUID();
+    var template = UUID.randomUUID();
+    var request =
+        new CommandRequest(
+            "CreateTemplateVersion",
+            workspace,
+            UUID.randomUUID(),
+            "meta-create-template-version",
+            mapper.readTree("{\"templateId\":\"" + template + "\"}"));
+    when(commands.createTemplateVersion(any(), any()))
+        .thenReturn(new CommandResult("command", CommandStatus.COMMITTED, false, List.of(), null));
+
+    var result = controller.execute(workspace, "author", request);
+
+    assertEquals("command", result.commandId());
+    verify(commands).createTemplateVersion(any(), eq(com.mnext.kernel.api.Actor.user("author")));
+  }
+
+  @Test
   void routesDefineObjectTypeOnSeparateEndpointController() throws Exception {
     var workspace = UUID.randomUUID();
     var request =

@@ -1,6 +1,8 @@
 package com.mnext.kernel.api;
 
 import com.mnext.kernel.api.metamodel.ApplyTemplateVersionCommand;
+import com.mnext.kernel.api.metamodel.CreateTemplateCommand;
+import com.mnext.kernel.api.metamodel.CreateTemplateVersionCommand;
 import com.mnext.kernel.api.metamodel.DefineFieldDefCommand;
 import com.mnext.kernel.api.metamodel.DefineObjectTypeCommand;
 import com.mnext.kernel.api.metamodel.DefineRelationTypeCommand;
@@ -9,6 +11,10 @@ import com.mnext.kernel.api.metamodel.InstantiateWorkspaceCommand;
 import com.mnext.kernel.api.metamodel.PublishTemplateVersionCommand;
 
 public interface MetaCommandService {
+  CommandResult createTemplate(CreateTemplateCommand command, Actor actor);
+
+  CommandResult createTemplateVersion(CreateTemplateVersionCommand command, Actor actor);
+
   CommandResult defineObjectType(DefineObjectTypeCommand command, Actor actor);
 
   CommandResult defineFieldDef(DefineFieldDefCommand command, Actor actor);
