@@ -1,11 +1,13 @@
 package com.mnext.engines.rules;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.math.BigDecimal;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 
@@ -49,6 +51,42 @@ class RuleEvaluatorTest {
     assertTrue(evaluate("coalesce(field('missing'), field('name')) == 'alpha'", context));
     assertTrue(evaluate("toNumber('42.5') > 40", context));
     assertTrue(evaluate("isBlank(field('empty'))", context));
+  }
+
+  @Test
+  void evaluatesInterpolationAndLookupFunctions() {
+    var context = context(Map.of("temp", "40"), Map.of());
+
+    assertTrue(
+        evaluate(
+            "interp(field('temp'), -20, 1.05, 25, 1.0, 60, 0.92) > 0.965"
+                + " && interp(field('temp'), -20, 1.05, 25, 1.0, 60, 0.92) < 0.966",
+            context));
+    assertDecimal("1.05", value("interp(-30, -20, 1.05, 25, 1.0, 60, 0.92)", context));
+    assertDecimal("0.92", value("interp(70, -20, 1.05, 25, 1.0, 60, 0.92)", context));
+    assertDecimal("1.0", value("lookup(40, -20, 1.05, 25, 1.0, 60, 0.92)", context));
+    assertDecimal("1.05", value("lookup(-30, -20, 1.05, 25, 1.0, 60, 0.92)", context));
+    assertDecimal("0.92", value("lookup(70, -20, 1.05, 25, 1.0, 60, 0.92)", context));
+  }
+
+  @Test
+  void singlePointTablesAlwaysReturnTheOnlyValue() {
+    var context = context(Map.of(), Map.of());
+
+    assertDecimal("7.5", value("interp(-100, 10, 7.5)", context));
+    assertDecimal("7.5", value("interp(100, 10, 7.5)", context));
+    assertDecimal("7.5", value("lookup(-100, 10, 7.5)", context));
+    assertDecimal("7.5", value("lookup(100, 10, 7.5)", context));
+  }
+
+  @Test
+  void rejectsMalformedInterpolationTables() {
+    var context = context(Map.of(), Map.of());
+
+    assertThrows(RuleSyntaxException.class, () -> value("interp(1, 0)", context));
+    assertThrows(RuleSyntaxException.class, () -> value("interp(1, 0, 1, 2)", context));
+    assertThrows(RuleSyntaxException.class, () -> value("interp(1, 0, 1, 0, 2)", context));
+    assertThrows(RuleSyntaxException.class, () -> value("lookup(1, 0, 1, 0, 2)", context));
   }
 
   @Test
@@ -112,6 +150,15 @@ class RuleEvaluatorTest {
 
   private boolean evaluate(String source, EvalContext context) {
     return evaluator.evaluate(RuleParser.parse(source), context);
+  }
+
+  private Object value(String source, EvalContext context) {
+    return evaluator.evaluateValue(RuleParser.parse(source), context);
+  }
+
+  private void assertDecimal(String expected, Object actual) {
+    assertInstanceOf(BigDecimal.class, actual);
+    assertEquals(0, new BigDecimal(expected).compareTo((BigDecimal) actual));
   }
 
   private EvalContext context(Map<String, Object> fields, Map<String, Integer> relations) {
