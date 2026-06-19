@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.mnext.kernel.api.Actor;
 import com.mnext.kernel.api.CommandRejectedException;
+import com.mnext.kernel.api.CommandResult;
 import com.mnext.kernel.api.KernelCommandService;
 import com.mnext.kernel.api.MetaCommandService;
 import com.mnext.kernel.api.SourceInfo;
@@ -61,6 +62,74 @@ class MetaModelIntegrationTest {
   @Autowired MetaCommandService meta;
   @Autowired KernelCommandService commands;
   @Autowired JdbcTemplate jdbc;
+
+  @Test
+  void metaDefineCommandsReturnCreatedIdsAndReplaySameIds() {
+    var actor = Actor.user("model-author");
+    var valueCommand =
+        new DefineValueTypeCommand(
+            WORKSPACE,
+            UUID.randomUUID(),
+            "return-id-value",
+            null,
+            "return_text_v33",
+            "返回文本",
+            DataType.TEXT,
+            "text",
+            FieldConstraints.empty());
+    var value = meta.defineValueType(valueCommand, actor);
+    assertReturnedId(
+        value,
+        meta.defineValueType(valueCommand, actor),
+        "valueTypeId",
+        idByCode("value_type", "return_text_v33"));
+
+    var objectCommand =
+        new DefineObjectTypeCommand(
+            WORKSPACE, UUID.randomUUID(), "return-id-object", null, "return_object_v33", "返回对象");
+    var object = meta.defineObjectType(objectCommand, actor);
+    var objectTypeId = idByCode("object_type", "return_object_v33");
+    assertReturnedId(
+        object, meta.defineObjectType(objectCommand, actor), "objectTypeId", objectTypeId);
+
+    var fieldCommand =
+        new DefineFieldDefCommand(
+            WORKSPACE,
+            UUID.randomUUID(),
+            "return-id-field",
+            objectTypeId,
+            "name",
+            "名称",
+            DataType.STRING,
+            true,
+            FieldConstraints.empty());
+    var field = meta.defineFieldDef(fieldCommand, actor);
+    assertReturnedId(
+        field,
+        meta.defineFieldDef(fieldCommand, actor),
+        "fieldDefId",
+        fieldDefId(objectTypeId, "name"));
+
+    var relationCommand =
+        new DefineRelationTypeCommand(
+            WORKSPACE,
+            UUID.randomUUID(),
+            "return-id-relation",
+            "return_relation_v33",
+            "返回关系",
+            objectTypeId,
+            objectTypeId,
+            "directed",
+            "many_to_many",
+            "weak",
+            false);
+    var relation = meta.defineRelationType(relationCommand, actor);
+    assertReturnedId(
+        relation,
+        meta.defineRelationType(relationCommand, actor),
+        "relationTypeId",
+        idByCode("relation_type", "return_relation_v33"));
+  }
 
   @Test
   void authoringChainValidatesTypedObjectValues() {
@@ -873,6 +942,40 @@ class MetaModelIntegrationTest {
 
     assertEquals("KERNEL-409-TEMPLATE-MIGRATION-REQUIRED", error.error().code());
     assertEquals(1, workspaceTemplateVersion(target));
+  }
+
+  private void assertReturnedId(
+      CommandResult first, CommandResult replay, String name, UUID storedId) {
+    assertEquals(false, first.idempotentReplay());
+    assertEquals(true, replay.idempotentReplay());
+    var returnedId = returnedUuid(first, name);
+    assertEquals(returnedId, returnedUuid(replay, name));
+    assertEquals(storedId, returnedId);
+  }
+
+  private UUID returnedUuid(CommandResult result, String name) {
+    var prefix = name + "=";
+    return result.events().stream()
+        .filter(value -> value.startsWith(prefix))
+        .map(value -> UUID.fromString(value.substring(prefix.length())))
+        .findFirst()
+        .orElseThrow();
+  }
+
+  private UUID idByCode(String table, String code) {
+    return jdbc.queryForObject(
+        "SELECT id FROM " + table + " WHERE workspace_id = ? AND code = ?",
+        UUID.class,
+        WORKSPACE,
+        code);
+  }
+
+  private UUID fieldDefId(UUID objectTypeId, String code) {
+    return jdbc.queryForObject(
+        "SELECT id FROM field_def WHERE object_type_id = ? AND code = ?",
+        UUID.class,
+        objectTypeId,
+        code);
   }
 
   private static CreateObjectCommand create(UUID typeId, String key, Object budget) {

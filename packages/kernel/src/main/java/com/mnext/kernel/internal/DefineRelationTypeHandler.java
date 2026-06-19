@@ -34,14 +34,16 @@ class DefineRelationTypeHandler {
         command.workspaceId(), command.correlationId(), command.idempotencyKey());
     permissions.check(
         "metamodel.define", command.workspaceId(), command.templateVersionId(), Set.of(), actor);
-    validate(command);
+    validatePayload(command);
     var hash = CommandSupport.payloadHash(payload(command));
+    var relationTypeId = relationTypeId(command, hash);
     var replay = support.replay(command.workspaceId(), command.idempotencyKey(), hash);
-    if (replay.isPresent()) return replay.get();
+    if (replay.isPresent()) return withDetail(replay.get(), "relationTypeId=" + relationTypeId);
+    validateFresh(command);
     var now = Instant.now();
     var commandId = CommandSupport.commandId();
     meta.insertRelationType(
-        java.util.UUID.randomUUID(),
+        relationTypeId,
         command.workspaceId(),
         command.templateVersionId(),
         command.code(),
@@ -59,11 +61,27 @@ class DefineRelationTypeHandler {
         commandId,
         "DefineRelationType",
         hash,
-        List.of(),
+        List.of("relationTypeId=" + relationTypeId),
         now);
   }
 
-  private void validate(DefineRelationTypeCommand command) {
+  private CommandResult withDetail(CommandResult replay, String detail) {
+    return new CommandResult(
+        replay.commandId(), replay.status(), replay.idempotentReplay(), List.of(detail), null);
+  }
+
+  private java.util.UUID relationTypeId(DefineRelationTypeCommand command, String hash) {
+    return java.util.UUID.nameUUIDFromBytes(
+        ("DefineRelationType:"
+                + command.workspaceId()
+                + ":"
+                + command.idempotencyKey()
+                + ":"
+                + hash)
+            .getBytes(java.nio.charset.StandardCharsets.UTF_8));
+  }
+
+  private void validatePayload(DefineRelationTypeCommand command) {
     if (!validCode(command.code())
         || command.sourceTypeId() == null
         || command.targetTypeId() == null
@@ -76,10 +94,13 @@ class DefineRelationTypeHandler {
         || !meta.objectTypeExists(command.workspaceId(), command.targetTypeId())) {
       throw CommandErrors.typeNotFound();
     }
+    validateTemplateVersion(command);
+  }
+
+  private void validateFresh(DefineRelationTypeCommand command) {
     if (meta.relationTypeCodeExists(command.workspaceId(), command.code())) {
       throw CommandErrors.schema("关系类型 code 已存在");
     }
-    validateTemplateVersion(command);
     var violations = new ArrayList<String>();
     if (command.hierarchical() && !"one_to_many".equals(command.cardinality())) {
       violations.add("hierarchical 关系必须使用 one_to_many");
