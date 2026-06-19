@@ -33,14 +33,21 @@ class DefineObjectTypeHandler {
     validate(command);
     var hash = CommandSupport.payloadHash(payload(command));
     var replay = support.replay(command.workspaceId(), command.idempotencyKey(), hash);
-    if (replay.isPresent()) return replay.get();
+    if (replay.isPresent()) {
+      var objectTypeId =
+          meta.objectTypeByCode(command.workspaceId(), command.code())
+              .orElseThrow(CommandErrors::typeNotFound)
+              .id();
+      return withDetail(replay.get(), "objectTypeId=" + objectTypeId);
+    }
     var now = Instant.now();
     var commandId = CommandSupport.commandId();
     var existing = meta.objectTypeByCode(command.workspaceId(), command.code()).orElse(null);
     var parent = parent(command);
+    var objectTypeId = existing == null ? java.util.UUID.randomUUID() : existing.id();
     if (existing == null) {
       meta.insertObjectType(
-          java.util.UUID.randomUUID(),
+          objectTypeId,
           command.workspaceId(),
           command.templateVersionId(),
           command.code(),
@@ -58,8 +65,13 @@ class DefineObjectTypeHandler {
         commandId,
         "DefineObjectType",
         hash,
-        List.of(),
+        List.of("objectTypeId=" + objectTypeId),
         now);
+  }
+
+  private CommandResult withDetail(CommandResult replay, String detail) {
+    return new CommandResult(
+        replay.commandId(), replay.status(), replay.idempotentReplay(), List.of(detail), null);
   }
 
   private void validate(DefineObjectTypeCommand command) {

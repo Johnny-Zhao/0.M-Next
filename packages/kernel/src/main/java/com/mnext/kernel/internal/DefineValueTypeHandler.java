@@ -34,15 +34,22 @@ class DefineValueTypeHandler {
         "metamodel.define", command.workspaceId(), command.templateVersionId(), Set.of(), actor);
     var hash = CommandSupport.payloadHash(payload(command));
     var replay = support.replay(command.workspaceId(), command.idempotencyKey(), hash);
-    if (replay.isPresent()) return replay.get();
+    if (replay.isPresent()) {
+      var valueTypeId =
+          meta.valueTypeByCode(command.workspaceId(), command.code())
+              .orElseThrow(CommandErrors::typeNotFound)
+              .id();
+      return withDetail(replay.get(), "valueTypeId=" + valueTypeId);
+    }
     var existing = meta.valueTypeByCode(command.workspaceId(), command.code()).orElse(null);
     var parent = parent(command);
     validate(command, existing, parent);
     var now = Instant.now();
     var commandId = CommandSupport.commandId();
+    var valueTypeId = existing == null ? UUID.randomUUID() : existing.id();
     if (existing == null) {
       meta.insertValueType(
-          UUID.randomUUID(),
+          valueTypeId,
           command.workspaceId(),
           command.templateVersionId(),
           command.code(),
@@ -66,8 +73,13 @@ class DefineValueTypeHandler {
         commandId,
         "DefineValueType",
         hash,
-        List.of(),
+        List.of("valueTypeId=" + valueTypeId),
         now);
+  }
+
+  private CommandResult withDetail(CommandResult replay, String detail) {
+    return new CommandResult(
+        replay.commandId(), replay.status(), replay.idempotentReplay(), List.of(detail), null);
   }
 
   private MetaModelRepository.ValueTypeRow parent(DefineValueTypeCommand command) {

@@ -40,10 +40,12 @@ class DefineFieldDefHandler {
         command.objectTypeId(),
         Set.of(command.code()),
         actor);
-    validate(command);
+    validatePayload(command);
     var hash = CommandSupport.payloadHash(payload(command));
+    var fieldDefId = fieldDefId(command, hash);
     var replay = support.replay(command.workspaceId(), command.idempotencyKey(), hash);
-    if (replay.isPresent()) return replay.get();
+    if (replay.isPresent()) return withDetail(replay.get(), "fieldDefId=" + fieldDefId);
+    validateFresh(command);
     var templateVersion =
         meta.objectTypeTemplateVersion(command.workspaceId(), command.objectTypeId());
     if (templateVersion == null) throw CommandErrors.typeNotFound();
@@ -53,7 +55,7 @@ class DefineFieldDefHandler {
     var now = Instant.now();
     var commandId = CommandSupport.commandId();
     meta.insertFieldDef(
-        java.util.UUID.randomUUID(),
+        fieldDefId,
         command.objectTypeId(),
         templateVersion.orElse(null),
         command.code(),
@@ -71,11 +73,22 @@ class DefineFieldDefHandler {
         commandId,
         "DefineFieldDef",
         hash,
-        List.of(),
+        List.of("fieldDefId=" + fieldDefId),
         now);
   }
 
-  private void validate(DefineFieldDefCommand command) {
+  private CommandResult withDetail(CommandResult replay, String detail) {
+    return new CommandResult(
+        replay.commandId(), replay.status(), replay.idempotentReplay(), List.of(detail), null);
+  }
+
+  private java.util.UUID fieldDefId(DefineFieldDefCommand command, String hash) {
+    return java.util.UUID.nameUUIDFromBytes(
+        ("DefineFieldDef:" + command.workspaceId() + ":" + command.idempotencyKey() + ":" + hash)
+            .getBytes(java.nio.charset.StandardCharsets.UTF_8));
+  }
+
+  private void validatePayload(DefineFieldDefCommand command) {
     if (command.objectTypeId() == null
         || !validCode(command.code())
         || command.name() == null
@@ -86,6 +99,9 @@ class DefineFieldDefHandler {
     if ((command.dataType() == null) == (command.valueTypeCode() == null)) {
       throw CommandErrors.schema("dataType 与 valueTypeCode 必须二选一");
     }
+  }
+
+  private void validateFresh(DefineFieldDefCommand command) {
     if (meta.fieldCodeExists(command.objectTypeId(), command.code())) {
       throw CommandErrors.schema("字段 code 已存在");
     }
