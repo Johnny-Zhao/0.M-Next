@@ -1,0 +1,46 @@
+# M-Next CI 流水线(GitLab CI)
+# 目标:把 AG-404 门禁搬上 CI,并强制 Skipped:0(根治"假绿":集成测试因 Docker 缺失被静默跳过却 BUILD SUCCESS)。
+# 干净 checkout 是 CI 天然特性 → check-contracts 自然对干净树跑(AG-406)。
+#
+# ⚠️ 占位需按你的内网 GitLab 适配:镜像仓库地址、runner tags、DinD/testcontainers 网络。
+
+stages:
+  - verify
+
+verify:
+  stage: verify
+  tags:
+    - docker # ← 改成你能跑 DinD 的 runner tag
+  # JDK 21 + Node;建议用内网私服镜像(AG-502 断网构建)
+  image: REGISTRY.internal/library/eclipse-temurin:21-jdk # ← 改成内网私服镜像
+  services:
+    - name: docker:27-dind # testcontainers 需要 Docker 守护进程
+      alias: docker
+  variables:
+    # DinD over TLS(GitLab 推荐)
+    DOCKER_HOST: "tcp://docker:2376"
+    DOCKER_TLS_CERTDIR: "/certs"
+    DOCKER_TLS_VERIFY: "1"
+    DOCKER_CERT_PATH: "/certs/client"
+    # testcontainers:让它连到 DinD 守护进程;Ryuk 在 DinD 下常需放宽
+    TESTCONTAINERS_RYUK_DISABLED: "true"
+    # 若 testcontainers 报"localhost 连不上",按你的 DinD 网络设 TESTCONTAINERS_HOST_OVERRIDE
+    # Maven/pnpm 走内网私服(断网构建):仓库地址在 settings.xml / .npmrc 中配置
+  before_script:
+    - corepack enable
+    - corepack pnpm install --frozen-lockfile
+  script:
+    # AG-404 全门禁:architecture:check/test → format → lint → typecheck → test(含 jacoco≥0.80)→ build
+    - corepack pnpm verify
+    # Skipped:0 守卫:集成测试若被静默跳过则失败(防假绿)
+    - node scripts/check-no-skipped.mjs
+  artifacts:
+    when: always
+    reports:
+      junit:
+        - "packages/*/target/surefire-reports/TEST-*.xml"
+    paths:
+      - "packages/*/target/site/jacoco/" # 覆盖率报告留存
+    expire_in: 1 week
+
+# 后续(本卡不做,登记):双架构镜像构建、性能基准回退门禁(AG-404 余项)。
