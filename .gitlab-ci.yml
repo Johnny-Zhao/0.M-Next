@@ -42,5 +42,4 @@ verify:
     paths:
       - "packages/*/target/site/jacoco/" # 覆盖率报告留存
     expire_in: 1 week
-
 # 后续(本卡不做,登记):双架构镜像构建、性能基准回退门禁(AG-404 余项)。

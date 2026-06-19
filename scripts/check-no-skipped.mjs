@@ -43,7 +43,9 @@ function attr(tag, name) {
 const files = surefireReports(root);
 
 if (files.length === 0) {
-  console.error("❌ 未找到任何 surefire 报告(target/surefire-reports/TEST-*.xml)——测试根本没跑?");
+  console.error(
+    "❌ 未找到任何 surefire 报告(target/surefire-reports/TEST-*.xml)——测试根本没跑?",
+  );
   process.exit(1);
 }
 
@@ -59,7 +61,8 @@ for (const f of files) {
   const skipped = attr(m[0], "skipped");
   totalTests += tests;
   totalSkipped += skipped;
-  if (skipped > 0) offenders.push(`  ${f.replace(root, ".")}: skipped=${skipped}/${tests}`);
+  if (skipped > 0)
+    offenders.push(`  ${f.replace(root, ".")}: skipped=${skipped}/${tests}`);
 }
 
 if (totalSkipped > 0) {
@@ -67,7 +70,9 @@ if (totalSkipped > 0) {
     `❌ 检测到跳过的测试(Skipped:${totalSkipped})——集成测试可能因 Docker 缺失/环境问题被静默跳过,这是"假绿":`,
   );
   offenders.forEach((o) => console.error(o));
-  console.error("修复:确认 Docker 可用(testcontainers 能起容器)后重跑;不得带跳过合并。");
+  console.error(
+    "修复:确认 Docker 可用(testcontainers 能起容器)后重跑;不得带跳过合并。",
+  );
   process.exit(1);
 }
 
