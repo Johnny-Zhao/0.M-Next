@@ -16,10 +16,13 @@ import org.springframework.web.bind.annotation.RestController;
 public class RuleCommandController {
   private final RuleDefRepository rules;
   private final RuleCheckRunner checks;
+  private final WorkspaceAuthorizer authorizer;
 
-  public RuleCommandController(RuleDefRepository rules, RuleCheckRunner checks) {
+  public RuleCommandController(
+      RuleDefRepository rules, RuleCheckRunner checks, WorkspaceAuthorizer authorizer) {
     this.rules = rules;
     this.checks = checks;
+    this.authorizer = authorizer;
   }
 
   @PostMapping("/workspaces/{workspaceId}/rule-commands")
@@ -27,6 +30,7 @@ public class RuleCommandController {
       @PathVariable("workspaceId") UUID workspaceId,
       @RequestHeader("X-Actor-Id") String actorId,
       @RequestBody CommandRequest request) {
+    authorizer.require(actorId, workspaceId, action(request.commandType()));
     if (!workspaceId.equals(request.workspaceId())) throw schema("path workspaceId 与命令信封不一致");
     return switch (request.commandType()) {
       case "DefineRule" -> rules.defineRule(defineRule(request), actorId);
@@ -34,6 +38,12 @@ public class RuleCommandController {
       case "RunRuleCheck" -> checks.run(runRuleCheck(request));
       default -> throw schema("本批次不支持 commandType: " + request.commandType());
     };
+  }
+
+  private static WorkspaceAuthorizer.Action action(String commandType) {
+    return "RunRuleCheck".equals(commandType)
+        ? WorkspaceAuthorizer.Action.REVIEW
+        : WorkspaceAuthorizer.Action.GOVERN;
   }
 
   private static DefineRuleRequest defineRule(CommandRequest request) {

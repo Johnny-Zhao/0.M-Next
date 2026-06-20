@@ -13,51 +13,46 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-public class AttachmentCommandController {
-  private final AttachmentRepository attachments;
+public class RbacCommandController {
+  private final RbacRepository rbac;
   private final WorkspaceAuthorizer authorizer;
 
-  public AttachmentCommandController(
-      AttachmentRepository attachments, WorkspaceAuthorizer authorizer) {
-    this.attachments = attachments;
+  public RbacCommandController(RbacRepository rbac, WorkspaceAuthorizer authorizer) {
+    this.rbac = rbac;
     this.authorizer = authorizer;
   }
 
-  @PostMapping("/workspaces/{workspaceId}/attachment-commands")
+  @PostMapping("/workspaces/{workspaceId}/rbac-commands")
   public CommandResult execute(
       @PathVariable("workspaceId") UUID workspaceId,
       @RequestHeader("X-Actor-Id") String actorId,
-      @RequestBody CommandRequest request) {
-    authorizer.require(actorId, workspaceId, WorkspaceAuthorizer.Action.WRITE_DATA);
+      @RequestBody RbacCommandRequest request) {
+    authorizer.require(actorId, workspaceId, WorkspaceAuthorizer.Action.GOVERN);
     if (!workspaceId.equals(request.workspaceId())) throw schema("path workspaceId 与命令信封不一致");
     return switch (request.commandType()) {
-      case "AttachFile" -> attachments.attach(attachFile(request), actorId);
-      case "DetachFile" -> attachments.detach(detachFile(request), actorId);
+      case "GrantWorkspaceRole" -> rbac.grant(grant(request), actorId);
+      case "RevokeWorkspaceRole" -> rbac.revoke(revoke(request));
       default -> throw schema("本批次不支持 commandType: " + request.commandType());
     };
   }
 
-  private static AttachFileRequest attachFile(CommandRequest request) {
+  private static GrantWorkspaceRoleRequest grant(RbacCommandRequest request) {
     var payload = required(request.payload(), "payload");
-    return new AttachFileRequest(
+    return new GrantWorkspaceRoleRequest(
         request.workspaceId(),
         request.correlationId(),
         request.idempotencyKey(),
-        uuid(payload, "objectId"),
-        text(payload, "filename"),
-        text(payload, "contentType"),
-        required(payload.get("sizeBytes"), "sizeBytes").asLong(),
-        text(payload, "sha256"),
-        text(payload, "storageKey"));
+        uuid(payload, "userId"),
+        text(payload, "role"));
   }
 
-  private static DetachFileRequest detachFile(CommandRequest request) {
+  private static RevokeWorkspaceRoleRequest revoke(RbacCommandRequest request) {
     var payload = required(request.payload(), "payload");
-    return new DetachFileRequest(
+    return new RevokeWorkspaceRoleRequest(
         request.workspaceId(),
         request.correlationId(),
         request.idempotencyKey(),
-        uuid(payload, "attachmentId"));
+        uuid(payload, "userId"));
   }
 
   private static UUID uuid(JsonNode payload, String name) {
@@ -75,6 +70,6 @@ public class AttachmentCommandController {
 
   private static CommandRejectedException schema(String message) {
     return new CommandRejectedException(
-        new CommandError("ATT-400-SCHEMA-INVALID", message, Map.of(), "按附件命令 Schema 修正载荷"));
+        new CommandError("RBAC-400-SCHEMA-INVALID", message, Map.of(), "按 RBAC 命令 Schema 修正载荷后重试"));
   }
 }

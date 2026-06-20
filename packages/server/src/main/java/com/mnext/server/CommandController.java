@@ -38,10 +38,13 @@ import org.springframework.web.bind.annotation.RestController;
 public class CommandController {
   private final KernelCommandService commands;
   private final ObjectMapper mapper;
+  private final WorkspaceAuthorizer authorizer;
 
-  public CommandController(KernelCommandService commands, ObjectMapper mapper) {
+  public CommandController(
+      KernelCommandService commands, ObjectMapper mapper, WorkspaceAuthorizer authorizer) {
     this.commands = commands;
     this.mapper = mapper;
+    this.authorizer = authorizer;
   }
 
   @PostMapping("/workspaces/{workspaceId}/commands")
@@ -94,6 +97,7 @@ public class CommandController {
       @PathVariable("workspaceId") UUID workspaceId,
       @RequestHeader("X-Actor-Id") String actorId,
       @RequestBody CommandRequest request) {
+    authorizer.require(actorId, workspaceId, WorkspaceAuthorizer.Action.WRITE_DATA);
     if (!workspaceId.equals(request.workspaceId())) {
       throw schema("path workspaceId 与命令信封不一致");
     }
