@@ -1,3 +1,4 @@
 com.mnext.engines.sim.EchoSimulationEngine
 com.mnext.engines.sim.EnergySocSimulationEngine
 com.mnext.engines.sim.TopsisDecisionEngine
+com.mnext.engines.sim.AhpDecisionEngine
