@@ -78,6 +78,12 @@ const schemas = {
       "utf8",
     ),
   ),
+  "ai-commands": JSON.parse(
+    fs.readFileSync(
+      path.join(root, "contracts", "schemas", "ai-commands.schema.json"),
+      "utf8",
+    ),
+  ),
 };
 
 const ajv = new Ajv2020({ allErrors: true, strict: false });
@@ -93,6 +99,7 @@ const validators = {
   "attachment-commands": ajv.compile(schemas["attachment-commands"]),
   "rbac-commands": ajv.compile(schemas["rbac-commands"]),
   "import-mapping": ajv.compile(schemas["import-mapping"]),
+  "ai-commands": ajv.compile(schemas["ai-commands"]),
 };
 
 function walk(directory) {
@@ -112,7 +119,7 @@ for (const fixture of fixtures) {
   const validator = validators[schemaName];
   if (validator === undefined || !["valid", "invalid"].includes(expectation)) {
     console.error(
-      `FAIL ${path.relative(root, fixture)}: expected <commands|events|meta-commands|review-commands|simulation-events|rule-commands|rule-result|attachment-commands|rbac-commands|import-mapping>/<valid|invalid>`,
+      `FAIL ${path.relative(root, fixture)}: expected <commands|events|meta-commands|review-commands|simulation-events|rule-commands|rule-result|attachment-commands|rbac-commands|import-mapping|ai-commands>/<valid|invalid>`,
     );
     failures += 1;
     continue;

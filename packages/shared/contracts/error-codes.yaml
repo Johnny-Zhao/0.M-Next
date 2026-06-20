@@ -104,6 +104,26 @@ codes:
     httpStatus: 422
     title: AI 变更项预检失败
     responseRequirement: —
+  - code: AI-400-SCHEMA-INVALID
+    httpStatus: 400
+    title: AI 命令载荷不符合 Schema
+    responseRequirement: 按 AI 命令 Schema 修正载荷
+  - code: AI-404-CHANGESET-NOT-FOUND
+    httpStatus: 404
+    title: AI 变更集不存在或不可见
+    responseRequirement: 不泄露越权目标存在性
+  - code: AI-409-IDEMPOTENCY-CONFLICT
+    httpStatus: 409
+    title: 同幂等键不同载荷（AI 命令）
+    responseRequirement: 更换 idempotencyKey 后重试
+  - code: AI-422-PROVIDER-FAILED
+    httpStatus: 422
+    title: AI Provider 执行失败
+    responseRequirement: 返回 providerId 与建议操作
+  - code: AI-409-INVALID-STATE
+    httpStatus: 409
+    title: AI 变更集状态非法
+    responseRequirement: 返回当前态与允许操作
   - code: KERNEL-409-TEMPLATE-VERSION-IMMUTABLE
     httpStatus: 409
     title: 已发布模板版本下定义类型
