@@ -22,7 +22,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 @Component
-class DerivedEvaluator {
+public class DerivedEvaluator {
   private static final int MAX_RELATION_PAGE = 200;
   private final JdbcTemplate jdbc;
   private final ObjectMapper mapper;
@@ -34,14 +34,14 @@ class DerivedEvaluator {
   }
 
   @Transactional(readOnly = true)
-  Object evaluate(UUID workspaceId, UUID objectId, String code) {
+  public Object evaluate(UUID workspaceId, UUID objectId, String code) {
     var object = loadObject(workspaceId, objectId);
     if (object == null) return null;
     return evaluate(workspaceId, objectId, object.objectTypeId(), object.fields(), code);
   }
 
   @Transactional(readOnly = true)
-  Object evaluate(
+  public Object evaluate(
       UUID workspaceId, UUID objectId, UUID objectTypeId, Map<String, Object> fields, String code) {
     return evaluate(workspaceId, objectId, objectTypeId, fields, code, new EvaluationState());
   }
