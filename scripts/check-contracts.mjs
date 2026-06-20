@@ -55,6 +55,17 @@ const schemas = {
       "utf8",
     ),
   ),
+  "attachment-commands": JSON.parse(
+    fs.readFileSync(
+      path.join(
+        root,
+        "contracts",
+        "schemas",
+        "attachment-commands.schema.json",
+      ),
+      "utf8",
+    ),
+  ),
 };
 
 const ajv = new Ajv2020({ allErrors: true, strict: false });
@@ -67,6 +78,7 @@ const validators = {
   "simulation-events": ajv.compile(schemas["simulation-events"]),
   "rule-commands": ajv.compile(schemas["rule-commands"]),
   "rule-result": ajv.compile(schemas["rule-result"]),
+  "attachment-commands": ajv.compile(schemas["attachment-commands"]),
 };
 
 function walk(directory) {
@@ -86,7 +98,7 @@ for (const fixture of fixtures) {
   const validator = validators[schemaName];
   if (validator === undefined || !["valid", "invalid"].includes(expectation)) {
     console.error(
-      `FAIL ${path.relative(root, fixture)}: expected <commands|events|meta-commands|review-commands|simulation-events|rule-commands|rule-result>/<valid|invalid>`,
+      `FAIL ${path.relative(root, fixture)}: expected <commands|events|meta-commands|review-commands|simulation-events|rule-commands|rule-result|attachment-commands>/<valid|invalid>`,
     );
     failures += 1;
     continue;
