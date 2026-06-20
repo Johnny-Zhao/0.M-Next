@@ -100,6 +100,40 @@ class RecommendationMethodIntegrationTest {
     assertTrue(candidates(empty, "alternatives").isEmpty());
   }
 
+  @Test
+  void routesRecommendationByMethodAndFiltersAhpRunRanking() throws Exception {
+    var profile = instantiateProfile("ahp");
+    var ids = runtimeIds(profile);
+    var workspace = profile.workspace();
+    var project = createObject(workspace, ids.projectType(), "project", Map.of("name", "P"));
+    var alpha = candidate(workspace, ids.candidateType(), "alpha", 100, 80);
+    var beta = candidate(workspace, ids.candidateType(), "beta", 120, 90);
+    var gamma = candidate(workspace, ids.candidateType(), "gamma", 90, 70);
+    var outside = candidate(workspace, ids.candidateType(), "outside", 50, 100);
+    relate(workspace, ids.relationType(), project, alpha, "rel-alpha");
+    relate(workspace, ids.relationType(), project, beta, "rel-beta");
+    relate(workspace, ids.relationType(), project, gamma, "rel-gamma");
+    projectOutbox();
+
+    var snapshot = captureSnapshot(workspace);
+    var run = runAhp(workspace, snapshot, profile.candidateCode());
+    var expected = projectRanking(run, List.of(alpha, beta, gamma));
+    var view = recommendations(workspace, project, profile.relationCode(), "ahp", null, 10);
+
+    assertRanking(view, expected, "score");
+    assertFalse(candidateIds(view).contains(outside.toString()));
+    assertNoAhpRun();
+
+    var lateProject =
+        createObject(workspace, ids.projectType(), "late-project", Map.of("name", "late"));
+    var late = candidate(workspace, ids.candidateType(), "late", 10, 10);
+    relate(workspace, ids.relationType(), lateProject, late, "rel-late");
+    projectOutbox();
+    var empty = recommendations(workspace, lateProject, profile.relationCode(), "ahp", null, 10);
+    assertNull(empty.get("recommended"));
+    assertTrue(candidates(empty, "alternatives").isEmpty());
+  }
+
   private void assertNoRunAndValidation(Profile profile) {
     var other = instantiateProfile("no_run");
     var ids = runtimeIds(other);
@@ -120,6 +154,18 @@ class RecommendationMethodIntegrationTest {
         status(
             profile.workspace(),
             recommendationsPath(project, profile.relationCode(), "weighted", null, 10)));
+  }
+
+  private void assertNoAhpRun() {
+    var other = instantiateProfile("ahp_no_run");
+    var ids = runtimeIds(other);
+    var project = createObject(other.workspace(), ids.projectType(), "no-run-project", Map.of());
+    projectOutbox();
+    assertEquals(
+        409,
+        status(
+            other.workspace(),
+            recommendationsPath(project, other.relationCode(), "ahp", null, 10)));
   }
 
   private Profile instantiateProfile(String suffix) {
@@ -322,10 +368,41 @@ class RecommendationMethodIntegrationTest {
     return (Map<String, Object>) completed.get("result");
   }
 
+  @SuppressWarnings("unchecked")
+  private Map<String, Object> runAhp(UUID workspace, UUID snapshot, String candidateTypeCode) {
+    var response =
+        post(
+            workspace,
+            "/simulations",
+            Map.of(
+                "snapshotId",
+                snapshot,
+                "engineId",
+                "decision-ahp",
+                "config",
+                Map.of(
+                    "candidateTypeCode",
+                    candidateTypeCode,
+                    "criteria",
+                    criteria(),
+                    "comparisonMatrix",
+                    comparisonMatrix())));
+    var runId = UUID.fromString(response.getBody().get("runId").toString());
+    assertEquals(1, runner.drain());
+    var completed =
+        http.getForEntity(base(workspace) + "/simulations/" + runId, Map.class).getBody();
+    assertEquals("COMPLETED", completed.get("status"));
+    return (Map<String, Object>) completed.get("result");
+  }
+
   private List<Map<String, Object>> criteria() {
     return List.of(
         Map.of("field", "price", "weight", 0.5d, "direction", "cost"),
         Map.of("field", "quality", "weight", 0.5d, "direction", "benefit"));
+  }
+
+  private List<List<Double>> comparisonMatrix() {
+    return List.of(List.of(1.0d, 1.0d), List.of(1.0d, 1.0d));
   }
 
   private ResponseEntity<Map> meta(
@@ -454,6 +531,11 @@ class RecommendationMethodIntegrationTest {
   }
 
   private void assertRanking(Map<String, Object> view, List<Map<String, Object>> expected) {
+    assertRanking(view, expected, "closeness");
+  }
+
+  private void assertRanking(
+      Map<String, Object> view, List<Map<String, Object>> expected, String scoreKey) {
     var actual = allCandidates(view);
     assertEquals(expected.size(), actual.size());
     for (var index = 0; index < expected.size(); index++) {
@@ -464,7 +546,7 @@ class RecommendationMethodIntegrationTest {
       assertEquals(index == 0, item.get("recommended"));
       assertEquals(
           0,
-          new BigDecimal(source.get("closeness").toString())
+          new BigDecimal(source.get(scoreKey).toString())
               .compareTo(new BigDecimal(item.get("score").toString())));
     }
   }
