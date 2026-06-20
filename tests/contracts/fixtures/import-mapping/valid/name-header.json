@@ -1,0 +1,10 @@
+{
+  "sheet": "Objects",
+  "headerRow": 0,
+  "objectTypeCode": "demo_object",
+  "keyColumn": "Name",
+  "columns": [
+    { "header": "Name", "fieldDefCode": "name" },
+    { "header": "Cost", "fieldDefCode": "cost" }
+  ]
+}

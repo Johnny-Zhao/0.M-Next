@@ -1,0 +1,5 @@
+{
+  "sheet": "Objects",
+  "objectTypeCode": "demo_object",
+  "columns": [{ "colIndex": 200, "fieldDefCode": "name" }]
+}
