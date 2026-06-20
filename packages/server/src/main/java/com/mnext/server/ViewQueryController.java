@@ -2,10 +2,13 @@ package com.mnext.server;
 
 import java.math.BigDecimal;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.lang.Nullable;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -14,17 +17,21 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 public class ViewQueryController {
   private static final int MAX_RECOMMENDATION_CANDIDATES = 500;
+  private static final String TOPSIS_ENGINE_ID = "decision-topsis";
   private final ReadModelRepository repository;
   private final CheckResultRepository checkResults;
   private final ObjectProvider<DerivedEvaluator> derivedEvaluator;
+  private final SimulationRunRepository simulationRuns;
 
   public ViewQueryController(
       ReadModelRepository repository,
       CheckResultRepository checkResults,
-      ObjectProvider<DerivedEvaluator> derivedEvaluator) {
+      ObjectProvider<DerivedEvaluator> derivedEvaluator,
+      @Nullable SimulationRunRepository simulationRuns) {
     this.repository = repository;
     this.checkResults = checkResults;
     this.derivedEvaluator = derivedEvaluator;
+    this.simulationRuns = simulationRuns;
   }
 
   @GetMapping("/workspaces/{workspaceId}/views/object-types")
@@ -127,15 +134,23 @@ public class ViewQueryController {
       @PathVariable("workspaceId") UUID workspaceId,
       @RequestParam("projectId") UUID projectId,
       @RequestParam("relationTypeCode") String relationTypeCode,
-      @RequestParam("scoreField") String scoreField,
+      @RequestParam(value = "scoreField", required = false) String scoreField,
+      @RequestParam(value = "method", defaultValue = "weighted") String method,
       @RequestParam(value = "order", defaultValue = "desc") String order,
       @RequestParam(value = "size", defaultValue = "10") int size) {
     if (relationTypeCode.isBlank()) throw new IllegalArgumentException("relationTypeCode 必填");
-    if (scoreField.isBlank()) throw new IllegalArgumentException("scoreField 必填");
+    if (!Set.of("weighted", "topsis").contains(method)) {
+      throw new IllegalArgumentException("method 必须为 weighted 或 topsis");
+    }
     if (!Set.of("asc", "desc").contains(order)) {
       throw new IllegalArgumentException("order 必须为 asc 或 desc");
     }
     if (size < 1 || size > 200) throw new IllegalArgumentException("size 必须为 1..200");
+    if ("topsis".equals(method)) {
+      return topsisRecommendation(workspaceId, projectId, relationTypeCode, size);
+    }
+    if (scoreField == null || scoreField.isBlank())
+      throw new IllegalArgumentException("scoreField 必填");
     var candidates =
         repository.recommendationCandidates(
             workspaceId, projectId, relationTypeCode, MAX_RECOMMENDATION_CANDIDATES + 1);
@@ -197,6 +212,65 @@ public class ViewQueryController {
           null,
           candidate.fields(),
           "score_evaluation_failed");
+    }
+  }
+
+  private RecommendationView topsisRecommendation(
+      UUID workspaceId, UUID projectId, String relationTypeCode, int size) {
+    var runResult =
+        simulationRuns
+            .latestCompletedResult(workspaceId, TOPSIS_ENGINE_ID)
+            .orElseThrow(
+                () ->
+                    new SimulationException(
+                        "REC-409-NO-METHOD-RUN",
+                        "先对该项目跑一次 decision-topsis 方法再看推荐",
+                        "先对该项目跑一次 decision-topsis 方法再看推荐"));
+    var candidates =
+        repository.recommendationCandidates(
+            workspaceId, projectId, relationTypeCode, MAX_RECOMMENDATION_CANDIDATES + 1);
+    if (candidates.size() > MAX_RECOMMENDATION_CANDIDATES) {
+      throw new IllegalArgumentException("候选数量超过 500，请收窄比选范围");
+    }
+    var candidatesById = new HashMap<UUID, ObjectView>();
+    candidates.forEach(candidate -> candidatesById.put(candidate.objectId(), candidate));
+    var result = new java.util.ArrayList<RankedCandidate>();
+    if (runResult.get("ranking") instanceof List<?> ranking) {
+      for (var item : ranking) {
+        if (result.size() >= size) break;
+        var ranked = topsisCandidate(item, candidatesById, result.size() + 1);
+        if (ranked != null) result.add(ranked);
+      }
+    }
+    return new RecommendationView(
+        result.isEmpty() ? null : result.getFirst(),
+        result.size() <= 1 ? List.of() : List.copyOf(result.subList(1, result.size())));
+  }
+
+  private RankedCandidate topsisCandidate(
+      Object item, Map<UUID, ObjectView> candidatesById, int rank) {
+    if (!(item instanceof Map<?, ?> ranking)) return null;
+    var candidateId = uuid(ranking.get("candidateId"));
+    if (candidateId == null) return null;
+    var candidate = candidatesById.get(candidateId);
+    if (candidate == null) return null;
+    return new RankedCandidate(
+        candidate.objectId(),
+        candidate.objectType(),
+        numericScore(ranking.get("closeness")),
+        rank,
+        rank == 1,
+        candidate.fields(),
+        "method=topsis");
+  }
+
+  private static UUID uuid(Object value) {
+    if (value instanceof UUID id) return id;
+    if (!(value instanceof String text) || text.isBlank()) return null;
+    try {
+      return UUID.fromString(text);
+    } catch (IllegalArgumentException ignored) {
+      return null;
     }
   }
 
