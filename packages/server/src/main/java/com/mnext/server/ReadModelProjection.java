@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.mnext.kernel.api.events.EventEnvelope;
 import java.util.Map;
 import java.util.UUID;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -12,10 +13,22 @@ import org.springframework.transaction.annotation.Transactional;
 class ReadModelProjection {
   private final ReadModelRepository repository;
   private final IdempotentConsumerRegistry registry;
+  private final AttachmentRepository attachments;
+
+  @Autowired
+  ReadModelProjection(
+      ReadModelRepository repository,
+      IdempotentConsumerRegistry registry,
+      AttachmentRepository attachments) {
+    this.repository = repository;
+    this.registry = registry;
+    this.attachments = attachments;
+  }
 
   ReadModelProjection(ReadModelRepository repository, IdempotentConsumerRegistry registry) {
     this.repository = repository;
     this.registry = registry;
+    this.attachments = null;
   }
 
   @Transactional
@@ -39,6 +52,12 @@ class ReadModelProjection {
       case "RelationCreated" -> relationCreated(event);
       case "RelationUpdated" -> relationUpdated(event);
       case "RelationUnlinked" -> relationStatus(event, "UNLINKED");
+      case "FileAttached" -> {
+        if (attachments != null) attachments.projectAttached(event);
+      }
+      case "FileDetached" -> {
+        if (attachments != null) attachments.projectDetached(event);
+      }
       case "BatchCommitted", "ObjectUpdated" -> {
         // Child events and field events carry the read-model changes.
       }

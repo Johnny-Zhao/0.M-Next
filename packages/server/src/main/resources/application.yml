@@ -19,6 +19,9 @@ mnext:
   outbox:
     enabled: ${OUTBOX_RELAY_ENABLED:true}
     poll-delay: ${OUTBOX_RELAY_POLL_DELAY:1000}
+  storage:
+    dir: ${MNEXT_STORAGE_DIR:}
+    max-bytes: ${MAX_ATTACHMENT_BYTES:52428800}
 
 server:
   port: ${SERVER_PORT:8080}

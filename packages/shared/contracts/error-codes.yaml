@@ -244,3 +244,31 @@ codes:
     httpStatus: 422
     title: 转换映射的目标类型/关系/对应关系不存在
     responseRequirement: 返回未解析的 target/correspondence code
+  - code: ATT-400-SCHEMA-INVALID
+    httpStatus: 400
+    title: 附件命令载荷无效
+    responseRequirement: 按附件命令 Schema 修正载荷
+  - code: ATT-404-NOT-FOUND
+    httpStatus: 404
+    title: 附件对象或附件不存在
+    responseRequirement: 不泄露越权目标存在性
+  - code: ATT-409-BLOB-MISMATCH
+    httpStatus: 409
+    title: blob 不存在或元数据不一致
+    responseRequirement: 提示重新上传 blob
+  - code: ATT-409-IDEMPOTENCY-CONFLICT
+    httpStatus: 409
+    title: 同幂等键不同载荷（附件命令）
+    responseRequirement: 更换 idempotencyKey 后重试
+  - code: ATT-409-TOO-MANY
+    httpStatus: 409
+    title: 单对象活动附件数达到上限
+    responseRequirement: 提示先 DetachFile
+  - code: ATT-413-TOO-LARGE
+    httpStatus: 413
+    title: 附件大小超过上限
+    responseRequirement: 返回大小限制
+  - code: ATT-415-UNSUPPORTED-TYPE
+    httpStatus: 415
+    title: 附件类型不在白名单内
+    responseRequirement: 返回上传 contentType

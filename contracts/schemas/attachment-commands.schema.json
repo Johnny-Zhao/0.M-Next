@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform.local/contracts/attachment-commands/1.0",
+  "title": "附件命令信封与载荷契约 v1.0(addendum)",
+  "type": "object",
+  "required": ["commandType", "workspaceId", "correlationId", "idempotencyKey", "payload"],
+  "additionalProperties": false,
+  "properties": {
+    "commandType": { "enum": ["AttachFile", "DetachFile"] },
+    "workspaceId": { "$ref": "#/$defs/uuid" },
+    "correlationId": { "$ref": "#/$defs/uuid" },
+    "idempotencyKey": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "payload": { "type": "object" }
+  },
+  "allOf": [
+    { "if": { "properties": { "commandType": { "const": "AttachFile" } } }, "then": { "properties": { "payload": { "$ref": "#/$defs/AttachFile" } } } },
+    { "if": { "properties": { "commandType": { "const": "DetachFile" } } }, "then": { "properties": { "payload": { "$ref": "#/$defs/DetachFile" } } } }
+  ],
+  "$defs": {
+    "uuid": { "type": "string", "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$" },
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "storageKey": { "type": "string", "pattern": "^[0-9a-f]{2}/[0-9a-f]{2}/[0-9a-f]{64}$" },
+    "AttachFile": {
+      "type": "object",
+      "required": ["objectId", "filename", "contentType", "sizeBytes", "sha256", "storageKey"],
+      "additionalProperties": false,
+      "properties": {
+        "objectId": { "$ref": "#/$defs/uuid" },
+        "filename": { "type": "string", "minLength": 1, "maxLength": 512 },
+        "contentType": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "sizeBytes": { "type": "integer", "minimum": 0, "maximum": 52428800 },
+        "sha256": { "$ref": "#/$defs/sha256" },
+        "storageKey": { "$ref": "#/$defs/storageKey" }
+      }
+    },
+    "DetachFile": {
+      "type": "object",
+      "required": ["attachmentId"],
+      "additionalProperties": false,
+      "properties": {
+        "attachmentId": { "$ref": "#/$defs/uuid" }
+      }
+    }
+  }
+}
