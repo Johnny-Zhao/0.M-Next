@@ -11,6 +11,7 @@ import java.util.Collections;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.TreeMap;
 import java.util.UUID;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -113,6 +114,22 @@ class SimulationRunRepository {
             size,
             page * size);
     return new PageView<>(items, page, size, total);
+  }
+
+  Optional<Map<String, Object>> latestCompletedResult(UUID workspaceId, String engineId) {
+    var result =
+        jdbc.query(
+            """
+            SELECT result::text
+            FROM simulation_run
+            WHERE workspace_id = ? AND engine_id = ? AND status = 'COMPLETED'
+            ORDER BY completed_at DESC, run_id
+            LIMIT 1
+            """,
+            rows -> rows.next() ? map(rows.getString(1)) : null,
+            workspaceId,
+            engineId);
+    return Optional.ofNullable(result);
   }
 
   List<UUID> queuedRunIds() {
