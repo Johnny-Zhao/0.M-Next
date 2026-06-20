@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform.local/contracts/ai-commands/1.0",
+  "title": "AI 变更集命令契约 v1.0",
+  "type": "object",
+  "required": ["commandType", "workspaceId", "correlationId", "idempotencyKey", "payload"],
+  "additionalProperties": false,
+  "properties": {
+    "commandType": { "enum": ["ProposeAiChange", "RejectAiChange"] },
+    "workspaceId": { "$ref": "#/$defs/uuid" },
+    "correlationId": { "$ref": "#/$defs/uuid" },
+    "idempotencyKey": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "payload": { "type": "object" }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "commandType": { "const": "ProposeAiChange" } } },
+      "then": { "properties": { "payload": { "$ref": "#/$defs/ProposeAiChange" } } }
+    },
+    {
+      "if": { "properties": { "commandType": { "const": "RejectAiChange" } } },
+      "then": { "properties": { "payload": { "$ref": "#/$defs/RejectAiChange" } } }
+    }
+  ],
+  "$defs": {
+    "uuid": {
+      "type": "string",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+    },
+    "ProposeAiChange": {
+      "type": "object",
+      "required": ["action", "selection"],
+      "additionalProperties": false,
+      "properties": {
+        "action": { "enum": ["SUGGEST_FIELDS", "EXPLAIN_CHECK"] },
+        "selection": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "objectIds": {
+              "type": "array",
+              "maxItems": 50,
+              "items": { "$ref": "#/$defs/uuid" },
+              "uniqueItems": true
+            },
+            "checkResultIds": {
+              "type": "array",
+              "maxItems": 200,
+              "items": { "$ref": "#/$defs/uuid" },
+              "uniqueItems": true
+            }
+          }
+        },
+        "instruction": { "type": "string", "maxLength": 2000 }
+      }
+    },
+    "RejectAiChange": {
+      "type": "object",
+      "required": ["setId"],
+      "additionalProperties": false,
+      "properties": {
+        "setId": { "$ref": "#/$defs/uuid" }
+      }
+    }
+  }
+}
