@@ -499,6 +499,30 @@ class ReadModelRepository {
     return new PageView<>(items, page, size, total);
   }
 
+  List<ObjectView> recommendationCandidates(
+      UUID workspaceId, UUID projectId, String relationTypeCode, int limit) {
+    return jdbc.query(
+        """
+        SELECT object.object_id, object.object_type_code, object.status, object.version,
+               object.fields::text, object.updated_at
+        FROM rm_relation relation
+        JOIN rm_object object
+          ON object.workspace_id = relation.workspace_id
+         AND object.object_id = relation.target_id
+        WHERE relation.workspace_id = ?
+          AND relation.source_id = ?
+          AND relation.relation_type_code = ?
+          AND relation.status = 'ACTIVE'
+        ORDER BY relation.target_id
+        LIMIT ?
+        """,
+        (row, index) -> object(row),
+        workspaceId,
+        projectId,
+        relationTypeCode,
+        limit);
+  }
+
   SyncStatusView syncStatus(UUID workspaceId) {
     var pending =
         jdbc.queryForObject(

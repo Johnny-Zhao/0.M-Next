@@ -52,3 +52,14 @@ record CorrespondenceView(
     String objectType,
     Map<String, Object> fields,
     String direction) {}
+
+record RankedCandidate(
+    UUID candidateId,
+    String objectTypeCode,
+    Object score,
+    int rank,
+    boolean recommended,
+    Map<String, Object> fields,
+    String details) {}
+
+record RecommendationView(RankedCandidate recommended, List<RankedCandidate> alternatives) {}
