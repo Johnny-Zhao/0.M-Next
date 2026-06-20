@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform.local/contracts/import-mapping/1.0",
+  "title": "Excel ImportMapping v1.0(addendum)",
+  "type": "object",
+  "required": ["sheet", "objectTypeCode", "columns"],
+  "additionalProperties": false,
+  "properties": {
+    "sheet": {
+      "oneOf": [
+        { "type": "string", "minLength": 1, "maxLength": 128 },
+        { "type": "integer", "minimum": 0 }
+      ]
+    },
+    "headerRow": { "type": "integer", "minimum": 0, "maximum": 100 },
+    "objectTypeCode": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "keyColumn": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "columns": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 200,
+      "items": { "$ref": "#/$defs/column" }
+    }
+  },
+  "$defs": {
+    "column": {
+      "type": "object",
+      "required": ["fieldDefCode"],
+      "additionalProperties": false,
+      "properties": {
+        "header": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "colIndex": { "type": "integer", "minimum": 0, "maximum": 199 },
+        "fieldDefCode": { "type": "string", "minLength": 1, "maxLength": 128 }
+      },
+      "oneOf": [
+        { "required": ["header"], "not": { "required": ["colIndex"] } },
+        { "required": ["colIndex"], "not": { "required": ["header"] } }
+      ]
+    }
+  }
+}

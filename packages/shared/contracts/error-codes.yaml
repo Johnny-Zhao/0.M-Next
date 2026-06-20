@@ -292,6 +292,30 @@ codes:
     httpStatus: 415
     title: 附件类型不在白名单内
     responseRequirement: 返回上传 contentType
+  - code: IMPORT-400-SCHEMA-INVALID
+    httpStatus: 400
+    title: 导入映射结构无效
+    responseRequirement: 按 ImportMapping Schema 修正载荷
+  - code: IMPORT-404-TASK-NOT-FOUND
+    httpStatus: 404
+    title: 导入任务不存在
+    responseRequirement: 不泄露越权目标存在性
+  - code: IMPORT-409-INVALID-STATE
+    httpStatus: 409
+    title: 导入任务状态不允许当前操作
+    responseRequirement: 返回当前状态与允许操作
+  - code: IMPORT-413-TOO-LARGE
+    httpStatus: 413
+    title: 导入文件超过大小上限
+    responseRequirement: 返回大小限制
+  - code: IMPORT-415-UNSUPPORTED-TYPE
+    httpStatus: 415
+    title: 导入文件类型不支持
+    responseRequirement: 返回上传 contentType
+  - code: IMPORT-422-PARSE-FAILED
+    httpStatus: 422
+    title: Excel 解析或映射失败
+    responseRequirement: 返回行列位置与失败原因
   - code: AUTH-401-UNKNOWN-ACTOR
     httpStatus: 401
     title: 操作者不存在或已停用

@@ -1,0 +1,8 @@
+{
+  "sheet": 0,
+  "objectTypeCode": "demo_object",
+  "columns": [
+    { "colIndex": 0, "fieldDefCode": "name" },
+    { "colIndex": 1, "fieldDefCode": "owner" }
+  ]
+}
