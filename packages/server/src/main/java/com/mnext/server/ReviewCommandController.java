@@ -24,14 +24,17 @@ public class ReviewCommandController {
   private final CreateAnnotationHandler create;
   private final ResolveAnnotationHandler resolve;
   private final ReopenAnnotationHandler reopen;
+  private final WorkspaceAuthorizer authorizer;
 
   public ReviewCommandController(
       CreateAnnotationHandler create,
       ResolveAnnotationHandler resolve,
-      ReopenAnnotationHandler reopen) {
+      ReopenAnnotationHandler reopen,
+      WorkspaceAuthorizer authorizer) {
     this.create = create;
     this.resolve = resolve;
     this.reopen = reopen;
+    this.authorizer = authorizer;
   }
 
   @PostMapping("/workspaces/{workspaceId}/review/commands")
@@ -39,6 +42,7 @@ public class ReviewCommandController {
       @PathVariable("workspaceId") UUID workspaceId,
       @RequestHeader("X-Actor-Id") String actorId,
       @RequestBody CommandRequest request) {
+    authorizer.require(actorId, workspaceId, WorkspaceAuthorizer.Action.REVIEW);
     if (!workspaceId.equals(request.workspaceId())) throw schema("path workspaceId 与命令信封不一致");
     var actor = Actor.user(actorId);
     return switch (request.commandType()) {

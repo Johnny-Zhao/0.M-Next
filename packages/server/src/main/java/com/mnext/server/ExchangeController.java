@@ -36,6 +36,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 @RestController
 public class ExchangeController {
@@ -45,10 +47,19 @@ public class ExchangeController {
   private final KernelCommandService commands;
   private final JsonCodec codec;
   private final AdapterRegistry adapters;
+  private final WorkspaceAuthorizer authorizer;
 
   public ExchangeController(
       ReadModelRepository readModel, KernelCommandService commands, ObjectMapper mapper) {
-    this(readModel, commands, mapper, (SnapshotRepository) null);
+    this(readModel, commands, mapper, (SnapshotRepository) null, null);
+  }
+
+  public ExchangeController(
+      ReadModelRepository readModel,
+      KernelCommandService commands,
+      ObjectMapper mapper,
+      WorkspaceAuthorizer authorizer) {
+    this(readModel, commands, mapper, (SnapshotRepository) null, authorizer);
   }
 
   @Autowired
@@ -56,26 +67,30 @@ public class ExchangeController {
       ReadModelRepository readModel,
       KernelCommandService commands,
       ObjectMapper mapper,
-      ObjectProvider<SnapshotRepository> snapshotProvider) {
-    this(readModel, commands, mapper, snapshotProvider.getIfAvailable());
+      ObjectProvider<SnapshotRepository> snapshotProvider,
+      WorkspaceAuthorizer authorizer) {
+    this(readModel, commands, mapper, snapshotProvider.getIfAvailable(), authorizer);
   }
 
   private ExchangeController(
       ReadModelRepository readModel,
       KernelCommandService commands,
       ObjectMapper mapper,
-      SnapshotRepository snapshots) {
+      SnapshotRepository snapshots,
+      WorkspaceAuthorizer authorizer) {
     this.readModel = readModel;
     this.commands = commands;
     this.codec = new JsonCodec(mapper);
     this.snapshots = snapshots;
     this.adapters = new AdapterRegistry();
+    this.authorizer = authorizer;
   }
 
   @GetMapping("/workspaces/{workspaceId}/exchange/json/export")
   public JsonArtifact export(
       @PathVariable("workspaceId") UUID workspaceId,
       @RequestParam(value = "objectType", required = false) String objectType) {
+    authorize(workspaceId, WorkspaceAuthorizer.Action.READ);
     return ArtifactMapper.toArtifact(
         workspaceId.toString(), objectType, readModel.dataSet(workspaceId));
   }
@@ -86,6 +101,7 @@ public class ExchangeController {
       @PathVariable("format") String format,
       @RequestParam(value = "base", defaultValue = "current") String base,
       @RequestParam(value = "objectType", required = false) String objectType) {
+    authorize(workspaceId, WorkspaceAuthorizer.Action.READ);
     var adapter = adapters.require(format);
     var payload =
         adapter.exportFromDataSet(
@@ -102,6 +118,7 @@ public class ExchangeController {
       @PathVariable("workspaceId") UUID workspaceId,
       @RequestParam(value = "base", defaultValue = "current") String base,
       @RequestParam(value = "objectType", required = false) String objectType) {
+    authorize(workspaceId, WorkspaceAuthorizer.Action.READ);
     return exportGeneric(workspaceId, "reqif", base, objectType).getBody();
   }
 
@@ -110,6 +127,7 @@ public class ExchangeController {
       @PathVariable("workspaceId") UUID workspaceId,
       @RequestParam(value = "base", defaultValue = "current") String base,
       @RequestBody String json) {
+    authorize(workspaceId, WorkspaceAuthorizer.Action.READ);
     var current = previewBase(workspaceId, base);
     var artifact = artifact(workspaceId, json);
     return StructuredDiff.diff(current, ArtifactMapper.toDataSet(artifact, current));
@@ -125,6 +143,7 @@ public class ExchangeController {
       @PathVariable("format") String format,
       @RequestParam(value = "base", defaultValue = "current") String base,
       @RequestBody String payload) {
+    authorize(workspaceId, WorkspaceAuthorizer.Action.READ);
     var current = previewBase(workspaceId, base);
     return StructuredDiff.diff(current, adapters.require(format).importToDataSet(payload, current));
   }
@@ -134,6 +153,7 @@ public class ExchangeController {
       @PathVariable("workspaceId") UUID workspaceId,
       @RequestParam(value = "base", defaultValue = "current") String base,
       @RequestBody String reqif) {
+    authorize(workspaceId, WorkspaceAuthorizer.Action.READ);
     return previewGeneric(workspaceId, "reqif", base, reqif);
   }
 
@@ -142,6 +162,7 @@ public class ExchangeController {
       @PathVariable("workspaceId") UUID workspaceId,
       @RequestHeader("X-Actor-Id") String actorId,
       @RequestBody ExchangeApplyRequest request) {
+    authorize(workspaceId, WorkspaceAuthorizer.Action.WRITE_DATA, actorId);
     if (request == null || request.artifact() == null) {
       throw new IllegalArgumentException("artifact 必填");
     }
@@ -157,6 +178,7 @@ public class ExchangeController {
       @PathVariable("format") String format,
       @RequestHeader("X-Actor-Id") String actorId,
       @RequestBody GenericExchangeApplyRequest request) {
+    authorize(workspaceId, WorkspaceAuthorizer.Action.WRITE_DATA, actorId);
     if (request == null || request.payload() == null || request.payload().isBlank()) {
       throw new IllegalArgumentException("payload 必填");
     }
@@ -171,6 +193,7 @@ public class ExchangeController {
       @PathVariable("workspaceId") UUID workspaceId,
       @RequestHeader("X-Actor-Id") String actorId,
       @RequestBody ReqIfApplyRequest request) {
+    authorize(workspaceId, WorkspaceAuthorizer.Action.WRITE_DATA, actorId);
     if (request == null || request.reqif() == null || request.reqif().isBlank()) {
       throw new IllegalArgumentException("reqif 必填");
     }
@@ -195,6 +218,22 @@ public class ExchangeController {
       return snapshots.get(workspaceId, snapshotId).payload();
     }
     throw new IllegalArgumentException("base 仅支持 current 或 snapshot:{id}");
+  }
+
+  private void authorize(UUID workspaceId, WorkspaceAuthorizer.Action action) {
+    authorize(workspaceId, action, currentActor());
+  }
+
+  private void authorize(UUID workspaceId, WorkspaceAuthorizer.Action action, String actorId) {
+    if (authorizer != null) authorizer.require(actorId, workspaceId, action);
+  }
+
+  private static String currentActor() {
+    var attributes = RequestContextHolder.getRequestAttributes();
+    if (attributes instanceof ServletRequestAttributes servlet) {
+      return servlet.getRequest().getHeader("X-Actor-Id");
+    }
+    return null;
   }
 
   private ExchangeApplyResult apply(UUID workspaceId, Actor actor, JsonArtifact artifact) {

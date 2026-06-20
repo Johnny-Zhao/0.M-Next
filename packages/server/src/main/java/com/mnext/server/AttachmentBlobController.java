@@ -43,23 +43,28 @@ public class AttachmentBlobController {
 
   private final StorageBackend storage;
   private final AttachmentRepository attachments;
+  private final WorkspaceAuthorizer authorizer;
   private final long maxBytes;
 
   public AttachmentBlobController(
       StorageBackend storage,
       AttachmentRepository attachments,
+      WorkspaceAuthorizer authorizer,
       @Value("${mnext.storage.max-bytes:52428800}") long maxBytes) {
     this.storage = storage;
     this.attachments = attachments;
+    this.authorizer = authorizer;
     this.maxBytes = maxBytes;
   }
 
   @PostMapping("/workspaces/{workspaceId}/attachments/blob")
   public BlobUploadResponse uploadOctet(
       @PathVariable("workspaceId") UUID workspaceId,
+      @RequestHeader(value = "X-Actor-Id", required = false) String actorId,
       @RequestHeader(value = "X-Filename", required = false) String filename,
       HttpServletRequest request)
       throws IOException {
+    authorizer.require(actorId, workspaceId, WorkspaceAuthorizer.Action.WRITE_DATA);
     var contentType = normalizeContentType(request.getContentType(), filename);
     return put(request.getInputStream(), contentType);
   }
@@ -69,8 +74,10 @@ public class AttachmentBlobController {
       consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
   public BlobUploadResponse uploadMultipart(
       @PathVariable("workspaceId") UUID workspaceId,
+      @RequestHeader(value = "X-Actor-Id", required = false) String actorId,
       @org.springframework.web.bind.annotation.RequestParam("file") MultipartFile file)
       throws IOException {
+    authorizer.require(actorId, workspaceId, WorkspaceAuthorizer.Action.WRITE_DATA);
     var contentType = normalizeContentType(file.getContentType(), file.getOriginalFilename());
     return put(file.getInputStream(), contentType);
   }
@@ -78,8 +85,10 @@ public class AttachmentBlobController {
   @GetMapping("/workspaces/{workspaceId}/attachments/{attachmentId}/content")
   public ResponseEntity<InputStreamResource> content(
       @PathVariable("workspaceId") UUID workspaceId,
+      @RequestHeader(value = "X-Actor-Id", required = false) String actorId,
       @PathVariable("attachmentId") UUID attachmentId)
       throws IOException {
+    authorizer.require(actorId, workspaceId, WorkspaceAuthorizer.Action.READ);
     var attachment = attachments.content(workspaceId, attachmentId);
     if (attachment == null || !attachments.blobExists(attachment.storageKey())) {
       throw new ResponseStatusException(org.springframework.http.HttpStatus.NOT_FOUND);

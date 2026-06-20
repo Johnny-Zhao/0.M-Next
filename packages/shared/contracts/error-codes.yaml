@@ -272,3 +272,19 @@ codes:
     httpStatus: 415
     title: 附件类型不在白名单内
     responseRequirement: 返回上传 contentType
+  - code: AUTH-401-UNKNOWN-ACTOR
+    httpStatus: 401
+    title: 操作者不存在或已停用
+    responseRequirement: 使用有效账号重新发起请求
+  - code: AUTH-403-FORBIDDEN
+    httpStatus: 403
+    title: 工作空间角色不足
+    responseRequirement: 联系工作空间管理员调整角色
+  - code: RBAC-400-SCHEMA-INVALID
+    httpStatus: 400
+    title: RBAC 命令载荷无效
+    responseRequirement: 按 RBAC 命令 Schema 修正载荷
+  - code: RBAC-409-IDEMPOTENCY-CONFLICT
+    httpStatus: 409
+    title: 同幂等键不同载荷（RBAC 命令）
+    responseRequirement: 更换 idempotencyKey 后重试

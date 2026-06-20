@@ -13,6 +13,8 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 @RestController
 public class ViewQueryController {
@@ -23,20 +25,24 @@ public class ViewQueryController {
   private final CheckResultRepository checkResults;
   private final ObjectProvider<DerivedEvaluator> derivedEvaluator;
   private final SimulationRunRepository simulationRuns;
+  private final WorkspaceAuthorizer authorizer;
 
   public ViewQueryController(
       ReadModelRepository repository,
       CheckResultRepository checkResults,
       ObjectProvider<DerivedEvaluator> derivedEvaluator,
-      @Nullable SimulationRunRepository simulationRuns) {
+      @Nullable SimulationRunRepository simulationRuns,
+      WorkspaceAuthorizer authorizer) {
     this.repository = repository;
     this.checkResults = checkResults;
     this.derivedEvaluator = derivedEvaluator;
     this.simulationRuns = simulationRuns;
+    this.authorizer = authorizer;
   }
 
   @GetMapping("/workspaces/{workspaceId}/views/object-types")
   public List<ObjectTypeView> objectTypes(@PathVariable("workspaceId") UUID workspaceId) {
+    authorize(workspaceId);
     return repository.objectTypes(workspaceId);
   }
 
@@ -46,6 +52,7 @@ public class ViewQueryController {
       @RequestParam("objectType") String objectType,
       @RequestParam(value = "page", defaultValue = "0") int page,
       @RequestParam(value = "pageSize", defaultValue = "50") int pageSize) {
+    authorize(workspaceId);
     if (objectType.isBlank()) throw new IllegalArgumentException("objectType 必填");
     if (page < 0 || pageSize < 1 || pageSize > 200) {
       throw new IllegalArgumentException("page 必须非负且 pageSize 必须为 1..200");
@@ -56,6 +63,7 @@ public class ViewQueryController {
   @GetMapping("/workspaces/{workspaceId}/views/objects/{objectId}")
   public ObjectDetailView object(
       @PathVariable("workspaceId") UUID workspaceId, @PathVariable("objectId") UUID objectId) {
+    authorize(workspaceId);
     return repository.object(workspaceId, objectId);
   }
 
@@ -66,6 +74,7 @@ public class ViewQueryController {
       @RequestParam("direction") String direction,
       @RequestParam("sourceId") UUID sourceId,
       @RequestParam(value = "depth", defaultValue = "1") int depth) {
+    authorize(workspaceId);
     if (relationType.isBlank() || !Set.of("out", "in").contains(direction)) {
       throw new IllegalArgumentException("relationType 与 direction(out|in) 必填");
     }
@@ -78,6 +87,7 @@ public class ViewQueryController {
       @PathVariable("workspaceId") UUID workspaceId,
       @RequestParam("relationType") String relationType,
       @RequestParam("rootId") UUID rootId) {
+    authorize(workspaceId);
     if (!repository.hierarchicalRelationType(workspaceId, relationType)) {
       throw new IllegalArgumentException("tree relationType 必须为 hierarchical");
     }
@@ -94,6 +104,7 @@ public class ViewQueryController {
       @RequestParam(value = "rowSize", defaultValue = "50") int rowSize,
       @RequestParam(value = "colPage", defaultValue = "0") int colPage,
       @RequestParam(value = "colSize", defaultValue = "50") int colSize) {
+    authorize(workspaceId);
     if (rowType.isBlank() || colType.isBlank() || relationType.isBlank()) {
       throw new IllegalArgumentException("rowType、colType 与 relationType 必填");
     }
@@ -113,6 +124,7 @@ public class ViewQueryController {
 
   @GetMapping("/workspaces/{workspaceId}/views/sync-status")
   public SyncStatusView syncStatus(@PathVariable("workspaceId") UUID workspaceId) {
+    authorize(workspaceId);
     return repository.syncStatus(workspaceId);
   }
 
@@ -123,6 +135,7 @@ public class ViewQueryController {
       @RequestParam("relationType") String relationType,
       @RequestParam(value = "page", defaultValue = "0") int page,
       @RequestParam(value = "size", defaultValue = "50") int size) {
+    authorize(workspaceId);
     if (relationType.isBlank()) throw new IllegalArgumentException("relationType 必填");
     if (page < 0 || size < 1 || size > 200) {
       throw new IllegalArgumentException("page 必须非负且 size 必须为 1..200");
@@ -139,6 +152,7 @@ public class ViewQueryController {
       @RequestParam(value = "method", defaultValue = "weighted") String method,
       @RequestParam(value = "order", defaultValue = "desc") String order,
       @RequestParam(value = "size", defaultValue = "10") int size) {
+    authorize(workspaceId);
     if (relationTypeCode.isBlank()) throw new IllegalArgumentException("relationTypeCode 必填");
     if (!Set.of("weighted", "topsis", "ahp").contains(method)) {
       throw new IllegalArgumentException("method 必须为 weighted、topsis 或 ahp");
@@ -191,6 +205,7 @@ public class ViewQueryController {
       @RequestParam("runId") UUID runId,
       @RequestParam(value = "page", defaultValue = "0") int page,
       @RequestParam(value = "size", defaultValue = "50") int size) {
+    authorize(workspaceId);
     if (page < 0 || size < 1 || size > 200) {
       throw new IllegalArgumentException("page 必须非负且 size 必须为 1..200");
     }
@@ -217,6 +232,15 @@ public class ViewQueryController {
           candidate.fields(),
           "score_evaluation_failed");
     }
+  }
+
+  private void authorize(UUID workspaceId) {
+    var attributes = RequestContextHolder.getRequestAttributes();
+    var actorId =
+        attributes instanceof ServletRequestAttributes servlet
+            ? servlet.getRequest().getHeader("X-Actor-Id")
+            : null;
+    authorizer.require(actorId, workspaceId, WorkspaceAuthorizer.Action.READ);
   }
 
   private RecommendationView topsisRecommendation(

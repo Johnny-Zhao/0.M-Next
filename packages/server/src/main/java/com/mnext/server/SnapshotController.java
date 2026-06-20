@@ -12,9 +12,11 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 public class SnapshotController {
   private final SnapshotRepository snapshots;
+  private final WorkspaceAuthorizer authorizer;
 
-  public SnapshotController(SnapshotRepository snapshots) {
+  public SnapshotController(SnapshotRepository snapshots, WorkspaceAuthorizer authorizer) {
     this.snapshots = snapshots;
+    this.authorizer = authorizer;
   }
 
   @PostMapping("/workspaces/{workspaceId}/snapshots")
@@ -22,6 +24,7 @@ public class SnapshotController {
       @PathVariable("workspaceId") UUID workspaceId,
       @RequestHeader("X-Actor-Id") String actorId,
       @RequestBody(required = false) SnapshotCaptureRequest request) {
+    authorizer.require(actorId, workspaceId, WorkspaceAuthorizer.Action.WRITE_DATA);
     var scope = request == null ? null : blankToNull(request.scopeObjectType());
     return snapshots.capture(workspaceId, scope, actorId);
   }
@@ -29,8 +32,10 @@ public class SnapshotController {
   @GetMapping("/workspaces/{workspaceId}/snapshots")
   public PageView<SnapshotMeta> list(
       @PathVariable("workspaceId") UUID workspaceId,
+      @RequestHeader(value = "X-Actor-Id", required = false) String actorId,
       @RequestParam(value = "page", defaultValue = "0") int page,
       @RequestParam(value = "size", defaultValue = "50") int size) {
+    authorizer.require(actorId, workspaceId, WorkspaceAuthorizer.Action.READ);
     if (page < 0 || size < 1 || size > 50) {
       throw new IllegalArgumentException("page 必须非负且 size 必须为 1..50");
     }
@@ -39,7 +44,10 @@ public class SnapshotController {
 
   @GetMapping("/workspaces/{workspaceId}/snapshots/{snapshotId}")
   public SnapshotDetail get(
-      @PathVariable("workspaceId") UUID workspaceId, @PathVariable("snapshotId") UUID snapshotId) {
+      @PathVariable("workspaceId") UUID workspaceId,
+      @RequestHeader(value = "X-Actor-Id", required = false) String actorId,
+      @PathVariable("snapshotId") UUID snapshotId) {
+    authorizer.require(actorId, workspaceId, WorkspaceAuthorizer.Action.READ);
     return snapshots.get(workspaceId, snapshotId);
   }
 

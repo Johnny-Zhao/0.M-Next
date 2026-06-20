@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform.local/contracts/rbac-commands/1.0",
+  "title": "RBAC 命令信封与载荷契约 v1.0",
+  "type": "object",
+  "required": ["commandType", "workspaceId", "correlationId", "idempotencyKey", "payload"],
+  "additionalProperties": false,
+  "properties": {
+    "commandType": { "enum": ["GrantWorkspaceRole", "RevokeWorkspaceRole"] },
+    "workspaceId": { "$ref": "#/$defs/uuid" },
+    "correlationId": { "$ref": "#/$defs/uuid" },
+    "idempotencyKey": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "payload": { "type": "object" }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "commandType": { "const": "GrantWorkspaceRole" } } },
+      "then": { "properties": { "payload": { "$ref": "#/$defs/GrantWorkspaceRole" } } }
+    },
+    {
+      "if": { "properties": { "commandType": { "const": "RevokeWorkspaceRole" } } },
+      "then": { "properties": { "payload": { "$ref": "#/$defs/RevokeWorkspaceRole" } } }
+    }
+  ],
+  "$defs": {
+    "uuid": {
+      "type": "string",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+    },
+    "GrantWorkspaceRole": {
+      "type": "object",
+      "required": ["userId", "role"],
+      "additionalProperties": false,
+      "properties": {
+        "userId": { "$ref": "#/$defs/uuid" },
+        "role": { "enum": ["VIEWER", "AUTHOR", "REVIEWER", "ADMIN"] }
+      }
+    },
+    "RevokeWorkspaceRole": {
+      "type": "object",
+      "required": ["userId"],
+      "additionalProperties": false,
+      "properties": {
+        "userId": { "$ref": "#/$defs/uuid" }
+      }
+    }
+  }
+}

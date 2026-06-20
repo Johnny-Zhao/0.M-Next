@@ -35,6 +35,7 @@ public class MetaCommandController {
   private final TransformationRepository transformations;
   private final TransformationRunner transformationRunner;
   private final ObjectMapper mapper;
+  private final WorkspaceAuthorizer authorizer;
 
   @Autowired
   public MetaCommandController(
@@ -43,13 +44,15 @@ public class MetaCommandController {
       DerivedFieldRepository derivedFields,
       TransformationRepository transformations,
       TransformationRunner transformationRunner,
-      ObjectMapper mapper) {
+      ObjectMapper mapper,
+      WorkspaceAuthorizer authorizer) {
     this.commands = commands;
     this.lifecycle = lifecycle;
     this.derivedFields = derivedFields;
     this.transformations = transformations;
     this.transformationRunner = transformationRunner;
     this.mapper = mapper;
+    this.authorizer = authorizer;
   }
 
   MetaCommandController(
@@ -57,7 +60,7 @@ public class MetaCommandController {
       TemplateLifecycleService lifecycle,
       DerivedFieldRepository derivedFields,
       ObjectMapper mapper) {
-    this(commands, lifecycle, derivedFields, null, null, mapper);
+    this(commands, lifecycle, derivedFields, null, null, mapper, null);
   }
 
   @PostMapping("/workspaces/{workspaceId}/meta-commands")
@@ -65,6 +68,9 @@ public class MetaCommandController {
       @PathVariable("workspaceId") UUID workspaceId,
       @RequestHeader("X-Actor-Id") String actorId,
       @RequestBody CommandRequest request) {
+    if (authorizer != null) {
+      authorizer.require(actorId, workspaceId, WorkspaceAuthorizer.Action.GOVERN);
+    }
     if (!workspaceId.equals(request.workspaceId())) throw schema("path workspaceId 与命令信封不一致");
     return switch (request.commandType()) {
       case "CreateTemplate" ->
