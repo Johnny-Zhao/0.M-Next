@@ -215,6 +215,76 @@ class RecommendationMethodIntegrationTest {
             recommendationsPath(project, other.relationCode(), "wpm", null, 10)));
   }
 
+  @Test
+  void overlaysRuleVetoesAndRisksOnWeightedAndTopsisRecommendations() throws Exception {
+    var profile = instantiateProfile("rule_overlay");
+    var ids = runtimeIds(profile);
+    var workspace = profile.workspace();
+    var project = createObject(workspace, ids.projectType(), "project", Map.of("name", "P"));
+    var alpha = candidate(workspace, ids.candidateType(), "alpha", 80, 90);
+    var beta = candidate(workspace, ids.candidateType(), "beta", 90, 60);
+    var gamma = candidate(workspace, ids.candidateType(), "gamma", 150, 99);
+    var delta = candidate(workspace, ids.candidateType(), "delta", 70, 80);
+    relate(workspace, ids.relationType(), project, alpha, "rel-alpha");
+    relate(workspace, ids.relationType(), project, beta, "rel-beta");
+    relate(workspace, ids.relationType(), project, gamma, "rel-gamma");
+    relate(workspace, ids.relationType(), project, delta, "rel-delta");
+    projectOutbox();
+    defineRule(
+        workspace,
+        profile.candidateCode(),
+        "price_over_budget",
+        "BLOCK",
+        "field('price') > 100",
+        "price over budget ${field('price')}",
+        "define-price-over-budget");
+    defineRule(
+        workspace,
+        profile.candidateCode(),
+        "total_score_low",
+        "WARN",
+        "field('weighted_score') < 70",
+        "total score low ${field('weighted_score')}",
+        "define-total-score-low");
+    publishRule(workspace, "price_over_budget", "publish-price-over-budget");
+    publishRule(workspace, "total_score_low", "publish-total-score-low");
+    var ruleRunId = runRuleCheck(workspace, "run-recommendation-rules", profile.candidateCode());
+
+    var weighted =
+        recommendations(
+            workspace, project, profile.relationCode(), "weighted", "weighted_score", 4);
+
+    assertFalse(candidateIds(weighted).contains(gamma.toString()));
+    assertRule(weighted, "vetoed", gamma, "price_over_budget", "BLOCK");
+    assertRule(weighted, "alternatives", beta, "total_score_low", "WARN");
+    assertTrue(risks(findCandidate(weighted, alpha)).isEmpty());
+    assertEquals(alpha.toString(), candidate(weighted, "recommended").get("candidateId"));
+    assertEquals(2, ((Number) candidate(weighted, "recommended").get("rank")).intValue());
+
+    var snapshot = captureSnapshot(workspace);
+    runTopsis(workspace, snapshot, profile.candidateCode());
+    var topsis =
+        recommendations(
+            workspace,
+            project,
+            profile.relationCode(),
+            "topsis",
+            null,
+            4,
+            UUID.fromString(ruleRunId));
+
+    assertFalse(candidateIds(topsis).contains(gamma.toString()));
+    assertRule(topsis, "vetoed", gamma, "price_over_budget", "BLOCK");
+    assertRule(topsis, "alternatives", beta, "total_score_low", "WARN");
+    assertEquals(
+        400,
+        status(
+            workspace,
+            recommendationsPath(project, profile.relationCode(), "weighted", "weighted_score", 4)
+                + "&ruleRunId="
+                + UUID.randomUUID()));
+  }
+
   private Profile instantiateProfile(String suffix) {
     var code = "rec_method_" + suffix + "_" + UUID.randomUUID().toString().substring(0, 8);
     var projectCode = "comparison_project_" + suffix;
@@ -482,12 +552,57 @@ class RecommendationMethodIntegrationTest {
     return post(workspace, "/commands", envelope(commandType, workspace, key, payload)).getBody();
   }
 
+  private void defineRule(
+      UUID workspace,
+      String objectTypeCode,
+      String ruleCode,
+      String severity,
+      String when,
+      String message,
+      String key) {
+    var payload = new LinkedHashMap<String, Object>();
+    payload.put("ruleCode", ruleCode);
+    payload.put("scope", Map.of("objectTypeCode", objectTypeCode));
+    payload.put("severity", severity);
+    payload.put("when", when);
+    payload.put("message", message);
+    payload.put("lightweight", false);
+    postRule(workspace, envelope("DefineRule", workspace, key, payload));
+  }
+
+  private void publishRule(UUID workspace, String ruleCode, String key) {
+    postRule(workspace, envelope("PublishRule", workspace, key, Map.of("ruleCode", ruleCode)));
+  }
+
+  private String runRuleCheck(UUID workspace, String key, String objectTypeCode) {
+    var response =
+        postRule(
+            workspace,
+            envelope(
+                "RunRuleCheck",
+                workspace,
+                key,
+                Map.of("scope", Map.of("objectTypeCode", objectTypeCode))));
+    return ((List<?>) response.getBody().get("events")).getFirst().toString();
+  }
+
   private ResponseEntity<Map> post(UUID workspace, String path, Object request) {
     var headers = new HttpHeaders();
     headers.setContentType(MediaType.APPLICATION_JSON);
     headers.set("X-Actor-Id", "recommendation-user");
     var response =
         http.postForEntity(base(workspace) + path, new HttpEntity<>(request, headers), Map.class);
+    assertEquals(200, response.getStatusCode().value(), String.valueOf(response.getBody()));
+    return response;
+  }
+
+  private ResponseEntity<Map> postRule(UUID workspace, Object request) {
+    var headers = new HttpHeaders();
+    headers.setContentType(MediaType.APPLICATION_JSON);
+    headers.set("X-Actor-Id", "recommendation-user");
+    var response =
+        http.postForEntity(
+            base(workspace) + "/rule-commands", new HttpEntity<>(request, headers), Map.class);
     assertEquals(200, response.getStatusCode().value(), String.valueOf(response.getBody()));
     return response;
   }
@@ -576,9 +691,22 @@ class RecommendationMethodIntegrationTest {
       String method,
       String scoreField,
       int size) {
+    return recommendations(workspace, project, relationType, method, scoreField, size, null);
+  }
+
+  @SuppressWarnings("unchecked")
+  private Map<String, Object> recommendations(
+      UUID workspace,
+      UUID project,
+      String relationType,
+      String method,
+      String scoreField,
+      int size,
+      UUID ruleRunId) {
     var response =
         http.getForEntity(
-            base(workspace) + recommendationsPath(project, relationType, method, scoreField, size),
+            base(workspace)
+                + recommendationsPath(project, relationType, method, scoreField, size, ruleRunId),
             Map.class);
     assertEquals(200, response.getStatusCode().value(), String.valueOf(response.getBody()));
     return response.getBody();
@@ -586,6 +714,16 @@ class RecommendationMethodIntegrationTest {
 
   private String recommendationsPath(
       UUID project, String relationType, String method, String scoreField, int size) {
+    return recommendationsPath(project, relationType, method, scoreField, size, null);
+  }
+
+  private String recommendationsPath(
+      UUID project,
+      String relationType,
+      String method,
+      String scoreField,
+      int size,
+      UUID ruleRunId) {
     var path =
         "/views/recommendations?projectId="
             + project
@@ -595,7 +733,10 @@ class RecommendationMethodIntegrationTest {
             + method
             + "&size="
             + size;
-    return scoreField == null ? path : path + "&scoreField=" + scoreField;
+    if (scoreField != null) {
+      path = path + "&scoreField=" + scoreField;
+    }
+    return ruleRunId == null ? path : path + "&ruleRunId=" + ruleRunId;
   }
 
   private void assertRanking(Map<String, Object> view, List<Map<String, Object>> expected) {
@@ -625,6 +766,22 @@ class RecommendationMethodIntegrationTest {
     }
   }
 
+  private void assertRule(
+      Map<String, Object> view,
+      String section,
+      UUID candidateId,
+      String ruleCode,
+      String severity) {
+    var candidate = findCandidate(candidates(view, section), candidateId);
+    assertEquals("vetoed".equals(section), candidate.get("vetoed"));
+    assertTrue(
+        risks(candidate).stream()
+            .anyMatch(
+                risk ->
+                    ruleCode.equals(risk.get("ruleCode"))
+                        && severity.equals(risk.get("severity"))));
+  }
+
   private List<String> candidateIds(Map<String, Object> view) {
     return allCandidates(view).stream().map(item -> item.get("candidateId").toString()).toList();
   }
@@ -642,9 +799,29 @@ class RecommendationMethodIntegrationTest {
     return (Map<String, Object>) view.get(key);
   }
 
+  private Map<String, Object> findCandidate(Map<String, Object> view, UUID candidateId) {
+    return allCandidates(view).stream()
+        .filter(candidate -> candidateId.toString().equals(candidate.get("candidateId")))
+        .findFirst()
+        .orElseThrow();
+  }
+
+  private Map<String, Object> findCandidate(
+      List<Map<String, Object>> candidates, UUID candidateId) {
+    return candidates.stream()
+        .filter(candidate -> candidateId.toString().equals(candidate.get("candidateId")))
+        .findFirst()
+        .orElseThrow();
+  }
+
   @SuppressWarnings("unchecked")
   private List<Map<String, Object>> candidates(Map<String, Object> view, String key) {
     return (List<Map<String, Object>>) view.get(key);
+  }
+
+  @SuppressWarnings("unchecked")
+  private List<Map<String, Object>> risks(Map<String, Object> candidate) {
+    return (List<Map<String, Object>>) candidate.get("risks");
   }
 
   @SuppressWarnings("unchecked")
