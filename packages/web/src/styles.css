@@ -96,6 +96,85 @@ main {
 .diagram-panel {
   height: 100%;
   min-height: 26rem;
+  overflow: hidden;
+  position: relative;
+}
+
+.diagram-grid-controls,
+.diagram-align-toolbar {
+  align-items: center;
+  background: rgb(255 255 255 / 92%);
+  border: 1px solid #c7d2df;
+  border-radius: 6px;
+  box-shadow: 0 2px 10px rgb(24 33 47 / 12%);
+  display: flex;
+  gap: 0.35rem;
+  position: absolute;
+  z-index: 5;
+}
+
+.diagram-grid-controls {
+  padding: 0.35rem 0.45rem;
+  right: 0.75rem;
+  top: 0.75rem;
+}
+
+.diagram-align-toolbar {
+  bottom: 0.75rem;
+  left: 50%;
+  padding: 0.4rem;
+  transform: translateX(-50%);
+}
+
+.diagram-grid-controls label {
+  align-items: center;
+  display: inline-flex;
+  gap: 0.25rem;
+}
+
+.diagram-grid-controls select,
+.diagram-align-toolbar button {
+  border: 1px solid #8793a0;
+  border-radius: 4px;
+  background: #ffffff;
+  min-height: 1.85rem;
+}
+
+.diagram-grid-controls select {
+  padding: 0.25rem;
+}
+
+.diagram-align-toolbar button {
+  cursor: pointer;
+  min-width: 2.35rem;
+  padding: 0.25rem 0.45rem;
+}
+
+.diagram-align-toolbar button:hover {
+  background: #eef6f1;
+}
+
+.diagram-guides {
+  inset: 0;
+  pointer-events: none;
+  position: absolute;
+}
+
+.diagram-guide {
+  background: #d4380d;
+  position: absolute;
+}
+
+.diagram-guide-vertical {
+  height: 10000px;
+  top: -5000px;
+  width: 1px;
+}
+
+.diagram-guide-horizontal {
+  height: 1px;
+  left: -5000px;
+  width: 10000px;
 }
 
 .object-node {
