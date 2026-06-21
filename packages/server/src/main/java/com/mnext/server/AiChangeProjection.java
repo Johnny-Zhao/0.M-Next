@@ -56,4 +56,8 @@ class AiChangeProjection {
         """,
         setId);
   }
+
+  void projectConfirmed(UUID setId) {
+    projectRejected(setId);
+  }
 }

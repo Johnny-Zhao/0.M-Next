@@ -6,10 +6,15 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mnext.engines.rules.EvalContext;
 import com.mnext.engines.rules.RuleEvaluator;
 import com.mnext.engines.rules.RuleParser;
+import com.mnext.kernel.api.Actor;
+import com.mnext.kernel.api.BatchItemResult;
 import com.mnext.kernel.api.CommandError;
 import com.mnext.kernel.api.CommandRejectedException;
 import com.mnext.kernel.api.CommandResult;
 import com.mnext.kernel.api.CommandStatus;
+import com.mnext.kernel.api.KernelCommandService;
+import com.mnext.kernel.api.commands.FieldUpdate;
+import com.mnext.kernel.api.commands.UpdateFieldsCommand;
 import com.mnext.server.ai.AiActionProvider;
 import com.mnext.server.ai.AiContext;
 import java.nio.charset.StandardCharsets;
@@ -37,17 +42,20 @@ class AiChangeRepository {
   private final ObjectMapper mapper;
   private final DerivedEvaluator derivedEvaluator;
   private final AiChangeProjection projection;
+  private final KernelCommandService commands;
   private final RuleEvaluator evaluator = new RuleEvaluator();
 
   AiChangeRepository(
       JdbcTemplate jdbc,
       ObjectMapper mapper,
       DerivedEvaluator derivedEvaluator,
-      AiChangeProjection projection) {
+      AiChangeProjection projection,
+      KernelCommandService commands) {
     this.jdbc = jdbc;
     this.mapper = mapper;
     this.derivedEvaluator = derivedEvaluator;
     this.projection = projection;
+    this.commands = commands;
   }
 
   CommandResult replay(UUID workspaceId, String idempotencyKey, String payloadHash) {
@@ -142,6 +150,67 @@ class AiChangeRepository {
     return result;
   }
 
+  @Transactional
+  CommandResult confirm(ConfirmAiChangeRequest request, String actorId, String payloadHash) {
+    validateEnvelope(request.workspaceId(), request.idempotencyKey());
+    var status = status(request.workspaceId(), request.setId());
+    if (status == null) {
+      throw rejected("AI-404-CHANGESET-NOT-FOUND", "AI 变更集不存在", "刷新列表后选择仍为 PROPOSED 的变更集");
+    }
+    if ("CONFIRMED".equals(status)) {
+      var stored = confirmedResult(request.workspaceId(), request.setId());
+      return stored == null
+          ? confirmedSummary(request.workspaceId(), request.setId())
+          : stored.replayed();
+    }
+    if (!"PROPOSED".equals(status)) {
+      throw rejected("AI-409-INVALID-STATE", "AI 变更集当前状态不可确认", "刷新变更集状态后重试");
+    }
+    var applied = 0;
+    var skipped = 0;
+    var results = new ArrayList<BatchItemResult>();
+    for (var item : changeItems(request.setId())) {
+      var precheck = precheck(request.workspaceId(), item.aiItem());
+      updateItemPrecheck(item.id(), precheck);
+      if ("BLOCKED".equals(precheck.get("verdict"))) {
+        skipped++;
+        markItem(item.id(), "SKIPPED");
+        results.add(skippedItem(item.seq(), precheck));
+        continue;
+      }
+      var written = commands.updateFields(updateCommand(request, item), Actor.user(actorId));
+      applied++;
+      markItem(item.id(), "APPLIED");
+      results.add(new BatchItemResult(item.seq(), written.status(), null, written.events()));
+    }
+    var now = Instant.now();
+    jdbc.update(
+        """
+        UPDATE ai_change_set
+        SET status = 'CONFIRMED', confirmed_by = ?, confirmed_at = ?,
+            updated_by = ?, updated_at = ?
+        WHERE workspace_id = ? AND id = ?
+        """,
+        actorId,
+        Timestamp.from(now),
+        actorId,
+        Timestamp.from(now),
+        request.workspaceId(),
+        request.setId());
+    projection.projectConfirmed(request.setId());
+    var result =
+        new CommandResult(
+            commandId(),
+            CommandStatus.ACCEPTED,
+            false,
+            confirmEvents(request.setId(), applied, skipped, 0),
+            null,
+            results);
+    remember(
+        request.workspaceId(), request.idempotencyKey(), "ConfirmAiChange", payloadHash, result);
+    return result;
+  }
+
   List<AiChangeSetView> find(UUID workspaceId, String status, UUID setId) {
     var clauses = new ArrayList<String>();
     var args = new ArrayList<Object>();
@@ -175,6 +244,8 @@ class AiChangeRepository {
                     row.getString(6),
                     row.getString(7),
                     row.getTimestamp(8).toInstant(),
+                    0,
+                    0,
                     List.of()),
             args.toArray());
     return sets.stream().map(set -> withItems(set, items(set.setId()))).toList();
@@ -200,6 +271,67 @@ class AiChangeRepository {
           json(item.payload()),
           json(precheck(workspaceId, item)));
     }
+  }
+
+  private List<ChangeItemRow> changeItems(UUID setId) {
+    return jdbc.query(
+        """
+        SELECT id, seq, op_type, payload::text
+        FROM ai_change_item WHERE set_id = ? ORDER BY seq FOR UPDATE
+        """,
+        (row, ignored) ->
+            new ChangeItemRow(
+                row.getObject(1, UUID.class),
+                row.getInt(2),
+                row.getString(3),
+                map(row.getString(4))),
+        setId);
+  }
+
+  private UpdateFieldsCommand updateCommand(ConfirmAiChangeRequest request, ChangeItemRow item) {
+    if (!"UpdateFields".equals(item.opType())) {
+      throw rejected("AI-422-ITEM-PRECHECK-FAILED", "AI 变更项类型不支持", "刷新变更集后重试");
+    }
+    var objectId = uuid(item.payload().get("objectId"));
+    var object = object(request.workspaceId(), objectId);
+    if (object == null) {
+      throw rejected("AI-404-CHANGESET-NOT-FOUND", "AI 变更项目标对象不存在", "刷新变更集后重试");
+    }
+    return new UpdateFieldsCommand(
+        request.workspaceId(),
+        request.correlationId(),
+        "aiconfirm:" + request.setId() + ":item:" + item.seq(),
+        objectId,
+        object.version(),
+        fields(item.payload()).stream()
+            .map(
+                field ->
+                    new FieldUpdate(
+                        String.valueOf(field.get("fieldDefCode")), field.get("value"), null))
+            .toList());
+  }
+
+  private void updateItemPrecheck(UUID itemId, Map<String, Object> precheck) {
+    jdbc.update(
+        "UPDATE ai_change_item SET precheck = CAST(? AS jsonb) WHERE id = ?",
+        json(precheck),
+        itemId);
+  }
+
+  private void markItem(UUID itemId, String status) {
+    jdbc.update("UPDATE ai_change_item SET item_status = ? WHERE id = ?", status, itemId);
+  }
+
+  private BatchItemResult skippedItem(int seq, Map<String, Object> precheck) {
+    return new BatchItemResult(
+        seq,
+        CommandStatus.REJECTED,
+        new CommandError(
+            "AI-422-ITEM-PRECHECK-FAILED",
+            "AI 变更项确认预检未通过",
+            Map.of("precheck", precheck),
+            "查看规则详情并调整后重新发起 AI 变更"),
+        List.of());
   }
 
   private Map<String, Object> precheck(UUID workspaceId, AiActionProvider.AiChangeItem item) {
@@ -274,18 +406,24 @@ class AiChangeRepository {
     var rows =
         jdbc.query(
             """
-            SELECT object.object_id, type.id, object.fields::text
-            FROM rm_object object
-            JOIN object_type type
-              ON type.workspace_id = object.workspace_id
-             AND type.code = object.object_type_code
-            WHERE object.workspace_id = ? AND object.object_id = ?
+            SELECT object.id, type.id, object.version,
+                   COALESCE(
+                     jsonb_object_agg(field.code, value.value)
+                       FILTER (WHERE field.id IS NOT NULL),
+                     '{}'::jsonb)::text
+            FROM data_object object
+            JOIN object_type type ON type.id = object.object_type_id
+            LEFT JOIN data_field_value value ON value.object_id = object.id
+            LEFT JOIN field_def field ON field.id = value.field_def_id
+            WHERE object.workspace_id = ? AND object.id = ?
+            GROUP BY object.id, type.id, object.version
             """,
             (row, ignored) ->
                 new ObjectRow(
                     row.getObject(1, UUID.class),
                     row.getObject(2, UUID.class),
-                    map(row.getString(3))),
+                    row.getLong(3),
+                    map(row.getString(4))),
             workspaceId,
             objectId);
     return rows.isEmpty() ? null : rows.getFirst();
@@ -357,6 +495,8 @@ class AiChangeRepository {
   }
 
   private AiChangeSetView withItems(AiChangeSetView set, List<AiChangeItemView> items) {
+    var applied = items.stream().filter(item -> "APPLIED".equals(item.itemStatus())).count();
+    var skipped = items.stream().filter(item -> "SKIPPED".equals(item.itemStatus())).count();
     return new AiChangeSetView(
         set.setId(),
         set.action(),
@@ -366,6 +506,8 @@ class AiChangeRepository {
         set.contextHash(),
         set.resultText(),
         set.createdAt(),
+        applied,
+        skipped,
         items);
   }
 
@@ -399,6 +541,50 @@ class AiChangeRepository {
             workspaceId,
             setId);
     return values.isEmpty() ? null : values.getFirst();
+  }
+
+  private CommandResult confirmedResult(UUID workspaceId, UUID setId) {
+    var results =
+        jdbc.query(
+            """
+            SELECT result_snapshot::text
+            FROM command_log
+            WHERE workspace_id = ? AND command_type = 'ConfirmAiChange'
+              AND result_snapshot->'events' @> CAST(? AS jsonb)
+            ORDER BY decided_at LIMIT 1
+            """,
+            (row, ignored) -> row.getString(1),
+            workspaceId,
+            json(List.of(setId.toString())));
+    if (results.isEmpty()) return null;
+    try {
+      return mapper.readValue(results.getFirst(), CommandResult.class);
+    } catch (JsonProcessingException failure) {
+      throw new IllegalArgumentException("AI 确认结果快照无法解析", failure);
+    }
+  }
+
+  private CommandResult confirmedSummary(UUID workspaceId, UUID setId) {
+    var counts =
+        jdbc.queryForMap(
+            """
+            SELECT count(*) FILTER (WHERE item_status = 'APPLIED') AS applied,
+                   count(*) FILTER (WHERE item_status = 'SKIPPED') AS skipped
+            FROM ai_change_item item
+            JOIN ai_change_set change_set ON change_set.id = item.set_id
+            WHERE change_set.workspace_id = ? AND change_set.id = ?
+            """,
+            workspaceId,
+            setId);
+    var applied = ((Number) counts.get("applied")).intValue();
+    var skipped = ((Number) counts.get("skipped")).intValue();
+    return new CommandResult(
+        commandId(), CommandStatus.ACCEPTED, true, confirmEvents(setId, applied, skipped, 0), null);
+  }
+
+  private List<String> confirmEvents(UUID setId, int applied, int skipped, int errors) {
+    return List.of(
+        setId.toString(), "applied=" + applied, "skipped=" + skipped, "errors=" + errors);
   }
 
   @SuppressWarnings("unchecked")
@@ -472,7 +658,14 @@ class AiChangeRepository {
 
   private record StoredCommand(String payloadHash, String resultSnapshot) {}
 
-  private record ObjectRow(UUID objectId, UUID objectTypeId, Map<String, Object> fields) {}
+  private record ObjectRow(
+      UUID objectId, UUID objectTypeId, long version, Map<String, Object> fields) {}
+
+  private record ChangeItemRow(UUID id, int seq, String opType, Map<String, Object> payload) {
+    AiActionProvider.AiChangeItem aiItem() {
+      return new AiActionProvider.AiChangeItem(opType, payload);
+    }
+  }
 
   private record RuleRow(
       String ruleCode, String severity, String whenSrc, String message, String fieldCode) {}

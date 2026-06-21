@@ -14,4 +14,7 @@ record AiActionRequest(
 record RejectAiChangeRequest(
     UUID workspaceId, UUID correlationId, String idempotencyKey, UUID setId) {}
 
+record ConfirmAiChangeRequest(
+    UUID workspaceId, UUID correlationId, String idempotencyKey, UUID setId) {}
+
 record AiSelectionRequest(List<UUID> objectIds, List<UUID> checkResultIds) {}

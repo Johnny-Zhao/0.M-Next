@@ -4,6 +4,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.mnext.kernel.api.events.EventEnvelope;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -16,6 +18,7 @@ import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -38,6 +41,9 @@ class AiChangeE2EIntegrationTest {
   private static final UUID BLOCKED = UUID.fromString("99999999-0000-4000-8000-000000000004");
   private static final UUID OBJECT = UUID.fromString("99999999-0000-4000-8000-000000000005");
   private static final UUID CHECK = UUID.fromString("99999999-0000-4000-8000-000000000006");
+  private static final UUID VIEWER = UUID.fromString("99999999-0000-4000-8000-000000000011");
+  private static final UUID AUTHOR = UUID.fromString("99999999-0000-4000-8000-000000000012");
+  private static final UUID REVIEWER = UUID.fromString("99999999-0000-4000-8000-000000000013");
 
   @Container
   static final PostgreSQLContainer<?> POSTGRES =
@@ -54,6 +60,8 @@ class AiChangeE2EIntegrationTest {
 
   @Autowired TestRestTemplate http;
   @Autowired JdbcTemplate jdbc;
+  @Autowired ObjectMapper mapper;
+  @Autowired ReadModelProjection projection;
   @LocalServerPort int port;
 
   @BeforeEach
@@ -64,12 +72,17 @@ class AiChangeE2EIntegrationTest {
     jdbc.update("DELETE FROM ai_change_set");
     jdbc.update("DELETE FROM check_result");
     jdbc.update("DELETE FROM rule_def WHERE workspace_id = ?", WORKSPACE);
+    jdbc.update("DELETE FROM rm_consumed_event");
+    jdbc.update("DELETE FROM event_outbox");
     jdbc.update("DELETE FROM command_log");
     jdbc.update("DELETE FROM rm_object WHERE workspace_id = ?", WORKSPACE);
+    jdbc.update("DELETE FROM field_value_history");
     jdbc.update("DELETE FROM data_field_value");
     jdbc.update("DELETE FROM data_object WHERE workspace_id = ?", WORKSPACE);
+    jdbc.update("DELETE FROM workspace_member WHERE workspace_id = ?", WORKSPACE);
     jdbc.update("DELETE FROM field_def WHERE object_type_id = ?", TYPE);
     jdbc.update("DELETE FROM object_type WHERE id = ?", TYPE);
+    jdbc.update("DELETE FROM app_user WHERE id IN (?, ?, ?)", VIEWER, AUTHOR, REVIEWER);
     insertProfile();
   }
 
@@ -118,6 +131,71 @@ class AiChangeE2EIntegrationTest {
     assertEquals("AI-400-SCHEMA-INVALID", errorCode(bad));
   }
 
+  @Test
+  void confirmRequiresReviewerReplaysWritableItemsAndIsSetIdempotent() throws Exception {
+    enableGovernance();
+    var proposed =
+        post(command("ProposeAiChange", "ai-propose-confirm", suggestPayload()), AUTHOR.toString());
+    var setId = eventId(proposed);
+    Map<String, Object> payload = Map.of("setId", setId);
+
+    assertEquals(
+        403,
+        post(command("ConfirmAiChange", "ai-confirm-viewer", payload), VIEWER.toString())
+            .getStatusCode()
+            .value());
+    assertEquals(
+        403,
+        post(command("ConfirmAiChange", "ai-confirm-author", payload), AUTHOR.toString())
+            .getStatusCode()
+            .value());
+
+    var confirmed =
+        post(command("ConfirmAiChange", "ai-confirm-reviewer", payload), REVIEWER.toString());
+    assertEquals(200, confirmed.getStatusCode().value(), String.valueOf(confirmed.getBody()));
+    assertEquals(
+        List.of(setId, "applied=2", "skipped=1", "errors=0"), confirmed.getBody().get("events"));
+    assertEquals(3, ((List<?>) confirmed.getBody().get("results")).size());
+    projectOutbox();
+
+    var view = single(get("/views/ai-changes?setId=" + setId, REVIEWER.toString()));
+    assertEquals("CONFIRMED", view.get("status"));
+    assertEquals(2, ((Number) view.get("applied")).intValue());
+    assertEquals(1, ((Number) view.get("skipped")).intValue());
+    assertEquals("LOW", fieldValue("priority"));
+    assertEquals("0", String.valueOf(fieldValue("score")));
+    assertFalse(fieldSnapshot().contains("blocked_number"));
+    assertEquals(5, objectVersion());
+    assertEquals(2, count("field_value_history"));
+
+    var repeated =
+        post(command("ConfirmAiChange", "ai-confirm-again", payload), REVIEWER.toString());
+    assertTrue((Boolean) repeated.getBody().get("idempotentReplay"));
+    assertEquals(2, count("command_log WHERE command_type = 'UpdateFields'"));
+    assertEquals(5, objectVersion());
+
+    var rejectedSet =
+        eventId(
+            post(
+                command("ProposeAiChange", "ai-propose-rejected", suggestPayload()),
+                AUTHOR.toString()));
+    post(
+        command(
+            "RejectAiChange",
+            "ai-reject-before-confirm",
+            Map.<String, Object>of("setId", rejectedSet)),
+        REVIEWER.toString());
+    var invalid =
+        post(
+            command(
+                "ConfirmAiChange",
+                "ai-confirm-rejected",
+                Map.<String, Object>of("setId", rejectedSet)),
+            REVIEWER.toString());
+    assertEquals(409, invalid.getStatusCode().value());
+    assertEquals("AI-409-INVALID-STATE", errorCode(invalid));
+  }
+
   private Map<String, Object> suggestPayload() {
     return Map.of(
         "action",
@@ -144,9 +222,13 @@ class AiChangeE2EIntegrationTest {
   }
 
   private ResponseEntity<Map> post(Object request) {
+    return post(request, "ai-user");
+  }
+
+  private ResponseEntity<Map> post(Object request, String actorId) {
     var headers = new HttpHeaders();
     headers.setContentType(MediaType.APPLICATION_JSON);
-    headers.set("X-Actor-Id", "ai-user");
+    headers.set("X-Actor-Id", actorId);
     return http.postForEntity(
         "http://localhost:" + port + "/workspaces/" + WORKSPACE + "/ai-commands",
         new HttpEntity<>(request, headers),
@@ -154,8 +236,18 @@ class AiChangeE2EIntegrationTest {
   }
 
   private List<Map<String, Object>> get(String path) {
-    return http.getForEntity(
-            "http://localhost:" + port + "/workspaces/" + WORKSPACE + path, List.class)
+    return get(path, null);
+  }
+
+  private List<Map<String, Object>> get(String path, String actorId) {
+    var headers = new HttpHeaders();
+    if (actorId != null) headers.set("X-Actor-Id", actorId);
+    return http.exchange(
+            "http://localhost:" + port + "/workspaces/" + WORKSPACE + path,
+            HttpMethod.GET,
+            new HttpEntity<>(headers),
+            List.class,
+            Map.of())
         .getBody();
   }
 
@@ -192,8 +284,54 @@ class AiChangeE2EIntegrationTest {
         OBJECT);
   }
 
+  private Object fieldValue(String code) {
+    return jdbc.queryForObject(
+        "SELECT fields ->> ? FROM rm_object WHERE workspace_id = ? AND object_id = ?",
+        Object.class,
+        code,
+        WORKSPACE,
+        OBJECT);
+  }
+
+  private int objectVersion() {
+    return jdbc.queryForObject(
+        "SELECT version FROM data_object WHERE workspace_id = ? AND id = ?",
+        Integer.class,
+        WORKSPACE,
+        OBJECT);
+  }
+
+  private void projectOutbox() throws Exception {
+    var events =
+        jdbc.queryForList(
+            """
+            SELECT payload::text FROM event_outbox
+            ORDER BY CASE event_type
+                WHEN 'FieldChanged' THEN 1
+                WHEN 'ObjectUpdated' THEN 2
+                ELSE 9
+              END,
+              created_at,
+              aggregate_id,
+              sequence
+            """,
+            String.class);
+    for (var payload : events) {
+      projection.apply(mapper.readValue(payload, EventEnvelope.class));
+    }
+  }
+
   private int count(String table) {
     return jdbc.queryForObject("SELECT count(*) FROM " + table, Integer.class);
+  }
+
+  private void enableGovernance() {
+    insertUser(VIEWER);
+    insertUser(AUTHOR);
+    insertUser(REVIEWER);
+    insertMember(VIEWER, "VIEWER");
+    insertMember(AUTHOR, "AUTHOR");
+    insertMember(REVIEWER, "REVIEWER");
   }
 
   private void insertProfile() {
@@ -208,6 +346,16 @@ class AiChangeE2EIntegrationTest {
     insertField(PRIORITY, "priority", "string", "{\"enum\":[\"LOW\",\"HIGH\"]}");
     insertField(SCORE, "score", "number", "{}");
     insertField(BLOCKED, "blocked_number", "number", "{}");
+    jdbc.update(
+        """
+        INSERT INTO data_object
+          (id, workspace_id, object_type_id, status, version,
+           created_by, updated_by, created_at, updated_at)
+        VALUES (?, ?, ?, 'DRAFT', 3, 'test', 'test', now(), now())
+        """,
+        OBJECT,
+        WORKSPACE,
+        TYPE);
     jdbc.update(
         """
         INSERT INTO rm_object
@@ -246,6 +394,27 @@ class AiChangeE2EIntegrationTest {
         code,
         dataType,
         constraints);
+  }
+
+  private void insertUser(UUID userId) {
+    jdbc.update(
+        """
+        INSERT INTO app_user (id, display_name, status, created_at)
+        VALUES (?, ?, 'ACTIVE', now())
+        """,
+        userId,
+        userId.toString());
+  }
+
+  private void insertMember(UUID userId, String role) {
+    jdbc.update(
+        """
+        INSERT INTO workspace_member (workspace_id, user_id, role, granted_by, granted_at)
+        VALUES (?, ?, ?, 'test', now())
+        """,
+        WORKSPACE,
+        userId,
+        role);
   }
 
   private void insertRule(

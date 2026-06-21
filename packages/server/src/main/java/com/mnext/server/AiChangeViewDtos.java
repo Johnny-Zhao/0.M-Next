@@ -14,6 +14,8 @@ record AiChangeSetView(
     String contextHash,
     String resultText,
     Instant createdAt,
+    long applied,
+    long skipped,
     List<AiChangeItemView> items) {}
 
 record AiChangeItemView(
