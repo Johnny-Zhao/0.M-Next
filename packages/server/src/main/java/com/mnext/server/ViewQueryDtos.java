@@ -60,6 +60,26 @@ record RankedCandidate(
     int rank,
     boolean recommended,
     Map<String, Object> fields,
-    String details) {}
+    String details,
+    List<RecommendationRisk> risks,
+    boolean vetoed) {
+  RankedCandidate(
+      UUID candidateId,
+      String objectTypeCode,
+      Object score,
+      int rank,
+      boolean recommended,
+      Map<String, Object> fields,
+      String details) {
+    this(candidateId, objectTypeCode, score, rank, recommended, fields, details, List.of(), false);
+  }
+}
 
-record RecommendationView(RankedCandidate recommended, List<RankedCandidate> alternatives) {}
+record RecommendationRisk(String ruleCode, String severity, String message) {}
+
+record RecommendationView(
+    RankedCandidate recommended, List<RankedCandidate> alternatives, List<RankedCandidate> vetoed) {
+  RecommendationView(RankedCandidate recommended, List<RankedCandidate> alternatives) {
+    this(recommended, alternatives, List.of());
+  }
+}
