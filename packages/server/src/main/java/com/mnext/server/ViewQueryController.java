@@ -1,10 +1,12 @@
 package com.mnext.server;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import org.springframework.beans.factory.ObjectProvider;
@@ -152,7 +154,8 @@ public class ViewQueryController {
       @RequestParam(value = "scoreField", required = false) String scoreField,
       @RequestParam(value = "method", defaultValue = "weighted") String method,
       @RequestParam(value = "order", defaultValue = "desc") String order,
-      @RequestParam(value = "size", defaultValue = "10") int size) {
+      @RequestParam(value = "size", defaultValue = "10") int size,
+      @RequestParam(value = "ruleRunId", required = false) UUID ruleRunId) {
     authorize(workspaceId);
     if (relationTypeCode.isBlank()) throw new IllegalArgumentException("relationTypeCode 必填");
     if (!Set.of("weighted", "topsis", "ahp", "wpm").contains(method)) {
@@ -163,13 +166,13 @@ public class ViewQueryController {
     }
     if (size < 1 || size > 200) throw new IllegalArgumentException("size 必须为 1..200");
     if ("topsis".equals(method)) {
-      return topsisRecommendation(workspaceId, projectId, relationTypeCode, size);
+      return topsisRecommendation(workspaceId, projectId, relationTypeCode, size, ruleRunId);
     }
     if ("ahp".equals(method)) {
-      return ahpRecommendation(workspaceId, projectId, relationTypeCode, size);
+      return ahpRecommendation(workspaceId, projectId, relationTypeCode, size, ruleRunId);
     }
     if ("wpm".equals(method)) {
-      return wpmRecommendation(workspaceId, projectId, relationTypeCode, size);
+      return wpmRecommendation(workspaceId, projectId, relationTypeCode, size, ruleRunId);
     }
     if (scoreField == null || scoreField.isBlank())
       throw new IllegalArgumentException("scoreField 必填");
@@ -183,9 +186,8 @@ public class ViewQueryController {
         candidates.stream()
             .map(candidate -> scoredCandidate(workspaceId, scoreField, candidate))
             .sorted(scoreComparator(order).thenComparing(candidate -> candidate.objectId()))
-            .limit(size)
             .toList();
-    var result = new java.util.ArrayList<RankedCandidate>();
+    var result = new ArrayList<RankedCandidate>();
     for (int index = 0; index < ranked.size(); index++) {
       var candidate = ranked.get(index);
       result.add(
@@ -198,9 +200,7 @@ public class ViewQueryController {
               candidate.fields(),
               candidate.details()));
     }
-    return new RecommendationView(
-        result.isEmpty() ? null : result.getFirst(),
-        result.size() <= 1 ? List.of() : List.copyOf(result.subList(1, result.size())));
+    return recommendationView(workspaceId, ruleRunId, result, size);
   }
 
   @GetMapping("/workspaces/{workspaceId}/views/check-results")
@@ -247,8 +247,76 @@ public class ViewQueryController {
     authorizer.require(actorId, workspaceId, WorkspaceAuthorizer.Action.READ);
   }
 
+  private RecommendationView recommendationView(
+      UUID workspaceId, UUID ruleRunId, List<RankedCandidate> ranked, int size) {
+    var resolvedRunId = ruleRunId(workspaceId, ruleRunId);
+    if (resolvedRunId.isEmpty()) {
+      return recommendationView(ranked, List.of(), size);
+    }
+    var candidateIds = ranked.stream().map(RankedCandidate::candidateId).toList();
+    var checksByObject = new HashMap<UUID, List<CheckResultView>>();
+    for (var result : checkResults.findForObjects(workspaceId, resolvedRunId.get(), candidateIds)) {
+      checksByObject.computeIfAbsent(result.objectId(), ignored -> new ArrayList<>()).add(result);
+    }
+    var active = new ArrayList<RankedCandidate>();
+    var vetoed = new ArrayList<RankedCandidate>();
+    for (var candidate : ranked) {
+      var checks = checksByObject.getOrDefault(candidate.candidateId(), List.of());
+      var risks = checks.stream().map(ViewQueryController::risk).toList();
+      var blocked = checks.stream().anyMatch(check -> "BLOCK".equals(check.severity()));
+      if (blocked) {
+        vetoed.add(candidate(candidate, false, risks, true));
+      } else {
+        active.add(candidate(candidate, false, risks, false));
+      }
+    }
+    return recommendationView(active, vetoed, size);
+  }
+
+  private Optional<UUID> ruleRunId(UUID workspaceId, UUID ruleRunId) {
+    if (ruleRunId == null) return checkResults.latestRunId(workspaceId);
+    if (!checkResults.runExists(workspaceId, ruleRunId)) {
+      throw new IllegalArgumentException("ruleRunId 不存在或不属于当前工作空间");
+    }
+    return Optional.of(ruleRunId);
+  }
+
+  private RecommendationView recommendationView(
+      List<RankedCandidate> ranked, List<RankedCandidate> vetoed, int size) {
+    var selected = new ArrayList<RankedCandidate>();
+    for (var candidate : ranked) {
+      if (selected.size() >= size) break;
+      selected.add(candidate(candidate, selected.isEmpty(), candidate.risks(), false));
+    }
+    return new RecommendationView(
+        selected.isEmpty() ? null : selected.getFirst(),
+        selected.size() <= 1 ? List.of() : List.copyOf(selected.subList(1, selected.size())),
+        List.copyOf(vetoed));
+  }
+
+  private static RankedCandidate candidate(
+      RankedCandidate candidate,
+      boolean recommended,
+      List<RecommendationRisk> risks,
+      boolean vetoed) {
+    return new RankedCandidate(
+        candidate.candidateId(),
+        candidate.objectTypeCode(),
+        candidate.score(),
+        candidate.rank(),
+        recommended,
+        candidate.fields(),
+        candidate.details(),
+        risks,
+        vetoed);
+  }
+
+  private static RecommendationRisk risk(CheckResultView result) {
+    return new RecommendationRisk(result.ruleCode(), result.severity(), result.message());
+  }
+
   private RecommendationView topsisRecommendation(
-      UUID workspaceId, UUID projectId, String relationTypeCode, int size) {
+      UUID workspaceId, UUID projectId, String relationTypeCode, int size, UUID ruleRunId) {
     var runResult =
         simulationRuns
             .latestCompletedResult(workspaceId, TOPSIS_ENGINE_ID)
@@ -266,17 +334,14 @@ public class ViewQueryController {
     }
     var candidatesById = new HashMap<UUID, ObjectView>();
     candidates.forEach(candidate -> candidatesById.put(candidate.objectId(), candidate));
-    var result = new java.util.ArrayList<RankedCandidate>();
+    var result = new ArrayList<RankedCandidate>();
     if (runResult.get("ranking") instanceof List<?> ranking) {
       for (var item : ranking) {
-        if (result.size() >= size) break;
         var ranked = topsisCandidate(item, candidatesById, result.size() + 1);
         if (ranked != null) result.add(ranked);
       }
     }
-    return new RecommendationView(
-        result.isEmpty() ? null : result.getFirst(),
-        result.size() <= 1 ? List.of() : List.copyOf(result.subList(1, result.size())));
+    return recommendationView(workspaceId, ruleRunId, result, size);
   }
 
   private RankedCandidate topsisCandidate(
@@ -297,7 +362,7 @@ public class ViewQueryController {
   }
 
   private RecommendationView wpmRecommendation(
-      UUID workspaceId, UUID projectId, String relationTypeCode, int size) {
+      UUID workspaceId, UUID projectId, String relationTypeCode, int size, UUID ruleRunId) {
     var runResult =
         simulationRuns
             .latestCompletedResult(workspaceId, WPM_ENGINE_ID)
@@ -315,21 +380,18 @@ public class ViewQueryController {
     }
     var candidatesById = new HashMap<UUID, ObjectView>();
     candidates.forEach(candidate -> candidatesById.put(candidate.objectId(), candidate));
-    var result = new java.util.ArrayList<RankedCandidate>();
+    var result = new ArrayList<RankedCandidate>();
     if (runResult.get("ranking") instanceof List<?> ranking) {
       for (var item : ranking) {
-        if (result.size() >= size) break;
         var ranked = wpmCandidate(item, candidatesById, result.size() + 1);
         if (ranked != null) result.add(ranked);
       }
     }
-    return new RecommendationView(
-        result.isEmpty() ? null : result.getFirst(),
-        result.size() <= 1 ? List.of() : List.copyOf(result.subList(1, result.size())));
+    return recommendationView(workspaceId, ruleRunId, result, size);
   }
 
   private RecommendationView ahpRecommendation(
-      UUID workspaceId, UUID projectId, String relationTypeCode, int size) {
+      UUID workspaceId, UUID projectId, String relationTypeCode, int size, UUID ruleRunId) {
     var runResult =
         simulationRuns
             .latestCompletedResult(workspaceId, AHP_ENGINE_ID)
@@ -347,17 +409,14 @@ public class ViewQueryController {
     }
     var candidatesById = new HashMap<UUID, ObjectView>();
     candidates.forEach(candidate -> candidatesById.put(candidate.objectId(), candidate));
-    var result = new java.util.ArrayList<RankedCandidate>();
+    var result = new ArrayList<RankedCandidate>();
     if (runResult.get("ranking") instanceof List<?> ranking) {
       for (var item : ranking) {
-        if (result.size() >= size) break;
         var ranked = ahpCandidate(item, candidatesById, result.size() + 1);
         if (ranked != null) result.add(ranked);
       }
     }
-    return new RecommendationView(
-        result.isEmpty() ? null : result.getFirst(),
-        result.size() <= 1 ? List.of() : List.copyOf(result.subList(1, result.size())));
+    return recommendationView(workspaceId, ruleRunId, result, size);
   }
 
   private RankedCandidate ahpCandidate(
