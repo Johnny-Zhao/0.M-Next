@@ -6,7 +6,7 @@
   "required": ["commandType", "workspaceId", "correlationId", "idempotencyKey", "payload"],
   "additionalProperties": false,
   "properties": {
-    "commandType": { "enum": ["ProposeAiChange", "RejectAiChange"] },
+    "commandType": { "enum": ["ProposeAiChange", "RejectAiChange", "ConfirmAiChange"] },
     "workspaceId": { "$ref": "#/$defs/uuid" },
     "correlationId": { "$ref": "#/$defs/uuid" },
     "idempotencyKey": { "type": "string", "minLength": 1, "maxLength": 128 },
@@ -20,6 +20,10 @@
     {
       "if": { "properties": { "commandType": { "const": "RejectAiChange" } } },
       "then": { "properties": { "payload": { "$ref": "#/$defs/RejectAiChange" } } }
+    },
+    {
+      "if": { "properties": { "commandType": { "const": "ConfirmAiChange" } } },
+      "then": { "properties": { "payload": { "$ref": "#/$defs/ConfirmAiChange" } } }
     }
   ],
   "$defs": {
@@ -55,6 +59,14 @@
       }
     },
     "RejectAiChange": {
+      "type": "object",
+      "required": ["setId"],
+      "additionalProperties": false,
+      "properties": {
+        "setId": { "$ref": "#/$defs/uuid" }
+      }
+    },
+    "ConfirmAiChange": {
       "type": "object",
       "required": ["setId"],
       "additionalProperties": false,

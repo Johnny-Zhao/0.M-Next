@@ -43,6 +43,7 @@ public class AiCommandController {
     return switch (request.commandType()) {
       case "ProposeAiChange" -> propose(workspaceId, actorId, request);
       case "RejectAiChange" -> reject(workspaceId, actorId, request);
+      case "ConfirmAiChange" -> confirm(workspaceId, actorId, request);
       default -> throw schema("本批次不支持 commandType: " + request.commandType());
     };
   }
@@ -98,6 +99,15 @@ public class AiCommandController {
     return repository.reject(parsed, actorId, payloadHash);
   }
 
+  private CommandResult confirm(UUID workspaceId, String actorId, CommandRequest request) {
+    authorizer.require(actorId, workspaceId, WorkspaceAuthorizer.Action.REVIEW);
+    var parsed = confirmRequest(request);
+    var payloadHash = repository.payloadHash(request);
+    var replay = repository.replay(workspaceId, parsed.idempotencyKey(), payloadHash);
+    if (replay != null) return replay;
+    return repository.confirm(parsed, actorId, payloadHash);
+  }
+
   private static AiActionRequest proposeRequest(CommandRequest request) {
     var payload = required(request.payload(), "payload");
     return new AiActionRequest(
@@ -112,6 +122,15 @@ public class AiCommandController {
   private static RejectAiChangeRequest rejectRequest(CommandRequest request) {
     var payload = required(request.payload(), "payload");
     return new RejectAiChangeRequest(
+        request.workspaceId(),
+        request.correlationId(),
+        request.idempotencyKey(),
+        UUID.fromString(text(payload, "setId")));
+  }
+
+  private static ConfirmAiChangeRequest confirmRequest(CommandRequest request) {
+    var payload = required(request.payload(), "payload");
+    return new ConfirmAiChangeRequest(
         request.workspaceId(),
         request.correlationId(),
         request.idempotencyKey(),
