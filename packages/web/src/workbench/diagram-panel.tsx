@@ -1,5 +1,6 @@
 import {
   Background,
+  BackgroundVariant,
   Controls,
   ReactFlow,
   useEdgesState,
@@ -7,13 +8,31 @@ import {
   type Connection,
   type Edge,
   type Node,
+  type OnNodeDrag,
   type NodeMouseHandler,
   type NodeProps,
 } from "@xyflow/react";
-import { useEffect, useMemo, useState, type ReactElement } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactElement,
+} from "react";
 
 import type { RelationSummary, ViewObject } from "@m-next/views";
 
+import {
+  alignNodes,
+  distributeNodes,
+  type AlignCommand,
+  type DistributeCommand,
+} from "./align";
+import {
+  calculateSmartGuides,
+  SmartGuidesOverlay,
+  type SmartGuides,
+} from "./guides";
 import { useWorkbenchContext } from "./workbench";
 
 export interface DiagramNodeData extends Record<string, unknown> {
@@ -106,6 +125,12 @@ export function objectsAndRelationsToFlow(
 }
 
 const nodeTypes = { object: ObjectFlowNode };
+const snapGrid: [number, number] = [24, 24];
+const noGuides: SmartGuides = { x: [], y: [] };
+
+function selectedIdsFor(nodes: readonly DiagramNode[]): ReadonlySet<string> {
+  return new Set(nodes.filter((node) => node.selected).map((node) => node.id));
+}
 
 interface DiagramData {
   readonly objects: readonly ViewObject[];
@@ -121,6 +146,15 @@ export function DiagramPanel(): ReactElement {
   const [selectedObjectId, setSelectedObjectId] = useState<string | null>(null);
   const [nodes, setNodes, onNodesChange] = useNodesState<DiagramNode>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<DiagramEdge>([]);
+  const [gridEnabled, setGridEnabled] = useState(true);
+  const [gridVariant, setGridVariant] = useState<BackgroundVariant>(
+    BackgroundVariant.Dots,
+  );
+  const [guides, setGuides] = useState<SmartGuides>(noGuides);
+  const selectedNodeIds = useMemo(
+    () => nodes.filter((node) => node.selected).map((node) => node.id),
+    [nodes],
+  );
 
   useEffect(
     () =>
@@ -174,7 +208,20 @@ export function DiagramPanel(): ReactElement {
       data.relations,
       selectedObjectId,
     );
-    setNodes(flow.nodes);
+    setNodes((currentNodes) => {
+      const currentById = new Map(currentNodes.map((node) => [node.id, node]));
+      return flow.nodes.map((node) => {
+        const current = currentById.get(node.id);
+        if (!current) return node;
+        return {
+          ...node,
+          position: current.position,
+          width: current.width,
+          height: current.height,
+          measured: current.measured,
+        };
+      });
+    });
     setEdges(flow.edges);
   }, [data, selectedObjectId, setEdges, setNodes]);
 
@@ -184,6 +231,35 @@ export function DiagramPanel(): ReactElement {
     },
     [context.selection],
   );
+
+  const alignSelected = useCallback(
+    (command: AlignCommand) => {
+      setNodes((currentNodes) =>
+        alignNodes(currentNodes, selectedIdsFor(currentNodes), command),
+      );
+    },
+    [setNodes],
+  );
+
+  const distributeSelected = useCallback(
+    (command: DistributeCommand) => {
+      setNodes((currentNodes) =>
+        distributeNodes(currentNodes, selectedIdsFor(currentNodes), command),
+      );
+    },
+    [setNodes],
+  );
+
+  const onNodeDrag = useCallback<OnNodeDrag<DiagramNode>>(
+    (_event, node) => {
+      setGuides(calculateSmartGuides(node, nodes));
+    },
+    [nodes],
+  );
+
+  const clearGuides = useCallback<OnNodeDrag<DiagramNode>>(() => {
+    setGuides(noGuides);
+  }, []);
 
   async function connectObjects(connection: Connection): Promise<void> {
     if (!connection.source || !connection.target) return;
@@ -204,6 +280,67 @@ export function DiagramPanel(): ReactElement {
 
   return (
     <section aria-label="图面板" className="diagram-panel">
+      <div className="diagram-grid-controls">
+        <label>
+          <input
+            checked={gridEnabled}
+            onChange={(event) => setGridEnabled(event.target.checked)}
+            type="checkbox"
+          />
+          网格
+        </label>
+        <select
+          aria-label="网格样式"
+          disabled={!gridEnabled}
+          onChange={(event) =>
+            setGridVariant(event.target.value as BackgroundVariant)
+          }
+          value={gridVariant}
+        >
+          <option value={BackgroundVariant.Dots}>点</option>
+          <option value={BackgroundVariant.Lines}>线</option>
+        </select>
+      </div>
+      {selectedNodeIds.length > 1 ? (
+        <div className="diagram-align-toolbar" role="toolbar">
+          <button onClick={() => alignSelected("left")} title="左对齐">
+            左
+          </button>
+          <button onClick={() => alignSelected("right")} title="右对齐">
+            右
+          </button>
+          <button onClick={() => alignSelected("top")} title="顶对齐">
+            顶
+          </button>
+          <button onClick={() => alignSelected("bottom")} title="底对齐">
+            底
+          </button>
+          <button
+            onClick={() => alignSelected("horizontalCenter")}
+            title="水平居中"
+          >
+            中X
+          </button>
+          <button
+            onClick={() => alignSelected("verticalCenter")}
+            title="垂直居中"
+          >
+            中Y
+          </button>
+          <button
+            onClick={() => distributeSelected("horizontal")}
+            title="水平分布"
+          >
+            横分
+          </button>
+          <button
+            onClick={() => distributeSelected("vertical")}
+            title="垂直分布"
+          >
+            竖分
+          </button>
+        </div>
+      ) : null}
       <ReactFlow
         edges={edges}
         fitView
@@ -212,9 +349,16 @@ export function DiagramPanel(): ReactElement {
         onConnect={(connection) => void connectObjects(connection)}
         onEdgesChange={onEdgesChange}
         onNodeClick={onNodeClick}
+        onNodeDrag={onNodeDrag}
+        onNodeDragStop={clearGuides}
         onNodesChange={onNodesChange}
+        snapGrid={snapGrid}
+        snapToGrid={gridEnabled}
       >
-        <Background />
+        {gridEnabled ? (
+          <Background gap={snapGrid} variant={gridVariant} />
+        ) : null}
+        <SmartGuidesOverlay guides={guides} />
         <Controls />
       </ReactFlow>
     </section>
