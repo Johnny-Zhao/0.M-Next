@@ -4,7 +4,9 @@ import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -164,5 +166,56 @@ class CheckResultRepository {
                 row.getString(7),
                 row.getTimestamp(8).toInstant()),
         args.toArray());
+  }
+
+  Map<UUID, String> latestRuleStatuses(UUID workspaceId, List<UUID> objectIds) {
+    if (objectIds.isEmpty()) return Map.of();
+    if (objectIds.size() > 200) throw new IllegalArgumentException("objectIds 最多 200 个");
+    var statuses = new LinkedHashMap<UUID, String>();
+    objectIds.forEach(objectId -> statuses.putIfAbsent(objectId, "OK"));
+    var runId =
+        jdbc.query(
+            """
+            SELECT run_id
+            FROM check_result
+            WHERE workspace_id = ?
+            GROUP BY run_id
+            ORDER BY max(created_at) DESC, run_id
+            LIMIT 1
+            """,
+            rows -> rows.next() ? rows.getObject(1, UUID.class) : null,
+            workspaceId);
+    if (runId == null) {
+      statuses.replaceAll((ignored, status) -> "UNKNOWN");
+      return statuses;
+    }
+    var placeholders = String.join(", ", Collections.nCopies(statuses.size(), "?"));
+    var args = new ArrayList<Object>();
+    args.add(workspaceId);
+    args.addAll(statuses.keySet());
+    args.add(runId);
+    jdbc.query(
+        """
+        SELECT object_id,
+               CASE max(CASE severity WHEN 'BLOCK' THEN 2 WHEN 'WARN' THEN 1 ELSE 0 END)
+                 WHEN 2 THEN 'BLOCK'
+                 WHEN 1 THEN 'WARN'
+                 ELSE 'OK'
+               END
+        FROM check_result
+        WHERE workspace_id = ?
+          AND object_id IN (
+        """
+            + placeholders
+            + """
+          )
+          AND run_id = ?
+        GROUP BY object_id
+        """,
+        rows -> {
+          statuses.put(rows.getObject(1, UUID.class), rows.getString(2));
+        },
+        args.toArray());
+    return statuses;
   }
 }

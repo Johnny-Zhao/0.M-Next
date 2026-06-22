@@ -16,7 +16,7 @@ export type ObjectVisualState =
   | "stale"
   | "vetoed";
 
-export type ObjectRuleStatus = "BLOCK" | "WARN" | "OK" | "TODO";
+export type ObjectRuleStatus = "BLOCK" | "WARN" | "OK" | "UNKNOWN" | "TODO";
 
 export interface ObjectFieldPreview {
   readonly code: string;

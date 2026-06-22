@@ -13,6 +13,8 @@ export interface ObjectType {
   readonly fields: readonly FieldDefinition[];
 }
 
+export type RuleStatus = "BLOCK" | "WARN" | "OK" | "UNKNOWN";
+
 export interface ViewObject {
   readonly objectId: string;
   readonly objectType: string;
@@ -20,6 +22,12 @@ export interface ViewObject {
   readonly version: number;
   readonly fields: Readonly<Record<string, unknown>>;
   readonly updatedAt: string;
+  readonly ruleStatus: RuleStatus;
+}
+
+export interface RuleStatusItem {
+  readonly objectId: string;
+  readonly ruleStatus: RuleStatus;
 }
 
 export interface RelationSummary {
@@ -107,6 +115,17 @@ export class ViewClient {
 
   object(workspaceId: string, objectId: string): Promise<ObjectDetail> {
     return this.get(`/workspaces/${workspaceId}/views/objects/${objectId}`);
+  }
+
+  ruleStatus(
+    workspaceId: string,
+    objectIds: readonly string[],
+  ): Promise<readonly RuleStatusItem[]> {
+    if (objectIds.length > 200) throw new Error("objectIds must be <= 200");
+    if (objectIds.length === 0) return Promise.resolve([]);
+    const query = new URLSearchParams();
+    for (const objectId of objectIds) query.append("objectIds", objectId);
+    return this.get(`/workspaces/${workspaceId}/views/rule-status?${query}`);
   }
 
   relations(

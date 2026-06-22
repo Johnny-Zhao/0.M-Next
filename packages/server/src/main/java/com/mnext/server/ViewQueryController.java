@@ -60,14 +60,31 @@ public class ViewQueryController {
     if (page < 0 || pageSize < 1 || pageSize > 200) {
       throw new IllegalArgumentException("page 必须非负且 pageSize 必须为 1..200");
     }
-    return repository.objects(workspaceId, objectType, page, pageSize);
+    return withRuleStatuses(
+        workspaceId, repository.objects(workspaceId, objectType, page, pageSize));
   }
 
   @GetMapping("/workspaces/{workspaceId}/views/objects/{objectId}")
   public ObjectDetailView object(
       @PathVariable("workspaceId") UUID workspaceId, @PathVariable("objectId") UUID objectId) {
     authorize(workspaceId);
-    return repository.object(workspaceId, objectId);
+    var detail = repository.object(workspaceId, objectId);
+    return new ObjectDetailView(
+        withRuleStatus(detail.object(), ruleStatuses(workspaceId, List.of(objectId))),
+        detail.relations());
+  }
+
+  @GetMapping("/workspaces/{workspaceId}/views/rule-status")
+  public List<RuleStatusView> ruleStatus(
+      @PathVariable("workspaceId") UUID workspaceId,
+      @RequestParam("objectIds") List<UUID> objectIds) {
+    authorize(workspaceId);
+    if (objectIds.size() > 200) throw new IllegalArgumentException("objectIds 最多 200 个");
+    var statuses = ruleStatuses(workspaceId, objectIds);
+    return objectIds.stream()
+        .distinct()
+        .map(objectId -> new RuleStatusView(objectId, statuses.getOrDefault(objectId, "UNKNOWN")))
+        .toList();
   }
 
   @GetMapping("/workspaces/{workspaceId}/views/relations")
@@ -245,6 +262,31 @@ public class ViewQueryController {
             ? servlet.getRequest().getHeader("X-Actor-Id")
             : null;
     authorizer.require(actorId, workspaceId, WorkspaceAuthorizer.Action.READ);
+  }
+
+  private PageView<ObjectView> withRuleStatuses(UUID workspaceId, PageView<ObjectView> page) {
+    var statuses =
+        ruleStatuses(workspaceId, page.items().stream().map(ObjectView::objectId).toList());
+    return new PageView<>(
+        page.items().stream().map(object -> withRuleStatus(object, statuses)).toList(),
+        page.page(),
+        page.pageSize(),
+        page.total());
+  }
+
+  private Map<UUID, String> ruleStatuses(UUID workspaceId, List<UUID> objectIds) {
+    return checkResults.latestRuleStatuses(workspaceId, objectIds);
+  }
+
+  private static ObjectView withRuleStatus(ObjectView object, Map<UUID, String> statuses) {
+    return new ObjectView(
+        object.objectId(),
+        object.objectType(),
+        object.status(),
+        object.version(),
+        object.fields(),
+        object.updatedAt(),
+        statuses.getOrDefault(object.objectId(), "UNKNOWN"));
   }
 
   private RecommendationView recommendationView(

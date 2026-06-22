@@ -649,7 +649,8 @@ class ReadModelRepository {
         row.getString(3),
         row.getLong(4),
         map(row.getString(5)),
-        row.getTimestamp(6).toInstant());
+        row.getTimestamp(6).toInstant(),
+        "UNKNOWN");
   }
 
   private RelationView relation(java.sql.ResultSet row) throws java.sql.SQLException {

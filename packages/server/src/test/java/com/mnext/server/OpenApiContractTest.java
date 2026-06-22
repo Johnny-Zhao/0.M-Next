@@ -66,6 +66,7 @@ class OpenApiContractTest {
             "relations",
             "tree",
             "sync-status",
+            "rule-status",
             "check-results")) {
       assertFalse(
           document
