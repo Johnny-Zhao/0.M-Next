@@ -7,6 +7,7 @@ import {
   type SyncStatus,
 } from "@m-next/views";
 
+import { Home } from "./home/home";
 import { Workbench } from "./workbench/workbench";
 
 const demoWorkspace = "11111111-1111-4111-8111-111111111111";
@@ -20,7 +21,8 @@ export function App({
   baseUrl = "",
   fetchFn = fetch,
 }: AppProps = {}): ReactElement {
-  const [workspaceId, setWorkspaceId] = useState(demoWorkspace);
+  const [actorId, setActorId] = useState<string | null>(null);
+  const [workspaceId, setWorkspaceId] = useState<string | null>(null);
   const [errors, setErrors] = useState(0);
   const [sync, setSync] = useState<SyncStatus | "error">({
     pendingEvents: 0,
@@ -30,11 +32,11 @@ export function App({
   const [viewClient] = useState(() => new ViewClient(baseUrl, fetchFn));
   const [commandClient] = useState(() => new CommandClient(baseUrl, fetchFn));
 
-  useEffect(
-    () => selection.switchWorkspace(workspaceId),
-    [selection, workspaceId],
-  );
   useEffect(() => {
+    if (workspaceId) selection.switchWorkspace(workspaceId);
+  }, [selection, workspaceId]);
+  useEffect(() => {
+    if (!workspaceId) return;
     const refresh = () =>
       void viewClient
         .syncStatus(workspaceId)
@@ -45,10 +47,25 @@ export function App({
     return () => globalThis.clearInterval(timer);
   }, [viewClient, workspaceId]);
 
+  if (!workspaceId) {
+    return (
+      <Home
+        actorId={actorId}
+        commandClient={commandClient}
+        onLogin={setActorId}
+        onOpenWorkspace={setWorkspaceId}
+        viewClient={viewClient}
+      />
+    );
+  }
+
   return (
     <main className="workbench">
       <header>
         <strong>M-Next</strong>
+        <button onClick={() => setWorkspaceId(null)} type="button">
+          返回项目
+        </button>
         <label>
           工作空间:
           <select
