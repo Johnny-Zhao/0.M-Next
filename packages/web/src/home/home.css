@@ -1,0 +1,138 @@
+.home-shell {
+  box-sizing: border-box;
+  min-height: 100vh;
+  padding: 2rem;
+}
+
+.home-hero,
+.home-header {
+  align-items: flex-start;
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.login-shell {
+  display: grid;
+  gap: 2rem;
+  grid-template-columns: minmax(18rem, 1fr) minmax(18rem, 24rem);
+  place-items: center;
+}
+
+.login-form,
+.wizard-shell,
+.project-list {
+  background: #ffffff;
+  border: 1px solid #d7dde7;
+  border-radius: 8px;
+  box-shadow: 0 12px 32px rgb(25 36 54 / 8%);
+}
+
+.login-form {
+  display: grid;
+  gap: 0.9rem;
+  padding: 1.25rem;
+  width: min(100%, 24rem);
+}
+
+.login-form label,
+.project-search,
+.wizard-field,
+.wizard-config label {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.login-form input,
+.project-search input,
+.wizard-field input,
+.wizard-config input,
+.wizard-config select {
+  border: 1px solid #9aa6b2;
+  border-radius: 4px;
+  padding: 0.5rem 0.6rem;
+}
+
+.home-shell button {
+  background: #ffffff;
+  border: 1px solid #8793a0;
+  border-radius: 4px;
+  cursor: pointer;
+  padding: 0.55rem 0.75rem;
+}
+
+.home-shell button:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
+.project-list,
+.wizard-shell {
+  display: grid;
+  gap: 1rem;
+  margin: 0 auto;
+  max-width: 68rem;
+}
+
+.project-list {
+  padding: 1.25rem;
+}
+
+.project-grid {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+}
+
+.project-card {
+  display: grid;
+  gap: 0.4rem;
+  min-height: 8rem;
+  text-align: left;
+}
+
+.empty-projects,
+.wizard-summary {
+  border: 1px dashed #b8c2cf;
+  border-radius: 8px;
+  padding: 1rem;
+}
+
+.wizard-shell {
+  padding: 1.25rem;
+}
+
+.wizard-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.wizard-steps span {
+  border: 1px solid #ccd5df;
+  border-radius: 999px;
+  padding: 0.35rem 0.65rem;
+}
+
+.wizard-steps span[aria-current="step"] {
+  background: #e8f2ff;
+  border-color: #1677ff;
+}
+
+.profile-options,
+.wizard-config,
+.wizard-actions {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.wizard-actions {
+  grid-template-columns: repeat(2, max-content);
+}
+
+@media (max-width: 720px) {
+  .login-shell,
+  .home-header {
+    display: grid;
+  }
+}
