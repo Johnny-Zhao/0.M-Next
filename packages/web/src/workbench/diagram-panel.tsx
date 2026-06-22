@@ -9,10 +9,8 @@ import {
   type Connection,
   type Edge,
   type EdgeMouseHandler,
-  type Node,
   type OnNodeDrag,
   type NodeMouseHandler,
-  type NodeProps,
   type OnSelectionChangeParams,
 } from "@xyflow/react";
 import {
@@ -60,21 +58,16 @@ import {
   type DiagramEdgeData,
 } from "./edges";
 import {
-  PortHandles,
-  portHandleId,
-  relationPortSides,
-  type PortSide,
-} from "./ports";
+  ObjectNode,
+  type ObjectFieldPreview,
+  type ObjectFlowNode,
+  type ObjectNodeData,
+  type ObjectTypeVariant,
+} from "./object-node";
+import { portHandleId, relationPortSides, type PortSide } from "./ports";
 import { useWorkbenchContext } from "./workbench";
 
-export interface DiagramNodeData extends Record<string, unknown> {
-  readonly title: string;
-  readonly objectType: string;
-  readonly status: string;
-  readonly fxText: string;
-}
-
-export type DiagramNode = Node<DiagramNodeData, "object">;
+export type DiagramNode = ObjectFlowNode;
 export type DiagramEdge = Edge<DiagramEdgeData, "dataRelation">;
 
 type DiagramRelationSummary = RelationSummary &
@@ -109,26 +102,17 @@ export function isDerivedField(code: string): boolean {
   );
 }
 
-function ObjectFlowNode({
-  data,
-  selected,
-}: NodeProps<DiagramNode>): ReactElement {
-  return (
-    <div
-      className={selected ? "object-node object-node-selected" : "object-node"}
-    >
-      <PortHandles />
-      <div className="object-node-type">{data.objectType}</div>
-      <strong>{data.title}</strong>
-      <span>{data.status}</span>
-      <small>fx {data.fxText}</small>
-    </div>
-  );
-}
-
 export function objectTitle(object: ViewObject): string {
   const value = object.fields.name ?? object.fields.title ?? object.objectId;
   return String(value);
+}
+
+export function objectCode(object: ViewObject): string {
+  const value = object.fields.code ?? object.fields.identifier;
+  if (value !== undefined && value !== null && String(value).trim() !== "") {
+    return String(value);
+  }
+  return object.objectId.slice(0, 8).toUpperCase();
 }
 
 export function objectFxText(object: ViewObject): string {
@@ -137,6 +121,53 @@ export function objectFxText(object: ViewObject): string {
   );
   if (entries.length === 0) return "TODO(view-API): 派生值未提供";
   return entries.map(([code, value]) => `${code}=${String(value)}`).join(", ");
+}
+
+export function objectTypeVariant(objectType: string): ObjectTypeVariant {
+  const normalized = objectType.toLowerCase();
+  if (normalized.includes("subsystem") || objectType.includes("分系统")) {
+    return "subsystem";
+  }
+  if (normalized.includes("interface") || objectType.includes("接口")) {
+    return "interface";
+  }
+  if (normalized.includes("requirement") || objectType.includes("需求")) {
+    return "requirement";
+  }
+  return "component";
+}
+
+export function objectFieldPreviews(
+  object: ViewObject,
+): readonly ObjectFieldPreview[] {
+  return Object.entries(object.fields)
+    .filter(
+      ([code]) => !isDerivedField(code) && !reservedObjectFieldCodes.has(code),
+    )
+    .slice(0, 2)
+    .map(([code, value]) => ({ code, value: String(value) }));
+}
+
+export function objectReadonly(object: ViewObject): boolean {
+  const status = object.status.toLowerCase();
+  const source = String(object.fields.source ?? "").toLowerCase();
+  return status.includes("readonly") || source === "artifact_sync";
+}
+
+export function objectNodeData(object: ViewObject): ObjectNodeData {
+  return {
+    title: objectTitle(object),
+    objectType: object.objectType,
+    status: object.status,
+    code: objectCode(object),
+    typeVariant: objectTypeVariant(object.objectType),
+    fields: objectFieldPreviews(object),
+    fxText: objectFxText(object),
+    ruleStatus: "TODO",
+    provenanceText: `${object.status} / TODO(view-API): provenance`,
+    visualState: "default",
+    readonly: objectReadonly(object),
+  };
 }
 
 export function relationLabel(relation: DiagramRelationSummary): string {
@@ -184,12 +215,7 @@ export function objectsAndRelationsToFlow(
         y: 80 + Math.floor(index / 4) * 160,
       },
       selected: selectedIds.has(object.objectId),
-      data: {
-        title: objectTitle(object),
-        objectType: object.objectType,
-        status: object.status,
-        fxText: objectFxText(object),
-      },
+      data: objectNodeData(object),
     }),
   );
   const objectIds = new Set(objects.map((object) => object.objectId));
@@ -238,9 +264,23 @@ function normalizeSelectedIds(
   );
 }
 
-const nodeTypes = { object: ObjectFlowNode };
+const nodeTypes = { object: ObjectNode };
 const snapGrid: [number, number] = [24, 24];
 const noGuides: SmartGuides = { x: [], y: [] };
+const reservedObjectFieldCodes = new Set([
+  "code",
+  "identifier",
+  "ruleStatus",
+  "checkStatus",
+  "source",
+  "provenanceSource",
+  "freshness",
+  "freshnessStatus",
+  "downstreamCount",
+  "dependencyCount",
+  "uiState",
+  "visualState",
+]);
 
 function selectedIdsFor(nodes: readonly DiagramNode[]): ReadonlySet<string> {
   return new Set(nodes.filter((node) => node.selected).map((node) => node.id));
