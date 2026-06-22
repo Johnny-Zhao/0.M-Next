@@ -76,6 +76,7 @@ class ReadModelProjection {
         uuid(after, "objectId"),
         objectTypeCode,
         text(after, "status", "DRAFT"),
+        event.source(),
         event.version(),
         event.occurredAt());
   }

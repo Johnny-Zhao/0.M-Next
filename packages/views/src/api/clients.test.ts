@@ -17,6 +17,7 @@ describe("view and command clients", () => {
                 version: 1,
                 fields: {},
                 updatedAt: "2026-06-21T00:00:00Z",
+                source: "manual",
                 ruleStatus: "WARN",
               },
             ],
@@ -31,6 +32,7 @@ describe("view and command clients", () => {
       "/api/workspaces/ws/views/objects?objectType=demo_object&page=2&pageSize=200",
     );
     expect(page.items[0]?.ruleStatus).toBe("WARN");
+    expect(page.items[0]?.source).toBe("manual");
     expect(() => client.objects("ws", "demo_object", 0, 201)).toThrow();
   });
 

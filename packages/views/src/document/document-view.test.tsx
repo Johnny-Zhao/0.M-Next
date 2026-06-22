@@ -203,6 +203,7 @@ function object(id: string, name: string): ViewObject {
     version: 1,
     fields: { name, body: `${name} body` },
     updatedAt: "2026-06-14T00:00:00Z",
+    source: null,
     ruleStatus: "OK",
   };
 }
