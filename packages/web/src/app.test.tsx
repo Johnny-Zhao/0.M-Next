@@ -59,6 +59,30 @@ describe("App", () => {
     expect(flow.edges).toHaveLength(1);
     expect(flow.nodes[1]?.selected).toBe(true);
     expect(flow.nodes[0]?.data.fxText).toContain("fx_score=12");
+    expect(
+      objectsAndRelationsToFlow(
+        [
+          {
+            objectId: "obj-a",
+            objectType: "demo_object",
+            status: "DRAFT",
+            version: 1,
+            fields: { name: "对象A" },
+            updatedAt: "2026-06-21T00:00:00Z",
+          },
+          {
+            objectId: "obj-b",
+            objectType: "demo_object",
+            status: "DRAFT",
+            version: 1,
+            fields: { name: "对象B" },
+            updatedAt: "2026-06-21T00:00:00Z",
+          },
+        ],
+        [],
+        ["obj-a", "obj-b"],
+      ).nodes.every((node) => node.selected),
+    ).toBe(true);
   });
 
   it("saves a driving field through the command client", async () => {
