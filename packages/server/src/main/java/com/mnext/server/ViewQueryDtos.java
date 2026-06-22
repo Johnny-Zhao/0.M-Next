@@ -17,6 +17,7 @@ record ObjectView(
     long version,
     Map<String, Object> fields,
     Instant updatedAt,
+    String source,
     String ruleStatus) {}
 
 record RuleStatusView(UUID objectId, String ruleStatus) {}

@@ -286,6 +286,7 @@ public class ViewQueryController {
         object.version(),
         object.fields(),
         object.updatedAt(),
+        object.source(),
         statuses.getOrDefault(object.objectId(), "UNKNOWN"));
   }
 

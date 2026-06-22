@@ -94,6 +94,7 @@ function object(
     version: 7,
     fields,
     updatedAt: "2026-06-21T00:00:00Z",
+    source: null,
     ruleStatus: "OK",
   };
 }

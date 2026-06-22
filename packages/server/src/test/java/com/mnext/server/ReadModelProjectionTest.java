@@ -41,7 +41,8 @@ class ReadModelProjectionTest {
         event("e5", "RelationUnlinked", "relation", RELATION, 2, Map.of("status", "UNLINKED")));
 
     verify(repository)
-        .createObject(eq(WORKSPACE), eq(OBJECT), eq("requirement"), eq("DRAFT"), eq(1L), any());
+        .createObject(
+            eq(WORKSPACE), eq(OBJECT), eq("requirement"), eq("DRAFT"), eq("manual"), eq(1L), any());
     verify(repository).updateField(eq(WORKSPACE), eq(OBJECT), eq("budget"), eq(5), eq(2L), any());
     verify(repository)
         .updateObjectStatus(eq(WORKSPACE), eq(OBJECT), eq("CONFIRMED"), eq(3L), any());
@@ -68,7 +69,7 @@ class ReadModelProjectionTest {
     assertTrue(projection.apply(event));
     assertFalse(projection.apply(event));
 
-    verify(repository).createObject(eq(WORKSPACE), eq(OBJECT), any(), any(), eq(1L), any());
+    verify(repository).createObject(eq(WORKSPACE), eq(OBJECT), any(), any(), any(), eq(1L), any());
   }
 
   @Test
@@ -77,7 +78,8 @@ class ReadModelProjectionTest {
 
     projection.apply(event("persisted", "ObjectCreated", "object", OBJECT, 1, objectAfter()));
 
-    verify(repository, never()).createObject(any(), any(), any(), any(), any(Long.class), any());
+    verify(repository, never())
+        .createObject(any(), any(), any(), any(), any(), any(Long.class), any());
   }
 
   private static EventEnvelope event(

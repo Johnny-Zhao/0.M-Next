@@ -22,6 +22,7 @@ export interface ViewObject {
   readonly version: number;
   readonly fields: Readonly<Record<string, unknown>>;
   readonly updatedAt: string;
+  readonly source: string | null;
   readonly ruleStatus: RuleStatus;
 }
 

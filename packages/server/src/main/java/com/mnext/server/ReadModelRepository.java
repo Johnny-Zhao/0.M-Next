@@ -60,19 +60,22 @@ class ReadModelRepository {
       UUID objectId,
       String typeCode,
       String status,
+      String sourceKind,
       long version,
       Instant updatedAt) {
     jdbc.update(
         """
         INSERT INTO rm_object
-          (workspace_id, object_id, object_type_code, status, version, fields, updated_at)
-        VALUES (?, ?, ?, ?, ?, '{}'::jsonb, ?)
+          (workspace_id, object_id, object_type_code, status, source_kind, version, fields,
+           updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, '{}'::jsonb, ?)
         ON CONFLICT (workspace_id, object_id) DO NOTHING
         """,
         workspaceId,
         objectId,
         typeCode,
         status,
+        sourceKind,
         version,
         java.sql.Timestamp.from(updatedAt));
   }
@@ -278,7 +281,8 @@ class ReadModelRepository {
     var items =
         jdbc.query(
             """
-            SELECT object_id, object_type_code, status, version, fields::text, updated_at
+            SELECT object_id, object_type_code, status, version, fields::text, updated_at,
+                   source_kind
             FROM rm_object WHERE workspace_id = ? AND object_type_code = ?
             ORDER BY object_id LIMIT ? OFFSET ?
             """,
@@ -294,7 +298,8 @@ class ReadModelRepository {
     var object =
         jdbc.query(
             """
-            SELECT object_id, object_type_code, status, version, fields::text, updated_at
+            SELECT object_id, object_type_code, status, version, fields::text, updated_at,
+                   source_kind
             FROM rm_object WHERE workspace_id = ? AND object_id = ?
             """,
             result -> result.next() ? object(result) : null,
@@ -504,7 +509,7 @@ class ReadModelRepository {
     return jdbc.query(
         """
         SELECT object.object_id, object.object_type_code, object.status, object.version,
-               object.fields::text, object.updated_at
+               object.fields::text, object.updated_at, object.source_kind
         FROM rm_relation relation
         JOIN rm_object object
           ON object.workspace_id = relation.workspace_id
@@ -650,6 +655,7 @@ class ReadModelRepository {
         row.getLong(4),
         map(row.getString(5)),
         row.getTimestamp(6).toInstant(),
+        row.getString(7),
         "UNKNOWN");
   }
 
