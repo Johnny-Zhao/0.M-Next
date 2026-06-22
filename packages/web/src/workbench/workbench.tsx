@@ -6,7 +6,9 @@ import {
 } from "dockview";
 import {
   createContext,
+  useCallback,
   useContext,
+  useEffect,
   useMemo,
   useState,
   type ReactElement,
@@ -14,6 +16,12 @@ import {
 
 import { CommandClient, SelectionCoordinator, ViewClient } from "@m-next/views";
 
+import { CommandPalette, isCommandPaletteShortcut } from "./command-palette";
+import type {
+  CommandContext,
+  CommandPanelId,
+  CommandRegistry,
+} from "./commands";
 import { DiagramPanel } from "./diagram-panel";
 import { InspectorPanel } from "./inspector-panel";
 import { TreePanel } from "./tree-panel";
@@ -74,12 +82,32 @@ export function ensureWorkbenchPanels(api: DockviewApi): void {
   });
 }
 
+export function openWorkbenchPanel(
+  api: DockviewApi,
+  panelId: WorkbenchPanelId,
+): void {
+  const existing = api.getPanel(panelId);
+  if (existing) {
+    existing.api.setActive();
+    api.focus();
+    return;
+  }
+  const definition = workbenchPanelDefinitions.find(
+    (panel) => panel.id === panelId,
+  );
+  if (!definition) return;
+  const panel = api.addPanel(definition);
+  panel.api.setActive();
+  api.focus();
+}
+
 export interface WorkbenchProps {
   readonly workspaceId: string;
   readonly viewClient: ViewClient;
   readonly commandClient: CommandClient;
   readonly selection: SelectionCoordinator;
   readonly onError: (message: string) => void;
+  readonly commandRegistry?: CommandRegistry;
 }
 
 const dockviewComponents: Record<
@@ -97,11 +125,27 @@ export function Workbench({
   commandClient,
   selection,
   onError,
+  commandRegistry,
 }: WorkbenchProps): ReactElement {
   const [objectType, setObjectType] = useState("demo_object");
   const [relationType, setRelationType] = useState("depends_on");
   const [rootId, setRootId] = useState("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
   const [refreshVersion, setRefreshVersion] = useState(0);
+  const [dockviewApi, setDockviewApi] = useState<DockviewApi | null>(null);
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+
+  const refreshViews = useCallback(
+    () => setRefreshVersion((value) => value + 1),
+    [],
+  );
+
+  const activatePanel = useCallback(
+    (panelId: CommandPanelId) => {
+      if (!dockviewApi) return;
+      openWorkbenchPanel(dockviewApi, panelId);
+    },
+    [dockviewApi],
+  );
 
   const context = useMemo<WorkbenchContextValue>(
     () => ({
@@ -116,7 +160,7 @@ export function Workbench({
       setObjectType,
       setRelationType,
       setRootId,
-      refreshViews: () => setRefreshVersion((value) => value + 1),
+      refreshViews,
       reportError: onError,
     }),
     [
@@ -124,6 +168,7 @@ export function Workbench({
       objectType,
       onError,
       refreshVersion,
+      refreshViews,
       relationType,
       rootId,
       selection,
@@ -131,6 +176,39 @@ export function Workbench({
       workspaceId,
     ],
   );
+
+  const commandContext = useMemo<CommandContext>(
+    () => ({
+      workspaceId,
+      objectType,
+      viewClient,
+      commandClient,
+      selection,
+      activatePanel,
+      openPanel: activatePanel,
+      setRootId,
+      refreshViews,
+    }),
+    [
+      activatePanel,
+      commandClient,
+      objectType,
+      refreshViews,
+      selection,
+      viewClient,
+      workspaceId,
+    ],
+  );
+
+  useEffect(() => {
+    function handleKeyDown(event: globalThis.KeyboardEvent): void {
+      if (!isCommandPaletteShortcut(event)) return;
+      event.preventDefault();
+      setCommandPaletteOpen(true);
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   return (
     <WorkbenchContext.Provider value={context}>
@@ -164,11 +242,19 @@ export function Workbench({
         <div className="dockview-theme-light workbench-dock">
           <DockviewReact
             components={dockviewComponents}
-            onReady={(event: DockviewReadyEvent) =>
-              ensureWorkbenchPanels(event.api)
-            }
+            onReady={(event: DockviewReadyEvent) => {
+              setDockviewApi(event.api);
+              ensureWorkbenchPanels(event.api);
+            }}
           />
         </div>
+        <CommandPalette
+          context={commandContext}
+          isOpen={commandPaletteOpen}
+          onClose={() => setCommandPaletteOpen(false)}
+          onError={onError}
+          registry={commandRegistry}
+        />
       </section>
     </WorkbenchContext.Provider>
   );

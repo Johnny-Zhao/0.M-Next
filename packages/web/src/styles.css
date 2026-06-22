@@ -93,6 +93,78 @@ main {
   min-height: 34rem;
 }
 
+.command-palette-backdrop {
+  align-items: flex-start;
+  background: rgb(24 33 47 / 24%);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding-top: 12vh;
+  position: fixed;
+  z-index: 20;
+}
+
+.command-palette {
+  background: #ffffff;
+  border: 1px solid #9aa6b2;
+  border-radius: 8px;
+  box-shadow: 0 16px 48px rgb(24 33 47 / 20%);
+  max-width: calc(100vw - 2rem);
+  overflow: hidden;
+  width: 38rem;
+}
+
+.command-palette input {
+  border: 0;
+  border-bottom: 1px solid #d7dde7;
+  box-sizing: border-box;
+  font: inherit;
+  outline: none;
+  padding: 0.9rem 1rem;
+  width: 100%;
+}
+
+.command-palette-list {
+  max-height: 24rem;
+  overflow: auto;
+  padding: 0.5rem;
+}
+
+.command-palette-empty {
+  color: #546273;
+  margin: 0;
+  padding: 1rem;
+}
+
+.command-palette-group h2 {
+  color: #6b7788;
+  font-size: 0.78rem;
+  font-weight: 700;
+  margin: 0.65rem 0.45rem 0.35rem;
+}
+
+.command-palette-group button {
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  color: #18212f;
+  cursor: pointer;
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.65rem 0.7rem;
+  text-align: left;
+  width: 100%;
+}
+
+.command-palette-group button[aria-current="true"],
+.command-palette-group button:hover {
+  background: #e6f4ff;
+}
+
+.command-palette-group small {
+  color: #546273;
+}
+
 .diagram-panel {
   height: 100%;
   min-height: 26rem;
