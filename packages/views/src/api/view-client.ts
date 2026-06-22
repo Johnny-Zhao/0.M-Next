@@ -107,6 +107,23 @@ export interface LineageView {
   readonly truncated: boolean;
 }
 
+export interface TemplateTypeOverview {
+  readonly code: string;
+  readonly name: string;
+}
+
+export interface TemplateCatalogItem {
+  readonly templateId: string;
+  readonly code: string;
+  readonly name: string;
+  readonly version: number;
+  readonly latestPublishedVersion: number;
+  readonly publishedAt: string | null;
+  readonly description: string | null;
+  readonly typeOverview: readonly TemplateTypeOverview[];
+  readonly typeOverviewTruncated: boolean;
+}
+
 export type FetchFn = (
   input: RequestInfo | URL,
   init?: RequestInit,
@@ -120,6 +137,10 @@ export class ViewClient {
 
   objectTypes(workspaceId: string): Promise<readonly ObjectType[]> {
     return this.get(`/workspaces/${workspaceId}/views/object-types`);
+  }
+
+  templates(): Promise<readonly TemplateCatalogItem[]> {
+    return this.get("/views/templates");
   }
 
   objects(
