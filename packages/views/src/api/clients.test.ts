@@ -73,6 +73,33 @@ describe("view and command clients", () => {
     );
   });
 
+  it("reads lineage with encoded object and field scope", async () => {
+    const fetchFn = vi.fn<FetchFn>(
+      async () =>
+        new Response(
+          JSON.stringify({
+            objectId: "obj-1",
+            fieldCode: "total_load",
+            upstream: [],
+            algorithm: { kind: "derived", ref: "derived-1" },
+            downstream: [],
+            partial: false,
+            truncated: false,
+          }),
+        ),
+    );
+    const lineage = await new ViewClient("/api", fetchFn).lineage(
+      "ws",
+      "obj-1",
+      "total load",
+    );
+
+    expect(fetchFn.mock.calls[0]?.[0]).toBe(
+      "/api/workspaces/ws/views/lineage?objectId=obj-1&fieldCode=total+load",
+    );
+    expect(lineage.algorithm.kind).toBe("derived");
+  });
+
   it("posts UpdateFields with expectedFieldVersion", async () => {
     const fetchFn = vi.fn<FetchFn>(
       async () => new Response(null, { status: 200 }),

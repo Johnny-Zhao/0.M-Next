@@ -87,3 +87,24 @@ record RecommendationView(
     this(recommended, alternatives, List.of());
   }
 }
+
+record LineageView(
+    UUID objectId,
+    String fieldCode,
+    List<LineageNode> upstream,
+    LineageAlgorithm algorithm,
+    List<LineageNode> downstream,
+    boolean partial,
+    boolean truncated) {}
+
+record LineageAlgorithm(String kind, String ref) {}
+
+record LineageNode(
+    String kind,
+    UUID objectId,
+    String objectType,
+    String fieldCode,
+    String ref,
+    String source,
+    Instant updatedAt,
+    int depth) {}

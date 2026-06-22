@@ -28,6 +28,7 @@ public class ViewQueryController {
   private final CheckResultRepository checkResults;
   private final ObjectProvider<DerivedEvaluator> derivedEvaluator;
   private final SimulationRunRepository simulationRuns;
+  private final LineageQueryRepository lineageQueries;
   private final WorkspaceAuthorizer authorizer;
 
   public ViewQueryController(
@@ -35,11 +36,13 @@ public class ViewQueryController {
       CheckResultRepository checkResults,
       ObjectProvider<DerivedEvaluator> derivedEvaluator,
       @Nullable SimulationRunRepository simulationRuns,
+      LineageQueryRepository lineageQueries,
       WorkspaceAuthorizer authorizer) {
     this.repository = repository;
     this.checkResults = checkResults;
     this.derivedEvaluator = derivedEvaluator;
     this.simulationRuns = simulationRuns;
+    this.lineageQueries = lineageQueries;
     this.authorizer = authorizer;
   }
 
@@ -85,6 +88,16 @@ public class ViewQueryController {
         .distinct()
         .map(objectId -> new RuleStatusView(objectId, statuses.getOrDefault(objectId, "UNKNOWN")))
         .toList();
+  }
+
+  @GetMapping("/workspaces/{workspaceId}/views/lineage")
+  public LineageView lineage(
+      @PathVariable("workspaceId") UUID workspaceId,
+      @RequestParam("objectId") UUID objectId,
+      @RequestParam("fieldCode") String fieldCode) {
+    authorize(workspaceId);
+    if (fieldCode.isBlank()) throw new IllegalArgumentException("fieldCode 必填");
+    return lineageQueries.lineage(workspaceId, objectId, fieldCode);
   }
 
   @GetMapping("/workspaces/{workspaceId}/views/relations")
