@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
+import type { ViewObject } from "@m-next/views";
+
 import {
   connectDiagramObjects,
   objectsAndRelationsToFlow,
@@ -93,7 +95,7 @@ describe("diagram relation edges", () => {
   });
 });
 
-function object(objectId: string, name: string) {
+function object(objectId: string, name: string): ViewObject {
   return {
     objectId,
     objectType: "demo_object",
@@ -101,6 +103,7 @@ function object(objectId: string, name: string) {
     version: 1,
     fields: { name },
     updatedAt: "2026-06-21T00:00:00Z",
+    ruleStatus: "OK",
   };
 }
 

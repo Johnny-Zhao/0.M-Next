@@ -70,7 +70,13 @@ describe("ObjectNode", () => {
       );
     }
 
-    for (const ruleStatus of ["BLOCK", "WARN", "OK", "TODO"] as const) {
+    for (const ruleStatus of [
+      "BLOCK",
+      "WARN",
+      "OK",
+      "UNKNOWN",
+      "TODO",
+    ] as const) {
       expect(renderNode({ ...baseData, ruleStatus })).toContain(
         `rule-lamp-${ruleStatus.toLowerCase()}`,
       );

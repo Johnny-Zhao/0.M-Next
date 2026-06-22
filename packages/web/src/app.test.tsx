@@ -34,6 +34,7 @@ describe("App", () => {
           version: 1,
           fields: { name: "对象A", fx_score: 12 },
           updatedAt: "2026-06-21T00:00:00Z",
+          ruleStatus: "OK",
         },
         {
           objectId: "obj-b",
@@ -42,6 +43,7 @@ describe("App", () => {
           version: 1,
           fields: { name: "对象B" },
           updatedAt: "2026-06-21T00:00:00Z",
+          ruleStatus: "OK",
         },
       ],
       [
@@ -69,6 +71,7 @@ describe("App", () => {
             version: 1,
             fields: { name: "对象A" },
             updatedAt: "2026-06-21T00:00:00Z",
+            ruleStatus: "OK",
           },
           {
             objectId: "obj-b",
@@ -77,6 +80,7 @@ describe("App", () => {
             version: 1,
             fields: { name: "对象B" },
             updatedAt: "2026-06-21T00:00:00Z",
+            ruleStatus: "OK",
           },
         ],
         [],
@@ -101,6 +105,7 @@ describe("App", () => {
         version: 7,
         fields: { name: "旧值" },
         updatedAt: "2026-06-21T00:00:00Z",
+        ruleStatus: "OK",
       },
       "name",
       "新值",

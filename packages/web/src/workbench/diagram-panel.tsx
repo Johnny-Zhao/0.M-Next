@@ -163,7 +163,7 @@ export function objectNodeData(object: ViewObject): ObjectNodeData {
     typeVariant: objectTypeVariant(object.objectType),
     fields: objectFieldPreviews(object),
     fxText: objectFxText(object),
-    ruleStatus: "TODO",
+    ruleStatus: object.ruleStatus,
     provenanceText: `${object.status} / TODO(view-API): provenance`,
     visualState: "default",
     readonly: objectReadonly(object),

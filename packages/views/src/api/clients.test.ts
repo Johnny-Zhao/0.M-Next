@@ -6,16 +6,55 @@ import { ViewClient, type FetchFn } from "./view-client";
 describe("view and command clients", () => {
   it("scopes paged object reads and caps page size", async () => {
     const fetchFn = vi.fn<FetchFn>(
-      async () => new Response(JSON.stringify({ items: [] })),
+      async () =>
+        new Response(
+          JSON.stringify({
+            items: [
+              {
+                objectId: "obj-1",
+                objectType: "demo_object",
+                status: "DRAFT",
+                version: 1,
+                fields: {},
+                updatedAt: "2026-06-21T00:00:00Z",
+                ruleStatus: "WARN",
+              },
+            ],
+          }),
+        ),
     );
     const client = new ViewClient("/api", fetchFn);
 
-    await client.objects("ws", "demo_object", 2, 200);
+    const page = await client.objects("ws", "demo_object", 2, 200);
 
     expect(fetchFn.mock.calls[0]?.[0]).toBe(
       "/api/workspaces/ws/views/objects?objectType=demo_object&page=2&pageSize=200",
     );
+    expect(page.items[0]?.ruleStatus).toBe("WARN");
     expect(() => client.objects("ws", "demo_object", 0, 201)).toThrow();
+  });
+
+  it("reads bounded rule statuses in batch", async () => {
+    const fetchFn = vi.fn<FetchFn>(
+      async () =>
+        new Response(
+          JSON.stringify([{ objectId: "obj-1", ruleStatus: "BLOCK" }]),
+        ),
+    );
+    const client = new ViewClient("/api", fetchFn);
+
+    const statuses = await client.ruleStatus("ws", ["obj-1", "obj-2"]);
+
+    expect(fetchFn.mock.calls[0]?.[0]).toBe(
+      "/api/workspaces/ws/views/rule-status?objectIds=obj-1&objectIds=obj-2",
+    );
+    expect(statuses[0]?.ruleStatus).toBe("BLOCK");
+    expect(() =>
+      client.ruleStatus(
+        "ws",
+        Array.from({ length: 201 }, (_, index) => `obj-${index}`),
+      ),
+    ).toThrow();
   });
 
   it("bounds relation depth and scopes tree reads", async () => {

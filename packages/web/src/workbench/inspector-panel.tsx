@@ -39,8 +39,7 @@ export async function saveDrivingField(
 }
 
 export function ruleStatusText(object: ViewObject): string {
-  const value = object.fields.ruleStatus ?? object.fields.checkStatus;
-  return value === undefined ? "TODO(view-API): 规则态未提供" : String(value);
+  return object.ruleStatus;
 }
 
 /** 新鲜度:把 ISO 时间转成相对描述。无法解析返回 "—"。纯函数,便于测试。 */
