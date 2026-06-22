@@ -794,3 +794,124 @@ main {
     transform: rotate(360deg);
   }
 }
+
+.diagram-dimension-switcher,
+.diagram-dimension-legend {
+  align-items: center;
+  background: rgb(255 255 255 / 94%);
+  border: 1px solid var(--mnext-border);
+  border-radius: var(--mnext-radius-md);
+  box-shadow: var(--mnext-shadow-1);
+  display: flex;
+  gap: 0.35rem;
+  left: 0.75rem;
+  position: absolute;
+  z-index: 5;
+}
+
+.diagram-dimension-switcher {
+  padding: 0.35rem 0.45rem;
+  top: 0.75rem;
+}
+
+.diagram-dimension-switcher span {
+  color: var(--mnext-ink-soft);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.diagram-dimension-switcher button {
+  background: var(--mnext-surface-raised);
+  border: 1px solid var(--mnext-border-strong);
+  border-radius: var(--mnext-radius-sm);
+  color: var(--mnext-ink);
+  cursor: pointer;
+  min-height: 1.85rem;
+  padding: 0.25rem 0.5rem;
+}
+
+.diagram-dimension-switcher button:hover,
+.diagram-dimension-switcher button[aria-pressed="true"] {
+  background: var(--mnext-surface-hover);
+  border-color: var(--dimension-color, var(--mnext-brand));
+  color: var(--dimension-color, var(--mnext-brand));
+}
+
+.dimension-button-energy,
+.diagram-dimension-legend-energy {
+  --dimension-color: var(--mnext-info);
+}
+
+.dimension-button-thermal,
+.diagram-dimension-legend-thermal {
+  --dimension-color: var(--mnext-warn);
+}
+
+.dimension-button-mass,
+.diagram-dimension-legend-mass {
+  --dimension-color: var(--mnext-type-interface);
+}
+
+.diagram-dimension-legend {
+  --dimension-color: var(--mnext-brand);
+  color: var(--mnext-ink-soft);
+  font-size: 0.76rem;
+  max-width: min(30rem, calc(100% - 1.5rem));
+  padding: 0.4rem 0.55rem;
+  top: 3.65rem;
+}
+
+.diagram-dimension-legend strong {
+  color: var(--dimension-color);
+}
+
+.dimension-legend-ramp {
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--dimension-color) 18%, transparent),
+    var(--dimension-color)
+  );
+  border-radius: 999px;
+  height: 0.5rem;
+  width: 3.2rem;
+}
+
+.object-node-dimension-energy {
+  --object-accent: var(--mnext-info);
+}
+
+.object-node-dimension-thermal {
+  --object-accent: var(--mnext-warn);
+}
+
+.object-node-dimension-mass {
+  --object-accent: var(--mnext-type-interface);
+}
+
+.object-node-dimension-tone-ok {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--mnext-ok) 12%, transparent);
+}
+
+.object-node-dimension-tone-warn {
+  border-color: var(--mnext-warn);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--mnext-warn) 16%, transparent);
+}
+
+.object-node-dimension-tone-block {
+  border-color: var(--mnext-block);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--mnext-block) 16%, transparent);
+}
+
+.object-node-dimension-tone-empty {
+  border-style: dashed;
+  color: var(--mnext-ink-soft);
+}
+
+.object-node-field-empty {
+  background: var(--mnext-neutral-bg);
+  border: 1px dashed var(--mnext-border-strong);
+  border-radius: var(--mnext-radius-sm);
+  color: var(--mnext-ink-muted);
+  font-size: 0.78rem;
+  padding: 0.4rem 0.5rem;
+}

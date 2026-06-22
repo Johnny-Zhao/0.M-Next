@@ -1,6 +1,7 @@
 import type { Node, NodeProps } from "@xyflow/react";
 import type { ReactElement } from "react";
 
+import type { DimensionId } from "./dimensions";
 import { PortHandles } from "./ports";
 
 export type ObjectTypeVariant =
@@ -17,6 +18,7 @@ export type ObjectVisualState =
   | "vetoed";
 
 export type ObjectRuleStatus = "BLOCK" | "WARN" | "OK" | "UNKNOWN" | "TODO";
+export type ObjectDimensionTone = "normal" | "ok" | "warn" | "block" | "empty";
 
 export interface ObjectFieldPreview {
   readonly code: string;
@@ -32,6 +34,10 @@ export interface ObjectNodeData extends Record<string, unknown> {
   readonly fields: readonly ObjectFieldPreview[];
   readonly fxText: string;
   readonly ruleStatus: ObjectRuleStatus;
+  readonly activeDimension?: DimensionId;
+  readonly dimensionLabel?: string;
+  readonly dimensionTone?: ObjectDimensionTone;
+  readonly dimensionEmpty?: boolean;
   readonly provenanceText: string;
   readonly visualState: ObjectVisualState;
   readonly readonly: boolean;
@@ -47,6 +53,10 @@ export function ObjectNode({
     "object-node",
     `object-node-${data.typeVariant}`,
     `object-node-state-${data.visualState}`,
+    data.activeDimension ? `object-node-dimension-${data.activeDimension}` : "",
+    data.dimensionTone
+      ? `object-node-dimension-tone-${data.dimensionTone}`
+      : "",
     selected ? "object-node-selected" : "",
     data.readonly ? "object-node-readonly" : "",
   ]
@@ -73,12 +83,17 @@ export function ObjectNode({
         <RuleLamp status={data.ruleStatus} />
       </header>
       <dl className="object-node-fields">
-        {data.fields.map((field) => (
-          <div className="object-node-field" key={field.code}>
-            <dt>{field.code}</dt>
-            <dd>{field.value}</dd>
-          </div>
-        ))}
+        {data.fields.length > 0
+          ? data.fields.map((field) => (
+              <div className="object-node-field" key={field.code}>
+                <dt>{field.code}</dt>
+                <dd>{field.value}</dd>
+              </div>
+            ))
+          : null}
+        {data.dimensionEmpty ? (
+          <div className="object-node-field-empty">该维度无数据</div>
+        ) : null}
       </dl>
       <footer className="object-node-footer">
         <span className="fx-chip" aria-label={`派生值 ${data.fxText}`}>
