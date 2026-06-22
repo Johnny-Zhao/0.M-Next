@@ -82,6 +82,22 @@ describe("ObjectNode", () => {
       );
     }
   });
+
+  it("renders a dimension empty state without inventing fields", () => {
+    const html = renderNode({
+      ...baseData,
+      activeDimension: "thermal",
+      dimensionLabel: "热",
+      dimensionTone: "empty",
+      dimensionEmpty: true,
+      fields: [],
+    });
+
+    expect(html).toContain("object-node-dimension-thermal");
+    expect(html).toContain("object-node-dimension-tone-empty");
+    expect(html).toContain("该维度无数据");
+    expect(html).not.toContain("voltage");
+  });
 });
 
 function renderNode(data: ObjectNodeData): string {

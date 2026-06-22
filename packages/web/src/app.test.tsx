@@ -93,6 +93,34 @@ describe("App", () => {
     ).toBe(true);
   });
 
+  it("switches dimension overlays without moving diagram nodes", () => {
+    const objects = [
+      {
+        objectId: "obj-a",
+        objectType: "demo_object",
+        status: "DRAFT",
+        version: 1,
+        fields: { name: "对象A", energy_soc: 83, temperature: "42C" },
+        updatedAt: "2026-06-21T00:00:00Z",
+        source: null,
+        ruleStatus: "OK" as const,
+      },
+    ];
+
+    const all = objectsAndRelationsToFlow(objects, [], null, "all");
+    const energy = objectsAndRelationsToFlow(objects, [], null, "energy");
+
+    expect(energy.nodes[0]?.position).toEqual(all.nodes[0]?.position);
+    expect(all.nodes[0]?.data.fields.map((field) => field.code)).toEqual([
+      "name",
+      "energy_soc",
+    ]);
+    expect(energy.nodes[0]?.data.fields.map((field) => field.code)).toEqual([
+      "energy_soc",
+    ]);
+    expect(energy.nodes[0]?.data.activeDimension).toBe("energy");
+  });
+
   it("saves a driving field through the command client", async () => {
     const calls: unknown[] = [];
     await saveDrivingField(

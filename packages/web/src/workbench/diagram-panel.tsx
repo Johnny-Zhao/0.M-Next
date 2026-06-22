@@ -59,11 +59,18 @@ import {
 } from "./edges";
 import {
   ObjectNode,
+  type ObjectDimensionTone,
   type ObjectFieldPreview,
   type ObjectFlowNode,
   type ObjectNodeData,
   type ObjectTypeVariant,
 } from "./object-node";
+import {
+  DIMENSIONS,
+  fieldDimension,
+  type ActiveDimensionId,
+  type DimensionDefinition,
+} from "./dimensions";
 import { portHandleId, relationPortSides, type PortSide } from "./ports";
 import { useWorkbenchContext } from "./workbench";
 
@@ -139,10 +146,14 @@ export function objectTypeVariant(objectType: string): ObjectTypeVariant {
 
 export function objectFieldPreviews(
   object: ViewObject,
+  activeDimension: ActiveDimensionId = "all",
 ): readonly ObjectFieldPreview[] {
   return Object.entries(object.fields)
     .filter(
-      ([code]) => !isDerivedField(code) && !reservedObjectFieldCodes.has(code),
+      ([code]) =>
+        !isDerivedField(code) &&
+        !reservedObjectFieldCodes.has(code) &&
+        (activeDimension === "all" || fieldDimension(code) === activeDimension),
     )
     .slice(0, 2)
     .map(([code, value]) => ({ code, value: String(value) }));
@@ -154,16 +165,57 @@ export function objectReadonly(object: ViewObject): boolean {
   return status.includes("readonly") || source === "artifact_sync";
 }
 
-export function objectNodeData(object: ViewObject): ObjectNodeData {
+function dimensionDefinition(
+  activeDimension: ActiveDimensionId,
+): DimensionDefinition | undefined {
+  if (activeDimension === "all") return undefined;
+  return DIMENSIONS.find((dimension) => dimension.id === activeDimension);
+}
+
+function objectDimensionTone(
+  ruleStatus: ObjectNodeData["ruleStatus"],
+  fields: readonly ObjectFieldPreview[],
+): ObjectDimensionTone {
+  if (fields.length === 0) return "empty";
+  if (ruleStatus === "BLOCK") return "block";
+  if (ruleStatus === "WARN") return "warn";
+  if (ruleStatus === "OK") return "ok";
+
+  const valueText = fields
+    .map((field) => field.value)
+    .join(" ")
+    .toLowerCase();
+  if (/block|fail|error|critical|超限|阻断|故障/.test(valueText)) {
+    return "block";
+  }
+  if (/warn|stale|risk|low|high|告警|风险|偏低|偏高/.test(valueText)) {
+    return "warn";
+  }
+  return "normal";
+}
+
+export function objectNodeData(
+  object: ViewObject,
+  activeDimension: ActiveDimensionId = "all",
+): ObjectNodeData {
+  const fields = objectFieldPreviews(object, activeDimension);
+  const dimension = dimensionDefinition(activeDimension);
+  const dimensionTone = dimension
+    ? objectDimensionTone(object.ruleStatus, fields)
+    : undefined;
   return {
     title: objectTitle(object),
     objectType: object.objectType,
     status: object.status,
     code: objectCode(object),
     typeVariant: objectTypeVariant(object.objectType),
-    fields: objectFieldPreviews(object),
+    fields,
     fxText: objectFxText(object),
     ruleStatus: object.ruleStatus,
+    activeDimension: dimension?.id,
+    dimensionLabel: dimension?.label,
+    dimensionTone,
+    dimensionEmpty: Boolean(dimension && fields.length === 0),
     provenanceText: `${object.status} / TODO(view-API): provenance`,
     visualState: "default",
     readonly: objectReadonly(object),
@@ -204,6 +256,7 @@ export function objectsAndRelationsToFlow(
   objects: readonly ViewObject[],
   relations: readonly RelationSummary[],
   selectedObjectIds: string | readonly string[] | null,
+  activeDimension: ActiveDimensionId = "all",
 ): { readonly nodes: DiagramNode[]; readonly edges: DiagramEdge[] } {
   const selectedIds = normalizeSelectedIds(selectedObjectIds);
   const nodes = objects.map(
@@ -215,7 +268,7 @@ export function objectsAndRelationsToFlow(
         y: 80 + Math.floor(index / 4) * 160,
       },
       selected: selectedIds.has(object.objectId),
-      data: objectNodeData(object),
+      data: objectNodeData(object, activeDimension),
     }),
   );
   const objectIds = new Set(objects.map((object) => object.objectId));
@@ -343,6 +396,8 @@ export function DiagramPanel(): ReactElement {
   const [gridVariant, setGridVariant] = useState<BackgroundVariant>(
     BackgroundVariant.Dots,
   );
+  const [activeDimension, setActiveDimension] =
+    useState<ActiveDimensionId>("all");
   const [guides, setGuides] = useState<SmartGuides>(noGuides);
 
   useEffect(
@@ -398,6 +453,7 @@ export function DiagramPanel(): ReactElement {
       data.objects,
       data.relations,
       selectedNodeIds.length > 0 ? selectedNodeIds : selectedObjectId,
+      activeDimension,
     );
     setNodes((currentNodes) => {
       const currentById = new Map(currentNodes.map((node) => [node.id, node]));
@@ -421,6 +477,7 @@ export function DiagramPanel(): ReactElement {
     );
   }, [
     data,
+    activeDimension,
     selectedEdgeIds,
     selectedNodeIds,
     selectedObjectId,
@@ -529,6 +586,11 @@ export function DiagramPanel(): ReactElement {
         selectedEdgeIds.includes(relation.relationId),
       ),
     [data.relations, selectedEdgeIds],
+  );
+
+  const activeDimensionDefinition = useMemo(
+    () => dimensionDefinition(activeDimension),
+    [activeDimension],
   );
 
   function copySelection(): void {
@@ -679,6 +741,45 @@ export function DiagramPanel(): ReactElement {
       onKeyDown={handleKeyDown}
       tabIndex={0}
     >
+      <div
+        aria-label="维度"
+        className="diagram-dimension-switcher"
+        role="toolbar"
+      >
+        <span>维度:</span>
+        <button
+          aria-pressed={activeDimension === "all"}
+          onClick={() => setActiveDimension("all")}
+          type="button"
+        >
+          全部
+        </button>
+        {DIMENSIONS.map((dimension) => (
+          <button
+            aria-pressed={activeDimension === dimension.id}
+            className={`dimension-button-${dimension.id}`}
+            key={dimension.id}
+            onClick={() => setActiveDimension(dimension.id)}
+            type="button"
+          >
+            {dimension.label}
+          </button>
+        ))}
+      </div>
+      <div
+        className={[
+          "diagram-dimension-legend",
+          activeDimensionDefinition
+            ? `diagram-dimension-legend-${activeDimensionDefinition.id}`
+            : "",
+        ]
+          .filter(Boolean)
+          .join(" ")}
+      >
+        <span className="dimension-legend-ramp" aria-hidden="true" />
+        <strong>{activeDimensionDefinition?.label ?? "全部"}</strong>
+        <span>{activeDimensionDefinition?.description ?? "对象字段预览"}</span>
+      </div>
       <div className="diagram-grid-controls">
         <label>
           <input
