@@ -9,6 +9,8 @@ import com.mnext.kernel.api.metamodel.DefineRelationTypeCommand;
 import com.mnext.kernel.api.metamodel.DefineValueTypeCommand;
 import com.mnext.kernel.api.metamodel.InstantiateWorkspaceCommand;
 import com.mnext.kernel.api.metamodel.PublishTemplateVersionCommand;
+import com.mnext.kernel.api.metamodel.RestoreTemplateVersionCommand;
+import com.mnext.kernel.api.metamodel.WithdrawTemplateVersionCommand;
 
 public interface MetaCommandService {
   CommandResult createTemplate(CreateTemplateCommand command, Actor actor);
@@ -24,6 +26,10 @@ public interface MetaCommandService {
   CommandResult defineValueType(DefineValueTypeCommand command, Actor actor);
 
   CommandResult publishTemplateVersion(PublishTemplateVersionCommand command, Actor actor);
+
+  CommandResult withdrawTemplateVersion(WithdrawTemplateVersionCommand command, Actor actor);
+
+  CommandResult restoreTemplateVersion(RestoreTemplateVersionCommand command, Actor actor);
 
   CommandResult instantiateWorkspace(InstantiateWorkspaceCommand command, Actor actor);
 
