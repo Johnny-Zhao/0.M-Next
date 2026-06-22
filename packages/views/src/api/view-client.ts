@@ -83,6 +83,30 @@ export interface MatrixResult {
   readonly colTotal: number;
 }
 
+export interface LineageNode {
+  readonly kind: "field" | "derived" | "rule" | "recommendation";
+  readonly objectId: string | null;
+  readonly objectType: string | null;
+  readonly fieldCode: string | null;
+  readonly ref: string | null;
+  readonly source: string | null;
+  readonly updatedAt: string | null;
+  readonly depth: number;
+}
+
+export interface LineageView {
+  readonly objectId: string;
+  readonly fieldCode: string;
+  readonly upstream: readonly LineageNode[];
+  readonly algorithm: {
+    readonly kind: "stored" | "derived" | "rule";
+    readonly ref: string;
+  };
+  readonly downstream: readonly LineageNode[];
+  readonly partial: boolean;
+  readonly truncated: boolean;
+}
+
 export type FetchFn = (
   input: RequestInfo | URL,
   init?: RequestInit,
@@ -188,6 +212,15 @@ export class ViewClient {
 
   syncStatus(workspaceId: string): Promise<SyncStatus> {
     return this.get(`/workspaces/${workspaceId}/views/sync-status`);
+  }
+
+  lineage(
+    workspaceId: string,
+    objectId: string,
+    fieldCode: string,
+  ): Promise<LineageView> {
+    const query = new URLSearchParams({ objectId, fieldCode });
+    return this.get(`/workspaces/${workspaceId}/views/lineage?${query}`);
   }
 
   private async get<T>(path: string): Promise<T> {
