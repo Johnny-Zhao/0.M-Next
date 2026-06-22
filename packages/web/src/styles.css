@@ -258,7 +258,8 @@ main {
   display: grid;
   gap: 0.25rem;
   min-width: 12rem;
-  padding: 0.7rem;
+  padding: 0.75rem 0.85rem;
+  position: relative;
 }
 
 .object-node-selected {
@@ -269,6 +270,52 @@ main {
 .object-node-type {
   color: #546273;
   font-size: 0.75rem;
+}
+
+.object-node-port {
+  background: #ffffff;
+  border: 2px solid #315b7d;
+  height: 0.55rem;
+  width: 0.55rem;
+}
+
+.object-node-port-source {
+  border-color: #8a5a00;
+}
+
+.object-node-port-top.object-node-port-source,
+.object-node-port-bottom.object-node-port-source {
+  margin-left: 0.7rem;
+}
+
+.object-node-port-left.object-node-port-source,
+.object-node-port-right.object-node-port-source {
+  margin-top: 0.7rem;
+}
+
+.object-node-port:hover,
+.react-flow__handle-connecting,
+.react-flow__handle-valid {
+  background: #e6f4ff;
+  border-color: #1677ff;
+}
+
+.diagram-edge-label {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  box-shadow: 0 1px 4px rgb(25 36 54 / 12%);
+  color: #18212f;
+  font-size: 0.72rem;
+  max-width: 11rem;
+  padding: 0.16rem 0.38rem;
+  pointer-events: all;
+  position: absolute;
+  white-space: nowrap;
+}
+
+.diagram-edge-label-selected {
+  border-color: #1677ff;
 }
 
 .tree-panel,

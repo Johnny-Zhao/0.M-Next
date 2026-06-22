@@ -53,6 +53,18 @@ import {
   softDeleteObjectByCommand,
   type DiagramShortcut,
 } from "./shortcuts";
+import {
+  dataRelationMarker,
+  edgeTypes,
+  relationRoute,
+  type DiagramEdgeData,
+} from "./edges";
+import {
+  PortHandles,
+  portHandleId,
+  relationPortSides,
+  type PortSide,
+} from "./ports";
 import { useWorkbenchContext } from "./workbench";
 
 export interface DiagramNodeData extends Record<string, unknown> {
@@ -63,7 +75,29 @@ export interface DiagramNodeData extends Record<string, unknown> {
 }
 
 export type DiagramNode = Node<DiagramNodeData, "object">;
-export type DiagramEdge = Edge<{ readonly relationType: string }>;
+export type DiagramEdge = Edge<DiagramEdgeData, "dataRelation">;
+
+type DiagramRelationSummary = RelationSummary &
+  Partial<{
+    readonly fields: Readonly<Record<string, unknown>>;
+    readonly hierarchical: boolean;
+    readonly status: string;
+    readonly version: number;
+  }>;
+
+export interface DiagramCommandClient {
+  createRelation(
+    workspaceId: string,
+    relationType: string,
+    sourceId: string,
+    targetId: string,
+  ): Promise<unknown>;
+  unlink(
+    workspaceId: string,
+    relationId: string,
+    expectedVersion: number,
+  ): Promise<unknown>;
+}
 
 export function isDerivedField(code: string): boolean {
   const normalized = code.toLowerCase();
@@ -83,6 +117,7 @@ function ObjectFlowNode({
     <div
       className={selected ? "object-node object-node-selected" : "object-node"}
     >
+      <PortHandles />
       <div className="object-node-type">{data.objectType}</div>
       <strong>{data.title}</strong>
       <span>{data.status}</span>
@@ -102,6 +137,36 @@ export function objectFxText(object: ViewObject): string {
   );
   if (entries.length === 0) return "TODO(view-API): 派生值未提供";
   return entries.map(([code, value]) => `${code}=${String(value)}`).join(", ");
+}
+
+export function relationLabel(relation: DiagramRelationSummary): string {
+  const name = relation.fields?.name ?? relation.fields?.title;
+  if (name === undefined || name === null || String(name).trim() === "") {
+    return relation.relationType;
+  }
+  return `${relation.relationType} / ${String(name)}`;
+}
+
+function relationStatus(
+  relation: DiagramRelationSummary,
+): DiagramEdgeData["status"] {
+  return relation.status === "UNLINKED" ? "UNLINKED" : "ACTIVE";
+}
+
+function relationVersion(relation: DiagramRelationSummary): number | undefined {
+  return typeof relation.version === "number" && relation.version > 0
+    ? relation.version
+    : undefined;
+}
+
+function edgePorts(
+  sourceNode: DiagramNode | undefined,
+  targetNode: DiagramNode | undefined,
+): { readonly sourceSide: PortSide; readonly targetSide: PortSide } {
+  if (!sourceNode || !targetNode) {
+    return { sourceSide: "right", targetSide: "left" };
+  }
+  return relationPortSides(sourceNode.position, targetNode.position);
 }
 
 export function objectsAndRelationsToFlow(
@@ -128,20 +193,37 @@ export function objectsAndRelationsToFlow(
     }),
   );
   const objectIds = new Set(objects.map((object) => object.objectId));
+  const nodesById = new Map(nodes.map((node) => [node.id, node]));
   const edges = relations
     .filter(
       (relation) =>
         objectIds.has(relation.sourceId) && objectIds.has(relation.targetId),
     )
-    .map(
-      (relation): DiagramEdge => ({
+    .map((relation): DiagramEdge => {
+      const projected = relation as DiagramRelationSummary;
+      const ports = edgePorts(
+        nodesById.get(relation.sourceId),
+        nodesById.get(relation.targetId),
+      );
+      return {
         id: relation.relationId,
         source: relation.sourceId,
+        sourceHandle: portHandleId("source", ports.sourceSide),
         target: relation.targetId,
-        label: relation.relationType,
-        data: { relationType: relation.relationType },
-      }),
-    );
+        targetHandle: portHandleId("target", ports.targetSide),
+        type: "dataRelation",
+        markerEnd: dataRelationMarker,
+        data: {
+          label: relationLabel(projected),
+          relationType: relation.relationType,
+          route: relationRoute(relation.relationType),
+          status: relationStatus(projected),
+          version: relationVersion(projected),
+          // TODO(view-API): expose rule hit state before rendering failed edges.
+          ruleState: "normal",
+        },
+      };
+    });
   return { nodes, edges };
 }
 
@@ -167,6 +249,42 @@ function selectedIdsFor(nodes: readonly DiagramNode[]): ReadonlySet<string> {
 interface DiagramData {
   readonly objects: readonly ViewObject[];
   readonly relations: readonly RelationSummary[];
+}
+
+export async function connectDiagramObjects(
+  commandClient: Pick<DiagramCommandClient, "createRelation">,
+  workspaceId: string,
+  relationType: string,
+  connection: Connection,
+): Promise<boolean> {
+  if (!connection.source || !connection.target) return false;
+  await commandClient.createRelation(
+    workspaceId,
+    relationType,
+    connection.source,
+    connection.target,
+  );
+  return true;
+}
+
+export async function unlinkDiagramEdges(
+  commandClient: Pick<DiagramCommandClient, "unlink">,
+  workspaceId: string,
+  deletedEdges: readonly DiagramEdge[],
+): Promise<void> {
+  const versionedEdges = deletedEdges.map((edge) => ({
+    id: edge.id,
+    version: edge.data?.version,
+  }));
+  const missingVersion = versionedEdges.find((edge) => !edge.version);
+  if (missingVersion) {
+    throw new Error("TODO(view-API): 删除关系需要关系版本投影");
+  }
+  await Promise.all(
+    versionedEdges.map((edge) =>
+      commandClient.unlink(workspaceId, edge.id, edge.version as number),
+    ),
+  );
 }
 
 export function DiagramPanel(): ReactElement {
@@ -484,18 +602,32 @@ export function DiagramPanel(): ReactElement {
   }
 
   async function connectObjects(connection: Connection): Promise<void> {
-    if (!connection.source || !connection.target) return;
     try {
-      await context.commandClient.createRelation(
+      const connected = await connectDiagramObjects(
+        context.commandClient,
         context.workspaceId,
         context.relationType,
-        connection.source,
-        connection.target,
+        connection,
+      );
+      if (connected) context.refreshViews();
+    } catch (error) {
+      context.reportError(
+        error instanceof Error ? error.message : "创建关系失败",
+      );
+    }
+  }
+
+  async function deleteRelations(deletedEdges: DiagramEdge[]): Promise<void> {
+    try {
+      await unlinkDiagramEdges(
+        context.commandClient,
+        context.workspaceId,
+        deletedEdges,
       );
       context.refreshViews();
     } catch (error) {
       context.reportError(
-        error instanceof Error ? error.message : "创建关系失败",
+        error instanceof Error ? error.message : "删除关系失败",
       );
     }
   }
@@ -569,12 +701,15 @@ export function DiagramPanel(): ReactElement {
         </div>
       ) : null}
       <ReactFlow
+        deleteKeyCode={["Backspace", "Delete"]}
+        edgeTypes={edgeTypes}
         edges={edges}
         fitView
         nodeTypes={nodeTypes}
         nodes={nodes}
         onConnect={(connection) => void connectObjects(connection)}
         onEdgeContextMenu={onEdgeContextMenu}
+        onEdgesDelete={(deletedEdges) => void deleteRelations(deletedEdges)}
         onEdgesChange={onEdgesChange}
         onNodeContextMenu={onNodeContextMenu}
         onNodeClick={onNodeClick}
