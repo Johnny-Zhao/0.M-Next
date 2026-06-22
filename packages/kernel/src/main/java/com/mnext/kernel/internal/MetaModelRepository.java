@@ -237,6 +237,11 @@ class MetaModelRepository {
         templateVersionId);
   }
 
+  void updateTemplateVersionStatus(UUID templateVersionId, String status) {
+    jdbc.update(
+        "UPDATE scene_template_version SET status = ? WHERE id = ?", status, templateVersionId);
+  }
+
   void markTemplateTypesPublished(UUID templateVersionId) {
     jdbc.update(
         "UPDATE object_type SET published = TRUE WHERE template_version_id = ?", templateVersionId);

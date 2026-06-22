@@ -18,6 +18,8 @@ import com.mnext.kernel.api.metamodel.DefineValueTypeCommand;
 import com.mnext.kernel.api.metamodel.FieldConstraints;
 import com.mnext.kernel.api.metamodel.InstantiateWorkspaceCommand;
 import com.mnext.kernel.api.metamodel.PublishTemplateVersionCommand;
+import com.mnext.kernel.api.metamodel.RestoreTemplateVersionCommand;
+import com.mnext.kernel.api.metamodel.WithdrawTemplateVersionCommand;
 import java.util.Map;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -85,6 +87,10 @@ public class MetaCommandController {
       case "DefineValueType" -> commands.defineValueType(valueType(request), Actor.user(actorId));
       case "PublishTemplateVersion" ->
           commands.publishTemplateVersion(publishTemplateVersion(request), Actor.user(actorId));
+      case "WithdrawTemplateVersion" ->
+          commands.withdrawTemplateVersion(withdrawTemplateVersion(request), Actor.user(actorId));
+      case "RestoreTemplateVersion" ->
+          commands.restoreTemplateVersion(restoreTemplateVersion(request), Actor.user(actorId));
       case "InstantiateWorkspace" ->
           lifecycle.instantiateWorkspace(instantiateWorkspace(request), Actor.user(actorId));
       case "ApplyTemplateVersion" ->
@@ -177,6 +183,24 @@ public class MetaCommandController {
   private PublishTemplateVersionCommand publishTemplateVersion(CommandRequest request) {
     var payload = required(request.payload(), "payload");
     return new PublishTemplateVersionCommand(
+        request.workspaceId(),
+        request.correlationId(),
+        request.idempotencyKey(),
+        uuid(payload, "templateVersionId"));
+  }
+
+  private WithdrawTemplateVersionCommand withdrawTemplateVersion(CommandRequest request) {
+    var payload = required(request.payload(), "payload");
+    return new WithdrawTemplateVersionCommand(
+        request.workspaceId(),
+        request.correlationId(),
+        request.idempotencyKey(),
+        uuid(payload, "templateVersionId"));
+  }
+
+  private RestoreTemplateVersionCommand restoreTemplateVersion(CommandRequest request) {
+    var payload = required(request.payload(), "payload");
+    return new RestoreTemplateVersionCommand(
         request.workspaceId(),
         request.correlationId(),
         request.idempotencyKey(),

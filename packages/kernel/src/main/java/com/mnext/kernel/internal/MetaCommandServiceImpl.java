@@ -12,6 +12,8 @@ import com.mnext.kernel.api.metamodel.DefineRelationTypeCommand;
 import com.mnext.kernel.api.metamodel.DefineValueTypeCommand;
 import com.mnext.kernel.api.metamodel.InstantiateWorkspaceCommand;
 import com.mnext.kernel.api.metamodel.PublishTemplateVersionCommand;
+import com.mnext.kernel.api.metamodel.RestoreTemplateVersionCommand;
+import com.mnext.kernel.api.metamodel.WithdrawTemplateVersionCommand;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -23,6 +25,8 @@ public class MetaCommandServiceImpl implements MetaCommandService {
   private final DefineRelationTypeHandler relations;
   private final DefineValueTypeHandler valueTypes;
   private final PublishTemplateVersionHandler publishTemplateVersions;
+  private final WithdrawTemplateVersionHandler withdrawTemplateVersions;
+  private final RestoreTemplateVersionHandler restoreTemplateVersions;
   private final InstantiateWorkspaceHandler instantiateWorkspaces;
   private final ApplyTemplateVersionHandler applyTemplateVersions;
 
@@ -34,6 +38,8 @@ public class MetaCommandServiceImpl implements MetaCommandService {
       DefineRelationTypeHandler relations,
       DefineValueTypeHandler valueTypes,
       PublishTemplateVersionHandler publishTemplateVersions,
+      WithdrawTemplateVersionHandler withdrawTemplateVersions,
+      RestoreTemplateVersionHandler restoreTemplateVersions,
       InstantiateWorkspaceHandler instantiateWorkspaces,
       ApplyTemplateVersionHandler applyTemplateVersions) {
     this.createTemplates = createTemplates;
@@ -43,6 +49,8 @@ public class MetaCommandServiceImpl implements MetaCommandService {
     this.relations = relations;
     this.valueTypes = valueTypes;
     this.publishTemplateVersions = publishTemplateVersions;
+    this.withdrawTemplateVersions = withdrawTemplateVersions;
+    this.restoreTemplateVersions = restoreTemplateVersions;
     this.instantiateWorkspaces = instantiateWorkspaces;
     this.applyTemplateVersions = applyTemplateVersions;
   }
@@ -80,6 +88,17 @@ public class MetaCommandServiceImpl implements MetaCommandService {
   @Override
   public CommandResult publishTemplateVersion(PublishTemplateVersionCommand command, Actor actor) {
     return publishTemplateVersions.execute(command, actor);
+  }
+
+  @Override
+  public CommandResult withdrawTemplateVersion(
+      WithdrawTemplateVersionCommand command, Actor actor) {
+    return withdrawTemplateVersions.execute(command, actor);
+  }
+
+  @Override
+  public CommandResult restoreTemplateVersion(RestoreTemplateVersionCommand command, Actor actor) {
+    return restoreTemplateVersions.execute(command, actor);
   }
 
   @Override
