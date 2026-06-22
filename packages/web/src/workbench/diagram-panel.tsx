@@ -2,18 +2,44 @@ import {
   Background,
   Controls,
   ReactFlow,
+  SelectionMode,
   useEdgesState,
   useNodesState,
   type Connection,
   type Edge,
+  type EdgeMouseHandler,
   type Node,
   type NodeMouseHandler,
   type NodeProps,
+  type OnSelectionChangeParams,
 } from "@xyflow/react";
-import { useEffect, useMemo, useState, type ReactElement } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type MouseEvent as ReactMouseEvent,
+  type ReactElement,
+} from "react";
 
 import type { RelationSummary, ViewObject } from "@m-next/views";
 
+import {
+  copyObjectsToClipboard,
+  hasDiagramClipboard,
+  readDiagramClipboard,
+} from "./clipboard";
+import {
+  DiagramContextMenu,
+  type DiagramContextMenuState,
+} from "./context-menu";
+import {
+  createObjectByCommand,
+  diagramShortcutFromEvent,
+  softDeleteObjectByCommand,
+  type DiagramShortcut,
+} from "./shortcuts";
 import { useWorkbenchContext } from "./workbench";
 
 export interface DiagramNodeData extends Record<string, unknown> {
@@ -68,8 +94,9 @@ export function objectFxText(object: ViewObject): string {
 export function objectsAndRelationsToFlow(
   objects: readonly ViewObject[],
   relations: readonly RelationSummary[],
-  selectedObjectId: string | null,
+  selectedObjectIds: string | readonly string[] | null,
 ): { readonly nodes: DiagramNode[]; readonly edges: DiagramEdge[] } {
+  const selectedIds = normalizeSelectedIds(selectedObjectIds);
   const nodes = objects.map(
     (object, index): DiagramNode => ({
       id: object.objectId,
@@ -78,7 +105,7 @@ export function objectsAndRelationsToFlow(
         x: 80 + (index % 4) * 240,
         y: 80 + Math.floor(index / 4) * 160,
       },
-      selected: object.objectId === selectedObjectId,
+      selected: selectedIds.has(object.objectId),
       data: {
         title: objectTitle(object),
         objectType: object.objectType,
@@ -105,6 +132,17 @@ export function objectsAndRelationsToFlow(
   return { nodes, edges };
 }
 
+function normalizeSelectedIds(
+  selectedObjectIds: string | readonly string[] | null,
+): ReadonlySet<string> {
+  if (!selectedObjectIds) return new Set();
+  return new Set(
+    typeof selectedObjectIds === "string"
+      ? [selectedObjectIds]
+      : selectedObjectIds,
+  );
+}
+
 const nodeTypes = { object: ObjectFlowNode };
 
 interface DiagramData {
@@ -119,15 +157,20 @@ export function DiagramPanel(): ReactElement {
     relations: [],
   });
   const [selectedObjectId, setSelectedObjectId] = useState<string | null>(null);
+  const [selectedNodeIds, setSelectedNodeIds] = useState<readonly string[]>([]);
+  const [selectedEdgeIds, setSelectedEdgeIds] = useState<readonly string[]>([]);
+  const [menu, setMenu] = useState<DiagramContextMenuState | null>(null);
   const [nodes, setNodes, onNodesChange] = useNodesState<DiagramNode>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<DiagramEdge>([]);
 
   useEffect(
     () =>
       context.selection.subscribe((selected) => {
-        setSelectedObjectId(
-          selected?.entityType === "object" ? selected.entityId : null,
-        );
+        const objectId =
+          selected?.entityType === "object" ? selected.entityId : null;
+        setSelectedObjectId(objectId);
+        setSelectedNodeIds(objectId ? [objectId] : []);
+        setSelectedEdgeIds([]);
       }),
     [context.selection],
   );
@@ -172,11 +215,23 @@ export function DiagramPanel(): ReactElement {
     const flow = objectsAndRelationsToFlow(
       data.objects,
       data.relations,
-      selectedObjectId,
+      selectedNodeIds.length > 0 ? selectedNodeIds : selectedObjectId,
     );
     setNodes(flow.nodes);
-    setEdges(flow.edges);
-  }, [data, selectedObjectId, setEdges, setNodes]);
+    setEdges(
+      flow.edges.map((edge) => ({
+        ...edge,
+        selected: selectedEdgeIds.includes(edge.id),
+      })),
+    );
+  }, [
+    data,
+    selectedEdgeIds,
+    selectedNodeIds,
+    selectedObjectId,
+    setEdges,
+    setNodes,
+  ]);
 
   const onNodeClick = useMemo<NodeMouseHandler<DiagramNode>>(
     () => (_event, node) => {
@@ -184,6 +239,183 @@ export function DiagramPanel(): ReactElement {
     },
     [context.selection],
   );
+
+  const onSelectionChange = useCallback(
+    (selection: OnSelectionChangeParams<DiagramNode, DiagramEdge>) => {
+      const nodeIds = selection.nodes.map((node) => node.id);
+      setSelectedNodeIds(nodeIds);
+      setSelectedEdgeIds(selection.edges.map((edge) => edge.id));
+      if (nodeIds.length === 1) {
+        context.selection.select({
+          entityType: "object",
+          entityId: nodeIds[0],
+        });
+      } else {
+        setSelectedObjectId(null);
+      }
+    },
+    [context.selection],
+  );
+
+  const onNodeContextMenu = useMemo<NodeMouseHandler<DiagramNode>>(
+    () => (event, node) => {
+      event.preventDefault();
+      setSelectedNodeIds([node.id]);
+      setSelectedEdgeIds([]);
+      context.selection.select({ entityType: "object", entityId: node.id });
+      setMenu({
+        context: { kind: "node", nodeId: node.id },
+        x: event.clientX,
+        y: event.clientY,
+      });
+    },
+    [context.selection],
+  );
+
+  const onEdgeContextMenu = useMemo<EdgeMouseHandler<DiagramEdge>>(
+    () => (event, edge) => {
+      event.preventDefault();
+      setSelectedNodeIds([]);
+      setSelectedEdgeIds([edge.id]);
+      setMenu({
+        context: { kind: "edge", edgeId: edge.id },
+        x: event.clientX,
+        y: event.clientY,
+      });
+    },
+    [],
+  );
+
+  function openPaneMenu(event: MouseEvent | ReactMouseEvent): void {
+    event.preventDefault();
+    setMenu({ context: { kind: "pane" }, x: event.clientX, y: event.clientY });
+  }
+
+  const selectedObjects = useMemo(
+    () =>
+      data.objects.filter((object) =>
+        selectedNodeIds.includes(object.objectId),
+      ),
+    [data.objects, selectedNodeIds],
+  );
+
+  const selectedRelations = useMemo(
+    () =>
+      data.relations.filter((relation) =>
+        selectedEdgeIds.includes(relation.relationId),
+      ),
+    [data.relations, selectedEdgeIds],
+  );
+
+  function copySelection(): void {
+    if (selectedObjects.length > 0) copyObjectsToClipboard(selectedObjects);
+    setMenu(null);
+  }
+
+  async function createObject(fields = {}): Promise<void> {
+    try {
+      await createObjectByCommand(
+        context.commandClient,
+        context.workspaceId,
+        context.objectType,
+        fields,
+        "diagram-panel",
+      );
+      context.refreshViews();
+    } catch (error) {
+      context.reportError(errorMessage(error, "新建对象失败"));
+    } finally {
+      setMenu(null);
+    }
+  }
+
+  async function pasteClipboard(): Promise<void> {
+    const clipboard = readDiagramClipboard();
+    if (!clipboard) return;
+    try {
+      for (const object of clipboard.objects) {
+        await createObjectByCommand(
+          context.commandClient,
+          context.workspaceId,
+          object.objectType,
+          object.fields,
+          "diagram-copy-paste",
+        );
+      }
+      context.refreshViews();
+    } catch (error) {
+      context.reportError(errorMessage(error, "粘贴对象失败"));
+    } finally {
+      setMenu(null);
+    }
+  }
+
+  async function duplicateSelection(): Promise<void> {
+    copySelection();
+    await pasteClipboard();
+  }
+
+  async function deleteSelection(): Promise<void> {
+    if (selectedObjects.length === 0 && selectedRelations.length === 0) return;
+    try {
+      for (const relation of selectedRelations) {
+        await context.commandClient.unlink(
+          context.workspaceId,
+          relation.relationId,
+          1,
+        );
+      }
+      for (const object of selectedObjects) {
+        await softDeleteObjectByCommand(
+          context.commandClient,
+          context.workspaceId,
+          object,
+        );
+      }
+      clearSelection();
+      context.refreshViews();
+    } catch (error) {
+      context.reportError(errorMessage(error, "删除选择失败"));
+    } finally {
+      setMenu(null);
+    }
+  }
+
+  function selectAll(): void {
+    setSelectedNodeIds(nodes.map((node) => node.id));
+    setSelectedEdgeIds(edges.map((edge) => edge.id));
+    setMenu(null);
+  }
+
+  function clearSelection(): void {
+    setSelectedObjectId(null);
+    setSelectedNodeIds([]);
+    setSelectedEdgeIds([]);
+    setMenu(null);
+  }
+
+  function viewDetail(): void {
+    const nodeId = menu?.context.kind === "node" ? menu.context.nodeId : null;
+    if (nodeId)
+      context.selection.select({ entityType: "object", entityId: nodeId });
+    setMenu(null);
+  }
+
+  function runShortcut(shortcut: DiagramShortcut): void {
+    if (shortcut === "clearSelection") clearSelection();
+    if (shortcut === "copy") copySelection();
+    if (shortcut === "delete") void deleteSelection();
+    if (shortcut === "duplicate") void duplicateSelection();
+    if (shortcut === "paste") void pasteClipboard();
+    if (shortcut === "selectAll") selectAll();
+  }
+
+  function handleKeyDown(event: ReactKeyboardEvent): void {
+    const shortcut = diagramShortcutFromEvent(event.nativeEvent);
+    if (!shortcut) return;
+    event.preventDefault();
+    runShortcut(shortcut);
+  }
 
   async function connectObjects(connection: Connection): Promise<void> {
     if (!connection.source || !connection.target) return;
@@ -203,20 +435,50 @@ export function DiagramPanel(): ReactElement {
   }
 
   return (
-    <section aria-label="图面板" className="diagram-panel">
+    <section
+      aria-label="图面板"
+      className="diagram-panel"
+      onKeyDown={handleKeyDown}
+      tabIndex={0}
+    >
       <ReactFlow
         edges={edges}
         fitView
         nodeTypes={nodeTypes}
         nodes={nodes}
         onConnect={(connection) => void connectObjects(connection)}
+        onEdgeContextMenu={onEdgeContextMenu}
         onEdgesChange={onEdgesChange}
+        onNodeContextMenu={onNodeContextMenu}
         onNodeClick={onNodeClick}
         onNodesChange={onNodesChange}
+        onPaneContextMenu={openPaneMenu}
+        onSelectionChange={onSelectionChange}
+        selectNodesOnDrag
+        selectionMode={SelectionMode.Partial}
+        selectionOnDrag
       >
         <Background />
         <Controls />
       </ReactFlow>
+      {menu ? (
+        <DiagramContextMenu
+          canPaste={hasDiagramClipboard()}
+          menu={menu}
+          onClose={() => setMenu(null)}
+          onCopy={copySelection}
+          onCreateObject={() => void createObject()}
+          onDelete={() => void deleteSelection()}
+          onDuplicate={() => void duplicateSelection()}
+          onPaste={() => void pasteClipboard()}
+          onSelectAll={selectAll}
+          onViewDetail={viewDetail}
+        />
+      ) : null}
     </section>
   );
+}
+
+function errorMessage(error: unknown, fallback: string): string {
+  return error instanceof Error ? error.message : fallback;
 }
