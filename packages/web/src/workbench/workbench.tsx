@@ -239,7 +239,7 @@ export function Workbench({
             刷新
           </button>
         </div>
-        <div className="dockview-theme-light workbench-dock">
+        <div className="dockview-theme-light mnext-dockview-theme workbench-dock">
           <DockviewReact
             components={dockviewComponents}
             onReady={(event: DockviewReadyEvent) => {

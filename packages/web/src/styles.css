@@ -1,5 +1,6 @@
 @import "dockview/dist/styles/dockview.css";
 @import "@xyflow/react/dist/style.css";
+@import "./tokens.css";
 
 :root {
   color: #18212f;
@@ -469,4 +470,327 @@ main {
 
 .matrix-cell-editable button + button {
   margin-left: 0.35rem;
+}
+
+.mnext-dockview-theme {
+  --dv-active-sash-color: var(--mnext-brand);
+  --dv-activegroup-hiddenpanel-tab-background-color: var(
+    --mnext-surface-subtle
+  );
+  --dv-activegroup-hiddenpanel-tab-color: var(--mnext-ink-soft);
+  --dv-activegroup-visiblepanel-tab-background-color: var(
+    --mnext-surface-raised
+  );
+  --dv-activegroup-visiblepanel-tab-color: var(--mnext-ink);
+  --dv-border-radius: var(--mnext-radius-lg);
+  --dv-drag-over-background-color: color-mix(
+    in srgb,
+    var(--mnext-brand) 18%,
+    transparent
+  );
+  --dv-drag-over-border-color: var(--mnext-brand);
+  --dv-floating-border: 1px solid var(--mnext-border);
+  --dv-floating-box-shadow: var(--mnext-shadow-2);
+  --dv-group-view-background-color: var(--mnext-surface-raised);
+  --dv-icon-hover-background-color: var(--mnext-surface-hover);
+  --dv-paneview-active-outline-color: var(--mnext-brand);
+  --dv-paneview-header-border-color: var(--mnext-border);
+  --dv-separator-border: var(--mnext-border);
+  --dv-tab-border-radius: var(--mnext-radius-md);
+  --dv-tab-divider-color: var(--mnext-border);
+  --dv-tabs-and-actions-container-background-color: var(--mnext-surface-subtle);
+}
+
+.object-node {
+  --object-accent: var(--mnext-type-component);
+  background: var(--mnext-surface-raised);
+  border-color: var(--mnext-border);
+  border-left-color: var(--object-accent);
+  border-radius: var(--mnext-radius-lg);
+  box-shadow: var(--mnext-shadow-1);
+  color: var(--mnext-ink);
+  gap: var(--mnext-gap-2);
+  min-width: 15rem;
+  overflow: hidden;
+  padding: 0.7rem 0.8rem 0.65rem;
+  transition:
+    border-color 120ms ease,
+    box-shadow 120ms ease,
+    transform 120ms ease;
+}
+
+.object-node:hover {
+  border-color: var(--object-accent);
+  box-shadow: var(--mnext-shadow-2);
+  transform: translateY(-1px);
+}
+
+.object-node-selected {
+  border-color: var(--mnext-brand);
+  outline: 2px solid color-mix(in srgb, var(--mnext-brand) 35%, transparent);
+  outline-offset: 2px;
+}
+
+.object-node-subsystem {
+  --object-accent: var(--mnext-type-subsystem);
+}
+
+.object-node-component {
+  --object-accent: var(--mnext-type-component);
+}
+
+.object-node-interface {
+  --object-accent: var(--mnext-type-interface);
+}
+
+.object-node-requirement {
+  --object-accent: var(--mnext-type-requirement);
+}
+
+.object-node-type-bar {
+  background: var(--object-accent);
+  bottom: 0;
+  left: 0;
+  position: absolute;
+  top: 0;
+  width: 4px;
+}
+
+.object-node-header {
+  align-items: center;
+  display: grid;
+  gap: var(--mnext-gap-2);
+  grid-template-columns: auto minmax(0, 1fr) auto;
+}
+
+.object-node-icon {
+  align-items: center;
+  background: color-mix(in srgb, var(--object-accent) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--object-accent) 35%, transparent);
+  border-radius: var(--mnext-radius-md);
+  color: var(--object-accent);
+  display: inline-flex;
+  height: 1.65rem;
+  justify-content: center;
+  width: 1.65rem;
+}
+
+.object-node-icon svg {
+  fill: none;
+  height: 1rem;
+  stroke: currentcolor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.5;
+  width: 1rem;
+}
+
+.object-node-title-block,
+.object-node-field {
+  min-width: 0;
+}
+
+.object-node-title-block {
+  display: grid;
+  gap: 0.05rem;
+}
+
+.object-node-code {
+  color: var(--mnext-ink-soft);
+  font-family: var(--mnext-font-mono);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+}
+
+.object-node-title-block strong {
+  font-size: 0.95rem;
+  font-weight: 600;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.object-node-fields {
+  display: grid;
+  gap: 0.3rem;
+  margin: 0;
+}
+
+.object-node-field {
+  align-items: baseline;
+  display: grid;
+  gap: var(--mnext-gap-2);
+  grid-template-columns: minmax(3.4rem, auto) minmax(0, 1fr);
+}
+
+.object-node-field dt {
+  color: var(--mnext-ink-muted);
+  font-family: var(--mnext-font-mono);
+  font-size: 0.72rem;
+}
+
+.object-node-field dd {
+  font-size: 0.8rem;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.object-node-footer {
+  align-items: center;
+  display: flex;
+  gap: var(--mnext-gap-2);
+  min-width: 0;
+}
+
+.fx-chip,
+.provenance-passport,
+.rule-lamp,
+.object-node-status {
+  align-items: center;
+  border-radius: 999px;
+  display: inline-flex;
+  font-size: 0.72rem;
+  line-height: 1;
+  min-height: 1.35rem;
+  padding: 0 0.45rem;
+}
+
+.fx-chip {
+  background: color-mix(in srgb, var(--mnext-info) 11%, var(--mnext-surface));
+  border: 1px solid color-mix(in srgb, var(--mnext-info) 24%, transparent);
+  color: var(--mnext-info);
+  max-width: 8.5rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fx-chip span {
+  font-family: var(--mnext-font-mono);
+  font-weight: 700;
+  margin-right: 0.25rem;
+}
+
+.provenance-passport {
+  background: var(--mnext-neutral-bg);
+  color: var(--mnext-ink-soft);
+  max-width: 8rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rule-lamp {
+  border: 1px solid transparent;
+  font-family: var(--mnext-font-mono);
+  font-weight: 700;
+  gap: 0.25rem;
+}
+
+.rule-lamp-mark {
+  border-radius: 999px;
+  height: 0.45rem;
+  width: 0.45rem;
+}
+
+.rule-lamp-block {
+  background: var(--mnext-block-bg);
+  border-color: color-mix(in srgb, var(--mnext-block) 35%, transparent);
+  color: var(--mnext-block);
+}
+
+.rule-lamp-block .rule-lamp-mark {
+  background: var(--mnext-block);
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+}
+
+.rule-lamp-warn {
+  background: var(--mnext-warn-bg);
+  border-color: color-mix(in srgb, var(--mnext-warn) 35%, transparent);
+  color: var(--mnext-warn);
+}
+
+.rule-lamp-warn .rule-lamp-mark {
+  background: var(--mnext-warn);
+}
+
+.rule-lamp-ok {
+  background: var(--mnext-ok-bg);
+  border-color: color-mix(in srgb, var(--mnext-ok) 35%, transparent);
+  color: var(--mnext-ok);
+}
+
+.rule-lamp-ok .rule-lamp-mark {
+  background: var(--mnext-ok);
+}
+
+.rule-lamp-todo {
+  background: var(--mnext-neutral-bg);
+  color: var(--mnext-ink-muted);
+}
+
+.rule-lamp-todo .rule-lamp-mark {
+  background: var(--mnext-ink-muted);
+}
+
+.object-node-status {
+  background: var(--mnext-surface-subtle);
+  color: var(--mnext-ink-muted);
+  justify-self: start;
+}
+
+.object-node-state-recomputing .fx-chip span {
+  animation: fx-spin 1.1s linear infinite;
+}
+
+.object-node-state-blocked {
+  border-color: var(--mnext-block);
+}
+
+.object-node-state-blocked::after {
+  border-right: 0.8rem solid var(--mnext-block);
+  border-top: 0.8rem solid var(--mnext-block);
+  content: "";
+  position: absolute;
+  right: 0;
+  top: 0;
+}
+
+.object-node-state-stale {
+  border-color: var(--mnext-stale);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--mnext-stale) 16%, transparent);
+}
+
+.object-node-state-vetoed {
+  background: var(--mnext-neutral-bg);
+  color: var(--mnext-ink-muted);
+  filter: grayscale(0.75);
+  text-decoration: line-through;
+}
+
+.object-node-readonly .object-node-status::before {
+  content: "RO";
+  font-family: var(--mnext-font-mono);
+  margin-right: 0.35rem;
+}
+
+.object-node-port {
+  background: var(--mnext-surface-raised);
+  border-color: var(--object-accent);
+}
+
+.object-node-port:hover,
+.react-flow__handle-connecting,
+.react-flow__handle-valid {
+  background: var(--mnext-surface-hover);
+  border-color: var(--mnext-brand);
+}
+
+@keyframes fx-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
