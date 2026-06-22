@@ -66,8 +66,8 @@ import {
   type ObjectTypeVariant,
 } from "./object-node";
 import {
-  DIMENSIONS,
   fieldDimension,
+  listDimensions,
   type ActiveDimensionId,
   type DimensionDefinition,
 } from "./dimensions";
@@ -169,7 +169,7 @@ function dimensionDefinition(
   activeDimension: ActiveDimensionId,
 ): DimensionDefinition | undefined {
   if (activeDimension === "all") return undefined;
-  return DIMENSIONS.find((dimension) => dimension.id === activeDimension);
+  return listDimensions().find((dimension) => dimension.id === activeDimension);
 }
 
 function objectDimensionTone(
@@ -754,7 +754,7 @@ export function DiagramPanel(): ReactElement {
         >
           全部
         </button>
-        {DIMENSIONS.map((dimension) => (
+        {listDimensions().map((dimension) => (
           <button
             aria-pressed={activeDimension === dimension.id}
             className={`dimension-button-${dimension.id}`}

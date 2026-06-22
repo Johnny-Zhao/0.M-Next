@@ -1,4 +1,4 @@
-export type DimensionId = "energy" | "thermal" | "mass";
+export type DimensionId = string;
 export type ActiveDimensionId = DimensionId | "all";
 
 export interface DimensionDefinition {
@@ -17,7 +17,7 @@ export interface DimensionField {
 // The formal dimension source is the metamodel `dimension` tag plus view-API.
 // Keep callers depending on DimensionId so the convention can be replaced
 // without changing the diagram overlay contract.
-export const DIMENSIONS: readonly DimensionDefinition[] = [
+const builtInDimensions: readonly DimensionDefinition[] = [
   {
     id: "energy",
     label: "能量",
@@ -48,18 +48,44 @@ export const DIMENSIONS: readonly DimensionDefinition[] = [
   },
 ];
 
+const dimensions = new Map<DimensionId, DimensionDefinition>();
+
+resetDimensions();
+
+export function registerDimension(definition: DimensionDefinition): void {
+  dimensions.delete(definition.id);
+  dimensions.set(definition.id, definition);
+}
+
+export function unregisterDimension(id: string): void {
+  dimensions.delete(id);
+}
+
+export function listDimensions(): readonly DimensionDefinition[] {
+  return [...dimensions.values()];
+}
+
+export function resetDimensions(): void {
+  dimensions.clear();
+  builtInDimensions.forEach((dimension) =>
+    dimensions.set(dimension.id, dimension),
+  );
+}
+
+export const DIMENSIONS: readonly DimensionDefinition[] = builtInDimensions;
+
 export function fieldDimension(code: string): DimensionId | null {
-  return DIMENSIONS.find((dimension) => dimension.match(code))?.id ?? null;
+  return (
+    listDimensions().find((dimension) => dimension.match(code))?.id ?? null
+  );
 }
 
 export function groupByDimension(
   fields: Readonly<Record<string, unknown>>,
-): Readonly<Record<DimensionId, readonly DimensionField[]>> {
-  const grouped: Record<DimensionId, DimensionField[]> = {
-    energy: [],
-    thermal: [],
-    mass: [],
-  };
+): Readonly<Record<string, readonly DimensionField[]>> {
+  const grouped: Record<string, DimensionField[]> = Object.fromEntries(
+    listDimensions().map((dimension) => [dimension.id, []]),
+  );
 
   for (const [code, value] of Object.entries(fields)) {
     const dimension = fieldDimension(code);
