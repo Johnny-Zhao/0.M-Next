@@ -33,6 +33,8 @@ importers:
         specifier: 8.34.0
         version: 8.34.0(eslint@9.28.0)(typescript@5.8.3)
 
+  packages/domains/interior-design: {}
+
   packages/views:
     dependencies:
       '@antv/g6':
@@ -54,6 +56,9 @@ importers:
 
   packages/web:
     dependencies:
+      '@m-next/domain-interior-design':
+        specifier: workspace:*
+        version: link:../domains/interior-design
       '@m-next/views':
         specifier: workspace:*
         version: link:../views

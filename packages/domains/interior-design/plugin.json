@@ -1,0 +1,7 @@
+{
+  "id": "interior-design",
+  "name": "室内设计",
+  "version": "1.0.0",
+  "profileManifest": "./profile.manifest.json",
+  "frontendModule": "./src/index.ts"
+}

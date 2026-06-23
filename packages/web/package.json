@@ -10,6 +10,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@m-next/domain-interior-design": "workspace:*",
     "@m-next/views": "workspace:*",
     "@xyflow/react": "12.11.0",
     "dockview": "6.6.1",

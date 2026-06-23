@@ -9,6 +9,9 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
+      "@m-next/domain-interior-design": fileURLToPath(
+        new URL("../domains/interior-design/src/index.ts", import.meta.url),
+      ),
       "@m-next/views": fileURLToPath(
         new URL("../views/src/index.tsx", import.meta.url),
       ),
