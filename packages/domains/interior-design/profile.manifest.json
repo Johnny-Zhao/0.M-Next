@@ -1,0 +1,245 @@
+{
+  "id": "interior-design",
+  "name": "室内设计",
+  "version": "1.0.0",
+  "templateCode": "interior_design",
+  "valueTypes": [
+    {
+      "code": "length_m",
+      "name": "Length (m)",
+      "basePrimitive": "number"
+    },
+    {
+      "code": "area_m2",
+      "name": "Area (m2)",
+      "basePrimitive": "number"
+    },
+    {
+      "code": "ratio",
+      "name": "Ratio",
+      "basePrimitive": "number"
+    },
+    {
+      "code": "percent",
+      "name": "Percent",
+      "basePrimitive": "number"
+    },
+    {
+      "code": "lux",
+      "name": "Lux",
+      "basePrimitive": "number"
+    },
+    {
+      "code": "temp_c",
+      "name": "Temperature (C)",
+      "basePrimitive": "number"
+    },
+    {
+      "code": "u_value",
+      "name": "U Value",
+      "basePrimitive": "number"
+    },
+    {
+      "code": "ach",
+      "name": "Air Changes Per Hour",
+      "basePrimitive": "number"
+    }
+  ],
+  "objectTypes": [
+    {
+      "code": "floorplan",
+      "name": "Floorplan"
+    },
+    {
+      "code": "room",
+      "name": "Room"
+    }
+  ],
+  "fields": [
+    {
+      "objectType": "floorplan",
+      "code": "name",
+      "name": "Name",
+      "dataType": "string",
+      "required": true
+    },
+    {
+      "objectType": "floorplan",
+      "code": "floor",
+      "name": "Floor",
+      "dataType": "integer",
+      "required": true
+    },
+    {
+      "objectType": "room",
+      "code": "name",
+      "name": "Name",
+      "dataType": "string",
+      "required": true
+    },
+    {
+      "objectType": "room",
+      "code": "usage",
+      "name": "Usage",
+      "dataType": "string",
+      "required": true
+    },
+    {
+      "objectType": "room",
+      "code": "length_m",
+      "name": "Length",
+      "valueType": "length_m",
+      "required": true
+    },
+    {
+      "objectType": "room",
+      "code": "width_m",
+      "name": "Width",
+      "valueType": "length_m",
+      "required": true
+    },
+    {
+      "objectType": "room",
+      "code": "orientation",
+      "name": "Orientation",
+      "dataType": "string",
+      "required": true
+    },
+    {
+      "objectType": "room",
+      "code": "window_area_m2",
+      "name": "Window Area",
+      "valueType": "area_m2",
+      "required": true
+    },
+    {
+      "objectType": "room",
+      "code": "light_df",
+      "name": "Daylight Factor",
+      "valueType": "percent",
+      "required": true
+    },
+    {
+      "objectType": "room",
+      "code": "light_illuminance",
+      "name": "Illuminance",
+      "valueType": "lux",
+      "required": true
+    },
+    {
+      "objectType": "room",
+      "code": "thermal_temp",
+      "name": "Design Temperature",
+      "valueType": "temp_c",
+      "required": true
+    },
+    {
+      "objectType": "room",
+      "code": "thermal_u",
+      "name": "U Value",
+      "valueType": "u_value",
+      "required": true
+    },
+    {
+      "objectType": "room",
+      "code": "thermal_load",
+      "name": "Thermal Load",
+      "valueType": "ratio",
+      "required": true
+    },
+    {
+      "objectType": "room",
+      "code": "wind_ach",
+      "name": "Air Changes Per Hour",
+      "valueType": "ach",
+      "required": true
+    }
+  ],
+  "relations": [
+    {
+      "code": "contains",
+      "name": "Contains",
+      "source": "floorplan",
+      "target": "room",
+      "direction": "directed",
+      "cardinality": "one_to_many",
+      "semantics": "strong",
+      "hierarchical": false
+    },
+    {
+      "code": "adjacent",
+      "name": "Adjacent",
+      "source": "room",
+      "target": "room",
+      "direction": "undirected",
+      "cardinality": "many_to_many",
+      "semantics": "weak",
+      "hierarchical": false
+    }
+  ],
+  "derived": [
+    {
+      "objectType": "floorplan",
+      "code": "total_area_fx",
+      "name": "Total Area",
+      "resultType": "number",
+      "derivation": "sum(traverse('contains','out'),'area_fx')"
+    },
+    {
+      "objectType": "room",
+      "code": "area_fx",
+      "name": "Area",
+      "resultType": "number",
+      "derivation": "field('length_m') * field('width_m')"
+    },
+    {
+      "objectType": "room",
+      "code": "window_floor_ratio_fx",
+      "name": "Window Floor Ratio",
+      "resultType": "number",
+      "derivation": "field('window_area_m2') / field('area_fx')"
+    }
+  ],
+  "rules": [
+    {
+      "code": "R-LIGHT-01",
+      "objectType": "room",
+      "severity": "BLOCK",
+      "when": "field('light_df') < 2",
+      "message": "采光系数低于 2%",
+      "lightweight": false
+    },
+    {
+      "code": "R-LIGHT-02",
+      "objectType": "room",
+      "severity": "WARN",
+      "when": "field('window_floor_ratio_fx') < 0.14",
+      "message": "窗地比低于 0.14",
+      "lightweight": false
+    },
+    {
+      "code": "R-WIND-01",
+      "objectType": "room",
+      "severity": "WARN",
+      "when": "field('wind_ach') < 1.0",
+      "message": "换气次数低于 1.0 ACH",
+      "lightweight": false
+    },
+    {
+      "code": "R-THERMAL-LO",
+      "objectType": "room",
+      "severity": "WARN",
+      "when": "field('thermal_temp') < 18",
+      "message": "设计温度低于 18 C",
+      "lightweight": false
+    },
+    {
+      "code": "R-THERMAL-HI",
+      "objectType": "room",
+      "severity": "WARN",
+      "when": "field('thermal_temp') > 26",
+      "message": "设计温度高于 26 C",
+      "lightweight": false
+    }
+  ]
+}

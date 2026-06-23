@@ -15,6 +15,9 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "paths": {
+      "@m-next/domain-interior-design": [
+        "../domains/interior-design/src/index.ts"
+      ],
       "@m-next/views": ["../views/src/index.tsx"]
     }
   },

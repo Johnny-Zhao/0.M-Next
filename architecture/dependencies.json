@@ -4,5 +4,6 @@
   "engines": ["kernel", "shared"],
   "views": ["shared"],
   "server": ["kernel", "engines", "shared"],
-  "web": ["views", "shared"]
+  "web": ["views", "shared", "domain-interior-design"],
+  "domain-interior-design": []
 }
