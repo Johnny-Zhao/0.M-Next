@@ -120,6 +120,22 @@ describe("CommandPalette", () => {
     expect(calls.refreshViews).toHaveBeenCalled();
   });
 
+  it("executes document output commands through the workbench action", async () => {
+    const { context, calls } = commandTestContext();
+    const items = await resolveCommandItems(
+      new CommandRegistry(),
+      context,
+      "markdown",
+    );
+    const command = items.find(
+      (item) => item.id === "output-generate-markdown",
+    );
+
+    await executeCommand(command!, context, "markdown");
+
+    expect(calls.generateOutput).toHaveBeenCalledWith("markdown");
+  });
+
   it("returns an empty state when no commands match", async () => {
     const { context } = commandTestContext();
     const items = await resolveCommandItems(
@@ -194,6 +210,7 @@ function commandTestContext(options: CommandContextOptions = {}): {
     commandClient: {
       updateFields: calls.updateFields.mockResolvedValue(undefined),
     },
+    generateOutput: calls.generateOutput.mockResolvedValue(undefined),
     selection: {
       current: calls.current.mockReturnValue(
         selectedObjectId
@@ -214,6 +231,7 @@ function commandCalls() {
   return {
     activatePanel: vi.fn(),
     current: vi.fn(),
+    generateOutput: vi.fn(),
     object: vi.fn(),
     objects: vi.fn(),
     openPanel: vi.fn(),
