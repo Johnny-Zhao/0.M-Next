@@ -16,11 +16,12 @@ describe("App", () => {
     expect(syncLabel("error")).toContain("红");
   });
 
-  it("registers the three dockable workbench panels", () => {
+  it("registers the dockable workbench panels", () => {
     expect(workbenchPanelDefinitions.map((panel) => panel.title)).toEqual([
       "图",
       "模型树",
       "属性/校验",
+      "校验",
     ]);
   });
 
