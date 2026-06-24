@@ -1,0 +1,1972 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;height:100%;}
+  body{overflow:hidden;}
+  input,select,textarea{font-family:inherit;}
+  ::-webkit-scrollbar{width:10px;height:10px;}
+  ::-webkit-scrollbar-thumb{background:var(--border-2);border-radius:5px;border:2px solid var(--canvas);}
+  ::-webkit-scrollbar-track{background:transparent;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  @keyframes shimmer{0%{background-position:-420px 0}100%{background-position:420px 0}}
+  @keyframes ctxin{from{opacity:0;transform:translateY(-4px) scale(.98)}to{opacity:1;transform:none}}
+  .mn-app{
+    --bg:#EEEDEB; --panel:#FAF9F8; --surface:#FFFFFF; --surface-2:#F4F3F1; --canvas:#F3F2F0;
+    --ink:#242424; --ink-2:#57534F; --ink-3:#8A8886; --ink-4:#B3B0AD;
+    --border:#E6E3E1; --border-2:#CFCCC9; --border-strong:#BBB8B4;
+    --accent:#0F6CBD; --accent-2:#0A538F; --accent-bg:#EEF5FC; --accent-bd:#BAD7F2; --accent-ring:rgba(15,108,189,.32);
+    --ok:#0E700E; --ok-d:#107C10; --ok-bg:#E2F4E0; --ok-bd:#9BD49B;
+    --warn:#8A5A00; --warn-d:#B98900; --warn-bg:#FCF3D2; --warn-bd:#E7C766;
+    --block:#B10E1C; --block-d:#C50F1F; --block-bg:#FCE6E8; --block-bd:#EBA9AF;
+    --stale:#6E5400; --stale-d:#8A6D00; --stale-bg:#F8F0D2; --stale-bd:#DEC987;
+    --t-subsystem:#5B5FC7; --t-component:#0E7C7B; --t-interface:#B146C2; --t-requirement:#CA5010;
+    --grid:#E5E3DF;
+    --shadow-node:0 1px 2px rgba(0,0,0,.10);
+    --shimmer:linear-gradient(90deg,var(--surface-2) 0px,var(--border) 200px,var(--surface-2) 420px);
+    --mono:'Cascadia Code','Cascadia Mono',ui-monospace,Consolas,'SF Mono',monospace;
+    --sans:'Segoe UI Variable','Segoe UI',system-ui,-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;
+  }
+  .mn-app[data-theme="dark"]{
+    --bg:#1A1A1A; --panel:#242322; --surface:#2C2B2A; --surface-2:#333130; --canvas:#1F1E1D;
+    --ink:#F3F2F1; --ink-2:#C8C6C4; --ink-3:#979593; --ink-4:#6B6A68;
+    --border:#3A3938; --border-2:#4A4847; --border-strong:#5C5A58;
+    --accent:#479EF5; --accent-2:#7DBAF7; --accent-bg:#10283C; --accent-bd:#2A4B68; --accent-ring:rgba(71,158,245,.42);
+    --ok:#73C173; --ok-d:#57AE57; --ok-bg:#15300F; --ok-bd:#2E5E2A;
+    --warn:#E6C45C; --warn-d:#C9A227; --warn-bg:#332B0C; --warn-bd:#5A4E1F;
+    --block:#FF9AA4; --block-d:#EC6B76; --block-bg:#3A171A; --block-bd:#6E2B31;
+    --stale:#DCBB52; --stale-d:#BE9C2E; --stale-bg:#2C2611; --stale-bd:#534720;
+    --t-subsystem:#9EA2F0; --t-component:#4FD0CF; --t-interface:#DB8FE0; --t-requirement:#F1894F;
+    --grid:#2B2A28;
+    --shadow-node:0 1px 4px rgba(0,0,0,.55);
+    --shimmer:linear-gradient(90deg,var(--surface-2) 0px,var(--border) 200px,var(--surface-2) 420px);
+  }
+</style>
+</helmet>
+
+<div class="mn-app" data-theme="{{ theme }}" style="display:flex;flex-direction:column;height:100vh;background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:13px;-webkit-font-smoothing:antialiased" onMouseUp="{{ onRootUp }}" onMouseMove="{{ onRootMove }}">
+
+  <!-- ===== TOP BAR ===== -->
+  <div style="display:flex;align-items:center;gap:14px;height:42px;padding:0 12px;background:var(--panel);border-bottom:1px solid var(--border);flex:none;position:relative;z-index:38">
+    <div style="display:flex;align-items:center;gap:7px">
+      <div style="width:18px;height:18px;border-radius:4px;background:var(--accent);display:flex;align-items:center;justify-content:center;color:#fff;font-family:var(--mono);font-weight:800;font-size:11px">M</div>
+      <span style="font-weight:600;font-size:13px;letter-spacing:.01em">M-Next</span>
+      <span style="font-family:var(--mono);font-size:10px;color:var(--ink-3);background:var(--surface-2);padding:1px 5px;border-radius:3px">制图工作台</span>
+    </div>
+    <div onClick="{{ goHome }}" title="返回首页" style="display:inline-flex;align-items:center;gap:5px;height:26px;padding:0 10px;border-radius:5px;cursor:pointer;font-size:12px;color:var(--ink-2);background:var(--surface);border:1px solid var(--border-2);transition:border-color .12s" style-hover="border-color:var(--accent);color:var(--accent)">
+      <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2.5 7.5L8 3l5.5 4.5M4 6.5v6h8v-6"/></svg>首页
+    </div>
+    <div style="display:flex;align-items:center;gap:2px;margin-left:6px">
+      <sc-for list="{{ menus }}" as="m" hint-placeholder-count="5">
+        <div style="position:relative">
+          <div onClick="{{ m.onToggle }}" style="{{ m.labelStyle }}">{{ m.label }}</div>
+          <sc-if value="{{ m.open }}" hint-placeholder-val="{{ false }}">
+            <div style="position:absolute;left:0;top:32px;min-width:224px;background:var(--surface);border:1px solid var(--border-2);border-radius:7px;box-shadow:0 14px 36px rgba(0,0,0,.26);padding:4px;z-index:40;animation:ctxin .1s ease">
+              <sc-for list="{{ m.items }}" as="it" hint-placeholder-count="4">
+                <sc-if value="{{ it.isSep }}" hint-placeholder-val="{{ false }}"><div style="height:1px;background:var(--border);margin:4px 8px"></div></sc-if>
+                <sc-if value="{{ it.isItem }}" hint-placeholder-val="{{ true }}">
+                  <div onMouseDown="{{ it.run }}" style="{{ it.style }}" style-hover="background:var(--surface-2)">
+                    <span style="width:15px;text-align:center;font-size:11px;color:var(--accent);flex:none">{{ it.checkGlyph }}</span>
+                    <span style="flex:1;white-space:nowrap">{{ it.label }}</span>
+                    <span style="font-family:var(--mono);font-size:10px;color:var(--ink-4)">{{ it.tag }}</span>
+                  </div>
+                </sc-if>
+              </sc-for>
+            </div>
+          </sc-if>
+        </div>
+      </sc-for>
+    </div>
+    <div style="flex:1"></div>
+    <div onClick="{{ openCmd }}" style="display:flex;align-items:center;gap:6px;height:26px;padding:0 9px;background:var(--surface);border:1px solid var(--border-2);border-radius:4px;width:240px;color:var(--ink-3);cursor:pointer;transition:border-color .12s" style-hover="border-color:var(--accent)">
+      <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="7" cy="7" r="4.5"/><path d="M11 11l3 3"/></svg>
+      <span style="font-size:12px">搜索 / 命令…</span>
+      <span style="flex:1"></span>
+      <span style="font-family:var(--mono);font-size:10px;border:1px solid var(--border-2);border-radius:3px;padding:0 4px">⌘K</span>
+    </div>
+    <div onClick="{{ toggleTheme }}" style="display:flex;align-items:center;gap:5px;height:26px;padding:0 10px;background:var(--surface);border:1px solid var(--border-2);border-radius:4px;cursor:pointer;font-size:12px;color:var(--ink-2);white-space:nowrap;flex:none;transition:border-color .12s" style-hover="border-color:var(--accent)">
+      <span style="font-family:var(--mono);font-size:11px">{{ themeIcon }}</span><span>{{ themeLabel }}</span>
+    </div>
+    <div style="width:26px;height:26px;border-radius:50%;background:var(--t-subsystem);color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600">叶</div>
+  </div>
+
+  <!-- ===== TOOLBAR ===== -->
+  <div style="display:flex;align-items:center;gap:4px;height:38px;padding:0 10px;background:var(--surface);border-bottom:1px solid var(--border);flex:none" data-comment-anchor="18d59ddc57-div">
+    <span onClick="{{ setToolSelect }}" title="选择" style="{{ toolSelectStyle }}" data-comment-anchor="57ef1eeec9-span">
+      <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor"><path d="M3 2l9 5-3.6 1.1L10 12 8.4 12.7 6.6 8.8 4 11z"/></svg>
+    </span>
+    <span onClick="{{ selectSameType }}" title="选择同类型 — 选中图中所有同类型图元" style="{{ toolMarqueeStyle }}" data-comment-anchor="x40-batch">
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M2 1.5l5.6 3.2-2.3.7 1 2.5-1.1.45-1-2.5L2.2 7.2z" opacity="0.45"/><path d="M6 4.2l5.6 3.2-2.3.7 1 2.5-1.1.45-1-2.5L6.2 9.9z"/></svg>
+    </span>
+    <div style="width:1px;height:20px;background:var(--border);margin:0 4px"></div>
+    <span onClick="{{ autoLayout }}" title="自动布局" style="{{ autoLayoutStyle }}" style-hover="background:var(--surface-2)" data-comment-anchor="2716962185-span">
+      <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="2" y="3" width="5" height="4" rx="1"/><rect x="9" y="9" width="5" height="4" rx="1"/><path d="M4.5 7v3M11.5 9V6h-7"/></svg>
+    </span>
+    <div style="width:1px;height:20px;background:var(--border);margin:0 4px"></div>
+    <sc-for list="{{ editTools }}" as="t" hint-placeholder-count="6">
+      <sc-if value="{{ t.isSep }}" hint-placeholder-val="{{ false }}"><div style="width:1px;height:18px;background:var(--border);margin:0 3px"></div></sc-if>
+      <sc-if value="{{ t.isBtn }}" hint-placeholder-val="{{ true }}"><span onClick="{{ t.onClick }}" title="{{ t.title }}" style="{{ t.style }}" style-hover="{{ t.hover }}">{{ t.iconEl }}</span></sc-if>
+    </sc-for>
+    <div style="position:relative">
+      <span onClick="{{ toggleAlign }}" title="对齐与分布" style="{{ alignBtnStyle }}">{{ alignIconEl }}<svg width="9" height="9" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6l4 4 4-4"/></svg></span>
+      <sc-if value="{{ alignOpen }}" hint-placeholder-val="{{ false }}">
+        <div style="position:absolute;left:0;top:34px;width:178px;background:var(--surface);border:1px solid var(--border-2);border-radius:7px;box-shadow:0 14px 36px rgba(0,0,0,.22);padding:8px;z-index:40;animation:ctxin .1s ease">
+          <div style="font-size:10px;letter-spacing:.06em;color:var(--ink-3);text-transform:uppercase;margin-bottom:6px">对齐（选中 ≥2）</div>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:5px">
+            <sc-for list="{{ alignItems }}" as="a" hint-placeholder-count="6"><span onClick="{{ a.onClick }}" title="{{ a.title }}" style="{{ a.style }}" style-hover="border-color:var(--accent);color:var(--accent)">{{ a.iconEl }}</span></sc-for>
+          </div>
+          <div style="font-size:10px;letter-spacing:.06em;color:var(--ink-3);text-transform:uppercase;margin:9px 0 6px">分布（选中 ≥3）</div>
+          <div style="display:flex;gap:5px">
+            <sc-for list="{{ distItems }}" as="a" hint-placeholder-count="2"><span onClick="{{ a.onClick }}" title="{{ a.title }}" style="{{ a.style }}" style-hover="border-color:var(--accent);color:var(--accent)">{{ a.iconEl }}{{ a.label }}</span></sc-for>
+          </div>
+        </div>
+      </sc-if>
+    </div>
+    <sc-if value="{{ multiSel }}" hint-placeholder-val="{{ false }}"><span style="font-family:var(--mono);font-size:10px;color:var(--accent);background:var(--accent-bg);border:1px solid var(--accent-bd);border-radius:9px;padding:1px 7px;white-space:nowrap">已选 {{ selCount }}</span></sc-if>
+    <div style="width:1px;height:20px;background:var(--border);margin:0 6px"></div>
+    <div style="display:flex;align-items:center;gap:2px;background:var(--surface-2);border:1px solid var(--border);border-radius:6px;padding:2px">
+      <sc-for list="{{ viewTabs }}" as="v" hint-placeholder-count="4">
+        <div onClick="{{ v.onClick }}" style="{{ v.style }}">{{ v.label }}</div>
+      </sc-for>
+    </div>
+    <div style="width:1px;height:20px;background:var(--border);margin:0 6px"></div>
+    <div style="position:relative">
+      <div onClick="{{ toggleDisp }}" title="图元卡片显示设置" style="{{ dispBtnStyle }}" data-comment-anchor="9af1065fa8-div">
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="8" cy="8" r="2.2"/><path d="M8 2.5v2M8 11.5v2M13.5 8h-2M4.5 8h-2M11.9 4.1l-1.4 1.4M5.5 10.5l-1.4 1.4M11.9 11.9l-1.4-1.4M5.5 5.5L4.1 4.1"/></svg>显示
+      </div>
+      <sc-if value="{{ dispOpen }}" hint-placeholder-val="{{ false }}">
+        <div style="position:absolute;left:0;top:34px;width:214px;background:var(--surface);border:1px solid var(--border-2);border-radius:7px;box-shadow:0 14px 36px rgba(0,0,0,.22);padding:6px;z-index:40;animation:ctxin .1s ease">
+          <div style="font-size:10px;letter-spacing:.06em;color:var(--ink-3);text-transform:uppercase;padding:4px 8px 6px">图元卡片显示</div>
+          <sc-for list="{{ dispItems }}" as="d" hint-placeholder-count="4">
+            <div onClick="{{ d.onToggle }}" style="display:flex;align-items:center;gap:9px;padding:6px 8px;border-radius:4px;cursor:pointer" style-hover="background:var(--surface-2)">
+              <span style="{{ d.boxStyle }}">{{ d.check }}</span>
+              <span style="flex:1;font-size:12px;color:var(--ink-2)">{{ d.label }}</span>
+            </div>
+          </sc-for>
+          <div style="font-size:10px;color:var(--ink-4);padding:7px 8px 2px;line-height:1.5;border-top:1px solid var(--border);margin-top:4px">逐字段隐藏请在右侧「属性 · 节点显示」中设置。</div>
+        </div>
+      </sc-if>
+    </div>
+    <div style="flex:1"></div>
+    <span onClick="{{ revalidate }}" style="display:inline-flex;align-items:center;gap:5px;height:26px;padding:0 10px;border-radius:4px;color:var(--ink-2);background:var(--surface);border:1px solid var(--border-2);font-size:12px;cursor:pointer;white-space:nowrap;transition:border-color .12s" style-hover="border-color:var(--accent);color:var(--accent)">
+      <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M13 8a5 5 0 11-1.5-3.5M13 2v3h-3"/></svg>重新校验
+    </span>
+    <span onClick="{{ runSim }}" title="运行仿真（轨道功率平衡）" style="{{ simBtnStyle }}">
+      <sc-if value="{{ simRunning }}" hint-placeholder-val="{{ false }}"><span style="display:inline-block;animation:spin .7s linear infinite">↻</span></sc-if>
+      <sc-if value="{{ simIdleIcon }}" hint-placeholder-val="{{ true }}"><svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor"><path d="M4 3l9 5-9 5z"/></svg></sc-if>
+      {{ simBtnLabel }}
+    </span>
+  </div>
+
+  <!-- ===== MAIN ===== -->
+  <div style="flex:1;display:flex;min-height:0">
+
+    <!-- LEFT DOCK -->
+    <div style="{{ leftDockStyle }}">
+      <sc-if value="{{ leftCollapsed }}" hint-placeholder-val="{{ false }}">
+        <div onClick="{{ toggleLeft }}" title="展开图元 / 模型树" style="display:flex;flex-direction:column;align-items:center;gap:12px;padding:12px 0;cursor:pointer;height:100%" style-hover="background:var(--surface-2)">
+          <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="var(--ink-3)" stroke-width="1.7"><path d="M6 4l4 4-4 4"/></svg>
+          <span style="writing-mode:vertical-rl;font-size:11px;color:var(--ink-2);letter-spacing:.12em">图元 / 模型树</span>
+        </div>
+      </sc-if>
+      <sc-if value="{{ leftExpanded }}" hint-placeholder-val="{{ true }}">
+      <div style="display:flex;align-items:center;height:32px;border-bottom:1px solid var(--border);flex:none">
+        <div onClick="{{ leftTreeTab }}" style="{{ leftTreeTabStyle }}">模型树</div>
+        <div onClick="{{ leftPaletteTab }}" style="{{ leftPaletteTabStyle }}">图元</div>
+        <span style="flex:1"></span>
+        <span onClick="{{ toggleLeft }}" title="折叠面板" style="display:inline-flex;align-items:center;padding:0 9px;color:var(--ink-3);cursor:pointer" style-hover="color:var(--accent)"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M10 4l-4 4 4 4"/></svg></span>
+      </div>
+      <div style="flex:1;overflow:auto;min-height:0">
+        <sc-if value="{{ showTree }}" hint-placeholder-val="{{ true }}">
+          <div style="padding:8px 6px">
+            <div style="display:flex;align-items:center;gap:5px;padding:4px 6px;font-size:12px;color:var(--ink-2);font-weight:600">
+              <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 6l4 4 4-4"/></svg>卫星电源分系统
+            </div>
+            <sc-for list="{{ tree }}" as="t" hint-placeholder-count="5">
+              <div onClick="{{ t.onClick }}" onContextMenu="{{ t.onCtx }}" style="{{ t.rowStyle }}" style-hover="background:var(--surface-2)" data-comment-anchor="f0ff6a8294-div">
+                <span style="{{ t.dotStyle }}"></span>
+                <span style="font-family:var(--mono);font-size:10px;font-weight:700;color:var(--ink-2)">{{ t.code }}</span>
+                <span style="font-size:12px;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1">{{ t.name }}</span>
+                <span style="{{ t.flagStyle }}">{{ t.flag }}</span>
+              </div>
+            </sc-for>
+          </div>
+        </sc-if>
+        <sc-if value="{{ showPalette }}" hint-placeholder-val="{{ false }}">
+          <div style="padding:11px;display:flex;flex-direction:column;gap:6px">
+            <sc-for list="{{ paletteCards }}" as="p" hint-placeholder-count="4">
+              <div onClick="{{ p.onClick }}" style="display:flex;align-items:center;gap:9px;padding:7px 9px;background:var(--surface);border:1px solid var(--border-2);border-radius:4px;cursor:pointer;transition:border-color .12s" style-hover="border-color:var(--accent)" data-comment-anchor="705045eb02-div">
+                <span style="{{ p.iconBoxStyle }}">{{ p.icon }}</span>
+                <span style="flex:1;font-size:12px;font-weight:600;color:var(--ink)">{{ p.label }}</span>
+              </div>
+            </sc-for>
+          </div>
+        </sc-if>
+      </div>
+      </sc-if>
+    </div>
+
+    <sc-if value="{{ showLeftResize }}" hint-placeholder-val="{{ true }}">
+      <div onMouseDown="{{ startLeftResize }}" style="{{ leftResizeStyle }}" style-hover="background:var(--accent)"></div>
+    </sc-if>
+
+    <!-- CENTER + BOTTOM -->
+    <div style="flex:1;display:flex;flex-direction:column;min-width:0;min-height:0;position:relative" onMouseMove="{{ onFloatMove }}" onMouseUp="{{ onFloatUp }}">
+
+      <div style="flex:1;display:flex;min-width:0;min-height:0;position:relative">
+
+        <!-- READY: panes -->
+        <sc-if value="{{ showReady }}" hint-placeholder-val="{{ true }}">
+          <div style="flex:1;display:flex;min-width:0;min-height:0">
+
+            <!-- GRAPH PANE -->
+            <div style="{{ graphPaneStyle }}" data-pane="graph">
+              <sc-if value="{{ pane.graph.showSplitter }}" hint-placeholder-val="{{ false }}"><div onMouseDown="{{ pane.graph.onSplitterDown }}" style="{{ pane.graph.splitterStyle }}" style-hover="background:var(--accent)"></div></sc-if>
+              <div style="{{ pane.graph.headerStyle }}">
+                <span style="font-size:11px;font-weight:600;color:var(--ink-2)">{{ pane.graph.title }}</span>
+                <span style="flex:1"></span>
+                <span onClick="{{ pane.graph.onLeft }}" title="左移" style="{{ pane.graph.leftStyle }}" style-hover="background:var(--surface-2)">◀</span>
+                <span onClick="{{ pane.graph.onRight }}" title="右移" style="{{ pane.graph.rightStyle }}" style-hover="background:var(--surface-2)">▶</span>
+                <span onClick="{{ pane.graph.onClose }}" title="隐藏此视图" style="{{ pane.graph.closeStyle }}" style-hover="background:var(--surface-2);color:var(--block)">×</span>
+              </div>
+              <div style="flex:1;overflow:auto;position:relative;min-height:0" onMouseDown="{{ onBgDown }}">
+                <div ref="{{ canvasRef }}" style="position:relative;width:1420px;height:780px;background-color:var(--canvas);background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);background-size:18px 18px"
+                     onMouseDown="{{ onCanvasDown }}" onMouseMove="{{ onCanvasMove }}" onMouseUp="{{ onCanvasUp }}" onMouseLeave="{{ onCanvasUp }}" onContextMenu="{{ onCanvasCtx }}" data-comment-anchor="fb77820ef2-div">
+                  <svg width="1420" height="780" style="position:absolute;left:0;top:0;overflow:visible;pointer-events:none">
+                    <sc-for list="{{ edges }}" as="e" hint-placeholder-count="6">
+                      <path d="{{ e.d }}" fill="none" stroke="{{ e.stroke }}" strokeWidth="{{ e.weight }}" strokeDasharray="{{ e.dash }}" strokeLinecap="round"></path>
+                      <polygon points="{{ e.arrow }}" fill="{{ e.stroke }}"></polygon>
+                      <rect x="{{ e.lx }}" y="{{ e.ly }}" width="{{ e.lw }}" height="16" rx="2" fill="{{ e.labelBg }}" stroke="{{ e.labelBd }}"></rect>
+                      <text x="{{ e.ltx }}" y="{{ e.lty }}" fill="{{ e.labelColor }}" fontSize="10" textAnchor="middle" fontFamily="var(--sans)">{{ e.label }}</text>
+                      <sc-if value="{{ e.selected }}" hint-placeholder-val="{{ false }}">
+                        <circle cx="{{ e.sx }}" cy="{{ e.sy }}" r="3.5" fill="var(--surface)" stroke="var(--accent)" strokeWidth="1.6"></circle>
+                        <circle cx="{{ e.ex }}" cy="{{ e.ey }}" r="3.5" fill="var(--accent)"></circle>
+                      </sc-if>
+                      <path d="{{ e.d }}" fill="none" stroke="transparent" strokeWidth="14" style="pointer-events:stroke;cursor:pointer" onMouseDown="{{ e.onSelect }}" onContextMenu="{{ e.onCtx }}"></path>
+                    </sc-for>
+                    <sc-if value="{{ pending.show }}" hint-placeholder-val="{{ false }}">
+                      <path d="{{ pending.d }}" fill="none" stroke="var(--accent)" strokeWidth="1.8" strokeDasharray="4 3" strokeLinecap="round"></path>
+                      <circle cx="{{ pending.x }}" cy="{{ pending.y }}" r="4" fill="var(--accent)"></circle>
+                    </sc-if>
+                  </svg>
+                  <sc-for list="{{ nodes }}" as="n" hint-placeholder-count="6">
+                    <div style="{{ n.boxStyle }}" style-hover="{{ n.hoverStyle }}" onMouseDown="{{ n.onDown }}" onContextMenu="{{ n.onCtx }}">
+                      <div style="{{ n.stripStyle }}"></div>
+                      <sc-if value="{{ n.stale }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;left:3px;right:0;top:0;height:2px;background:var(--stale-d)"></div></sc-if>
+                      <div onMouseDown="{{ n.onPortDown.l }}" onMouseUp="{{ n.onPortUp }}" style="position:absolute;left:-4px;top:32px;width:8px;height:8px;border-radius:50%;background:var(--surface);border:1.5px solid var(--ink-4);cursor:crosshair;z-index:6;transition:background .1s,border-color .1s" style-hover="border-color:var(--accent);background:var(--accent)"></div>
+                      <div onMouseDown="{{ n.onPortDown.r }}" onMouseUp="{{ n.onPortUp }}" style="position:absolute;right:-4px;top:32px;width:8px;height:8px;border-radius:50%;background:var(--surface);border:1.5px solid var(--ink-4);cursor:crosshair;z-index:6;transition:background .1s,border-color .1s" style-hover="border-color:var(--accent);background:var(--accent)"></div>
+                      <div onMouseDown="{{ n.onPortDown.t }}" onMouseUp="{{ n.onPortUp }}" style="position:absolute;top:-4px;left:50%;width:8px;height:8px;border-radius:50%;background:var(--surface);border:1.5px solid var(--ink-4);cursor:crosshair;transform:translateX(-50%);z-index:6;transition:background .1s,border-color .1s" style-hover="border-color:var(--accent);background:var(--accent)"></div>
+                      <div onMouseDown="{{ n.onPortDown.b }}" onMouseUp="{{ n.onPortUp }}" style="position:absolute;bottom:-4px;left:50%;width:8px;height:8px;border-radius:50%;background:var(--surface);border:1.5px solid var(--ink-4);cursor:crosshair;transform:translateX(-50%);z-index:6;transition:background .1s,border-color .1s" style-hover="border-color:var(--accent);background:var(--accent)"></div>
+                      <div style="display:flex;align-items:center;gap:5px;padding:5px 7px 5px 11px;background:var(--surface-2);border-bottom:1px solid var(--border)">
+                        <span style="display:inline-flex;align-items:center">{{ n.icon }}</span>
+                        <span style="{{ n.codeStyle }}">{{ n.code }}</span>
+                        <sc-if value="{{ n.showType }}" hint-placeholder-val="{{ true }}"><span style="font-family:var(--sans);font-size:8.5px;color:var(--ink-3);background:var(--bg);padding:1px 4px;border-radius:2px;white-space:nowrap">{{ n.typeLabel }}</span></sc-if>
+                        <span style="flex:1"></span>
+                        <sc-if value="{{ n.miniStale }}" hint-placeholder-val="{{ false }}"><span title="陈旧" style="font-size:10px;color:var(--stale);flex:none;line-height:1">◴</span></sc-if>
+                        <sc-if value="{{ n.miniReadonly }}" hint-placeholder-val="{{ false }}"><span title="只读" style="display:inline-flex;color:var(--ink-3);flex:none"><svg width="9" height="9" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3.5" y="7" width="9" height="6" rx="1"/><path d="M5.5 7V5a2.5 2.5 0 015 0v2"/></svg></span></sc-if>
+                        <sc-if value="{{ n.recomputing }}" hint-placeholder-val="{{ false }}"><span style="{{ n.recompStyle }}"><span style="display:inline-block;animation:spin .7s linear infinite">↻</span>重算</span></sc-if>
+                        <sc-if value="{{ n.ruleShow }}" hint-placeholder-val="{{ true }}"><span style="{{ n.rule.chipStyle }}">{{ n.rule.glyph }}</span></sc-if>
+                      </div>
+                      <div style="padding:6px 9px 3px"><span style="{{ n.nameStyle }}">{{ n.name }}</span></div>
+                      <sc-for list="{{ n.rows }}" as="r" hint-placeholder-count="2">
+                        <div style="{{ r.rowStyle }}">
+                          <span style="display:inline-flex;align-items:center;gap:5px">
+                            <sc-if value="{{ r.isFx }}" hint-placeholder-val="{{ false }}"><span style="{{ r.fxStyle }}">fx</span></sc-if>
+                            <span style="{{ r.labelStyle }}">{{ r.label }}</span>
+                          </span>
+                          <span style="{{ r.valueStyle }}">{{ r.valueText }}</span>
+                        </div>
+                      </sc-for>
+                      <sc-if value="{{ n.showProv }}" hint-placeholder-val="{{ false }}">
+                      <div style="display:flex;align-items:center;gap:4px;padding:4px 9px;background:var(--surface-2);border-top:1px solid var(--border);font-family:var(--mono);font-size:9px;color:var(--ink-3)">
+                        <span>{{ n.prov.src }}</span><span style="color:var(--ink-4)">·</span><span>{{ n.prov.fresh }}</span><span style="color:var(--ink-4)">·</span><span>↓{{ n.down }}</span>
+                        <span style="flex:1"></span>
+                        <sc-if value="{{ n.stale }}" hint-placeholder-val="{{ false }}"><span style="font-family:var(--sans);font-size:8px;color:var(--stale);background:var(--stale-bg);border:1px solid var(--stale-bd);border-radius:2px;padding:0 3px">陈旧</span></sc-if>
+                        <sc-if value="{{ n.readonly }}" hint-placeholder-val="{{ false }}"><span style="font-family:var(--sans);font-size:8px;color:var(--ink-3);border:1px solid var(--border-2);border-radius:2px;padding:0 3px">只读</span></sc-if>
+                      </div>
+                      </sc-if>
+                    </div>
+                  </sc-for>
+                  <sc-if value="{{ marquee.show }}" hint-placeholder-val="{{ false }}"><div style="{{ marquee.style }}"></div></sc-if>
+                  <div style="position:absolute;left:14px;bottom:12px;display:flex;align-items:center;gap:6px;font-size:10px;color:var(--ink-3);background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:4px 8px;pointer-events:none">
+                    <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="4" cy="4" r="2"/><circle cx="12" cy="12" r="2"/><path d="M5.4 5.4l5.2 5.2"/></svg>
+                    拖端口连线 · 右键图元 / 连线 / 画布看更多
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- TABLE PANE -->
+            <div style="{{ tablePaneStyle }}" data-pane="table">
+              <sc-if value="{{ pane.table.showSplitter }}" hint-placeholder-val="{{ false }}"><div onMouseDown="{{ pane.table.onSplitterDown }}" style="{{ pane.table.splitterStyle }}" style-hover="background:var(--accent)"></div></sc-if>
+              <div style="{{ pane.table.headerStyle }}">
+                <span style="font-size:11px;font-weight:600;color:var(--ink-2)">{{ pane.table.title }}</span>
+                <span style="flex:1"></span>
+                <span onClick="{{ pane.table.onLeft }}" title="左移" style="{{ pane.table.leftStyle }}" style-hover="background:var(--surface-2)">◀</span>
+                <span onClick="{{ pane.table.onRight }}" title="右移" style="{{ pane.table.rightStyle }}" style-hover="background:var(--surface-2)">▶</span>
+                <span onClick="{{ pane.table.onClose }}" title="隐藏此视图" style="{{ pane.table.closeStyle }}" style-hover="background:var(--surface-2);color:var(--block)">×</span>
+              </div>
+              <div style="flex:1;overflow:auto;min-height:0;background:var(--panel)">
+              <div style="min-width:980px">
+                <div style="display:flex;align-items:center;height:34px;padding:0 14px;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--panel);font-family:var(--mono);font-size:10px;color:var(--ink-3);z-index:2">
+                  <span style="width:60px">代号</span><span style="width:150px">名称</span><span style="width:74px">类型</span><span style="width:220px">字段 · 存储值</span><span style="width:160px">派生 (fx)</span><span style="width:92px">规则灯</span><span style="width:58px">来源</span><span style="flex:1">新鲜度 / 下游</span>
+                </div>
+                <sc-for list="{{ gridRows }}" as="g" hint-placeholder-count="6">
+                  <div onMouseDown="{{ g.onSelect }}" style="{{ g.rowStyle }}">
+                    <span style="width:60px;font-family:var(--mono);font-size:11px;font-weight:700;color:var(--ink)">{{ g.code }}</span>
+                    <span style="width:150px"><input type="text" value="{{ g.name }}" onChange="{{ g.onName }}" disabled="{{ g.locked }}" style="{{ g.nameStyle }}" style-focus="border-color:var(--accent);outline:none" /></span>
+                    <span style="width:74px;display:inline-flex;align-items:center;gap:5px"><span style="{{ g.dotStyle }}"></span><span style="font-size:11px;color:var(--ink-2)">{{ g.typeLabel }}</span></span>
+                    <span style="width:220px;display:flex;flex-direction:column;gap:3px">
+                      <sc-for list="{{ g.fields }}" as="f" hint-placeholder-count="2">
+                        <span style="display:inline-flex;align-items:center;gap:5px">
+                          <span style="font-size:10px;color:var(--ink-3);width:64px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ f.label }}</span>
+                          <input type="number" value="{{ f.value }}" onChange="{{ f.onChange }}" disabled="{{ f.disabled }}" style="{{ f.inputStyle }}" style-focus="border-color:var(--accent);outline:none" />
+                          <span style="font-family:var(--mono);font-size:10px;color:var(--ink-3)">{{ f.unit }}</span>
+                        </span>
+                      </sc-for>
+                    </span>
+                    <span style="width:160px;display:flex;flex-direction:column;gap:2px">
+                      <sc-for list="{{ g.derived }}" as="d" hint-placeholder-count="1">
+                        <span style="display:inline-flex;align-items:center;gap:5px"><span style="font-family:var(--mono);font-style:italic;font-weight:800;font-size:9px;color:var(--accent)">fx</span><span style="font-family:var(--mono);font-size:11px;color:var(--accent)">{{ d.text }}</span></span>
+                      </sc-for>
+                      <sc-if value="{{ g.noDerived }}" hint-placeholder-val="{{ false }}"><span style="font-family:var(--mono);font-size:11px;color:var(--ink-4)">—</span></sc-if>
+                    </span>
+                    <span style="width:92px"><span style="{{ g.badgeStyle }}">{{ g.glyph }} {{ g.ruleText }}</span></span>
+                    <span style="width:58px;font-size:11px;color:var(--ink-2)">{{ g.src }}</span>
+                    <span style="flex:1;font-family:var(--mono);font-size:10px;color:var(--ink-3)">{{ g.fresh }} · ↓{{ g.down }}</span>
+                  </div>
+                </sc-for>
+              </div>
+              </div>
+            </div>
+
+            <!-- TEXT PANE -->
+            <div style="{{ textPaneStyle }}" data-pane="text">
+              <sc-if value="{{ pane.text.showSplitter }}" hint-placeholder-val="{{ false }}"><div onMouseDown="{{ pane.text.onSplitterDown }}" style="{{ pane.text.splitterStyle }}" style-hover="background:var(--accent)"></div></sc-if>
+              <div style="{{ pane.text.headerStyle }}">
+                <span style="font-size:11px;font-weight:600;color:var(--ink-2)">{{ pane.text.title }}</span>
+                <span style="flex:1"></span>
+                <span onClick="{{ pane.text.onLeft }}" title="左移" style="{{ pane.text.leftStyle }}" style-hover="background:var(--surface-2)">◀</span>
+                <span onClick="{{ pane.text.onRight }}" title="右移" style="{{ pane.text.rightStyle }}" style-hover="background:var(--surface-2)">▶</span>
+                <span onClick="{{ pane.text.onClose }}" title="隐藏此视图" style="{{ pane.text.closeStyle }}" style-hover="background:var(--surface-2);color:var(--block)">×</span>
+              </div>
+              <div style="flex:1;overflow:auto;min-height:0;background:var(--canvas)">
+              <div style="padding:16px 20px;min-width:max-content">
+                <sc-for list="{{ textLines }}" as="ln" hint-placeholder-count="14">
+                  <div style="white-space:pre;font-family:var(--mono);font-size:12px;line-height:1.75;min-height:21px">
+                    <sc-for list="{{ ln.parts }}" as="p" hint-placeholder-count="1"><span style="{{ p.style }}">{{ p.text }}</span></sc-for>
+                  </div>
+                </sc-for>
+              </div>
+              </div>
+            </div>
+
+          </div>
+        </sc-if>
+
+        <!-- LOADING -->
+        <sc-if value="{{ showLoading }}" hint-placeholder-val="{{ false }}">
+          <div style="flex:1;position:relative;background-color:var(--canvas);background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);background-size:18px 18px;overflow:hidden">
+            <sc-for list="{{ skeletons }}" as="s" hint-placeholder-count="5">
+              <div style="{{ s.style }}">
+                <div style="height:26px;background:var(--shimmer);background-size:840px;animation:shimmer 1.3s infinite linear;border-bottom:1px solid var(--border)"></div>
+                <div style="padding:10px 9px;display:flex;flex-direction:column;gap:8px">
+                  <div style="height:11px;width:70%;border-radius:3px;background:var(--shimmer);background-size:840px;animation:shimmer 1.3s infinite linear"></div>
+                  <div style="height:9px;width:90%;border-radius:3px;background:var(--shimmer);background-size:840px;animation:shimmer 1.3s infinite linear"></div>
+                </div>
+              </div>
+            </sc-for>
+            <div style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);display:flex;align-items:center;gap:9px;color:var(--ink-3);font-size:13px">
+              <span style="display:inline-block;animation:spin .7s linear infinite;font-size:16px">↻</span>正在加载模型与规则引擎…
+            </div>
+          </div>
+        </sc-if>
+
+        <!-- EMPTY -->
+        <sc-if value="{{ showEmpty }}" hint-placeholder-val="{{ false }}">
+          <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;background-color:var(--canvas);background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);background-size:18px 18px">
+            <svg width="72" height="72" viewBox="0 0 76 76" fill="none" stroke="var(--ink-4)" stroke-width="2" style="margin-bottom:18px"><rect x="12" y="18" width="28" height="16" rx="3"/><rect x="46" y="18" width="18" height="16" rx="3"/><rect x="26" y="46" width="28" height="14" rx="3"/><path d="M26 34v6h14v6M55 34v6h-9"/></svg>
+            <div style="font-size:16px;font-weight:600;margin-bottom:6px">画布为空</div>
+            <div style="font-size:13px;color:var(--ink-3);max-width:320px;line-height:1.6;margin-bottom:20px">从图元面板拖入，或新建一个图元开始建模。也可以导入既有模型。</div>
+            <div style="display:flex;gap:10px">
+              <div onClick="{{ quickAdd }}" style="display:inline-flex;align-items:center;gap:7px;height:36px;padding:0 18px;background:var(--accent);color:#fff;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer" style-hover="background:var(--accent-2)">
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M8 3v10M3 8h10"/></svg>新建图元
+              </div>
+              <div onClick="{{ importModel }}" style="display:inline-flex;align-items:center;gap:7px;height:36px;padding:0 16px;background:var(--surface);border:1px solid var(--border-2);border-radius:6px;font-size:13px;cursor:pointer;color:var(--ink-2)" style-hover="border-color:var(--accent)">导入模型…</div>
+            </div>
+          </div>
+        </sc-if>
+
+        <!-- ERROR -->
+        <sc-if value="{{ showError }}" hint-placeholder-val="{{ false }}">
+          <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;background:var(--canvas)">
+            <div style="width:56px;height:56px;border-radius:50%;background:var(--block-bg);border:1px solid var(--block-bd);display:flex;align-items:center;justify-content:center;margin-bottom:16px;color:var(--block)"><svg width="26" height="26" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="8" cy="8" r="6"/><path d="M8 5v3.5M8 11h.01"/></svg></div>
+            <div style="font-size:16px;font-weight:600;margin-bottom:6px">规则引擎连接失败</div>
+            <div style="font-size:13px;color:var(--ink-3);max-width:340px;line-height:1.6;margin-bottom:20px">无法连接后端实时计算服务，派生与校验暂不可用。请检查网络后重试。</div>
+            <div onClick="{{ retry }}" style="display:inline-flex;align-items:center;gap:7px;height:34px;padding:0 16px;background:var(--surface);border:1px solid var(--border-2);border-radius:6px;font-size:13px;cursor:pointer;color:var(--ink-2)" style-hover="border-color:var(--accent)"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M13 8a5 5 0 11-1.5-3.5M13 2v3h-3"/></svg>重试连接</div>
+          </div>
+        </sc-if>
+
+      </div>
+
+      <!-- BOTTOM DOCK -->
+      <div style="{{ bottomDockStyle }}">
+        <div style="display:flex;align-items:center;height:32px;border-bottom:1px solid var(--border);flex:none;padding-right:6px">
+          <div onClick="{{ tabValidate }}" style="{{ tabValidateStyle }}">校验 <span style="{{ valCountStyle }}">{{ validateCount }}</span></div>
+          <div onClick="{{ tabConsole }}" style="{{ tabConsoleStyle }}">控制台</div>
+          <div onClick="{{ tabSim }}" style="{{ tabSimStyle }}">仿真<sc-if value="{{ simHasResult }}" hint-placeholder-val="{{ false }}"><span style="{{ simDotStyle }}"></span></sc-if></div>
+          <span style="flex:1"></span>
+          <span style="font-family:var(--mono);font-size:10px;color:var(--ink-3);margin-right:8px">{{ bottomMeta }}</span>
+          <sc-if value="{{ showValidate }}" hint-placeholder-val="{{ true }}">
+            <span onClick="{{ toggleFloat }}" title="浮动/停靠" style="display:inline-flex;align-items:center;gap:4px;font-size:11px;color:var(--ink-3);padding:3px 7px;border-radius:3px;cursor:pointer" style-hover="background:var(--surface-2);color:var(--accent)">
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="9" height="9" rx="1.5"/><path d="M11 5h3v9H5v-3"/></svg>{{ floatBtnLabel }}
+            </span>
+          </sc-if>
+          <span onClick="{{ toggleBottom }}" title="折叠 / 展开面板" style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:22px;border-radius:3px;color:var(--ink-3);cursor:pointer;margin-left:2px;font-size:11px" style-hover="background:var(--surface-2);color:var(--accent)">{{ bottomChevron }}</span>
+        </div>
+        <sc-if value="{{ bottomExpanded }}" hint-placeholder-val="{{ true }}">
+        <div style="flex:1;overflow:auto;min-height:0">
+          <sc-if value="{{ showValidateList }}" hint-placeholder-val="{{ true }}">
+            <div>
+              <div style="display:flex;align-items:center;padding:0 12px;height:26px;font-family:var(--mono);font-size:10px;color:var(--ink-3);border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--panel)">
+                <span style="width:74px">级别</span><span style="width:180px">图元</span><span style="width:104px">规则</span><span style="flex:1">说明</span>
+              </div>
+              <sc-for list="{{ validations }}" as="v" hint-placeholder-count="3">
+                <div onClick="{{ v.onClick }}" style="{{ v.rowStyle }}" style-hover="background:var(--surface-2)">
+                  <span style="width:74px"><span style="{{ v.badgeStyle }}">{{ v.glyph }} {{ v.levelText }}</span></span>
+                  <span style="width:180px;display:inline-flex;align-items:center;gap:6px"><span style="{{ v.dotStyle }}"></span><span style="font-family:var(--mono);font-size:11px;font-weight:700;color:var(--ink-2)">{{ v.code }}</span><span style="font-size:12px;color:var(--ink-2)">{{ v.name }}</span></span>
+                  <span style="width:104px;font-family:var(--mono);font-size:11px;color:var(--ink-3)">{{ v.rule }}</span>
+                  <span style="flex:1;font-size:12px;color:var(--ink-2)">{{ v.msg }}</span>
+                </div>
+              </sc-for>
+              <sc-if value="{{ allPass }}" hint-placeholder-val="{{ false }}">
+                <div style="padding:18px 14px;font-size:12px;color:var(--ok)">✓ 全部规则通过，无告警或阻断。</div>
+              </sc-if>
+            </div>
+          </sc-if>
+          <sc-if value="{{ validateFloated }}" hint-placeholder-val="{{ false }}">
+            <div style="padding:18px 14px;font-size:12px;color:var(--ink-3)">校验面板已浮动到画布上。<span onClick="{{ toggleFloat }}" style="color:var(--accent);cursor:pointer;text-decoration:underline">点此停靠</span>。</div>
+          </sc-if>
+          <sc-if value="{{ showConsole }}" hint-placeholder-val="{{ false }}">
+            <div style="padding:12px 14px;font-family:var(--mono);font-size:11px;color:var(--ink-3);line-height:1.9">
+              <div><span style="color:var(--ok)">●</span> 规则引擎已就绪 · 后端实时计算在线</div>
+              <div><span style="color:var(--accent)">●</span> 监听 {{ nodeCount }} 个图元字段变更 → 派生重算 · 规则评估</div>
+              <div style="color:var(--ink-4)">提示：⌘K 命令面板；右键画布/图元/连线唤出上下文菜单；工具栏「仿真」运行轨道功率平衡分析。</div>
+            </div>
+          </sc-if>
+          <sc-if value="{{ showSim }}" hint-placeholder-val="{{ false }}">
+            <sc-if value="{{ simIdle }}" hint-placeholder-val="{{ true }}">
+              <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:130px;gap:11px;text-align:center">
+                <div style="font-size:12px;color:var(--ink-3)">尚未运行仿真。基于当前模型运行轨道功率平衡分析。</div>
+                <div onClick="{{ runSim }}" style="display:inline-flex;align-items:center;gap:7px;height:32px;padding:0 16px;background:var(--accent);color:#fff;border-radius:6px;font-size:12px;font-weight:500;cursor:pointer" style-hover="background:var(--accent-2)"><svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor"><path d="M4 3l9 5-9 5z"/></svg>运行仿真</div>
+              </div>
+            </sc-if>
+            <sc-if value="{{ simRunningView }}" hint-placeholder-val="{{ false }}">
+              <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:130px;gap:13px">
+                <div style="display:flex;align-items:center;gap:9px;font-size:13px;color:var(--ink-2)"><span style="display:inline-block;animation:spin .7s linear infinite;font-size:15px;color:var(--accent)">↻</span>正在运行轨道功率仿真… {{ simProgress }}</div>
+                <div style="width:280px;height:6px;border-radius:3px;background:var(--surface-2);overflow:hidden"><div style="height:100%;width:{{ simProgress }};background:var(--accent);border-radius:3px;transition:width .2s"></div></div>
+              </div>
+            </sc-if>
+            <sc-if value="{{ simDoneView }}" hint-placeholder-val="{{ false }}">
+              <div style="display:flex;gap:20px;padding:12px 16px;align-items:flex-start">
+                <div style="flex:1;min-width:0">
+                  <div style="display:flex;align-items:center;gap:9px;margin-bottom:11px">
+                    <span style="{{ sim.verdictBadge }}">{{ sim.verdictGlyph }} {{ sim.verdictText }}</span>
+                    <span style="font-size:11px;color:var(--ink-3)">{{ sim.scenario }}</span>
+                    <span style="flex:1"></span>
+                    <span onClick="{{ runSim }}" style="display:inline-flex;align-items:center;gap:5px;height:24px;padding:0 9px;border:1px solid var(--border-2);border-radius:4px;font-size:11px;color:var(--ink-2);cursor:pointer" style-hover="border-color:var(--accent);color:var(--accent)">↻ 重新运行</span>
+                  </div>
+                  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:9px 16px">
+                    <sc-for list="{{ sim.metrics }}" as="m" hint-placeholder-count="6">
+                      <div><div style="font-size:10px;color:var(--ink-3);margin-bottom:1px">{{ m.k }}</div><div style="{{ m.vStyle }}">{{ m.v }}</div></div>
+                    </sc-for>
+                  </div>
+                </div>
+                <div style="width:300px;flex:none">
+                  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px"><span style="font-size:10px;color:var(--ink-3)">轨道 SoC 曲线</span><span style="font-size:10px;color:var(--ink-4)">阴影区阴影</span></div>
+                  <svg width="{{ sim.W }}" height="{{ sim.H }}" style="display:block;background:var(--surface-2);border:1px solid var(--border);border-radius:4px">
+                    <rect x="{{ sim.sunW }}" y="0" width="300" height="{{ sim.H }}" fill="var(--stale-bg)" opacity="0.5"></rect>
+                    <line x1="0" y1="{{ sim.floorY }}" x2="{{ sim.W }}" y2="{{ sim.floorY }}" stroke="var(--block-d)" strokeWidth="1" strokeDasharray="3 3"></line>
+                    <path d="{{ sim.area }}" fill="{{ sim.fill }}" opacity="0.55"></path>
+                    <path d="{{ sim.line }}" fill="none" stroke="{{ sim.stroke }}" strokeWidth="1.8"></path>
+                  </svg>
+                  <div style="display:flex;align-items:center;gap:10px;margin-top:4px;font-size:9.5px;color:var(--ink-4)"><span style="color:var(--block-d)">— DoD 下限 {{ sim.floorSoc }}%</span><span>最低 {{ sim.minSoc }}%</span></div>
+                </div>
+              </div>
+              <div style="padding:0 16px 12px;font-size:11px;color:var(--ink-2);line-height:1.5">{{ sim.verdictMsg }}</div>
+            </sc-if>
+          </sc-if>
+        </div>
+        </sc-if>
+      </div>
+
+      <!-- FLOATING VALIDATE WINDOW -->
+      <sc-if value="{{ validateFloated }}" hint-placeholder-val="{{ false }}">
+        <div style="{{ floatStyle }}">
+          <div onMouseDown="{{ startFloatDrag }}" style="display:flex;align-items:center;gap:7px;height:30px;padding:0 10px;background:var(--surface-2);border-bottom:1px solid var(--border);cursor:move;flex:none">
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="var(--accent)" stroke-width="1.6"><path d="M8 2a6 6 0 100 12A6 6 0 008 2zM8 5v3l2 1"/></svg>
+            <span style="font-size:12px;font-weight:600;color:var(--ink)">校验</span>
+            <span style="{{ valCountStyle }}">{{ validateCount }}</span>
+            <span style="flex:1"></span>
+            <span onClick="{{ toggleFloat }}" title="停靠" style="display:inline-flex;color:var(--ink-3);cursor:pointer;padding:2px;border-radius:3px" style-hover="background:var(--bg);color:var(--ink)">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="12" height="12" rx="2"/><path d="M2 6h12"/></svg>
+            </span>
+          </div>
+          <div style="flex:1;overflow:auto;min-height:0">
+            <sc-for list="{{ validations }}" as="v" hint-placeholder-count="2">
+              <div onClick="{{ v.onClick }}" style="{{ v.rowStyle }}" style-hover="background:var(--surface-2)">
+                <span style="width:64px"><span style="{{ v.badgeStyle }}">{{ v.glyph }} {{ v.levelText }}</span></span>
+                <span style="width:150px;display:inline-flex;align-items:center;gap:6px"><span style="{{ v.dotStyle }}"></span><span style="font-family:var(--mono);font-size:11px;font-weight:700;color:var(--ink-2)">{{ v.code }}</span></span>
+                <span style="flex:1;font-size:12px;color:var(--ink-2)">{{ v.msg }}</span>
+              </div>
+            </sc-for>
+            <sc-if value="{{ allPass }}" hint-placeholder-val="{{ false }}"><div style="padding:16px 14px;font-size:12px;color:var(--ok)">✓ 全部规则通过。</div></sc-if>
+          </div>
+        </div>
+      </sc-if>
+
+    </div>
+
+    <sc-if value="{{ showRightResize }}" hint-placeholder-val="{{ true }}">
+      <div onMouseDown="{{ startRightResize }}" style="{{ rightResizeStyle }}" style-hover="background:var(--accent)"></div>
+    </sc-if>
+
+    <!-- RIGHT DOCK -->
+    <div style="{{ rightDockStyle }}">
+
+      <sc-if value="{{ rightCollapsed }}" hint-placeholder-val="{{ false }}">
+        <div onClick="{{ toggleRight }}" title="展开属性栏" style="display:flex;flex-direction:column;align-items:center;gap:12px;padding:12px 0;cursor:pointer;height:100%" style-hover="background:var(--surface-2)">
+          <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="var(--ink-3)" stroke-width="1.7"><path d="M10 4L6 8l4 4"/></svg>
+          <span style="writing-mode:vertical-rl;font-size:11px;color:var(--ink-2);letter-spacing:.12em">属性栏</span>
+        </div>
+      </sc-if>
+
+      <!-- EDGE INSPECTOR -->
+      <sc-if value="{{ hasEdgeSel }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex;flex-direction:column;min-height:0;flex:1">
+          <div style="display:flex;align-items:center;height:32px;padding:0 12px;border-bottom:1px solid var(--border);flex:none">
+            <span style="font-size:12px;font-weight:600;color:var(--ink)">连线属性</span>
+            <span style="flex:1"></span>
+            <span onClick="{{ edgeSel.onClose }}" style="font-size:11px;color:var(--ink-3);cursor:pointer" style-hover="color:var(--accent)">返回图元</span>
+            <span onClick="{{ toggleRight }}" title="折叠属性栏" style="display:inline-flex;align-items:center;padding:0 2px 0 10px;color:var(--ink-3);cursor:pointer" style-hover="color:var(--accent)"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M6 4l4 4-4 4"/></svg></span>
+          </div>
+          <div style="flex:1;overflow:auto;min-height:0">
+            <div style="padding:14px;border-bottom:1px solid var(--border)">
+              <div style="display:flex;align-items:center;gap:8px">
+                <span style="display:inline-flex;align-items:center;gap:5px;font-family:var(--mono);font-size:11px;font-weight:700;color:var(--ink-2)"><span style="{{ edgeSel.fromDot }}"></span>{{ edgeSel.fromCode }}</span>
+                <span style="color:var(--ink-4);font-size:14px">→</span>
+                <span style="display:inline-flex;align-items:center;gap:5px;font-family:var(--mono);font-size:11px;font-weight:700;color:var(--ink-2)"><span style="{{ edgeSel.toDot }}"></span>{{ edgeSel.toCode }}</span>
+              </div>
+              <div style="font-size:11px;color:var(--ink-3);margin-top:6px">{{ edgeSel.fromName }} → {{ edgeSel.toName }}</div>
+            </div>
+            <div style="padding:14px;border-bottom:1px solid var(--border)">
+              <div style="display:flex;align-items:center;gap:6px;margin-bottom:9px">
+                <span style="font-size:10px;letter-spacing:.08em;color:var(--ink-3);text-transform:uppercase">关系类型</span>
+                <span style="flex:1"></span>
+                <span style="font-size:11px;font-weight:600;color:var(--accent);background:var(--accent-bg);border:1px solid var(--accent-bd);border-radius:10px;padding:1px 9px;white-space:nowrap">{{ edgeSel.current }}</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:7px;height:30px;padding:0 10px;background:var(--surface-2);border:1px solid var(--border-2);border-radius:6px;margin-bottom:8px">
+                <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="var(--ink-3)" stroke-width="1.6"><circle cx="7" cy="7" r="4.5"/><path d="M11 11l3 3"/></svg>
+                <input type="text" value="{{ edgeSel.search }}" onChange="{{ edgeSel.onSearch }}" placeholder="搜索或新建关系类型…" style="flex:1;border:none;outline:none;background:transparent;font-size:12px;color:var(--ink)" />
+              </div>
+              <div style="max-height:190px;overflow:auto;margin:0 -2px;padding:0 2px">
+                <sc-for list="{{ edgeSel.groups }}" as="grp" hint-placeholder-count="3">
+                  <div style="font-size:9px;letter-spacing:.08em;color:var(--ink-4);text-transform:uppercase;margin:6px 2px 5px">{{ grp.label }}</div>
+                  <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:4px">
+                    <sc-for list="{{ grp.items }}" as="k" hint-placeholder-count="4">
+                      <span onClick="{{ k.onClick }}" style="{{ k.style }}">{{ k.label }}</span>
+                    </sc-for>
+                  </div>
+                </sc-for>
+                <sc-if value="{{ edgeSel.canCreate }}" hint-placeholder-val="{{ false }}">
+                  <div onClick="{{ edgeSel.onCreate }}" style="display:flex;align-items:center;gap:7px;padding:7px 9px;margin-top:6px;border:1px dashed var(--accent-bd);border-radius:6px;cursor:pointer;color:var(--accent);font-size:12px" style-hover="background:var(--accent-bg)"><span style="font-size:14px">＋</span>{{ edgeSel.createLabel }}</div>
+                </sc-if>
+                <sc-if value="{{ edgeSel.noKinds }}" hint-placeholder-val="{{ false }}"><div style="font-size:11px;color:var(--ink-3);padding:8px 2px">无匹配类型。</div></sc-if>
+              </div>
+            </div>
+            <div style="padding:14px;border-bottom:1px solid var(--border);display:flex;flex-direction:column;gap:12px">
+              <div style="display:flex;align-items:center;gap:8px">
+                <span style="font-size:12px;color:var(--ink-2);width:48px">线型</span>
+                <div style="display:flex;gap:2px;background:var(--surface-2);border:1px solid var(--border);border-radius:6px;padding:2px;flex:1">
+                  <sc-for list="{{ edgeSel.styles }}" as="o" hint-placeholder-count="2"><span onClick="{{ o.onClick }}" style="{{ o.style }}">{{ o.label }}</span></sc-for>
+                </div>
+              </div>
+              <div style="display:flex;align-items:center;gap:8px">
+                <span style="font-size:12px;color:var(--ink-2);width:48px">走线</span>
+                <div style="display:flex;gap:2px;background:var(--surface-2);border:1px solid var(--border);border-radius:6px;padding:2px;flex:1">
+                  <sc-for list="{{ edgeSel.routings }}" as="o" hint-placeholder-count="2"><span onClick="{{ o.onClick }}" style="{{ o.style }}">{{ o.label }}</span></sc-for>
+                </div>
+              </div>
+              <div style="display:flex;align-items:center;gap:8px">
+                <span style="font-size:12px;color:var(--ink-2);width:48px">粗细</span>
+                <div style="display:flex;gap:2px;background:var(--surface-2);border:1px solid var(--border);border-radius:6px;padding:2px;flex:1">
+                  <sc-for list="{{ edgeSel.weights }}" as="o" hint-placeholder-count="3"><span onClick="{{ o.onClick }}" style="{{ o.style }}">{{ o.label }}</span></sc-for>
+                </div>
+              </div>
+            </div>
+            <div style="padding:14px;display:flex;flex-direction:column;gap:8px">
+              <div onClick="{{ edgeSel.onReverse }}" style="display:flex;align-items:center;justify-content:center;gap:7px;height:34px;border:1px solid var(--border-2);border-radius:6px;font-size:12px;color:var(--ink-2);cursor:pointer" style-hover="border-color:var(--accent);color:var(--accent)">
+                <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 6h8l-2-2M12 10H4l2 2"/></svg>反转方向
+              </div>
+              <div onClick="{{ edgeSel.onDelete }}" style="display:flex;align-items:center;justify-content:center;gap:7px;height:34px;border:1px solid var(--block-bd);border-radius:6px;font-size:12px;color:var(--block);cursor:pointer;background:var(--block-bg)" style-hover="background:var(--block);color:#fff">
+                <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 4h10M6 4V3h4v1M5 4l.5 9h5L11 4"/></svg>删除连线
+              </div>
+            </div>
+          </div>
+        </div>
+      </sc-if>
+
+      <!-- NODE TABS -->
+      <sc-if value="{{ showNodePanel }}" hint-placeholder-val="{{ true }}">
+        <div style="display:flex;flex-direction:column;min-height:0;flex:1">
+          <div style="display:flex;align-items:center;height:32px;border-bottom:1px solid var(--border);flex:none">
+            <div onClick="{{ tabProps }}" style="{{ tabPropsStyle }}">属性</div>
+            <div onClick="{{ tabPassport }}" style="{{ tabPassportStyle }}" data-comment-anchor="x493-passport">版本</div>
+            <div onClick="{{ tabHistory }}" style="{{ tabHistoryStyle }}">历史</div>
+            <div onClick="{{ tabStyleTab }}" style="{{ tabStyleTabStyle }}">图样</div>
+            <span style="flex:1"></span>
+            <span onClick="{{ toggleRight }}" title="折叠属性栏" style="display:inline-flex;align-items:center;padding:0 10px;color:var(--ink-3);cursor:pointer" style-hover="color:var(--accent)"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M6 4l4 4-4 4"/></svg></span>
+          </div>
+          <div style="flex:1;overflow:auto;min-height:0">
+            <sc-if value="{{ hasSelection }}" hint-placeholder-val="{{ true }}">
+              <div>
+
+                <!-- PROPS TAB -->
+                <sc-if value="{{ showProps }}" hint-placeholder-val="{{ true }}">
+                  <div>
+                    <div style="padding:14px 14px 12px;border-bottom:1px solid var(--border)">
+                      <div style="display:flex;align-items:center;gap:7px;margin-bottom:9px">
+                        <span style="display:inline-flex;align-items:center">{{ sel.icon }}</span>
+                        <span style="{{ sel.codeStyle }}">{{ sel.code }}</span>
+                        <span style="font-size:10px;color:var(--ink-3);background:var(--surface-2);padding:1px 6px;border-radius:3px">{{ sel.typeLabel }}</span>
+                        <span style="flex:1"></span>
+                        <span style="{{ sel.rule.pillStyle }}">{{ sel.rule.glyph }} {{ sel.rule.text }}</span>
+                      </div>
+                      <input type="text" value="{{ sel.name }}" onChange="{{ sel.onName }}" disabled="{{ sel.locked }}" style="{{ sel.nameInputStyle }}" style-focus="border-color:var(--accent);outline:none" />
+                    </div>
+                    <div style="padding:12px 14px;border-bottom:1px solid var(--border)">
+                      <div style="font-size:10px;letter-spacing:.08em;color:var(--ink-3);text-transform:uppercase;margin-bottom:6px">字段 · 存储值</div>
+                      <sc-for list="{{ sel.fields }}" as="f" hint-placeholder-count="2">
+                        <div style="display:flex;align-items:center;gap:8px;padding:5px 0">
+                          <span style="flex:1;font-size:12px;color:var(--ink-2)">{{ f.label }}</span>
+                          <input type="number" value="{{ f.value }}" onChange="{{ f.onChange }}" disabled="{{ f.disabled }}" style="{{ f.inputStyle }}" style-focus="border-color:var(--accent);outline:none" />
+                          <span style="font-family:var(--mono);font-size:11px;color:var(--ink-3);width:34px">{{ f.unit }}</span>
+                        </div>
+                      </sc-for>
+                      <sc-if value="{{ sel.locked }}" hint-placeholder-val="{{ false }}"><div style="font-size:11px;color:var(--ink-3);margin-top:4px">此图元为只读（来源：导入），字段不可编辑。</div></sc-if>
+                    </div>
+                    <sc-if value="{{ sel.hasDerived }}" hint-placeholder-val="{{ true }}">
+                      <div style="padding:12px 14px;border-bottom:1px solid var(--border)">
+                        <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
+                          <span style="font-size:10px;letter-spacing:.08em;color:var(--ink-3);text-transform:uppercase">派生值</span>
+                          <span style="display:inline-flex;align-items:center;gap:3px;font-size:9px;color:var(--accent);background:var(--accent-bg);border:1px solid var(--accent-bd);border-radius:3px;padding:0 5px;white-space:nowrap">后端实时</span>
+                        </div>
+                        <sc-for list="{{ sel.derived }}" as="d" hint-placeholder-count="1">
+                          <div style="{{ d.boxStyle }}">
+                            <span style="display:inline-flex;align-items:center;gap:7px">
+                              <span style="{{ d.fxStyle }}">fx</span>
+                              <span style="font-size:12px;color:var(--ink-2)">{{ d.label }}</span>
+                            </span>
+                            <span style="font-family:var(--mono);font-size:14px;font-weight:600;color:var(--accent)">{{ d.valueText }}</span>
+                          </div>
+                          <div style="font-family:var(--mono);font-size:10px;color:var(--ink-3);margin:3px 0 0 4px">= {{ d.expr }}</div>
+                        </sc-for>
+                      </div>
+                    </sc-if>
+                    <div style="padding:12px 14px;border-bottom:1px solid var(--border)" data-comment-anchor="f524b9cfea-div">
+                      <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
+                        <span style="font-size:10px;letter-spacing:.08em;color:var(--ink-3);text-transform:uppercase">规则灯</span>
+                        <span style="flex:1"></span>
+                        <span onClick="{{ sel.rule.onToggleVis }}" title="在节点上显示 / 隐藏规则灯" style="{{ sel.rule.visStyle }}">{{ sel.rule.visIconEl }}<sc-if value="{{ sel.rule.ruleVis }}" hint-placeholder-val="{{ true }}">显示</sc-if><sc-if value="{{ sel.rule.ruleHidden }}" hint-placeholder-val="{{ false }}">隐藏</sc-if></span>
+                      </div>
+                      <div style="{{ sel.rule.boxStyle }}">
+                        <span style="{{ sel.rule.iconStyle }}">{{ sel.rule.glyph }}</span>
+                        <div style="flex:1">
+                          <div style="{{ sel.rule.titleStyle }}">{{ sel.rule.text }}</div>
+                          <div style="font-size:11px;color:var(--ink-2);margin-top:2px;line-height:1.45">{{ sel.rule.msg }}</div>
+                        </div>
+                      </div>
+                    </div>
+                    </div>
+                  </div>
+                </sc-if>
+
+                <!-- PASSPORT TAB -->
+                <sc-if value="{{ showPassport }}" hint-placeholder-val="{{ false }}">
+                  <div>
+                    <div style="padding:14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px">
+                      <span style="{{ pass.sealStyle }}">{{ pass.sealGlyph }}</span>
+                      <div style="flex:1">
+                        <div style="font-size:13px;font-weight:600;color:var(--ink)">{{ pass.sealTitle }}</div>
+                        <div style="font-size:11px;color:var(--ink-3);margin-top:1px">{{ pass.sealSub }}</div>
+                      </div>
+                    </div>
+                    <div style="padding:12px 14px;border-bottom:1px solid var(--border)">
+                      <div style="font-size:10px;letter-spacing:.08em;color:var(--ink-3);text-transform:uppercase;margin-bottom:8px">身份</div>
+                      <sc-for list="{{ pass.idRows }}" as="r" hint-placeholder-count="3">
+                        <div style="display:flex;align-items:center;gap:8px;padding:4px 0">
+                          <span style="font-size:11px;color:var(--ink-3);width:64px;flex:none">{{ r.k }}</span>
+                          <span style="{{ r.vStyle }}">{{ r.v }}</span>
+                        </div>
+                      </sc-for>
+                    </div>
+                    <div style="padding:12px 14px;border-bottom:1px solid var(--border)">
+                      <div style="font-size:10px;letter-spacing:.08em;color:var(--ink-3);text-transform:uppercase;margin-bottom:8px">来源链</div>
+                      <div style="display:flex;flex-direction:column">
+                        <sc-for list="{{ pass.chain }}" as="c" hint-placeholder-count="3">
+                          <div style="display:flex;gap:10px">
+                            <div style="display:flex;flex-direction:column;align-items:center;flex:none">
+                              <span style="{{ c.dotStyle }}"></span>
+                              <sc-if value="{{ c.line }}" hint-placeholder-val="{{ true }}"><span style="width:1.5px;flex:1;background:var(--border-2);min-height:14px"></span></sc-if>
+                            </div>
+                            <div style="padding-bottom:12px">
+                              <div style="font-size:12px;color:var(--ink);font-weight:500">{{ c.act }}</div>
+                              <div style="font-size:11px;color:var(--ink-3);margin-top:1px">{{ c.by }} · {{ c.at }}</div>
+                            </div>
+                          </div>
+                        </sc-for>
+                      </div>
+                    </div>
+                    <div style="padding:12px 14px;border-bottom:1px solid var(--border)">
+                      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+                        <span style="font-size:10px;letter-spacing:.08em;color:var(--ink-3);text-transform:uppercase">新鲜度</span>
+                        <span style="{{ pass.freshBadgeStyle }}">{{ pass.freshLabel }}</span>
+                      </div>
+                      <div style="height:6px;border-radius:3px;background:var(--surface-2);overflow:hidden"><div style="{{ pass.freshBarStyle }}"></div></div>
+                      <div style="font-size:11px;color:var(--ink-3);margin-top:6px">最近刷新 {{ pass.fresh }} · 新鲜度阈值 24h</div>
+                    </div>
+                    <div style="padding:12px 14px">
+                      <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
+                        <span style="font-size:10px;letter-spacing:.08em;color:var(--ink-3);text-transform:uppercase">下游依赖</span>
+                        <span style="font-family:var(--mono);font-size:10px;color:var(--ink-3);background:var(--surface-2);border-radius:8px;padding:0 6px">{{ pass.downCount }}</span>
+                      </div>
+                      <sc-if value="{{ pass.hasDown }}" hint-placeholder-val="{{ true }}">
+                        <div style="display:flex;flex-wrap:wrap;gap:6px">
+                          <sc-for list="{{ pass.dependents }}" as="d" hint-placeholder-count="2">
+                            <span onClick="{{ d.onClick }}" style="display:inline-flex;align-items:center;gap:5px;padding:3px 8px;background:var(--surface);border:1px solid var(--border-2);border-radius:13px;cursor:pointer;font-size:11px;color:var(--ink-2)" style-hover="border-color:var(--accent)"><span style="{{ d.dotStyle }}"></span>{{ d.code }} {{ d.name }}</span>
+                          </sc-for>
+                        </div>
+                      </sc-if>
+                      <sc-if value="{{ pass.noDown }}" hint-placeholder-val="{{ false }}"><div style="font-size:11px;color:var(--ink-3)">无下游依赖，可安全修改或删除。</div></sc-if>
+                    </div>
+                  </div>
+                </sc-if>
+
+                <!-- HISTORY TAB -->
+                <sc-if value="{{ showHistory }}" hint-placeholder-val="{{ false }}">
+                  <div style="padding:12px 14px">
+                    <div style="display:flex;align-items:center;gap:6px;margin-bottom:12px">
+                      <span style="font-size:10px;letter-spacing:.08em;color:var(--ink-3);text-transform:uppercase">变更历史</span>
+                      <span style="flex:1"></span>
+                      <span style="font-family:var(--mono);font-size:10px;color:var(--ink-3)">{{ hist.count }} 条</span>
+                    </div>
+                    <sc-for list="{{ hist.items }}" as="h" hint-placeholder-count="5">
+                      <div style="display:flex;gap:10px">
+                        <div style="display:flex;flex-direction:column;align-items:center;flex:none">
+                          <span style="{{ h.kindStyle }}">{{ h.kindGlyph }}</span>
+                          <sc-if value="{{ h.line }}" hint-placeholder-val="{{ true }}"><span style="width:1.5px;flex:1;background:var(--border-2);min-height:12px"></span></sc-if>
+                        </div>
+                        <div style="padding-bottom:13px;flex:1;min-width:0">
+                          <div style="font-size:12px;color:var(--ink);line-height:1.4">{{ h.text }}</div>
+                          <div style="display:flex;align-items:center;gap:6px;margin-top:3px">
+                            <span style="{{ h.avStyle }}">{{ h.initial }}</span>
+                            <span style="font-size:11px;color:var(--ink-3)">{{ h.actor }} · {{ h.at }}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </sc-for>
+                    <sc-if value="{{ hist.empty }}" hint-placeholder-val="{{ false }}"><div style="font-size:12px;color:var(--ink-3);padding:8px 0">该图元暂无变更记录。</div></sc-if>
+                  </div>
+                </sc-if>
+
+                <!-- STYLE (图样) TAB -->
+                <sc-if value="{{ showStyleTab }}" hint-placeholder-val="{{ false }}">
+                  <div>
+                    <div style="padding:12px 14px;border-bottom:1px solid var(--border)">
+                      <div style="display:flex;align-items:center;gap:7px">
+                        <span style="display:inline-flex;align-items:center">{{ sel.icon }}</span>
+                        <span style="{{ sel.codeStyle }}">{{ sel.code }}</span>
+                        <span style="font-size:10px;color:var(--ink-3);background:var(--surface-2);padding:1px 6px;border-radius:3px">{{ sel.typeLabel }}</span>
+                      </div>
+                    </div>
+                    <div style="padding:12px 14px;border-bottom:1px solid var(--border)">
+                      <div style="font-size:10px;letter-spacing:.08em;color:var(--ink-3);text-transform:uppercase;margin-bottom:8px">字段显示 · 仅此图元</div>
+                      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+                        <span style="font-size:12px;color:var(--ink-2)">密度</span>
+                        <span style="flex:1"></span>
+                        <div style="display:flex;gap:2px;background:var(--surface-2);border:1px solid var(--border);border-radius:6px;padding:2px">
+                          <div onClick="{{ sel.display.onStd }}" style="{{ sel.display.stdStyle }}">标准</div>
+                          <div onClick="{{ sel.display.onCompact }}" style="{{ sel.display.compactStyle }}">紧凑</div>
+                        </div>
+                      </div>
+                      <div style="font-size:10px;color:var(--ink-3);margin-bottom:4px">区段与字段（仅控制此图元卡片）</div>
+                      <sc-for list="{{ sel.display.items }}" as="it" hint-placeholder-count="2">
+                        <div onClick="{{ it.onToggle }}" style="{{ it.rowStyle }}" style-hover="background:var(--surface-2)" data-comment-anchor="afea253bf5-div">
+                          <sc-if value="{{ it.isFx }}" hint-placeholder-val="{{ false }}"><span style="font-family:var(--mono);font-style:italic;font-weight:800;font-size:8.5px;color:var(--accent)">fx</span></sc-if>
+                          <span style="{{ it.labelStyle }}">{{ it.label }}</span>
+                          <span style="{{ it.eyeStyle }}">{{ it.icon }}{{ it.eyeText }}</span>
+                        </div>
+                      </sc-for>
+                    </div>
+                    <div style="padding:12px 14px" data-comment-anchor="x558-tuyang">
+                      <div style="font-size:10px;letter-spacing:.08em;color:var(--ink-3);text-transform:uppercase;margin-bottom:10px">文字样式 · 名称</div>
+                      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+                        <span style="font-size:12px;color:var(--ink-2);width:36px">字体</span><span style="flex:1"></span>
+                        <div style="display:flex;gap:2px;background:var(--surface-2);border:1px solid var(--border);border-radius:6px;padding:2px">
+                          <div onClick="{{ sel.gx.onFontSans }}" style="{{ sel.gx.fontSansStyle }}">默认</div>
+                          <div onClick="{{ sel.gx.onFontMono }}" style="{{ sel.gx.fontMonoStyle }}">等宽</div>
+                        </div>
+                      </div>
+                      <div style="display:flex;align-items:center;gap:8px;margin-bottom:13px">
+                        <span style="font-size:12px;color:var(--ink-2);width:36px">大小</span><span style="flex:1"></span>
+                        <div style="display:flex;gap:2px;background:var(--surface-2);border:1px solid var(--border);border-radius:6px;padding:2px">
+                          <div onClick="{{ sel.gx.onSmall }}" style="{{ sel.gx.smallStyle }}">小</div>
+                          <div onClick="{{ sel.gx.onMed }}" style="{{ sel.gx.medStyle }}">中</div>
+                          <div onClick="{{ sel.gx.onLarge }}" style="{{ sel.gx.largeStyle }}">大</div>
+                        </div>
+                      </div>
+                      <div style="font-size:12px;color:var(--ink-2);margin-bottom:8px">颜色</div>
+                      <div style="display:flex;gap:8px;flex-wrap:wrap">
+                        <sc-for list="{{ sel.gx.colors }}" as="c" hint-placeholder-count="6">
+                          <span onClick="{{ c.onClick }}" title="{{ c.title }}" style="{{ c.style }}"><span style="font-weight:700;font-size:13px;color:{{ c.aColor }}">A</span></span>
+                        </sc-for>
+                      </div>
+                    </div>
+                  </div>
+                </sc-if>
+
+              </div>
+            </sc-if>
+            <sc-if value="{{ noSelection }}" hint-placeholder-val="{{ false }}">
+              <div style="padding:24px 16px;font-size:12px;color:var(--ink-3);text-align:center">在画布中选择一个图元以查看属性、版本与历史。</div>
+            </sc-if>
+          </div>
+        </div>
+      </sc-if>
+
+    </div>
+
+  </div>
+
+  <!-- ===== CONTEXT MENU ===== -->
+  <sc-if value="{{ ctx.show }}" hint-placeholder-val="{{ false }}">
+    <div onMouseDown="{{ closeCtx }}" onContextMenu="{{ closeCtx }}" style="position:fixed;inset:0;z-index:90"></div>
+    <div style="{{ ctx.style }}">
+      <sc-for list="{{ ctx.items }}" as="it" hint-placeholder-count="4">
+        <sc-if value="{{ it.isSep }}" hint-placeholder-val="{{ false }}"><div style="height:1px;background:var(--border);margin:4px 8px"></div></sc-if>
+        <sc-if value="{{ it.isItem }}" hint-placeholder-val="{{ true }}">
+          <div onMouseDown="{{ it.run }}" style="{{ it.style }}" style-hover="background:var(--surface-2)">
+            <span style="width:16px;text-align:center;font-size:11px;flex:none">{{ it.icon }}</span>
+            <span style="flex:1;white-space:nowrap">{{ it.label }}</span>
+            <span style="font-family:var(--mono);font-size:10px;color:var(--ink-4)">{{ it.tag }}</span>
+          </div>
+        </sc-if>
+      </sc-for>
+    </div>
+  </sc-if>
+
+  <!-- ===== TOP-MENU BACKDROP ===== -->
+  <sc-if value="{{ anyMenuOpen }}" hint-placeholder-val="{{ false }}">
+    <div onMouseDown="{{ closeMenus }}" style="position:fixed;left:0;right:0;top:42px;bottom:0;z-index:37"></div>
+  </sc-if>
+  <sc-if value="{{ dispOpen }}" hint-placeholder-val="{{ false }}">
+    <div onMouseDown="{{ closeDisp }}" style="position:fixed;left:0;right:0;top:80px;bottom:0;z-index:37"></div>
+  </sc-if>
+  <sc-if value="{{ alignOpen }}" hint-placeholder-val="{{ false }}">
+    <div onMouseDown="{{ closeAlign }}" style="position:fixed;left:0;right:0;top:80px;bottom:0;z-index:37"></div>
+  </sc-if>
+
+  <!-- ===== COMMAND PALETTE ===== -->
+  <sc-if value="{{ cmdOpen }}" hint-placeholder-val="{{ false }}">
+    <div onMouseDown="{{ closeCmd }}" style="position:fixed;inset:0;background:rgba(0,0,0,.32);z-index:60;display:flex;justify-content:center;align-items:flex-start;padding-top:88px">
+      <div onMouseDown="{{ stopCmd }}" style="width:560px;background:var(--surface);border:1px solid var(--border-2);border-radius:8px;box-shadow:0 18px 52px rgba(0,0,0,.34);overflow:hidden">
+        <div style="display:flex;align-items:center;gap:9px;padding:0 14px;height:46px;border-bottom:1px solid var(--border)">
+          <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="var(--ink-3)" stroke-width="1.6"><circle cx="7" cy="7" r="4.5"/><path d="M11 11l3 3"/></svg>
+          <input type="text" value="{{ cmdQuery }}" onChange="{{ cmdInput }}" onKeyDown="{{ cmdKey }}" autofocus="{{ true }}" placeholder="输入命令或搜索图元…" style="flex:1;border:none;outline:none;background:transparent;font-size:14px;color:var(--ink)" />
+          <span style="font-family:var(--mono);font-size:10px;color:var(--ink-3);border:1px solid var(--border-2);border-radius:3px;padding:1px 5px">esc</span>
+        </div>
+        <div style="max-height:330px;overflow:auto;padding:6px">
+          <sc-for list="{{ cmdRows }}" as="c" hint-placeholder-count="6">
+            <div onMouseDown="{{ c.onClick }}" onMouseEnter="{{ c.onHover }}" style="{{ c.style }}">
+              <span style="{{ c.iconStyle }}">{{ c.icon }}</span>
+              <span style="flex:1;font-size:13px;color:var(--ink)">{{ c.label }}</span>
+              <span style="font-size:10px;color:var(--ink-3);font-family:var(--mono)">{{ c.tag }}</span>
+            </div>
+          </sc-for>
+          <sc-if value="{{ cmdEmpty }}" hint-placeholder-val="{{ false }}"><div style="padding:16px;text-align:center;font-size:12px;color:var(--ink-3)">无匹配命令</div></sc-if>
+        </div>
+        <div style="display:flex;align-items:center;gap:14px;height:32px;padding:0 14px;border-top:1px solid var(--border);background:var(--surface-2);font-size:10px;color:var(--ink-3);font-family:var(--mono)">
+          <span>↑↓ 选择</span><span>⏎ 执行</span><span>esc 关闭</span>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- ===== TOAST ===== -->
+  <sc-if value="{{ toast.show }}" hint-placeholder-val="{{ false }}">
+    <div style="position:fixed;bottom:74px;left:50%;transform:translateX(-50%);z-index:95;display:flex;align-items:center;gap:9px;padding:11px 18px;background:var(--ink);color:var(--bg);border-radius:8px;box-shadow:0 8px 28px rgba(0,0,0,.3);font-size:13px;animation:ctxin .14s ease">
+      <span style="color:var(--ok-d)">●</span>{{ toast.msg }}
+    </div>
+  </sc-if>
+
+  <!-- ===== DEMO STATE SWITCHER (removed) ===== -->
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1320,&quot;height&quot;:880}}">
+class Component extends DCLogic {
+  canvasRef = React.createRef();
+  state = {
+    theme: 'light',
+    panes: { graph:true, table:false, text:false },
+    paneOrder: ['graph','table','text'],
+    paneFlex: { graph:1, table:1, text:1 },
+    paneResize: null,
+    leftTab: 'tree',
+    rightTab: 'props',
+    density: 'standard',
+    leftCollapsed: false,
+    leftW: 224,
+    rightW: 312,
+    dockDrag: null,
+    marquee: null,
+    rightCollapsed: false,
+    bottomCollapsed: false,
+    dispOpen: false,
+    nodeShow: { type:true, fields:true, derived:true, prov:false },
+    kindSearch: '',
+    customKinds: [],
+    tool: 'select',
+    appState: 'ready',
+    selectedId: 'bat',
+    selectedIds: ['bat'],
+    clipboard: null,
+    painter: null,
+    past: [],
+    future: [],
+    alignOpen: false,
+    selectedEdgeId: null,
+    bottomTab: 'validate',
+    sim: { status:'idle', progress:0, result:null },
+    recomputing: {},
+    drag: null,
+    pendingEdge: null,
+    cmd: { open:false, query:'', index:0 },
+    menuOpen: null,
+    ctx: null,
+    toast: { show:false, msg:'' },
+    floatValidate: false,
+    floatPos: { x:380, y:90 },
+    floatDrag: null,
+    nodes: [
+      { id:'cell', type:'component', code:'CELL', name:'电芯模块', x:40, y:70, stale:true, readonly:true,
+        fields:[{key:'cap',label:'单体容量',value:50,unit:'Ah'},{key:'pp',label:'并联数',value:2,unit:'P'}],
+        prov:{src:'导入', fresh:'3天前', owner:'马磊', editor:'导入工具', version:'v2', signed:false, freshPct:18,
+          chain:[{act:'从 BOM 导入', by:'导入工具', at:'3天前'},{act:'单体容量回填', by:'工具计算', at:'3天前'}]} },
+      { id:'sa', type:'component', code:'SA', name:'太阳电池阵', x:40, y:430,
+        fields:[{key:'area',label:'板面积',value:6,unit:'m²'},{key:'eff',label:'光电效率',value:0.30,unit:''},{key:'dens',label:'光照密度',value:1361,unit:'W/m²'}],
+        prov:{src:'手填', fresh:'2小时前', owner:'叶工程师', editor:'叶工程师', version:'v4', signed:true, freshPct:62,
+          chain:[{act:'初始建模', by:'叶工程师', at:'上周'},{act:'面积修订 5.4→6.0', by:'叶工程师', at:'2小时前'}]} },
+      { id:'bat', type:'subsystem', code:'BAT', name:'主蓄电池组', x:330, y:80,
+        fields:[{key:'cap',label:'额定容量',value:100,unit:'Ah'},{key:'volt',label:'母线电压',value:28,unit:'V'},{key:'dod',label:'放电深度',value:0.8,unit:''}],
+        prov:{src:'工具', fresh:'12分钟前', owner:'叶工程师', editor:'马磊', version:'v7', signed:true, freshPct:92,
+          chain:[{act:'从模板实例化', by:'卫星总体插件', at:'上周'},{act:'容量回填 90→100', by:'工具计算', at:'1小时前'},{act:'电压修订 26→28', by:'马磊', at:'12分钟前'}]} },
+      { id:'pcu', type:'component', code:'PCU', name:'电源控制器', x:330, y:430,
+        fields:[{key:'eff',label:'转换效率',value:0.92,unit:''},{key:'rated',label:'额定功率',value:1500,unit:'W'}],
+        prov:{src:'手填', fresh:'1小时前', owner:'周航', editor:'周航', version:'v3', signed:true, freshPct:70,
+          chain:[{act:'初始建模', by:'周航', at:'3天前'},{act:'效率修订 0.90→0.92', by:'周航', at:'1小时前'}]} },
+      { id:'pwr', type:'interface', code:'PWR', name:'供电接口', x:620, y:80,
+        fields:[{key:'cur',label:'额定电流',value:30,unit:'A'},{key:'ports',label:'接口数',value:4,unit:'路'}],
+        prov:{src:'手填', fresh:'昨天', owner:'叶工程师', editor:'叶工程师', version:'v2', signed:true, freshPct:40,
+          chain:[{act:'创建供电接口', by:'叶工程师', at:'昨天'}]} },
+      { id:'load', type:'interface', code:'LOAD', name:'载荷供电', x:620, y:430,
+        fields:[{key:'pk',label:'峰值电流',value:25,unit:'A'}],
+        prov:{src:'导入', fresh:'昨天', owner:'马磊', editor:'导入工具', version:'v1', signed:false, freshPct:35,
+          chain:[{act:'从负载清单导入', by:'导入工具', at:'昨天'}]} },
+      { id:'req', type:'requirement', code:'REQ', name:'续航能量需求', x:330, y:620,
+        fields:[{key:'need',label:'需求能量',value:2.0,unit:'kWh'},{key:'margin',label:'安全裕度',value:20,unit:'%'}],
+        prov:{src:'导入', fresh:'前天', owner:'周航', editor:'导入工具', version:'v1', signed:true, freshPct:30,
+          chain:[{act:'从需求基线导入', by:'导入工具', at:'前天'}]} },
+      { id:'reqp', type:'requirement', code:'REQP', name:'峰值功率需求', x:620, y:620,
+        fields:[{key:'need',label:'需求功率',value:1600,unit:'W'}],
+        prov:{src:'导入', fresh:'前天', owner:'周航', editor:'导入工具', version:'v1', signed:true, freshPct:30,
+          chain:[{act:'从需求基线导入', by:'导入工具', at:'前天'}]} },
+      { id:'alt', type:'subsystem', code:'ALT', name:'备用蓄电池组', x:910, y:430, vetoed:true,
+        fields:[{key:'cap',label:'额定容量',value:60,unit:'Ah'},{key:'volt',label:'母线电压',value:28,unit:'V'},{key:'dod',label:'放电深度',value:0.8,unit:''}],
+        prov:{src:'手填', fresh:'2天前', owner:'马磊', editor:'马磊', version:'v2', signed:false, freshPct:22,
+          chain:[{act:'方案候选建模', by:'马磊', at:'3天前'},{act:'评审否决', by:'评审会', at:'2天前'}]} },
+    ],
+    edges: [
+      { id:'e1', from:'cell', to:'bat', kind:'组成', routing:'ortho', style:'solid', weight:1.6 },
+      { id:'e2', from:'sa', to:'pcu', kind:'馈电', routing:'ortho', style:'solid', weight:2 },
+      { id:'e3', from:'pcu', to:'bat', kind:'充电', routing:'ortho', style:'solid', weight:2 },
+      { id:'e4', from:'bat', to:'pwr', kind:'供电', routing:'ortho', style:'solid', weight:2.6 },
+      { id:'e5', from:'pwr', to:'load', kind:'分配', routing:'ortho', style:'solid', weight:2 },
+      { id:'e6', from:'req', to:'bat', kind:'验证', routing:'curve', style:'dashed', weight:1.6 },
+      { id:'e7', from:'reqp', to:'pcu', kind:'验证', routing:'curve', style:'dashed', weight:1.6 },
+      { id:'e8', from:'alt', to:'req', kind:'候选', routing:'ortho', style:'dashed', weight:1.4, vetoed:true },
+    ],
+    log: [
+      { id:'g1', target:'bat', actor:'马磊', kind:'edit', text:'母线电压 26 → 28 V', at:'12 分钟前' },
+      { id:'g2', target:'bat', actor:'系统', kind:'recompute', text:'可用能量重算 → 2.24 kWh', at:'12 分钟前' },
+      { id:'g3', target:'reqp', actor:'系统', kind:'rule', text:'规则 达标 → 阻断（功率缺口）', at:'1 小时前' },
+      { id:'g4', target:'pcu', actor:'周航', kind:'edit', text:'转换效率 0.90 → 0.92', at:'1 小时前' },
+      { id:'g5', target:'bat', actor:'马磊', kind:'edit', text:'额定容量 90 → 100 Ah', at:'1 小时前' },
+      { id:'g6', target:'sa', actor:'叶工程师', kind:'edit', text:'板面积 5.4 → 6.0 m²', at:'2 小时前' },
+      { id:'g7', target:'pwr', actor:'叶工程师', kind:'create', text:'创建供电接口', at:'昨天' },
+      { id:'g8', target:'load', actor:'导入工具', kind:'create', text:'从负载清单导入载荷供电', at:'昨天' },
+      { id:'g9', target:'alt', actor:'评审会', kind:'veto', text:'方案评审：备用蓄电池组被否决', at:'2 天前' },
+      { id:'g10', target:'cell', actor:'导入工具', kind:'create', text:'从 BOM 导入电芯模块', at:'3 天前' },
+    ],
+  };
+
+  TY = {
+    subsystem:{label:'分系统', color:'var(--t-subsystem)', kw:'subsystem'},
+    component:{label:'组件', color:'var(--t-component)', kw:'component'},
+    interface:{label:'接口', color:'var(--t-interface)', kw:'interface'},
+    requirement:{label:'需求', color:'var(--t-requirement)', kw:'requirement'},
+  };
+  RM = {
+    ok:{text:'达标', glyph:'✓', fg:'var(--ok)', bg:'var(--ok-bg)', bd:'var(--ok-bd)', dot:'var(--ok-d)'},
+    warn:{text:'告警', glyph:'!', fg:'var(--warn)', bg:'var(--warn-bg)', bd:'var(--warn-bd)', dot:'var(--warn-d)'},
+    block:{text:'阻断', glyph:'✕', fg:'var(--block)', bg:'var(--block-bg)', bd:'var(--block-bd)', dot:'var(--block-d)'},
+    veto:{text:'否决', glyph:'⊘', fg:'var(--ink-3)', bg:'var(--bg)', bd:'var(--border-2)', dot:'var(--ink-4)'},
+  };
+  EDGE_KIND_GROUPS = [
+    {g:'结构', items:[['组成','solid'],['包含','solid'],['连接','solid']]},
+    {g:'电气', items:[['供电','solid'],['充电','solid'],['馈电','solid'],['分配','solid'],['接地','solid']]},
+    {g:'信息', items:[['控制','solid'],['采集','dashed'],['通信','solid']]},
+    {g:'验证', items:[['验证','dashed'],['追溯','dashed'],['候选','dashed'],['冲突','dashed']]},
+    {g:'通用', items:[['引用','dashed'],['关联','solid'],['依赖','solid']]},
+  ];
+  ACTORS = { '叶工程师':'var(--t-subsystem)', '马磊':'var(--t-component)', '周航':'var(--t-requirement)', '系统':'var(--ink-3)', '导入工具':'var(--t-interface)', '工具计算':'var(--t-interface)', '评审会':'var(--block-d)', '卫星总体插件':'var(--accent)' };
+
+  componentDidMount(){
+    this._key = (e)=>{
+      const tag=(document.activeElement&&document.activeElement.tagName)||'';
+      const typing = tag==='INPUT'||tag==='TEXTAREA';
+      if((e.metaKey||e.ctrlKey) && (e.key==='k'||e.key==='K')){ e.preventDefault(); this.setState(s=>({cmd:{open:!s.cmd.open, query:'', index:0}})); return; }
+      if(e.key==='Escape'){ this.setState(s=>({cmd:{...s.cmd, open:false}, menuOpen:null, ctx:null, painter:null, dispOpen:false, alignOpen:false})); return; }
+      if(typing) return;
+      if((e.metaKey||e.ctrlKey) && (e.key==='z'||e.key==='Z')){ e.preventDefault(); if(e.shiftKey) this.redo(); else this.undo(); return; }
+      if((e.metaKey||e.ctrlKey) && (e.key==='y'||e.key==='Y')){ e.preventDefault(); this.redo(); return; }
+      if((e.metaKey||e.ctrlKey) && (e.key==='c'||e.key==='C')){ e.preventDefault(); this.copySelection(); return; }
+      if((e.metaKey||e.ctrlKey) && (e.key==='v'||e.key==='V')){ e.preventDefault(); this.pasteClipboard(); return; }
+      if((e.metaKey||e.ctrlKey) && (e.key==='d'||e.key==='D')){ e.preventDefault(); if(this.state.selectedId) this.duplicateNode(this.state.selectedId); return; }
+      if(e.key==='Delete'||e.key==='Backspace'){ if(this.state.selectedIds.length||this.state.selectedEdgeId){ e.preventDefault(); this.deleteSelected(); } return; }
+    };
+    window.addEventListener('keydown', this._key);
+  }
+  componentWillUnmount(){ clearTimeout(this._t); clearTimeout(this._tt); clearInterval(this._sim); window.removeEventListener('keydown', this._key); }
+
+  icon(type, color){
+    const p = {width:13, height:13, viewBox:'0 0 16 16', fill:'none', stroke:'currentColor', strokeWidth:1.6, style:{color, display:'block'}};
+    const h = React.createElement;
+    if(type==='subsystem') return h('svg', p, h('rect',{x:3,y:4,width:10,height:4,rx:1,key:1}), h('rect',{x:3,y:9,width:10,height:4,rx:1,key:2}));
+    if(type==='component') return h('svg', p, h('path',{d:'M8 2.5l4.6 2.65v5.7L8 13.5 3.4 10.85v-5.7z',key:1}));
+    if(type==='interface') return h('svg', p, h('path',{d:'M8 2.4 13.6 8 8 13.6 2.4 8z',key:1}));
+    return h('svg', p, h('circle',{cx:8,cy:8,r:5,key:1}), h('circle',{cx:8,cy:8,r:1.9,fill:'currentColor',stroke:'none',key:2}));
+  }
+  eyeIcon(open){ const h=React.createElement; const p={width:13,height:13,viewBox:'0 0 16 16',fill:'none',stroke:'currentColor',strokeWidth:1.5,style:{display:'block'}};
+    if(open) return h('svg',p,h('path',{d:'M1 8s2.5-4.6 7-4.6 7 4.6 7 4.6-2.5 4.6-7 4.6S1 8 1 8z',key:1}),h('circle',{cx:8,cy:8,r:1.9,key:2}));
+    return h('svg',p,h('path',{d:'M2.6 5C1.5 6.1 1 8 1 8s2.5 4.6 7 4.6c1.2 0 2.3-.3 3.2-.8M6.3 3.6C6.8 3.5 7.4 3.4 8 3.4c4.5 0 7 4.6 7 4.6s-.5 1-1.4 2.1',key:1}),h('path',{d:'M2 2l12 12',key:2})); }
+  ti(name, color){
+    const h=React.createElement; const c=color||'currentColor';
+    const S=(ch,fill)=>h('svg',{width:14,height:14,viewBox:'0 0 16 16',fill:fill?c:'none',stroke:fill?'none':c,strokeWidth:1.6,strokeLinecap:'round',strokeLinejoin:'round',style:{display:'block'}},ch);
+    switch(name){
+      case 'undo': return S([h('path',{key:1,d:'M5 7H10a3 3 0 110 6H7'}),h('path',{key:2,d:'M5 7l2.5-2.5M5 7l2.5 2.5'})]);
+      case 'redo': return S([h('path',{key:1,d:'M11 7H6a3 3 0 100 6h3'}),h('path',{key:2,d:'M11 7L8.5 4.5M11 7l-2.5 2.5'})]);
+      case 'copy': return S([h('rect',{key:1,x:5.5,y:5.5,width:8,height:8,rx:1.3}),h('path',{key:2,d:'M3.5 10.5h-.5a1 1 0 01-1-1V3a1 1 0 011-1h6.5a1 1 0 011 1v.5'})]);
+      case 'paste': return S([h('rect',{key:1,x:3.5,y:3,width:9,height:11,rx:1.3}),h('path',{key:2,d:'M6 3V2.2h4V3'}),h('path',{key:3,d:'M6 7h4M6 9.5h4'})]);
+      case 'brush': return S([h('path',{key:1,d:'M12.6 3c.5.5.5 1.2 0 1.6L8.4 8.8 7.2 7.6 11.4 3.4c.4-.5 1.1-.5 1.6 0z'}),h('path',{key:2,d:'M6.6 8c1 0 1.5.7 1.5 1.6 0 1.4-1.3 2.6-3 2.6-.7 0-1.4-.2-1.9-.5.8-.4 1-1 1.2-1.8.2-1 .9-1.9 2.2-1.9z',fill:c,stroke:'none'})]);
+      case 'trash': return S([h('path',{key:1,d:'M3.5 4.5h9'}),h('path',{key:2,d:'M6 4.5V3h4v1.5'}),h('path',{key:3,d:'M5 4.5l.5 9h5l.5-9'})]);
+      case 'alignL': return S([h('path',{key:1,d:'M2.5 2.5v11'}),h('rect',{key:2,x:4,y:4,width:8,height:2.4,rx:.5,fill:c,stroke:'none'}),h('rect',{key:3,x:4,y:9.6,width:5,height:2.4,rx:.5,fill:c,stroke:'none'})]);
+      case 'alignR': return S([h('path',{key:1,d:'M13.5 2.5v11'}),h('rect',{key:2,x:4,y:4,width:8,height:2.4,rx:.5,fill:c,stroke:'none'}),h('rect',{key:3,x:7,y:9.6,width:5,height:2.4,rx:.5,fill:c,stroke:'none'})]);
+      case 'alignH': return S([h('path',{key:1,d:'M8 2.5v11'}),h('rect',{key:2,x:4,y:4,width:8,height:2.4,rx:.5,fill:c,stroke:'none'}),h('rect',{key:3,x:5.5,y:9.6,width:5,height:2.4,rx:.5,fill:c,stroke:'none'})]);
+      case 'alignT': return S([h('path',{key:1,d:'M2.5 2.5h11'}),h('rect',{key:2,x:4,y:4,width:2.4,height:8,rx:.5,fill:c,stroke:'none'}),h('rect',{key:3,x:9.6,y:4,width:2.4,height:5,rx:.5,fill:c,stroke:'none'})]);
+      case 'alignB': return S([h('path',{key:1,d:'M2.5 13.5h11'}),h('rect',{key:2,x:4,y:4,width:2.4,height:8,rx:.5,fill:c,stroke:'none'}),h('rect',{key:3,x:9.6,y:7,width:2.4,height:5,rx:.5,fill:c,stroke:'none'})]);
+      case 'alignV': return S([h('path',{key:1,d:'M2.5 8h11'}),h('rect',{key:2,x:4,y:4,width:2.4,height:8,rx:.5,fill:c,stroke:'none'}),h('rect',{key:3,x:9.6,y:5.5,width:2.4,height:5,rx:.5,fill:c,stroke:'none'})]);
+      case 'distH': return S([h('rect',{key:1,x:2,y:5,width:2.2,height:6,rx:.5,fill:c,stroke:'none'}),h('rect',{key:2,x:6.9,y:5,width:2.2,height:6,rx:.5,fill:c,stroke:'none'}),h('rect',{key:3,x:11.8,y:5,width:2.2,height:6,rx:.5,fill:c,stroke:'none'})]);
+      case 'distV': return S([h('rect',{key:1,x:5,y:2,width:6,height:2.2,rx:.5,fill:c,stroke:'none'}),h('rect',{key:2,x:5,y:6.9,width:6,height:2.2,rx:.5,fill:c,stroke:'none'}),h('rect',{key:3,x:5,y:11.8,width:6,height:2.2,rx:.5,fill:c,stroke:'none'})]);
+    }
+    return null;
+  }
+  fmt(v){ return String(Number(v)); }
+  pad(s, n){ s=String(s); while(s.length<n) s+=' '; return s; }
+  uid(p){ return (p||'x')+Math.random().toString(36).slice(2,6); }
+
+  compute(){
+    const byId = {}; this.state.nodes.forEach(n=>byId[n.id]=n);
+    const f = (id,k)=>{ const n=byId[id]; if(!n) return 0; const x=n.fields.find(z=>z.key===k); return x?Number(x.value):0; };
+    const volt = f('bat','volt');
+    const cellMod = f('cell','cap')*f('cell','pp');
+    const batE = f('bat','cap')*volt*f('bat','dod')/1000;
+    const saP = f('sa','area')*f('sa','eff')*f('sa','dens');
+    const pcuOut = Math.min(saP, f('pcu','rated'))*f('pcu','eff');
+    const pwrRated = f('pwr','cur')*volt;
+    const loadPk = f('load','pk')*volt;
+    const need = f('req','need'); const margin = f('req','margin'); const needWithM = need*(1+margin/100);
+    const needP = f('reqp','need');
+    const derived = {
+      cell:[{key:'mod', label:'模块容量', value:cellMod.toFixed(0), unit:'Ah', expr:'单体容量 × 并联数'}],
+      sa:[{key:'gen', label:'发电功率', value:saP.toFixed(0), unit:'W', expr:'板面积 × 效率 × 光照密度'}],
+      bat:[{key:'energy', label:'可用能量', value:batE.toFixed(2), unit:'kWh', expr:'容量 × 电压 × DoD ÷ 1000'}],
+      pcu:[{key:'out', label:'输出功率', value:pcuOut.toFixed(0), unit:'W', expr:'min(发电,额定) × 转换效率'}],
+      pwr:[{key:'tx', label:'传输功率', value:pwrRated.toFixed(0), unit:'W', expr:'额定电流 × 母线电压'}],
+      load:[{key:'pk', label:'峰值功率', value:loadPk.toFixed(0), unit:'W', expr:'峰值电流 × 母线电压'}],
+      req:[], reqp:[], alt:[],
+    };
+    const rule = {};
+    rule.bat = batE>=needWithM ? {level:'ok', msg:'可用能量满足需求并留有裕度（≥'+needWithM.toFixed(2)+' kWh）。'}
+             : batE>=need ? {level:'warn', msg:'能量裕度不足：'+batE.toFixed(2)+' kWh 低于含裕度目标 '+needWithM.toFixed(2)+' kWh。'}
+             : {level:'block', msg:'可用能量低于硬需求 '+need+' kWh，禁止下游引用。'};
+    rule.req = batE>=need ? {level:'ok', msg:'续航能量需求已满足。'} : {level:'block', msg:'续航需求未满足：可用 '+batE.toFixed(2)+' < 需求 '+need+' kWh。'};
+    rule.reqp = pcuOut>=needP ? {level:'ok', msg:'峰值功率需求已满足。'} : pcuOut>=needP*0.9 ? {level:'warn', msg:'峰值功率接近极限：输出 '+pcuOut.toFixed(0)+' W 略低于需求 '+needP+' W。'} : {level:'block', msg:'峰值功率缺口：输出 '+pcuOut.toFixed(0)+' W < 需求 '+needP+' W。'};
+    rule.sa = saP>=loadPk ? {level:'ok', msg:'发电功率可覆盖峰值负载。'} : {level:'warn', msg:'发电功率低于峰值负载，需依赖蓄电池放电。'};
+    rule.pcu = pcuOut<=f('pcu','rated') ? {level:'ok', msg:'控制器输出在额定范围内。'} : {level:'warn', msg:'控制器输出超出额定功率。'};
+    rule.pwr = loadPk<=pwrRated ? {level:'ok', msg:'接口传输功率满足载荷峰值。'} : {level:'warn', msg:'载荷峰值超过接口传输能力。'};
+    rule.load = {level:'ok', msg:'载荷参数有效。'};
+    rule.cell = {level:'ok', msg:'单体参数有效。'};
+    this.state.nodes.forEach(n=>{ if(!derived[n.id]) derived[n.id]=[]; if(!rule[n.id]) rule[n.id]={level:'ok', msg:'参数有效，暂无适用规则。'}; });
+    return { byId, derived, rule };
+  }
+
+  ruleLevel(C, n){ return n.vetoed ? 'veto' : (C.rule[n.id] ? C.rule[n.id].level : 'ok'); }
+
+  // ---- mutations ----
+  pushLog(entry){ this.setState(s=>({ log:[{id:this.uid('l'), ...entry}, ...s.log].slice(0,80) })); }
+  pushFieldLog(id, key, label, oldv, val, unit){
+    const u = unit?(' '+unit):'';
+    this.setState(s=>{
+      const top=s.log[0];
+      const text=label+' '+this.fmt(oldv)+' → '+this.fmt(val)+u;
+      if(top && top.target===id && top.fieldKey===key){ const log=s.log.slice(); log[0]={...top, text:label+' '+this.fmt(top.from)+' → '+this.fmt(val)+u, at:'刚刚'}; return {log}; }
+      return { log:[{id:this.uid('l'), target:id, fieldKey:key, from:oldv, actor:'叶工程师', kind:'edit', text, at:'刚刚'}, ...s.log].slice(0,80) };
+    });
+  }
+  setField(id, key, val){
+    this.pushUndo();
+    const n=this.state.nodes.find(x=>x.id===id); const fl=n&&n.fields.find(z=>z.key===key);
+    const oldv=fl?fl.value:0, label=fl?fl.label:'', unit=fl?fl.unit:'';
+    this.setState(s=>({ nodes: s.nodes.map(nn=> nn.id===id ? {...nn, fields:nn.fields.map(f=> f.key===key ? {...f, value:val} : f)} : nn) }));
+    this.pushFieldLog(id, key, label, oldv, val, unit);
+    this.flagRecompute(id);
+  }
+  setName(id, val){ this.pushUndo(); this.setState(s=>({ nodes: s.nodes.map(n=> n.id===id ? {...n, name:val} : n) })); }
+  flagRecompute(id){
+    const deps = { bat:['bat','req','pwr','load'], sa:['sa','pcu','reqp'], pcu:['pcu','reqp','bat'], cell:['cell'], pwr:['pwr'], load:['load'], req:['req','bat'], reqp:['reqp'] };
+    const ids = deps[id]||[id];
+    this.setState(s=>{ const r={...s.recomputing}; ids.forEach(i=>r[i]=true); return {recomputing:r}; });
+    clearTimeout(this._t); this._t = setTimeout(()=> this.setState({recomputing:{}}), 560);
+  }
+  revalidate(){
+    const all={}; this.state.nodes.forEach(n=>all[n.id]=true);
+    this.setState({recomputing:all}); this.showToast('已触发全量重新校验');
+    clearTimeout(this._t); this._t = setTimeout(()=> this.setState({recomputing:{}}), 700);
+  }
+  runSim(){
+    if(this.state.sim.status==='running') return;
+    this.setState({ sim:{status:'running', progress:0, result:null}, bottomTab:'sim', bottomCollapsed:false, menuOpen:null });
+    clearInterval(this._sim); let p=0;
+    this._sim=setInterval(()=>{
+      p += Math.random()*16+11;
+      if(p>=100){ clearInterval(this._sim);
+        const result=this.computeSim();
+        this.setState({ sim:{status:'done', progress:100, result} });
+        this.showToast(result.verdict.level==='ok'?'仿真完成：方案通过':(result.verdict.level==='block'?'仿真完成：发现阻断项':'仿真完成：存在告警'));
+        this.pushLog({target:'_', actor:'仿真引擎', kind:'recompute', text:'运行轨道功率仿真 → '+result.verdict.text+'（最低 SoC '+result.minSoc.toFixed(0)+'%）', at:'刚刚'});
+      } else this.setState(s=>({sim:{...s.sim, progress:p}}));
+    }, 240);
+  }
+  computeSim(){
+    const C=this.compute();
+    const f=(id,k)=>{ const n=C.byId[id]; if(!n) return 0; const x=n.fields.find(z=>z.key===k); return x?Number(x.value):0; };
+    const der=(id,key)=>{ const arr=C.derived[id]||[]; const d=arr.find(x=>x.key===key); return d?Number(d.value):0; };
+    const saGen=der('sa','gen'), pcuOut=der('pcu','out'), batWh=der('bat','energy')*1000;
+    const dod=f('bat','dod')||0.8, loadPeak=der('load','pk'), loadAvg=loadPeak*0.6;
+    const T=90, eclipse=35, sun=T-eclipse, steps=24, dtH=(T/steps)/60;
+    const usableWh=batWh*dod, eclipseDraw=loadAvg*(eclipse/60);
+    let stored=batWh; const curve=[]; let minSoc=100;
+    for(let i=0;i<=steps;i++){ const tMin=i*(T/steps); const inSun=tMin<=sun;
+      const supply=inSun?Math.min(pcuOut, saGen):0; const net=supply-loadAvg;
+      stored=Math.max(0, Math.min(batWh, stored+net*dtH));
+      const soc=batWh>0?stored/batWh*100:0; curve.push(soc); if(soc<minSoc) minSoc=soc; }
+    const floorSoc=(1-dod)*100;
+    const margin=usableWh>0?Math.max(0,(usableWh-eclipseDraw)/usableWh*100):0;
+    let level= minSoc>=floorSoc+5 ? 'ok' : (minSoc>=floorSoc ? 'warn' : 'block');
+    if(pcuOut<loadAvg) level = level==='ok'?'warn':level;
+    const RM=this.RM[level];
+    let msg;
+    if(level==='ok') msg='轨道全程能量平衡，阴影期末最低 SoC '+minSoc.toFixed(0)+'%，高于 DoD 下限 '+floorSoc.toFixed(0)+'%，裕度充足。';
+    else if(level==='warn') msg='阴影期放电接近 DoD 下限（最低 SoC '+minSoc.toFixed(0)+'%），建议提升容量或发电能力。';
+    else msg='阴影期能量赤字：负载耗电超出可用放电量，电池将跨过 DoD 下限（最低 SoC '+minSoc.toFixed(0)+'%）。';
+    return { scenario:'LEO 轨道 · 满载工况（T='+T+'min，阴影 '+eclipse+'min）', curve, minSoc, floorSoc, margin, sunRatio:sun/T,
+      verdict:{level, text:RM.text, glyph:RM.glyph, msg},
+      metrics:[
+        {k:'最低 SoC', v:minSoc.toFixed(0)+' %', accent:true},
+        {k:'能量裕度', v:margin.toFixed(0)+' %'},
+        {k:'发电功率', v:saGen.toFixed(0)+' W'},
+        {k:'控制器输出', v:pcuOut.toFixed(0)+' W'},
+        {k:'平均负载', v:loadAvg.toFixed(0)+' W'},
+        {k:'阴影耗电', v:eclipseDraw.toFixed(0)+' Wh'},
+      ] };
+  }
+  selectNode(id){ this.setState({selectedId:id, selectedIds:[id], selectedEdgeId:null, ctx:null}); }
+  selectEdge(id){ this.setState({selectedEdgeId:id, selectedId:null, selectedIds:[], ctx:null, kindSearch:''}); }
+  togglePane(k){ this.setState(s=>{ const p={...s.panes, [k]:!s.panes[k]}; if(!p.graph&&!p.table&&!p.text) return {menuOpen:null}; return {panes:p, menuOpen:null}; }); }
+  movePane(key, dir){ this.setState(s=>{ const order=s.paneOrder.slice(); const active=order.filter(k=>s.panes[k]); const ai=active.indexOf(key); const tj=ai+dir; if(ai<0||tj<0||tj>=active.length) return {}; const other=active[tj]; const i1=order.indexOf(key), i2=order.indexOf(other); order[i1]=other; order[i2]=key; return {paneOrder:order}; }); }
+  startPaneResize(e, leftKey, rightKey){ if(!leftKey) return; e.preventDefault(); e.stopPropagation(); const lEl=document.querySelector('[data-pane="'+leftKey+'"]'); const rEl=document.querySelector('[data-pane="'+rightKey+'"]'); if(!lEl||!rEl) return; const lw0=lEl.getBoundingClientRect().width, rw0=rEl.getBoundingClientRect().width; const sumW=(this.state.paneFlex[leftKey]||1)+(this.state.paneFlex[rightKey]||1); this.setState({paneResize:{leftKey, rightKey, sx:e.clientX, lw0, combinedPx:lw0+rw0, sumW}}); }
+  toggleAlign(e){ e&&e.stopPropagation&&e.stopPropagation(); this.setState(s=>({alignOpen:!s.alignOpen, menuOpen:null, dispOpen:false})); }
+  NW(){ return this.state.density==='compact'?152:170; }
+  estH(n){ const compact=this.state.density==='compact'; const C=this.compute(); const hid=n.hidden||[]; const NS=this.state.nodeShow; let rows=0; if(NS.fields) rows+=n.fields.filter(f=>!hid.includes(f.key)).slice(0,3).length; if(NS.derived) rows+=(C.derived[n.id]||[]).filter(d=>!hid.includes(d.key)).length; const footer=(NS.prov&&!hid.includes('prov'))?22:0; return 28+27+rows*(compact?20:23)+footer; }
+  snap(){ return { nodes:JSON.parse(JSON.stringify(this.state.nodes)), edges:JSON.parse(JSON.stringify(this.state.edges)) }; }
+  pushUndo(){ const snap=this.snap(); this.setState(s=>({ past:[...s.past.slice(-49), snap], future:[] })); }
+  undo(){ if(!this.state.past.length){ this.showToast('没有可撤销的操作'); return; } this.setState(s=>{ const prev=s.past[s.past.length-1]; return { nodes:prev.nodes, edges:prev.edges, past:s.past.slice(0,-1), future:[...s.future, {nodes:s.nodes, edges:s.edges}] }; }); this.showToast('已撤销'); }
+  redo(){ if(!this.state.future.length){ this.showToast('没有可重做的操作'); return; } this.setState(s=>{ const nx=s.future[s.future.length-1]; return { nodes:nx.nodes, edges:nx.edges, future:s.future.slice(0,-1), past:[...s.past, {nodes:s.nodes, edges:s.edges}] }; }); this.showToast('已重做'); }
+  copySelection(){ const ids=this.state.selectedIds; const nodes=this.state.nodes.filter(n=>ids.includes(n.id)); if(!nodes.length){ this.showToast('未选择图元'); return; } this.setState({clipboard:JSON.parse(JSON.stringify(nodes))}); this.showToast('已复制 '+nodes.length+' 个图元'); }
+  pasteClipboard(){ const cb=this.state.clipboard; if(!cb||!cb.length){ this.showToast('剪贴板为空'); return; } this.pushUndo(); const news=cb.map(n=>{ const nid=this.uid('n'); return {...JSON.parse(JSON.stringify(n)), id:nid, code:n.code+'·', name:n.name+' 副本', x:n.x+32, y:n.y+32, stale:false, vetoed:false, readonly:false}; }); this.setState(s=>({nodes:[...s.nodes, ...news], selectedIds:news.map(n=>n.id), selectedId:news[news.length-1].id, selectedEdgeId:null})); this.pushLog({target:'_', actor:'叶工程师', kind:'create', text:'粘贴 '+news.length+' 个图元', at:'刚刚'}); this.showToast('已粘贴 '+news.length+' 个图元'); }
+  startPainter(){ const n=this.state.nodes.find(x=>x.id===this.state.selectedId); if(!n){ this.showToast('请先选中一个图元作为格式来源'); return; } this.setState({painter:{hidden:[...(n.hidden||[])], from:n.code}}); this.showToast('格式刷：点击目标图元应用「'+n.code+'」的显示格式'); }
+  applyPainter(id){ const p=this.state.painter; if(!p) return; this.pushUndo(); this.setState(s=>({ nodes:s.nodes.map(n=> n.id===id ? {...n, hidden:[...p.hidden]} : n), painter:null, selectedId:id, selectedIds:[id], selectedEdgeId:null })); this.showToast('已应用显示格式到目标图元'); }
+  alignNodes(mode){ const ids=this.state.selectedIds; if(ids.length<2){ this.showToast('请选择至少 2 个图元'); return; } this.pushUndo(); const W=this.NW(); const ns=this.state.nodes.filter(n=>ids.includes(n.id)); const hs={}; ns.forEach(n=>hs[n.id]=this.estH(n)); const minX=Math.min(...ns.map(n=>n.x)), maxR=Math.max(...ns.map(n=>n.x+W)), avgCx=ns.reduce((a,n)=>a+n.x+W/2,0)/ns.length; const minY=Math.min(...ns.map(n=>n.y)), maxB=Math.max(...ns.map(n=>n.y+hs[n.id])), avgCy=ns.reduce((a,n)=>a+n.y+hs[n.id]/2,0)/ns.length; const setP=(fn)=>this.setState(s=>({nodes:s.nodes.map(n=> ids.includes(n.id)?{...n,...fn(n,hs[n.id])}:n)})); if(mode==='left')setP(()=>({x:Math.round(minX)})); else if(mode==='right')setP(()=>({x:Math.round(maxR-W)})); else if(mode==='hcenter')setP(()=>({x:Math.round(avgCx-W/2)})); else if(mode==='top')setP(()=>({y:Math.round(minY)})); else if(mode==='bottom')setP((n,h)=>({y:Math.round(maxB-h)})); else if(mode==='vcenter')setP((n,h)=>({y:Math.round(avgCy-h/2)})); this.setState({alignOpen:false}); this.showToast('已对齐所选图元'); }
+  distributeNodes(axis){ const ids=this.state.selectedIds; if(ids.length<3){ this.showToast('请选择至少 3 个图元'); return; } this.pushUndo(); const key=axis==='h'?'x':'y'; const ns=this.state.nodes.filter(n=>ids.includes(n.id)).slice().sort((a,b)=>a[key]-b[key]); const first=ns[0][key], last=ns[ns.length-1][key], step=(last-first)/(ns.length-1); const pos={}; ns.forEach((n,i)=>pos[n.id]=Math.round(first+step*i)); this.setState(s=>({nodes:s.nodes.map(n=> pos[n.id]!=null?{...n,[key]:pos[n.id]}:n)})); this.setState({alignOpen:false}); this.showToast('已均匀分布'); }
+  showToast(msg){ this.setState({toast:{show:true,msg}}); clearTimeout(this._tt); this._tt=setTimeout(()=>this.setState(s=>({toast:{...s.toast,show:false}})),2000); }
+
+  startDrag(e, id){
+    if(e.button===2) return; e.stopPropagation();
+    if(this.state.painter){ this.applyPainter(id); return; }
+    const multi = e.shiftKey||e.metaKey||e.ctrlKey;
+    this.setState(s=>{
+      let ids;
+      if(multi){ ids = s.selectedIds.includes(id) ? s.selectedIds.filter(x=>x!==id) : [...s.selectedIds, id]; if(ids.length===0) ids=[id]; }
+      else { ids = (s.selectedIds.includes(id) && s.selectedIds.length>1) ? s.selectedIds : [id]; }
+      const nm={}; s.nodes.forEach(n=>nm[n.id]=n); const origins={}; ids.forEach(i=>{ if(nm[i]) origins[i]={x:nm[i].x, y:nm[i].y}; });
+      return { selectedIds:ids, selectedId:id, selectedEdgeId:null, ctx:null, menuOpen:null, alignOpen:false,
+        drag: multi ? null : {id, sx:e.clientX, sy:e.clientY, origins, moved:false, snap:{nodes:JSON.parse(JSON.stringify(s.nodes)), edges:JSON.parse(JSON.stringify(s.edges))}} };
+    });
+  }
+  onCanvasDown(e){
+    if(e.button!==0) return;
+    e.stopPropagation();
+    if(!this.canvasRef.current) return;
+    const r=this.canvasRef.current.getBoundingClientRect();
+    const x=e.clientX-r.left, y=e.clientY-r.top;
+    if(this.state.tool==='marquee'){ this.setState({marquee:{x0:x,y0:y,x1:x,y1:y}, selectedId:null, selectedIds:[], selectedEdgeId:null, menuOpen:null}); }
+    else { this.setState({selectedId:null, selectedIds:[], selectedEdgeId:null, menuOpen:null}); }
+  }
+  onCanvasMove(e){
+    const m=this.state.marquee;
+    if(m && this.canvasRef.current){ const r=this.canvasRef.current.getBoundingClientRect(); this.setState({marquee:{...m, x1:e.clientX-r.left, y1:e.clientY-r.top}}); return; }
+    const d=this.state.drag;
+    if(d){ const dx=e.clientX-d.sx, dy=e.clientY-d.sy; this.setState(s=>({ drag: s.drag?{...s.drag, moved:true}:null, nodes:s.nodes.map(n=> d.origins[n.id] ? {...n, x:Math.max(0,d.origins[n.id].x+dx), y:Math.max(0,d.origins[n.id].y+dy)} : n) })); return; }
+    if(this.state.pendingEdge && this.canvasRef.current){ const r=this.canvasRef.current.getBoundingClientRect(); const x=e.clientX-r.left, y=e.clientY-r.top; this.setState(s=> s.pendingEdge ? ({pendingEdge:{...s.pendingEdge, x, y}}) : {}); }
+  }
+  onCanvasUp(){
+    const m=this.state.marquee;
+    if(m){ const x0=Math.min(m.x0,m.x1), x1=Math.max(m.x0,m.x1), y0=Math.min(m.y0,m.y1), y1=Math.max(m.y0,m.y1); const W=this.NW(); const hit=this.state.nodes.filter(n=>{ const ny1=n.y+this.estH(n); return n.x<x1 && (n.x+W)>x0 && n.y<y1 && ny1>y0; }).map(n=>n.id); this.setState({marquee:null, selectedIds:hit, selectedId:hit.length?hit[hit.length-1]:null, selectedEdgeId:null}); if(hit.length) this.showToast('框选 '+hit.length+' 个图元'); return; }
+    const d=this.state.drag; if(d){ if(d.moved && d.snap){ const snap=d.snap; this.setState(s=>({past:[...s.past.slice(-49), snap], future:[]})); } this.setState({drag:null}); } if(this.state.pendingEdge) this.setState({pendingEdge:null}); }
+
+  startEdge(e, id, side){
+    if(e.button===2) return;
+    e.stopPropagation();
+    const n=this.state.nodes.find(x=>x.id===id); const NW=this.state.density==='compact'?152:170;
+    const pts={ l:[n.x, n.y+30], r:[n.x+NW, n.y+30], t:[n.x+NW/2, n.y], b:[n.x+NW/2, n.y+118] };
+    const p=pts[side];
+    this.setState({pendingEdge:{from:id, sx:p[0], sy:p[1], x:p[0], y:p[1]}});
+  }
+  endEdgeAt(e, id){
+    e.stopPropagation();
+    const pe=this.state.pendingEdge;
+    if(pe && pe.from!==id) this.addEdge(pe.from, id);
+    else this.setState({pendingEdge:null});
+  }
+  addEdge(from, to){
+    const exists = this.state.edges.some(e=> (e.from===from&&e.to===to)||(e.from===to&&e.to===from));
+    if(exists){ this.setState({pendingEdge:null}); this.showToast('两图元之间已存在连线'); return; }
+    this.pushUndo();
+    const id=this.uid('e');
+    this.setState(s=>({ edges:[...s.edges, {id, from, to, kind:'关联', routing:'ortho', style:'solid', weight:1.8}], pendingEdge:null, selectedEdgeId:id, selectedId:null, kindSearch:'' }));
+    const a=this.state.nodes.find(n=>n.id===from), b=this.state.nodes.find(n=>n.id===to);
+    this.pushLog({target:from, actor:'叶工程师', kind:'link', text:'新建连线 '+(a?a.code:'')+' → '+(b?b.code:''), at:'刚刚'});
+    this.showToast('已创建连线，请在右侧选择关系类型');
+  }
+  setEdgeProp(id, patch){ this.pushUndo(); this.setState(s=>({ edges:s.edges.map(e=> e.id===id ? {...e, ...patch} : e) })); }
+  reverseEdge(id){ this.pushUndo(); this.setState(s=>({ edges:s.edges.map(e=> e.id===id ? {...e, from:e.to, to:e.from} : e) })); this.showToast('已反转连线方向'); }
+  deleteEdge(id){ this.pushUndo(); const e=this.state.edges.find(x=>x.id===id); this.setState(s=>({ edges:s.edges.filter(x=>x.id!==id), selectedEdgeId:null, ctx:null })); if(e){ const a=this.state.nodes.find(n=>n.id===e.from), b=this.state.nodes.find(n=>n.id===e.to); this.pushLog({target:e.from, actor:'叶工程师', kind:'delete', text:'删除连线 '+(a?a.code:'')+' → '+(b?b.code:''), at:'刚刚'}); } this.showToast('已删除连线'); }
+
+  addNode(type, x, y){
+    this.pushUndo();
+    const id=this.uid('n');
+    const codes={subsystem:'SYS', component:'CMP', interface:'IFC', requirement:'REQ'};
+    const node={ id, type, code:codes[type], name:'新建'+this.TY[type].label,
+      x: x!=null?Math.max(0,x-85):(430+Math.round(Math.random()*70)), y: y!=null?Math.max(0,y-40):(200+Math.round(Math.random()*80)),
+      fields:[{key:'v1',label:'参数 1',value:0,unit:''}],
+      prov:{src:'手填', fresh:'刚刚', owner:'叶工程师', editor:'叶工程师', version:'v1', signed:false, freshPct:100, chain:[{act:'手工创建', by:'叶工程师', at:'刚刚'}]} };
+    this.setState(s=>({nodes:[...s.nodes, node], selectedId:id, selectedIds:[id], selectedEdgeId:null, panes:{...s.panes, graph:true}, appState:'ready', ctx:null, menuOpen:null }));
+    this.pushLog({target:id, actor:'叶工程师', kind:'create', text:'新建'+this.TY[type].label+' '+node.code, at:'刚刚'});
+    this.showToast('已新建'+this.TY[type].label);
+  }
+  duplicateNode(id){
+    const n=this.state.nodes.find(x=>x.id===id); if(!n) return;
+    this.pushUndo();
+    const nid=this.uid('n');
+    const copy={...n, id:nid, code:n.code+'·', name:n.name+' 副本', x:n.x+28, y:n.y+28, stale:false, vetoed:false, readonly:false,
+      fields:n.fields.map(f=>({...f})), prov:{...n.prov, fresh:'刚刚', version:'v1', chain:[{act:'复制自 '+n.code, by:'叶工程师', at:'刚刚'}]} };
+    this.setState(s=>({nodes:[...s.nodes, copy], selectedId:nid, selectedIds:[nid], selectedEdgeId:null, ctx:null}));
+    this.pushLog({target:nid, actor:'叶工程师', kind:'create', text:'复制图元 '+n.code, at:'刚刚'});
+    this.showToast('已复制图元');
+  }
+  deleteNode(id){
+    const n=this.state.nodes.find(x=>x.id===id);
+    this.pushUndo();
+    this.setState(s=>({ nodes:s.nodes.filter(x=>x.id!==id), edges:s.edges.filter(e=>e.from!==id&&e.to!==id),
+      selectedId: s.selectedId===id?null:s.selectedId, selectedIds:s.selectedIds.filter(x=>x!==id), ctx:null }));
+    if(n) this.pushLog({target:'_', actor:'叶工程师', kind:'delete', text:'删除图元 '+n.code+' · '+n.name, at:'刚刚'});
+    this.showToast('已删除图元及其连线');
+  }
+  toggleFlag(id, flag){
+    this.pushUndo();
+    this.setState(s=>({ nodes:s.nodes.map(n=> n.id===id ? {...n, [flag]:!n[flag]} : n), ctx:null }));
+    const n=this.state.nodes.find(x=>x.id===id); const labels={stale:'陈旧', readonly:'只读', vetoed:'否决'};
+    if(n) this.pushLog({target:id, actor:'叶工程师', kind: flag==='vetoed'?'veto':'edit', text:(n[flag]?'取消':'标记')+labels[flag], at:'刚刚'});
+  }
+  toggleField(id, key){ this.pushUndo(); this.setState(s=>({ nodes:s.nodes.map(n=>{ if(n.id!==id) return n; const h=new Set(n.hidden||[]); h.has(key)?h.delete(key):h.add(key); return {...n, hidden:[...h]}; }) })); }
+  toggleRight(){ this.setState(s=>({rightCollapsed:!s.rightCollapsed})); }
+  toggleLeft(){ this.setState(s=>({leftCollapsed:!s.leftCollapsed})); }
+  startDockResize(e, side){ e.preventDefault(); e.stopPropagation(); this.setState(s=>({dockDrag:{side, sx:e.clientX, ow: side==='left'?s.leftW:s.rightW}})); }
+  toggleBottom(){ this.setState(s=>({bottomCollapsed:!s.bottomCollapsed})); }
+  toggleDisp(e){ e&&e.stopPropagation&&e.stopPropagation(); this.setState(s=>({dispOpen:!s.dispOpen, menuOpen:null})); }
+  setNodeShow(key){ this.setState(s=>({nodeShow:{...s.nodeShow, [key]:!s.nodeShow[key]}})); }
+  setKindSearch(v){ this.setState({kindSearch:v}); }
+  addCustomKind(name){ name=(name||'').trim(); if(!name) return; const exists=this.EDGE_KIND_GROUPS.some(g=>g.items.some(i=>i[0]===name))||this.state.customKinds.some(c=>c[0]===name); if(!exists) this.setState(s=>({customKinds:[...s.customKinds,[name,'solid']]})); if(this.state.selectedEdgeId) this.setEdgeProp(this.state.selectedEdgeId,{kind:name, style:'solid'}); this.setState({kindSearch:''}); this.showToast('已新建关系类型「'+name+'」'); }
+  selectSameType(){ const ids=this.state.selectedIds; if(!ids.length){ this.showToast('请先选中一个图元'); return; } const nm={}; this.state.nodes.forEach(n=>nm[n.id]=n); const types=new Set(ids.map(i=>nm[i]&&nm[i].type).filter(Boolean)); const hit=this.state.nodes.filter(n=>types.has(n.type)).map(n=>n.id); this.setState({selectedIds:hit, selectedId:hit[hit.length-1], selectedEdgeId:null, ctx:null}); const names=[...types].map(t=>this.TY[t].label).join('/'); this.showToast('已选中所有「'+names+'」类型图元（'+hit.length+'）'); }
+  setNodeStyle(id, patch){ this.pushUndo(); this.setState(s=>({ nodes:s.nodes.map(n=> n.id===id ? {...n, gx:{...(n.gx||{}), ...patch}} : n) })); }
+  goHome(){ window.location.href=encodeURI('M-Next 首页.dc.html'); }
+
+  deleteSelected(){ if(this.state.selectedEdgeId){ this.deleteEdge(this.state.selectedEdgeId); }
+    else if(this.state.selectedIds.length>1){ this.pushUndo(); const ids=this.state.selectedIds.slice(); this.setState(s=>({ nodes:s.nodes.filter(n=>!ids.includes(n.id)), edges:s.edges.filter(e=>!ids.includes(e.from)&&!ids.includes(e.to)), selectedId:null, selectedIds:[], ctx:null })); this.pushLog({target:'_', actor:'叶工程师', kind:'delete', text:'删除 '+ids.length+' 个图元', at:'刚刚'}); this.showToast('已删除 '+ids.length+' 个图元'); }
+    else if(this.state.selectedId){ this.deleteNode(this.state.selectedId); }
+    this.setState({menuOpen:null}); }
+
+  // context menu
+  openCtx(e, kind, targetId){
+    e.preventDefault(); e.stopPropagation();
+    let cx=0, cy=0;
+    if(kind==='canvas' && this.canvasRef.current){ const r=this.canvasRef.current.getBoundingClientRect(); cx=e.clientX-r.left; cy=e.clientY-r.top; }
+    this.setState({ ctx:{ kind, targetId, x:e.clientX, y:e.clientY, cx, cy }, menuOpen:null });
+    if(kind==='node') this.setState(s=>({selectedId:targetId, selectedIds: s.selectedIds.includes(targetId)?s.selectedIds:[targetId], selectedEdgeId:null}));
+    else if(kind==='edge') this.setState({selectedEdgeId:targetId, selectedId:null, selectedIds:[]});
+  }
+  closeCtx(){ this.setState({ctx:null}); }
+  closeMenus(){ this.setState({menuOpen:null}); }
+  toggleMenu(id){ this.setState(s=>({menuOpen: s.menuOpen===id?null:id, ctx:null})); }
+
+  // command palette
+  openCmd(){ this.setState({cmd:{open:true, query:'', index:0}, menuOpen:null}); }
+  closeCmd(){ this.setState(s=>({cmd:{...s.cmd, open:false}})); }
+  cmdInput(e){ const q=e.target.value; this.setState(s=>({cmd:{...s.cmd, query:q, index:0}})); }
+  cmdKey(e){
+    const list=this._cmdList||[];
+    if(e.key==='ArrowDown'){ e.preventDefault(); this.setState(s=>({cmd:{...s.cmd, index:Math.min(s.cmd.index+1, Math.max(0,list.length-1))}})); }
+    else if(e.key==='ArrowUp'){ e.preventDefault(); this.setState(s=>({cmd:{...s.cmd, index:Math.max(0, s.cmd.index-1)}})); }
+    else if(e.key==='Enter'){ e.preventDefault(); const c=list[this.state.cmd.index]; if(c){ c.run(); this.closeCmd(); } }
+  }
+
+  // float panel
+  toggleFloat(){ this.setState(s=>({floatValidate:!s.floatValidate})); }
+  startFloatDrag(e){ e.preventDefault(); this.setState(s=>({floatDrag:{sx:e.clientX, sy:e.clientY, ox:s.floatPos.x, oy:s.floatPos.y}})); }
+  onFloatMove(e){ const d=this.state.floatDrag; if(!d) return; const dx=e.clientX-d.sx, dy=e.clientY-d.sy; this.setState({floatPos:{x:Math.max(0,d.ox+dx), y:Math.max(0,d.oy+dy)}}); }
+  onFloatUp(){ if(this.state.floatDrag) this.setState({floatDrag:null}); }
+  onRootMove(e){
+    const pr=this.state.paneResize;
+    if(pr){ const dx=e.clientX-pr.sx; const newLw=Math.max(160, Math.min(pr.combinedPx-160, pr.lw0+dx)); const ratio=newLw/pr.combinedPx; this.setState(s=>({paneFlex:{...s.paneFlex, [pr.leftKey]:pr.sumW*ratio, [pr.rightKey]:pr.sumW*(1-ratio)}})); return; }
+    const d=this.state.dockDrag; if(!d) return; const dx=e.clientX-d.sx; if(d.side==='left'){ this.setState({leftW:Math.max(184, Math.min(440, d.ow+dx))}); } else { this.setState({rightW:Math.max(248, Math.min(540, d.ow-dx))}); }
+  }
+  onRootUp(){ if(this.state.drag) this.setState({drag:null}); if(this.state.pendingEdge) this.setState({pendingEdge:null}); if(this.state.dockDrag) this.setState({dockDrag:null}); if(this.state.paneResize) this.setState({paneResize:null}); }
+
+  edgePath(a, b, routing, NW){
+    NW = NW||170; const HH=30, BH=120;
+    if(routing==='curve'){
+      let sx,sy,ex,ey;
+      if(a.y > b.y){ sx=a.x+NW/2; sy=a.y; ex=b.x+NW/2; ey=b.y+BH; }
+      else { sx=a.x+NW/2; sy=a.y+BH; ex=b.x+NW/2; ey=b.y; }
+      const d=`M${sx},${sy} C ${sx},${(sy+ey)/2} ${ex},${(sy+ey)/2} ${ex},${ey}`;
+      const up = ey < sy;
+      const arrow = up ? `${ex},${ey} ${ex-4.5},${ey+9} ${ex+4.5},${ey+9}` : `${ex},${ey} ${ex-4.5},${ey-9} ${ex+4.5},${ey-9}`;
+      return { d, arrow, mx:(sx+ex)/2, my:(sy+ey)/2, sx, sy, ex, ey };
+    }
+    let sx,sy,ex,ey;
+    if(a.x <= b.x){ sx=a.x+NW; sy=a.y+HH; ex=b.x; ey=b.y+HH; }
+    else { sx=a.x; sy=a.y+HH; ex=b.x+NW; ey=b.y+HH; }
+    const mid=(sx+ex)/2;
+    const d=`M${sx},${sy} H${mid} V${ey} H${ex}`;
+    const right = ex>=sx;
+    const arrow = right ? `${ex},${ey} ${ex-9},${ey-4.5} ${ex-9},${ey+4.5}` : `${ex},${ey} ${ex+9},${ey-4.5} ${ex+9},${ey+4.5}`;
+    return { d, arrow, mx:mid, my:ey, sx, sy, ex, ey };
+  }
+
+  buildText(C){
+    const S=this.state; const lines=[]; const push=(parts)=>lines.push({parts});
+    const c=(text,color)=>({text, style:{color}});
+    const COM='var(--ink-3)', PUN='var(--ink-4)', LBL='var(--ink-2)', VAL='var(--ink)', ACC='var(--accent)', STR='var(--ok)', ANN='var(--t-interface)';
+    push([c('// M-Next 模型 · 文本视图（实时生成，随字段联动）', COM)]);
+    push([c('', VAL)]);
+    S.nodes.forEach(n=>{
+      const meta=this.TY[n.type]; const tcol=n.vetoed?'var(--ink-3)':meta.color;
+      const rl=this.ruleLevel(C,n); const rm=this.RM[rl];
+      push([c(meta.kw+' ', tcol), c(n.code+' ', VAL), c('"'+n.name+'" ', STR), c('{', PUN)]);
+      n.fields.forEach(fl=> push([c('  '+this.pad(fl.label,7), LBL), c('= ', PUN), c(this.fmt(fl.value)+(fl.unit?(' '+fl.unit):''), VAL)]));
+      (C.derived[n.id]||[]).forEach(d=> push([c('  '+this.pad(d.label,7), ACC), c(':= ', ACC), c(d.expr, LBL), c('   // fx → '+d.value+' '+d.unit, COM)]));
+      push([c('  @source ', ANN), c(n.prov.src+'  ', VAL), c('@fresh ', ANN), c(n.prov.fresh, VAL)]);
+      if(n.vetoed) push([c('  @status ', ANN), c('否决', VAL)]);
+      else { const ru=C.rule[n.id]||{msg:'参数有效'}; push([c('  @rule ', ANN), c(rm.text+' ', {color:rm.fg}), c(ru.msg, COM)]); }
+      push([c('}', PUN)]);
+      push([c('', VAL)]);
+    });
+    push([c('// 关系', COM)]);
+    S.edges.forEach(e=>{ const fromN=C.byId[e.from], toN=C.byId[e.to]; if(!fromN||!toN) return;
+      push([c('edge ', ANN), c(fromN.code, VAL), c(' —'+e.kind+(e.style==='dashed'?'⇢ ':'→ '), e.vetoed?PUN:LBL), c(toN.code, VAL)]); });
+    return lines;
+  }
+
+  histMeta(kind){
+    const m={ edit:{g:'✎', c:'var(--accent)'}, recompute:{g:'↻', c:'var(--accent)'}, rule:{g:'⚑', c:'var(--warn)'}, create:{g:'＋', c:'var(--ok)'}, veto:{g:'⊘', c:'var(--ink-3)'}, link:{g:'⇄', c:'var(--t-interface)'}, delete:{g:'✕', c:'var(--block)'} };
+    return m[kind]||m.edit;
+  }
+
+  renderVals(){
+    const S=this.state;
+    const C=this.compute();
+    const sel = C.byId[S.selectedId];
+    const NW = S.density==='compact'?152:170;
+    const DZ = S.density==='compact'
+      ? {w:'152px', namePx:'11.5px', rowPx:'10.5px', rowPad:'3px 8px', codePx:'9.5px'}
+      : {w:'170px', namePx:'12.5px', rowPx:'11px', rowPad:'3.5px 9px', codePx:'10px'};
+    const NS = S.nodeShow;
+
+    const outDeg={}; S.edges.forEach(e=>{ if(!e.vetoed){ outDeg[e.from]=(outDeg[e.from]||0)+1; } });
+
+    // NODES
+    const nodes = S.nodes.map(n=>{
+      const meta=this.TY[n.type];
+      const vetoed=!!n.vetoed;
+      const rl = this.ruleLevel(C,n);
+      const rm=this.RM[rl];
+      const isSel = S.selectedIds.includes(n.id);
+      const rec = !!S.recomputing[n.id];
+      const blocked = rl==='block';
+      const tcolor = vetoed ? 'var(--ink-3)' : meta.color;
+      const boxStyle = {
+        position:'absolute', left:n.x+'px', top:n.y+'px', width:DZ.w,
+        background:'var(--surface)', borderRadius:'2px', overflow:'hidden',
+        border:'1px solid '+(isSel?'var(--accent)':(blocked?'var(--block-d)':'var(--border-2)')),
+        boxShadow: isSel ? '0 0 0 2px var(--accent-ring), var(--shadow-node)' : (blocked ? '0 0 0 1px var(--block-bd), var(--shadow-node)' : 'var(--shadow-node)'),
+        opacity: vetoed?0.6:1, cursor: (S.drag&&S.drag.id===n.id)?'grabbing':'grab', fontFamily:'var(--mono)', zIndex: isSel?5:1,
+        transition:'box-shadow .12s, border-color .12s',
+      };
+      const hoverStyle = { boxShadow:'0 4px 10px rgba(0,0,0,.16), var(--shadow-node)', borderColor: isSel?'var(--accent)':'var(--border-strong)' };
+      const stripStyle = { position:'absolute', left:0, top:0, bottom:0, width:'3px', background:tcolor };
+      const chipStyle = { display:'inline-flex', alignItems:'center', justifyContent:'center', width:'16px', height:'16px', borderRadius:'8px', background:rm.bg, color:rm.fg, border:'1px solid '+rm.bd, fontFamily:'var(--mono)', fontSize:'9px', fontWeight:800, lineHeight:1, flex:'none' };
+      const recompStyle = { display:'inline-flex', alignItems:'center', gap:'3px', height:'16px', padding:'0 5px', borderRadius:'8px', background:'var(--accent-bg)', color:'var(--accent)', border:'1px solid var(--accent-bd)', fontFamily:'var(--mono)', fontSize:'8.5px', flex:'none', whiteSpace:'nowrap' };
+      const gx = n.gx||{}; const gscale = gx.scale||1;
+      const codeStyle = { fontFamily:'var(--mono)', fontSize:(parseFloat(DZ.codePx)*gscale)+'px', fontWeight:700, letterSpacing:'.04em', color: gx.color || tcolor };
+      const nameStyle = { fontFamily: gx.font==='mono'?'var(--mono)':'var(--sans)', fontSize:(parseFloat(DZ.namePx)*gscale)+'px', fontWeight:600, color: gx.color || 'var(--ink)', textDecoration: vetoed?'line-through':'none' };
+      const rows = [];
+      const hidden = n.hidden||[];
+      if(NS.fields) n.fields.filter(fl=>!hidden.includes(fl.key)).slice(0,3).forEach(fl=>{
+        rows.push({ isFx:false, label:fl.label, valueText:this.fmt(fl.value)+' '+fl.unit,
+          rowStyle:{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:DZ.rowPad, fontSize:DZ.rowPx, borderTop:'1px solid var(--border)' },
+          labelStyle:{ fontFamily:'var(--sans)', color:'var(--ink-2)' },
+          valueStyle:{ fontFamily:'var(--mono)', color: vetoed?'var(--ink-3)':'var(--ink)' } });
+      });
+      if(NS.derived) (C.derived[n.id]||[]).filter(d=>!hidden.includes(d.key)).forEach(d=>{
+        rows.push({ isFx:true, label:d.label, valueText:d.value+' '+d.unit,
+          rowStyle:{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:DZ.rowPad, fontSize:DZ.rowPx, borderTop:'1px solid var(--border)', background:'var(--accent-bg)' },
+          labelStyle:{ fontFamily:'var(--sans)', color:'var(--accent)' },
+          fxStyle:{ fontFamily:'var(--mono)', fontStyle:'italic', fontWeight:800, fontSize:'8.5px', color:'var(--accent)', display:'inline-block', animation: rec?'spin .7s linear infinite':'none' },
+          valueStyle:{ fontFamily:'var(--mono)', color:'var(--accent)', fontWeight:600 } });
+      });
+      return {
+        id:n.id, boxStyle, hoverStyle, stripStyle, stale:!!n.stale, readonly:!!n.readonly, down:outDeg[n.id]||0,
+        showType:NS.type&&!hidden.includes('type'), showProv:NS.prov&&!hidden.includes('prov'), miniStale:(!!n.stale)&&!(NS.prov&&!hidden.includes('prov')), miniReadonly:(!!n.readonly)&&!(NS.prov&&!hidden.includes('prov')),
+        icon:this.icon(n.type, tcolor), codeStyle, code:n.code, typeLabel:meta.label,
+        recomputing:rec, ruleShow:!rec&&!hidden.includes('rule'), recompStyle, rule:{glyph:rm.glyph, chipStyle},
+        nameStyle, name:n.name, rows, prov:n.prov,
+        onDown:(e)=>this.startDrag(e, n.id),
+        onCtx:(e)=>this.openCtx(e, 'node', n.id),
+        onPortDown:{ l:(e)=>this.startEdge(e,n.id,'l'), r:(e)=>this.startEdge(e,n.id,'r'), t:(e)=>this.startEdge(e,n.id,'t'), b:(e)=>this.startEdge(e,n.id,'b') },
+        onPortUp:(e)=>this.endEdgeAt(e, n.id),
+      };
+    });
+
+    // EDGES
+    const edges = S.edges.map(e=>{
+      const a=C.byId[e.from], b=C.byId[e.to];
+      const g=this.edgePath(a, b, e.routing, NW);
+      const isSel = e.id===S.selectedEdgeId;
+      const touchesSel = (e.from===S.selectedId || e.to===S.selectedId);
+      const stroke = isSel ? 'var(--accent)' : (e.vetoed ? 'var(--ink-4)' : (touchesSel ? 'var(--accent)' : 'var(--ink-3)'));
+      const labelColor = e.vetoed ? 'var(--ink-4)' : (isSel?'var(--accent)':'var(--ink-2)');
+      const w = e.kind.length*12+12;
+      return { id:e.id, d:g.d, arrow:g.arrow, weight:isSel?(e.weight+0.8):e.weight, dash:e.style==='dashed'?'5 4':'',
+        stroke, label:e.kind, labelColor, labelBg:'var(--surface)', labelBd:isSel?'var(--accent-bd)':'var(--border)',
+        lw:w, lx:g.mx-w/2, ly:g.my-8, ltx:g.mx, lty:g.my+3.5, selected:isSel, sx:g.sx, sy:g.sy, ex:g.ex, ey:g.ey,
+        onSelect:(ev)=>{ ev.stopPropagation(); this.selectEdge(e.id); }, onCtx:(ev)=>this.openCtx(ev,'edge',e.id) };
+    });
+
+    const pe=S.pendingEdge;
+    const pending = pe ? { show:true, d:`M${pe.sx},${pe.sy} L${pe.x},${pe.y}`, x:pe.x, y:pe.y } : { show:false, d:'', x:0, y:0 };
+
+    // VALIDATIONS
+    const rank={block:0, warn:1, ok:2, veto:3};
+    const validations = S.nodes.filter(n=>!n.vetoed && C.rule[n.id] && C.rule[n.id].level!=='ok')
+      .map(n=>{ const r=C.rule[n.id]; const rm=this.RM[r.level]; const meta=this.TY[n.type];
+        const rname={req:'续航满足', bat:'能量裕度', reqp:'峰值满足', pwr:'接口功率', sa:'发电充裕', pcu:'控制器额定'}[n.id]||'规则';
+        return { id:n.id, lvl:r.level, glyph:rm.glyph, levelText:rm.text, code:n.code, name:n.name, rule:rname, msg:r.msg,
+          dotStyle:{width:'7px', height:'7px', borderRadius:'2px', background:meta.color, flex:'none'},
+          badgeStyle:{display:'inline-flex', alignItems:'center', gap:'3px', fontSize:'10px', fontWeight:700, padding:'1px 6px', borderRadius:'3px', background:rm.bg, color:rm.fg, border:'1px solid '+rm.bd, whiteSpace:'nowrap'},
+          rowStyle:{display:'flex', alignItems:'center', padding:'7px 12px', borderBottom:'1px solid var(--border)', cursor:'pointer', background: n.id===S.selectedId?'var(--surface-2)':'transparent'},
+          onClick:()=>this.selectNode(n.id) }; })
+      .sort((a,b)=>rank[a.lvl]-rank[b.lvl]);
+
+    // GRID
+    const gridRows = S.nodes.map(n=>{ const meta=this.TY[n.type]; const vetoed=!!n.vetoed;
+      const rl=this.ruleLevel(C,n); const rm=this.RM[rl];
+      const der=(C.derived[n.id]||[]); const locked=!!n.readonly||vetoed;
+      return { id:n.id, code:n.code, name:n.name, typeLabel:meta.label, src:n.prov.src, fresh:n.prov.fresh, down:outDeg[n.id]||0,
+        locked, noDerived:der.length===0, glyph:rm.glyph, ruleText:rm.text,
+        derived: der.map(d=>({text:d.value+' '+d.unit})),
+        onName:(e)=>this.setName(n.id, e.target.value), onSelect:()=>this.selectNode(n.id),
+        nameStyle:{width:'100%', fontFamily:'var(--sans)', fontSize:'12px', color:'var(--ink)', background:'transparent', border:'1px solid transparent', borderRadius:'3px', padding:'3px 5px', opacity:locked?0.6:1},
+        dotStyle:{width:'7px', height:'7px', borderRadius:'2px', background:vetoed?'var(--ink-4)':meta.color, flex:'none'},
+        badgeStyle:{display:'inline-flex', alignItems:'center', gap:'3px', fontSize:'10px', fontWeight:700, padding:'1px 6px', borderRadius:'3px', background:rm.bg, color:rm.fg, border:'1px solid '+rm.bd, whiteSpace:'nowrap'},
+        fields: n.fields.map(fl=>({ label:fl.label, value:fl.value, unit:fl.unit, disabled:locked,
+          onChange:(e)=>this.setField(n.id, fl.key, e.target.value),
+          inputStyle:{width:'52px', fontFamily:'var(--mono)', fontSize:'11px', textAlign:'right', padding:'2px 5px', border:'1px solid var(--border-2)', borderRadius:'3px', background:'var(--surface)', color:'var(--ink)', opacity:locked?0.6:1} })),
+        rowStyle:{display:'flex', alignItems:'flex-start', padding:'8px 14px', borderBottom:'1px solid var(--border)', cursor:'pointer', background: n.id===S.selectedId?'var(--accent-bg)':'transparent'} }; });
+
+    // TREE
+    const tree = S.nodes.map(n=>{ const meta=this.TY[n.type]; const vetoed=!!n.vetoed;
+      const rl=this.ruleLevel(C,n); const rm=this.RM[rl]; const isSel=n.id===S.selectedId;
+      return { id:n.id, code:n.code, name:n.name, flag: rl==='ok'?'':rm.glyph,
+        dotStyle:{width:'8px', height:'8px', borderRadius:'2px', background:vetoed?'var(--ink-4)':meta.color, flex:'none'},
+        flagStyle:{fontFamily:'var(--mono)', fontSize:'10px', fontWeight:800, color:rm.fg, width:'12px', textAlign:'center'},
+        rowStyle:{display:'flex', alignItems:'center', gap:'7px', padding:'5px 6px 5px 20px', borderRadius:'3px', cursor:'pointer', background:isSel?'var(--accent-bg)':'transparent'},
+        onClick:()=>this.selectNode(n.id), onCtx:(e)=>this.openCtx(e,'node',n.id) }; });
+
+    // PALETTE
+    const DESC={subsystem:'可分解的功能集合', component:'实体单元 / 零部件', interface:'连接与传递关系', requirement:'约束 / 目标 / 指标'};
+    const paletteCards = ['subsystem','component','interface','requirement'].map(t=>({ label:this.TY[t].label, desc:DESC[t], onClick:()=>this.addNode(t), glyph:'＋',
+      icon:this.icon(t, this.TY[t].color), iconBoxStyle:{display:'inline-flex', alignItems:'center', justifyContent:'center', width:'28px', height:'28px', borderRadius:'6px', background:'var(--surface-2)', flex:'none'} }));
+    const connActive=S.tool==='connect';
+    paletteCards.push({ label:'连线', desc:'图元间的语义关系（拖端口建立）', glyph: connActive?'●':'＋',
+      onClick:()=>{ this.setState({tool: connActive?'select':'connect'}); this.showToast(connActive?'已退出连线模式':'连线模式：从一个图元的端口拖到另一个图元'); },
+      icon:React.createElement('svg',{width:14,height:14,viewBox:'0 0 16 16',fill:'none',stroke:'var(--ink-2)',strokeWidth:1.6,style:{display:'block'}},React.createElement('circle',{key:1,cx:4,cy:4,r:2}),React.createElement('circle',{key:2,cx:12,cy:12,r:2}),React.createElement('path',{key:3,d:'M5.4 5.4l5.2 5.2'})),
+      iconBoxStyle:{display:'inline-flex', alignItems:'center', justifyContent:'center', width:'28px', height:'28px', borderRadius:'6px', background:connActive?'var(--accent-bg)':'var(--surface-2)', border:'1px solid '+(connActive?'var(--accent-bd)':'transparent'), flex:'none'} });
+    const ltab=(k,active)=>({ onClick:()=>this.setState({leftTab:k}), style:{display:'flex', alignItems:'center', padding:'0 12px', height:'32px', fontSize:'12px', cursor:'pointer', fontWeight:active?600:400, color:active?'var(--ink)':'var(--ink-3)', borderBottom:active?'2px solid var(--accent)':'2px solid transparent', marginBottom:'-1px'} });
+    const lt=ltab('tree', S.leftTab==='tree'), lp=ltab('palette', S.leftTab==='palette');
+
+    // SELECTED NODE VM
+    let selVm=null;
+    if(sel){
+      const meta=this.TY[sel.type]; const vetoed=!!sel.vetoed;
+      const rl=this.ruleLevel(C,sel); const rm=this.RM[rl];
+      const r=C.rule[sel.id]||{msg:''};
+      const locked = !!sel.readonly || vetoed;
+      const rec = !!S.recomputing[sel.id];
+      selVm = {
+        id:sel.id, icon:this.icon(sel.type, vetoed?'var(--ink-3)':meta.color),
+        codeStyle:{fontFamily:'var(--mono)', fontSize:'12px', fontWeight:700, letterSpacing:'.04em', color:vetoed?'var(--ink-3)':meta.color},
+        code:sel.code, typeLabel:meta.label, name:sel.name, locked,
+        onName:(e)=>this.setName(sel.id, e.target.value),
+        nameInputStyle:{width:'100%', fontFamily:'var(--sans)', fontSize:'15px', fontWeight:600, color:'var(--ink)', background:'var(--surface)', border:'1px solid var(--border-2)', borderRadius:'3px', padding:'6px 8px', opacity:locked?0.6:1},
+        rule:{ glyph:rm.glyph, text:rm.text, msg: vetoed?'方案评审中被否决，保留作追溯。':r.msg,
+          titleStyle:{fontSize:'12px', fontWeight:600, color:rm.fg},
+          pillStyle:{display:'inline-flex', alignItems:'center', gap:'4px', fontSize:'11px', fontWeight:600, padding:'2px 8px', borderRadius:'10px', background:rm.bg, color:rm.fg, border:'1px solid '+rm.bd, whiteSpace:'nowrap', flex:'none'},
+          iconStyle:{display:'inline-flex', alignItems:'center', justifyContent:'center', width:'24px', height:'24px', borderRadius:'50%', background:rm.bg, color:rm.fg, border:'1px solid '+rm.bd, fontWeight:800, fontSize:'12px', flex:'none'},
+          boxStyle:{display:'flex', alignItems:'flex-start', gap:'10px', padding:'10px 11px', background:rm.bg, border:'1px solid '+rm.bd, borderRadius:'4px'},
+          ruleVis: !(sel.hidden||[]).includes('rule'), ruleHidden:(sel.hidden||[]).includes('rule'), onToggleVis:()=>this.toggleField(sel.id,'rule'), visIconEl:this.eyeIcon(!(sel.hidden||[]).includes('rule')),
+          visStyle:{display:'inline-flex',alignItems:'center',gap:'4px',fontSize:'10px',cursor:'pointer',color:!(sel.hidden||[]).includes('rule')?'var(--accent)':'var(--ink-4)'} },
+        fields: sel.fields.map(fl=>({ label:fl.label, value:fl.value, unit:fl.unit, disabled:locked,
+          onChange:(e)=>this.setField(sel.id, fl.key, e.target.value),
+          inputStyle:{width:'72px', fontFamily:'var(--mono)', fontSize:'12px', textAlign:'right', padding:'4px 7px', border:'1px solid var(--border-2)', borderRadius:'3px', background:'var(--surface)', color:'var(--ink)', opacity:locked?0.6:1} })),
+        hasDerived: (C.derived[sel.id]||[]).length>0,
+        derived: (C.derived[sel.id]||[]).map(d=>({ label:d.label, valueText:d.value+' '+d.unit, expr:d.expr,
+          fxStyle:{fontFamily:'var(--mono)', fontStyle:'italic', fontWeight:800, fontSize:'10px', color:'var(--accent)', display:'inline-block', animation:rec?'spin .7s linear infinite':'none'},
+          boxStyle:{display:'flex', alignItems:'center', justifyContent:'space-between', padding:'8px 10px', background:'var(--accent-bg)', border:'1px solid var(--accent-bd)', borderRadius:'3px'} })),
+      };
+      const segS=(a)=>({display:'flex', alignItems:'center', padding:'0 11px', height:'22px', fontSize:'11px', cursor:'pointer', borderRadius:'4px', background:a?'var(--surface)':'transparent', color:a?'var(--accent)':'var(--ink-2)', fontWeight:a?600:400, boxShadow:a?'0 1px 2px rgba(0,0,0,.12)':'none'});
+      const hid=sel.hidden||[];
+      const dispItems=[{key:'type', label:'类型标签', isFx:false, isComp:true}, {key:'rule', label:'规则灯', isFx:false, isComp:true}, {key:'prov', label:'来源信息', isFx:false, isComp:true}]
+        .concat(sel.fields.map(fl=>({key:fl.key, label:fl.label, isFx:false})))
+        .concat((C.derived[sel.id]||[]).map(d=>({key:d.key, label:d.label, isFx:true})));
+      selVm.display={ stdStyle:segS(S.density==='standard'), compactStyle:segS(S.density==='compact'), onStd:()=>this.setState({density:'standard'}), onCompact:()=>this.setState({density:'compact'}),
+        items: dispItems.map(it=>{ const vis=!hid.includes(it.key); return { label:it.label, isFx:it.isFx, eyeText:vis?'显示':'隐藏', icon:this.eyeIcon(vis), onToggle:()=>this.toggleField(sel.id, it.key),
+          rowStyle:{display:'flex', alignItems:'center', gap:'7px', padding:'5px 7px', borderRadius:'3px', cursor:'pointer'},
+          labelStyle:{flex:1, fontSize:'12px', color:vis?'var(--ink-2)':'var(--ink-4)'},
+          eyeStyle:{display:'inline-flex', alignItems:'center', gap:'4px', fontSize:'10px', color:vis?'var(--accent)':'var(--ink-4)'} }; }) };
+      const gxv=sel.gx||{}; const curFont=gxv.font||'sans'; const curColor=gxv.color||null; const curScale=gxv.scale||1;
+      const swBox=(active)=>({width:'26px', height:'26px', borderRadius:'5px', cursor:'pointer', display:'inline-flex', alignItems:'center', justifyContent:'center', background:'var(--surface)', border:'2px solid '+(active?'var(--accent)':'var(--border-2)')});
+      selVm.gx={
+        fontSansStyle:segS(curFont==='sans'), fontMonoStyle:segS(curFont==='mono'),
+        onFontSans:()=>this.setNodeStyle(sel.id,{font:'sans'}), onFontMono:()=>this.setNodeStyle(sel.id,{font:'mono'}),
+        smallStyle:segS(curScale<0.95), medStyle:segS(curScale>=0.95&&curScale<=1.06), largeStyle:segS(curScale>1.06),
+        onSmall:()=>this.setNodeStyle(sel.id,{scale:0.85}), onMed:()=>this.setNodeStyle(sel.id,{scale:1}), onLarge:()=>this.setNodeStyle(sel.id,{scale:1.2}),
+        colors:[['默认',null],['蓝','var(--accent)'],['绿','var(--ok-d)'],['橙','var(--warn-d)'],['红','var(--block-d)'],['紫','var(--t-subsystem)']].map(([lb,val])=>({ title:lb, aColor: val||'var(--ink)', onClick:()=>this.setNodeStyle(sel.id,{color:val}), style:swBox(curColor===val) })),
+      };
+    }
+
+    // PASSPORT VM
+    let passVm=null;
+    if(sel){
+      const p=sel.prov; const signed=!!p.signed;
+      const fp=p.freshPct!=null?p.freshPct:50; const fresh = fp>=66?'高':fp>=33?'中':'低';
+      const freshColor = fp>=66?'var(--ok)':fp>=33?'var(--warn)':'var(--stale)';
+      const deps = S.edges.filter(e=>e.from===sel.id && !e.vetoed).map(e=>C.byId[e.to]).filter(Boolean);
+      passVm={
+        sealGlyph: signed?'✓':'!', sealTitle: signed?'已校验来源':'未签名来源', sealSub: signed?('版本 '+p.version+' · 责任人 '+p.owner):'存在未确认的导入数据',
+        sealStyle:{display:'inline-flex', alignItems:'center', justifyContent:'center', width:'34px', height:'34px', borderRadius:'8px', flex:'none', fontWeight:800, fontSize:'15px',
+          background: signed?'var(--ok-bg)':'var(--warn-bg)', color: signed?'var(--ok)':'var(--warn)', border:'1px solid '+(signed?'var(--ok-bd)':'var(--warn-bd)')},
+        idRows:[
+          {k:'URN', v:'mn://'+sel.id+'/'+sel.code, vStyle:{fontFamily:'var(--mono)', fontSize:'11px', color:'var(--ink-2)', wordBreak:'break-all'}},
+          {k:'版本', v:p.version, vStyle:{fontFamily:'var(--mono)', fontSize:'12px', color:'var(--ink)'}},
+          {k:'责任人', v:p.owner, vStyle:{fontSize:'12px', color:'var(--ink)'}},
+          {k:'最近修改', v:p.editor, vStyle:{fontSize:'12px', color:'var(--ink)'}},
+        ],
+        chain:(p.chain||[]).map((c,i,arr)=>({ act:c.act, by:c.by, at:c.at, line:i<arr.length-1,
+          dotStyle:{width:'9px', height:'9px', borderRadius:'50%', background: i===arr.length-1?'var(--accent)':'var(--border-strong)', border:'2px solid var(--panel)', flex:'none', marginTop:'2px'} })),
+        freshLabel:fresh+' · '+p.fresh, freshBadgeStyle:{fontSize:'10px', fontWeight:600, color:freshColor, background:'var(--surface-2)', border:'1px solid var(--border-2)', borderRadius:'10px', padding:'1px 8px'},
+        freshBarStyle:{height:'100%', width:fp+'%', background:freshColor, borderRadius:'3px'}, fresh:p.fresh,
+        downCount:deps.length, hasDown:deps.length>0, noDown:deps.length===0,
+        dependents:deps.map(d=>({ code:d.code, name:d.name, onClick:()=>this.selectNode(d.id),
+          dotStyle:{width:'7px', height:'7px', borderRadius:'2px', background:this.TY[d.type].color, flex:'none'} })),
+      };
+    }
+
+    // HISTORY VM
+    let histVm=null;
+    if(sel){
+      const items = S.log.filter(l=>l.target===sel.id);
+      histVm={ count:items.length, empty:items.length===0,
+        items: items.map((l,i,arr)=>{ const m=this.histMeta(l.kind); const ac=this.ACTORS[l.actor]||'var(--ink-3)';
+          return { text:l.text, actor:l.actor, at:l.at, initial:(l.actor||'·').slice(0,1), line:i<arr.length-1,
+            kindGlyph:m.g, kindStyle:{display:'inline-flex', alignItems:'center', justifyContent:'center', width:'20px', height:'20px', borderRadius:'50%', background:'var(--surface)', border:'1px solid var(--border-2)', color:m.c, fontSize:'10px', fontWeight:700, flex:'none'},
+            avStyle:{display:'inline-flex', alignItems:'center', justifyContent:'center', width:'15px', height:'15px', borderRadius:'50%', background:ac, color:'#fff', fontSize:'8.5px', fontWeight:700, flex:'none'} }; }) };
+    }
+
+    // EDGE INSPECTOR VM
+    let edgeVm=null;
+    const selEdge = S.edges.find(e=>e.id===S.selectedEdgeId);
+    if(selEdge){
+      const a=C.byId[selEdge.from], b=C.byId[selEdge.to];
+      const chip=(active)=>({display:'inline-flex', alignItems:'center', height:'26px', padding:'0 11px', fontSize:'12px', borderRadius:'14px', cursor:'pointer', whiteSpace:'nowrap',
+        background:active?'var(--accent)':'var(--surface)', color:active?'#fff':'var(--ink-2)', border:'1px solid '+(active?'var(--accent)':'var(--border-2)')});
+      const seg=(active)=>({flex:1, display:'flex', alignItems:'center', justifyContent:'center', height:'24px', fontSize:'11px', cursor:'pointer', borderRadius:'4px', background:active?'var(--surface)':'transparent', color:active?'var(--accent)':'var(--ink-2)', fontWeight:active?600:400, boxShadow:active?'0 1px 2px rgba(0,0,0,.12)':'none'});
+      const wmap=[['细',1.4],['中',2],['粗',2.8]];
+      const qk=(S.kindSearch||'').trim();
+      const grpsAll=this.EDGE_KIND_GROUPS.map(grp=>({label:grp.g, items:grp.items.filter(([k])=>!qk||k.indexOf(qk)>=0)})).filter(grp=>grp.items.length>0);
+      if(S.customKinds.length){ const ci=S.customKinds.filter(([k])=>!qk||k.indexOf(qk)>=0); if(ci.length) grpsAll.push({label:'自定义', items:ci}); }
+      const allKinds=this.EDGE_KIND_GROUPS.reduce((a,g)=>a.concat(g.items.map(i=>i[0])),[]).concat(S.customKinds.map(c=>c[0]));
+      const canCreate=qk.length>0 && allKinds.indexOf(qk)<0;
+      edgeVm={
+        onClose:()=>this.setState({selectedEdgeId:null}),
+        fromCode:a?a.code:'?', toCode:b?b.code:'?', fromName:a?a.name:'', toName:b?b.name:'',
+        fromDot:{width:'8px',height:'8px',borderRadius:'2px',background:a?this.TY[a.type].color:'var(--ink-4)',flex:'none'},
+        toDot:{width:'8px',height:'8px',borderRadius:'2px',background:b?this.TY[b.type].color:'var(--ink-4)',flex:'none'},
+        current:selEdge.kind, search:S.kindSearch, onSearch:(e)=>this.setKindSearch(e.target.value),
+        canCreate, createLabel:'新建关系「'+qk+'」', onCreate:()=>this.addCustomKind(qk), noKinds:grpsAll.length===0&&!canCreate,
+        groups:grpsAll.map(grp=>({label:grp.label, items:grp.items.map(([k,st])=>({label:k, style:chip(selEdge.kind===k), onClick:()=>{ this.setEdgeProp(selEdge.id,{kind:k, style:st}); this.setState({kindSearch:''}); }}))})),
+        styles:[['实线','solid'],['虚线','dashed']].map(([lb,v])=>({label:lb, style:seg(selEdge.style===v), onClick:()=>this.setEdgeProp(selEdge.id,{style:v})})),
+        routings:[['正交','ortho'],['曲线','curve']].map(([lb,v])=>({label:lb, style:seg(selEdge.routing===v), onClick:()=>this.setEdgeProp(selEdge.id,{routing:v})})),
+        weights:wmap.map(([lb,v])=>({label:lb, style:seg(Math.abs(selEdge.weight-v)<0.3), onClick:()=>this.setEdgeProp(selEdge.id,{weight:v})})),
+        onReverse:()=>this.reverseEdge(selEdge.id), onDelete:()=>this.deleteEdge(selEdge.id),
+      };
+    }
+
+    // EDIT / ALIGN TOOLBAR
+    const selCount=S.selectedIds.length;
+    const tbHasSel=selCount>0, tbAnySel=selCount>0||!!S.selectedEdgeId;
+    const clip=(S.clipboard&&S.clipboard.length)||0;
+    const tbtn=(enabled,active)=>({display:'inline-flex',alignItems:'center',justifyContent:'center',width:'27px',height:'26px',borderRadius:'4px',cursor:enabled?'pointer':'default',color:active?'var(--accent)':(enabled?'var(--ink-2)':'var(--ink-4)'),background:active?'var(--accent-bg)':'transparent',border:'1px solid '+(active?'var(--accent-bd)':'transparent'),opacity:enabled?1:0.45,transition:'background .12s'});
+    const thov=(enabled)=> enabled?'background:var(--surface-2)':'background:transparent';
+    const mkTool=(name,title,enabled,onClick,active)=>({isBtn:true,isSep:false,title,iconEl:this.ti(name),style:tbtn(enabled,active),hover:thov(enabled),onClick:enabled?onClick:(()=>{}) });
+    const editTools=[
+      mkTool('undo','撤销 (⌘Z)', S.past.length>0, ()=>this.undo()),
+      mkTool('redo','重做 (⇧⌘Z)', S.future.length>0, ()=>this.redo()),
+      {isBtn:false,isSep:true},
+      mkTool('copy','复制 (⌘C)', tbHasSel, ()=>this.copySelection()),
+      mkTool('paste','粘贴 (⌘V)', clip>0, ()=>this.pasteClipboard()),
+      mkTool('brush','格式刷（复制显示格式到其他图元）', tbHasSel, ()=>this.startPainter(), !!S.painter),
+      mkTool('trash','删除 (⌫)', tbAnySel, ()=>this.deleteSelected()),
+    ];
+    const abtn={display:'inline-flex',alignItems:'center',justifyContent:'center',height:'28px',borderRadius:'4px',cursor:'pointer',color:'var(--ink-2)',background:'var(--surface-2)',border:'1px solid var(--border)',transition:'border-color .12s,color .12s'};
+    const alignItems=[['left','左对齐','alignL'],['hcenter','水平居中','alignH'],['right','右对齐','alignR'],['top','顶对齐','alignT'],['vcenter','垂直居中','alignV'],['bottom','底对齐','alignB']].map(([m,t,ic])=>({title:t, iconEl:this.ti(ic), style:abtn, onClick:()=>this.alignNodes(m)}));
+    const distItems=[['h','横向分布','distH'],['v','纵向分布','distV']].map(([ax,t,ic])=>({title:t, label:t, iconEl:this.ti(ic), style:{display:'inline-flex',alignItems:'center',gap:'6px',flex:1,justifyContent:'center',height:'28px',borderRadius:'4px',cursor:'pointer',fontSize:'11px',color:'var(--ink-2)',background:'var(--surface-2)',border:'1px solid var(--border)',transition:'border-color .12s,color .12s'}, onClick:()=>this.distributeNodes(ax)}));
+    const alignBtnStyle={display:'inline-flex',alignItems:'center',gap:'3px',height:'26px',padding:'0 7px',borderRadius:'4px',cursor:'pointer',color:S.alignOpen?'var(--accent)':'var(--ink-2)',background:S.alignOpen?'var(--accent-bg)':'transparent',border:'1px solid '+(S.alignOpen?'var(--accent-bd)':'transparent')};
+
+    // VIEW TABS (multi-select panes → split)
+    const P=S.panes;
+    const PT={graph:'图', table:'表', text:'文本'};
+    const ord=S.paneOrder;
+    const activeKeys=ord.filter(k=>P[k]);
+    const moveBtn=(en)=>({display:'inline-flex',alignItems:'center',justifyContent:'center',width:'20px',height:'20px',borderRadius:'3px',cursor:en?'pointer':'default',color:en?'var(--ink-3)':'var(--ink-4)',opacity:en?1:0.4,fontSize:'10px'});
+    const mkPane=(key)=>{ const idx=activeKeys.indexOf(key); const first=idx===0;
+      return {
+        outerStyle:{display:P[key]?'flex':'none', flexDirection:'column', position:'relative', order:ord.indexOf(key), flexGrow:(S.paneFlex[key]||1), flexShrink:1, flexBasis:0, minWidth:'220px', minHeight:0, overflow:'hidden'},
+        title:PT[key], showSplitter:P[key]&&!first,
+        onSplitterDown:(e)=>this.startPaneResize(e, first?null:activeKeys[idx-1], key),
+        leftStyle:moveBtn(idx>0), rightStyle:moveBtn(idx>=0&&idx<activeKeys.length-1),
+        onLeft:()=>this.movePane(key,-1), onRight:()=>this.movePane(key,1), onClose:()=>this.togglePane(key),
+        headerStyle:{display:'flex',alignItems:'center',gap:'5px',height:'28px',padding:'0 6px 0 11px',background:'var(--panel)',borderBottom:'1px solid var(--border)',flex:'none'},
+        closeStyle:{display:'inline-flex',alignItems:'center',justifyContent:'center',width:'20px',height:'20px',borderRadius:'3px',cursor:'pointer',color:'var(--ink-3)',fontSize:'13px'},
+        splitterStyle:{position:'absolute',left:0,top:0,bottom:0,width:'6px',cursor:'col-resize',zIndex:8,background:'transparent'},
+      };
+    };
+    const pane={graph:mkPane('graph'), table:mkPane('table'), text:mkPane('text')};
+    // VIEW TABS (multi-select panes → split)
+    const seg=(k,label)=>({ onClick:()=>this.togglePane(k), label,
+      style:{display:'flex', alignItems:'center', padding:'0 13px', height:'24px', fontSize:'12px', cursor:'pointer', borderRadius:'4px', whiteSpace:'nowrap',
+        background: P[k]?'var(--surface)':'transparent', color: P[k]?'var(--accent)':'var(--ink-2)', fontWeight: P[k]?600:400, boxShadow: P[k]?'0 1px 2px rgba(0,0,0,.12)':'none'} });
+    const viewTabs=[seg('graph','图'), seg('table','表'), seg('text','文本')];
+
+    // RIGHT TABS
+    const rtab=(k,active)=>({ onClick:()=>this.setState({rightTab:k}), style:{display:'flex', alignItems:'center', padding:'0 14px', height:'32px', fontSize:'12px', cursor:'pointer', fontWeight:active?600:400, color:active?'var(--ink)':'var(--ink-3)', borderBottom:active?'2px solid var(--accent)':'2px solid transparent', marginBottom:'-1px'} });
+    const rp=rtab('props', S.rightTab==='props'), rpa=rtab('passport', S.rightTab==='passport'), rh=rtab('history', S.rightTab==='history'), rs=rtab('style', S.rightTab==='style');
+
+    // BOTTOM TABS
+    const btab=(k,active)=>({ onClick:()=>this.setState({bottomTab:k, bottomCollapsed:false}),
+      style:{display:'flex', alignItems:'center', gap:'6px', height:'32px', padding:'0 14px', fontSize:'12px', cursor:'pointer',
+        fontWeight: active?600:400, color: active?'var(--ink)':'var(--ink-3)',
+        borderBottom: active?'2px solid var(--accent)':'2px solid transparent', marginBottom:'-1px'} });
+    const tv=btab('validate', S.bottomTab==='validate'), tc=btab('console', S.bottomTab==='console'), tsim=btab('sim', S.bottomTab==='sim');
+
+    // SIMULATION VM
+    const simSt=S.sim;
+    const simR=simSt.result;
+    let simVm=null;
+    if(simR){
+      const W=268, H=66, pad=4, n=simR.curve.length;
+      const x=i=> pad + i*(W-pad*2)/(n-1);
+      const y=v=> pad + (1-v/100)*(H-pad*2);
+      const pts=simR.curve.map((v,i)=>x(i)+','+y(v));
+      const line='M'+pts.join(' L');
+      const area=line+' L'+x(n-1)+','+(H-pad)+' L'+x(0)+','+(H-pad)+' Z';
+      const floorY=y(simR.floorSoc);
+      const sunW=pad + simR.sunRatio*(W-pad*2);
+      const vm=this.RM[simR.verdict.level];
+      simVm={ W, H, line, area, floorY, sunW, sunRight:W-pad,
+        scenario:simR.scenario, minSoc:simR.minSoc.toFixed(0), floorSoc:simR.floorSoc.toFixed(0),
+        verdictText:simR.verdict.text, verdictGlyph:simR.verdict.glyph, verdictMsg:simR.verdict.msg,
+        stroke: vm.dot, fill: vm.bg,
+        verdictBadge:{display:'inline-flex', alignItems:'center', gap:'4px', fontSize:'11px', fontWeight:700, padding:'2px 9px', borderRadius:'11px', background:vm.bg, color:vm.fg, border:'1px solid '+vm.bd, whiteSpace:'nowrap'},
+        metrics: simR.metrics.map(m=>({ k:m.k, v:m.v, vStyle:{fontFamily:'var(--mono)', fontSize:'15px', fontWeight:600, color:m.accent?'var(--accent)':'var(--ink)'} })) };
+    }
+
+    const item=(label, run, opts)=>{ opts=opts||{}; return { isItem:true, isSep:false, label, tag:opts.tag||'', checkGlyph:opts.check?'✓':'', run:(e)=>{ e&&e.stopPropagation&&e.stopPropagation(); run(); this.setState({menuOpen:null}); },
+      style:{display:'flex', alignItems:'center', gap:'4px', height:'30px', padding:'0 8px', borderRadius:'4px', cursor:'pointer', fontSize:'12.5px', color: opts.danger?'var(--block)':'var(--ink-2)'} }; };
+    const sep=()=>({isItem:false, isSep:true});
+    const hasNodeSel=!!S.selectedId, hasSel=!!S.selectedId||!!S.selectedEdgeId;
+    const menuDefs=[
+      { id:'file', label:'文件', items:[
+        item('新建项目…', ()=>this.showToast('新建项目（演示占位）'), {tag:'⌘N'}),
+        item('打开…', ()=>this.showToast('打开项目（演示占位）')),
+        sep(),
+        item('导入模型 (Visio / draw.io)…', ()=>this.showToast('导入模型（演示占位）')),
+        item('导出为 PNG', ()=>this.showToast('导出 PNG（演示占位）')),
+        item('导出为 DSL 文本', ()=>this.setState(s=>({panes:{...s.panes, text:true}, menuOpen:null}))),
+        sep(),
+        item('保存', ()=>this.showToast('已保存（演示）'), {tag:'⌘S'}),
+      ]},
+      { id:'edit', label:'编辑', items:[
+        item('撤销', ()=>this.undo(), {tag:'⌘Z'}),
+        item('重做', ()=>this.redo(), {tag:'⇧⌘Z'}),
+        sep(),
+        item('复制所选图元', ()=>{ if(hasNodeSel) this.duplicateNode(S.selectedId); else this.showToast('请先选择一个图元'); }, {tag:'⌘D'}),
+        item('删除所选', ()=>{ if(hasSel) this.deleteSelected(); else this.showToast('未选择任何对象'); }, {tag:'⌫', danger:true}),
+      ]},
+      { id:'view', label:'视图', items:[
+        item('图 面板', ()=>this.togglePane('graph'), {check:S.panes.graph}),
+        item('表 面板', ()=>this.togglePane('table'), {check:S.panes.table}),
+        item('文本 面板', ()=>this.togglePane('text'), {check:S.panes.text}),
+        sep(),
+        item('紧凑密度', ()=>this.setState(s=>({density:s.density==='compact'?'standard':'compact'})), {check:S.density==='compact'}),
+        item(S.theme==='dark'?'切换到亮色主题':'切换到暗色主题', ()=>this.setState(s=>({theme:s.theme==='dark'?'light':'dark'}))),
+      ]},
+      { id:'model', label:'模型', items:[
+        item('新建 分系统', ()=>this.addNode('subsystem')),
+        item('新建 组件', ()=>this.addNode('component')),
+        item('新建 接口', ()=>this.addNode('interface')),
+        item('新建 需求', ()=>this.addNode('requirement')),
+        sep(),
+        item('自动布局', ()=>this.showToast('自动布局（演示占位）')),
+        item('清空画布（演示空态）', ()=>this.setState({appState:'empty', menuOpen:null})),
+      ]},
+      { id:'validate', label:'校验', items:[
+        item('重新校验全部', ()=>this.revalidate()),
+        item(S.bottomTab==='validate'?'切到控制台':'显示校验面板', ()=>this.setState(s=>({bottomTab:s.bottomTab==='validate'?'console':'validate'}))),
+        item(S.floatValidate?'停靠校验面板':'浮动校验面板', ()=>this.toggleFloat()),
+      ]},
+    ];
+    const menus=menuDefs.map(m=>({ id:m.id, label:m.label, open:S.menuOpen===m.id, items:m.items,
+      onToggle:(e)=>{ e&&e.stopPropagation&&e.stopPropagation(); this.toggleMenu(m.id); },
+      labelStyle:{fontSize:'12px', color: S.menuOpen===m.id?'var(--ink)':'var(--ink-2)', padding:'4px 8px', borderRadius:'3px', cursor:'pointer', background:S.menuOpen===m.id?'var(--surface-2)':'transparent', userSelect:'none'} }));
+
+    // CONTEXT MENU
+    let ctxVm={show:false, style:{}, items:[]};
+    if(S.ctx){
+      const cm=(label, run, opts)=>{ opts=opts||{}; return { isItem:true, isSep:false, label, icon:opts.icon||'', tag:opts.tag||'', run:(e)=>{ e&&e.stopPropagation&&e.stopPropagation(); run(); },
+        style:{display:'flex', alignItems:'center', gap:'6px', height:'30px', padding:'0 8px', borderRadius:'4px', cursor:'pointer', fontSize:'12.5px', color: opts.danger?'var(--block)':'var(--ink-2)'} }; };
+      const csep=()=>({isItem:false, isSep:true});
+      let items=[];
+      if(S.ctx.kind==='node'){
+        const n=C.byId[S.ctx.targetId];
+        items=[
+          cm('查看属性', ()=>this.setState({selectedId:S.ctx.targetId, selectedEdgeId:null, rightTab:'props', ctx:null}), {icon:'☰'}),
+          cm('复制图元', ()=>this.duplicateNode(S.ctx.targetId), {icon:'⧉', tag:'⌘D'}),
+          csep(),
+          cm(n&&n.stale?'取消陈旧':'标记陈旧', ()=>this.toggleFlag(S.ctx.targetId,'stale'), {icon:'◴'}),
+          cm(n&&n.readonly?'取消只读':'设为只读', ()=>this.toggleFlag(S.ctx.targetId,'readonly'), {icon:'🔒'}),
+          cm(n&&n.vetoed?'撤销否决':'否决方案', ()=>this.toggleFlag(S.ctx.targetId,'vetoed'), {icon:'⊘'}),
+          csep(),
+          cm('删除图元', ()=>this.deleteNode(S.ctx.targetId), {icon:'🗑', danger:true, tag:'⌫'}),
+        ];
+      } else if(S.ctx.kind==='edge'){
+        const e=S.edges.find(x=>x.id===S.ctx.targetId);
+        items=[
+          cm('编辑关系…', ()=>this.setState({selectedEdgeId:S.ctx.targetId, selectedId:null, ctx:null, kindSearch:''}), {icon:'✎'}),
+          cm('反转方向', ()=>this.reverseEdge(S.ctx.targetId), {icon:'⇄'}),
+          cm(e&&e.style==='dashed'?'改为实线':'改为虚线', ()=>{ const ed=S.edges.find(x=>x.id===S.ctx.targetId); this.setEdgeProp(S.ctx.targetId,{style:ed.style==='dashed'?'solid':'dashed'}); this.setState({ctx:null}); }, {icon:'╌'}),
+          csep(),
+          cm('删除连线', ()=>this.deleteEdge(S.ctx.targetId), {icon:'🗑', danger:true}),
+        ];
+      } else {
+        const cx=S.ctx.cx, cy=S.ctx.cy;
+        items=[
+          cm('新建 分系统', ()=>this.addNode('subsystem', cx, cy), {icon:'＋'}),
+          cm('新建 组件', ()=>this.addNode('component', cx, cy), {icon:'＋'}),
+          cm('新建 接口', ()=>this.addNode('interface', cx, cy), {icon:'＋'}),
+          cm('新建 需求', ()=>this.addNode('requirement', cx, cy), {icon:'＋'}),
+          csep(),
+          cm('自动布局', ()=>{ this.showToast('自动布局（演示占位）'); this.setState({ctx:null}); }, {icon:'▦'}),
+          cm('重新校验', ()=>{ this.revalidate(); this.setState({ctx:null}); }, {icon:'↻'}),
+        ];
+      }
+      ctxVm={ show:true, items,
+        style:{position:'fixed', left:Math.min(S.ctx.x, 1100)+'px', top:Math.min(S.ctx.y, 720)+'px', minWidth:'190px', background:'var(--surface)', border:'1px solid var(--border-2)', borderRadius:'7px', boxShadow:'0 14px 36px rgba(0,0,0,.28)', padding:'4px', zIndex:91, animation:'ctxin .1s ease'} };
+    }
+
+    // COMMANDS
+    const baseCmds=[
+      {label:'显示/隐藏 图 面板', tag:'视图', icon:'◻', run:()=>this.togglePane('graph'), kw:'graph tu'},
+      {label:'显示/隐藏 表 面板', tag:'视图', icon:'▦', run:()=>this.togglePane('table'), kw:'table biao'},
+      {label:'显示/隐藏 文本 面板', tag:'视图', icon:'≣', run:()=>this.togglePane('text'), kw:'text dsl'},
+      {label:'撤销', tag:'编辑', icon:'↶', run:()=>this.undo(), kw:'undo chexiao'},
+      {label:'重做', tag:'编辑', icon:'↷', run:()=>this.redo(), kw:'redo chongzuo'},
+      {label:'新建 分系统', tag:'新建', icon:'＋', run:()=>this.addNode('subsystem'), kw:'subsystem'},
+      {label:'新建 组件', tag:'新建', icon:'＋', run:()=>this.addNode('component'), kw:'component'},
+      {label:'新建 接口', tag:'新建', icon:'＋', run:()=>this.addNode('interface'), kw:'interface'},
+      {label:'新建 需求', tag:'新建', icon:'＋', run:()=>this.addNode('requirement'), kw:'requirement'},
+      {label:'重新校验全部规则', tag:'动作', icon:'↻', run:()=>this.revalidate(), kw:'validate'},
+      {label:'切换 亮 / 暗 主题', tag:'动作', icon:'◐', run:()=>this.setState(s=>({theme:s.theme==='dark'?'light':'dark'})), kw:'theme'},
+      {label: S.floatValidate?'停靠 校验面板':'浮动 校验面板', tag:'面板', icon:'⤢', run:()=>this.toggleFloat(), kw:'float'},
+    ];
+    S.nodes.forEach(n=> baseCmds.push({label:'定位图元 '+n.code+' · '+n.name, tag:'图元', icon:'→', run:()=>this.selectNode(n.id), kw:(n.code+' '+n.name).toLowerCase()}));
+    const q=(S.cmd.query||'').toLowerCase().trim();
+    const filtered = q ? baseCmds.filter(c=> (c.label+' '+c.kw).toLowerCase().includes(q)) : baseCmds;
+    this._cmdList = filtered;
+    const idx = Math.min(S.cmd.index, Math.max(0, filtered.length-1));
+    const cmdRows = filtered.map((c,i)=>({ label:c.label, tag:c.tag, icon:c.icon,
+      onClick:()=>{ c.run(); this.closeCmd(); }, onHover:()=>this.setState(s=>({cmd:{...s.cmd, index:i}})),
+      iconStyle:{display:'inline-flex', alignItems:'center', justifyContent:'center', width:'22px', height:'22px', borderRadius:'4px', background:i===idx?'var(--surface)':'var(--surface-2)', color:'var(--ink-3)', fontFamily:'var(--mono)', fontSize:'12px', flex:'none'},
+      style:{display:'flex', alignItems:'center', gap:'10px', padding:'8px 10px', borderRadius:'5px', cursor:'pointer', background:i===idx?'var(--accent-bg)':'transparent'} }));
+
+    const floatStyle={ position:'absolute', left:S.floatPos.x+'px', top:S.floatPos.y+'px', width:'430px', height:'250px', background:'var(--surface)', border:'1px solid var(--border-2)', borderRadius:'6px', boxShadow:'0 14px 40px rgba(0,0,0,.30)', display:'flex', flexDirection:'column', zIndex:25, overflow:'hidden' };
+
+    // skeleton nodes for loading
+    const skPos=[[60,70],[330,80],[620,80],[330,300],[620,300]];
+    const skeletons=skPos.map((p,i)=>({ style:{position:'absolute', left:p[0]+'px', top:p[1]+'px', width:'170px', background:'var(--surface)', border:'1px solid var(--border)', borderRadius:'2px', overflow:'hidden'} }));
+
+    const toolStyle=(active)=>({display:'inline-flex', alignItems:'center', gap:'5px', height:'26px', padding:'0 9px', borderRadius:'4px', fontSize:'12px', cursor:'pointer', whiteSpace:'nowrap',
+      background:active?'var(--accent-bg)':'transparent', color:active?'var(--accent)':'var(--ink-2)', border:'1px solid '+(active?'var(--accent-bd)':'transparent')});
+    const iconToolStyle=(active)=>({display:'inline-flex', alignItems:'center', justifyContent:'center', width:'28px', height:'26px', borderRadius:'4px', cursor:'pointer',
+      background:active?'var(--accent-bg)':'transparent', color:active?'var(--accent)':'var(--ink-2)', border:'1px solid '+(active?'var(--accent-bd)':'transparent'), transition:'background .12s'});
+
+    return {
+      theme:S.theme, themeLabel:S.theme==='dark'?'暗色':'亮色', themeIcon:S.theme==='dark'?'☾':'☀',
+      toggleTheme:()=>this.setState(s=>({theme:s.theme==='dark'?'light':'dark'})),
+      revalidate:()=>this.revalidate(), autoLayout:()=>this.showToast('自动布局（演示占位）'),
+      quickAdd:()=>this.addNode('subsystem'), importModel:()=>this.showToast('导入模型（演示占位）'),
+      setToolSelect:()=>this.setState({tool:'select'}), setToolConnect:()=>{ this.setState({tool:'connect'}); this.showToast('连线工具：拖动图元端口建立连线'); },
+      selectSameType:()=>this.selectSameType(), goHome:()=>this.goHome(),
+      toolSelectStyle:iconToolStyle(S.tool==='select'), toolMarqueeStyle:iconToolStyle(false), toolConnectStyle:toolStyle(S.tool==='connect'),
+      autoLayoutStyle:iconToolStyle(false),
+      nodeCount:S.nodes.length, edgeCount:S.edges.length,
+      nodes, edges, pending, tree, paletteCards,
+      menus, anyMenuOpen:!!S.menuOpen, closeMenus:()=>this.closeMenus(),
+      ctx:ctxVm, closeCtx:(e)=>{ e&&e.preventDefault&&e.preventDefault(); this.closeCtx(); },
+      leftTreeTab:lt.onClick, leftTreeTabStyle:lt.style, leftPaletteTab:lp.onClick, leftPaletteTabStyle:lp.style, showTree:S.leftTab==='tree', showPalette:S.leftTab==='palette',
+      leftCollapsed:S.leftCollapsed, leftExpanded:!S.leftCollapsed, toggleLeft:()=>this.toggleLeft(),
+      leftDockStyle:{ width:S.leftCollapsed?'34px':(S.leftW+'px'), flex:'none', background:'var(--panel)', borderRight:'1px solid var(--border)', display:'flex', flexDirection:'column', minHeight:0, transition: S.dockDrag?'none':'width .14s' },
+      leftResizeStyle:{ width:'5px', flex:'none', cursor:'col-resize', background:'transparent', marginLeft:'-3px', zIndex:6 },
+      rightResizeStyle:{ width:'5px', flex:'none', cursor:'col-resize', background:'transparent', marginRight:'-3px', zIndex:6 },
+      startLeftResize:(e)=>this.startDockResize(e,'left'), startRightResize:(e)=>this.startDockResize(e,'right'),
+      showLeftResize:!S.leftCollapsed, showRightResize:!S.rightCollapsed,
+      canvasRef:this.canvasRef,
+      onBgDown:()=>this.setState({selectedId:null, selectedIds:[], selectedEdgeId:null, menuOpen:null}),
+      onCanvasDown:(e)=>this.onCanvasDown(e),
+      marquee: S.marquee ? { show:true, style:{position:'absolute', left:Math.min(S.marquee.x0,S.marquee.x1)+'px', top:Math.min(S.marquee.y0,S.marquee.y1)+'px', width:Math.abs(S.marquee.x1-S.marquee.x0)+'px', height:Math.abs(S.marquee.y1-S.marquee.y0)+'px', background:'var(--accent-ring)', border:'1px solid var(--accent)', borderRadius:'2px', pointerEvents:'none', zIndex:4} } : { show:false, style:{} },
+      onCanvasMove:(e)=>this.onCanvasMove(e), onCanvasUp:()=>this.onCanvasUp(), onCanvasCtx:(e)=>this.openCtx(e,'canvas',null),
+      onFloatMove:(e)=>this.onFloatMove(e), onFloatUp:()=>this.onFloatUp(),
+      onRootUp:()=>this.onRootUp(), onRootMove:(e)=>this.onRootMove(e),
+      viewTabs, pane,
+      graphPaneStyle:pane.graph.outerStyle, tablePaneStyle:pane.table.outerStyle, textPaneStyle:pane.text.outerStyle,
+      editTools, alignItems, distItems, alignBtnStyle, alignIconEl:this.ti('alignL'),
+      alignOpen:S.alignOpen, toggleAlign:(e)=>this.toggleAlign(e), closeAlign:()=>this.setState({alignOpen:false}),
+      multiSel:selCount>1, selCount,
+      showReady:S.appState==='ready', showLoading:S.appState==='loading', showEmpty:S.appState==='empty', showError:S.appState==='error',
+      retry:()=>{ this.setState({appState:'loading'}); clearTimeout(this._rt); this._rt=setTimeout(()=>this.setState({appState:'ready'}),900); this.showToast('正在重连…'); },
+      skeletons,
+      gridRows, textLines:this.buildText(C),
+      validations, validateCount:validations.length, allPass:validations.length===0,
+      hasEdgeSel: !!edgeVm && !S.rightCollapsed, edgeSel:edgeVm, showNodePanel: !edgeVm && !S.rightCollapsed,
+      rightCollapsed:S.rightCollapsed, toggleRight:()=>this.toggleRight(),
+      rightDockStyle:{ width:S.rightCollapsed?'38px':(S.rightW+'px'), flex:'none', background:'var(--panel)', borderLeft:'1px solid var(--border)', display:'flex', flexDirection:'column', minHeight:0, transition: S.dockDrag?'none':'width .14s' },
+      bottomDockStyle:{ height:S.bottomCollapsed?'33px':'184px', flex:'none', background:'var(--panel)', borderTop:'1px solid var(--border)', display:'flex', flexDirection:'column', minHeight:0, transition:'height .14s' },
+      bottomExpanded:!S.bottomCollapsed, toggleBottom:()=>this.toggleBottom(), bottomChevron:S.bottomCollapsed?'▴':'▾',
+      dispOpen:S.dispOpen, toggleDisp:(e)=>this.toggleDisp(e), closeDisp:()=>this.setState({dispOpen:false}),
+      dispBtnStyle:{display:'inline-flex',alignItems:'center',gap:'5px',height:'26px',padding:'0 9px',borderRadius:'4px',fontSize:'12px',cursor:'pointer',whiteSpace:'nowrap',color:S.dispOpen?'var(--accent)':'var(--ink-2)',background:S.dispOpen?'var(--accent-bg)':'transparent',border:'1px solid '+(S.dispOpen?'var(--accent-bd)':'transparent')},
+      dispItems:[['type','类型标签'],['fields','字段值'],['derived','派生值'],['prov','来源信息']].map(([k,lb])=>({ label:lb, onToggle:(e)=>{ e&&e.stopPropagation&&e.stopPropagation(); this.setNodeShow(k); }, boxStyle:{display:'inline-flex',alignItems:'center',justifyContent:'center',width:'16px',height:'16px',borderRadius:'4px',fontSize:'10px',fontWeight:800,color:'#fff',flex:'none',background:S.nodeShow[k]?'var(--accent)':'var(--surface)',border:'1px solid '+(S.nodeShow[k]?'var(--accent)':'var(--border-2)')}, check:S.nodeShow[k]?'✓':'' })),
+      tabProps:rp.onClick, tabPropsStyle:rp.style, tabPassport:rpa.onClick, tabPassportStyle:rpa.style, tabHistory:rh.onClick, tabHistoryStyle:rh.style, tabStyleTab:rs.onClick, tabStyleTabStyle:rs.style,
+      showProps:S.rightTab==='props', showPassport:S.rightTab==='passport', showHistory:S.rightTab==='history', showStyleTab:S.rightTab==='style',
+      hasSelection:!!selVm, noSelection:!selVm, sel:selVm, pass:passVm, hist:histVm,
+      showValidate:S.bottomTab==='validate', showConsole:S.bottomTab==='console', showSim:S.bottomTab==='sim',
+      tabSim:tsim.onClick, tabSimStyle:tsim.style,
+      simRunning:simSt.status==='running', simIdleIcon:simSt.status!=='running',
+      simBtnLabel:simSt.status==='running'?'仿真中…':'仿真', runSim:()=>this.runSim(),
+      simBtnStyle:{display:'inline-flex', alignItems:'center', gap:'5px', height:'26px', padding:'0 12px', borderRadius:'4px', color:'#fff', background: simSt.status==='running'?'var(--ink-3)':'var(--accent)', fontSize:'12px', cursor:simSt.status==='running'?'default':'pointer', fontWeight:500, whiteSpace:'nowrap', transition:'background .12s'},
+      simHasResult:!!simR, simDotStyle:{display:'inline-block', width:'6px', height:'6px', borderRadius:'50%', background: simR?this.RM[simR.verdict.level].dot:'var(--ink-4)', marginLeft:'4px'},
+      simIdle:simSt.status==='idle', simRunningView:simSt.status==='running', simDoneView:simSt.status==='done'&&!!simR,
+      simProgress:Math.min(100,Math.round(simSt.progress))+'%', sim:simVm,
+      showValidateList: S.bottomTab==='validate' && !S.floatValidate,
+      validateFloated:S.floatValidate, floatStyle, floatBtnLabel:S.floatValidate?'停靠':'浮动',
+      toggleFloat:()=>this.toggleFloat(), startFloatDrag:(e)=>this.startFloatDrag(e),
+      tabValidate:tv.onClick, tabValidateStyle:tv.style, tabConsole:tc.onClick, tabConsoleStyle:tc.style,
+      valCountStyle:{fontFamily:'var(--mono)', fontSize:'10px', fontWeight:700, color: validations.length?'var(--block)':'var(--ink-3)', background:'var(--surface-2)', borderRadius:'8px', padding:'0 5px'},
+      bottomMeta: S.bottomTab==='validate' ? (validations.length+' 项待处理') : (S.bottomTab==='sim' ? (simR?'仿真完成':(simSt.status==='running'?'运行中':'就绪')) : '实时'),
+      cmdOpen:S.cmd.open, cmdQuery:S.cmd.query, cmdRows, cmdEmpty:filtered.length===0,
+      openCmd:()=>this.openCmd(), closeCmd:()=>this.closeCmd(), stopCmd:(e)=>e.stopPropagation(),
+      cmdInput:(e)=>this.cmdInput(e), cmdKey:(e)=>this.cmdKey(e),
+      toast:S.toast,
+    };
+  }
+}
+</script>
+</body>
+</html>
