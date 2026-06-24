@@ -1,0 +1,6 @@
+{
+  "id": "technical-proposal",
+  "name": "技术方案",
+  "version": "1.0.0",
+  "profileManifest": "./profile.manifest.json"
+}
