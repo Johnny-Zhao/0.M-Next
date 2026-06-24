@@ -3,9 +3,11 @@
 @import "./tokens.css";
 
 :root {
-  color: #18212f;
-  background: #f5f7fa;
-  font-family: system-ui, sans-serif;
+  color: var(--mnext-ink);
+  background: var(--mnext-bg);
+  font-family: var(--mnext-font-sans);
+  font-size: 13px;
+  -webkit-font-smoothing: antialiased;
 }
 
 body {
@@ -14,6 +16,11 @@ body {
 
 main {
   min-height: 100vh;
+}
+
+.workbench {
+  background: var(--mnext-bg);
+  color: var(--mnext-ink);
 }
 
 .workbench header,
@@ -25,15 +32,48 @@ main {
 
 .workbench header {
   align-items: center;
-  border-bottom: 1px solid #d7dde7;
-  justify-content: space-between;
-  padding: 0.75rem 1rem;
+  background: var(--mnext-panel);
+  border-bottom: 1px solid var(--mnext-border);
+  gap: 0.75rem;
+  justify-content: flex-start;
+  padding: 0.4rem 0.75rem;
+}
+
+.workbench header strong {
+  align-items: center;
+  display: inline-flex;
+  font-size: 13px;
+  font-weight: 600;
+  gap: 0.45rem;
+  letter-spacing: 0.01em;
+}
+
+.workbench header strong::before {
+  align-items: center;
+  background: var(--mnext-accent);
+  border-radius: 4px;
+  color: var(--mnext-surface-raised);
+  content: "M";
+  display: inline-flex;
+  font-family: var(--mnext-font-mono);
+  font-size: 11px;
+  font-weight: 800;
+  height: 18px;
+  justify-content: center;
+  width: 18px;
+}
+
+.workbench header > span[aria-label="同步状态"] {
+  margin-left: auto;
 }
 
 .workbench footer {
-  background: #e8edf3;
-  border-top: 1px solid #d7dde7;
-  padding: 0.5rem 1rem;
+  background: var(--mnext-panel);
+  border-top: 1px solid var(--mnext-border);
+  color: var(--mnext-ink-soft);
+  font-family: var(--mnext-font-mono);
+  font-size: 11px;
+  padding: 0.4rem 0.9rem;
 }
 
 .workbench-body {
@@ -53,41 +93,58 @@ main {
 
 .workbench-controls {
   align-items: center;
-  background: #ffffff;
-  border-bottom: 1px solid #d7dde7;
+  background: var(--mnext-surface-raised);
+  border-bottom: 1px solid var(--mnext-border);
   display: flex;
   gap: 0.75rem;
-  padding: 0.6rem 0.75rem;
+  padding: 0.5rem 0.75rem;
 }
 
 .workbench-controls label,
 .field-editor label {
   align-items: center;
+  color: var(--mnext-ink-soft);
   display: inline-flex;
   gap: 0.4rem;
 }
 
 .workbench-controls input,
+.workbench-controls select,
 .field-editor input {
-  border: 1px solid #9aa6b2;
-  border-radius: 4px;
+  background: var(--mnext-surface-raised);
+  border: 1px solid var(--mnext-border-strong);
+  border-radius: var(--mnext-radius-sm);
+  color: var(--mnext-ink);
   padding: 0.35rem 0.45rem;
+}
+
+.workbench-controls input:focus,
+.workbench-controls select:focus,
+.field-editor input:focus {
+  border-color: var(--mnext-accent);
+  outline: none;
 }
 
 .workbench-controls button,
 .field-editor button,
 .inspector-panel button {
-  border: 1px solid #8793a0;
-  border-radius: 4px;
-  background: #ffffff;
+  border: 1px solid var(--mnext-border-strong);
+  border-radius: var(--mnext-radius-sm);
+  background: var(--mnext-surface-raised);
+  color: var(--mnext-ink-soft);
   cursor: pointer;
   padding: 0.35rem 0.55rem;
+  transition:
+    border-color 120ms ease,
+    color 120ms ease;
 }
 
 .workbench-controls button:hover,
 .field-editor button:hover,
 .inspector-panel button:hover {
-  background: #eef6f1;
+  background: var(--mnext-surface-hover);
+  border-color: var(--mnext-accent);
+  color: var(--mnext-accent);
 }
 
 .document-output-action {
@@ -98,13 +155,15 @@ main {
 }
 
 .document-output-action select {
-  border: 1px solid #9aa6b2;
-  border-radius: 4px;
+  background: var(--mnext-surface-raised);
+  border: 1px solid var(--mnext-border-strong);
+  border-radius: var(--mnext-radius-sm);
+  color: var(--mnext-ink);
   padding: 0.3rem 0.4rem;
 }
 
 .document-output-action span {
-  color: #2f6b3f;
+  color: var(--mnext-ok);
   font-size: 0.85rem;
 }
 
@@ -114,7 +173,7 @@ main {
 
 .command-palette-backdrop {
   align-items: flex-start;
-  background: rgb(24 33 47 / 24%);
+  background: rgb(0 0 0 / 32%);
   display: flex;
   inset: 0;
   justify-content: center;
@@ -124,19 +183,22 @@ main {
 }
 
 .command-palette {
-  background: #ffffff;
-  border: 1px solid #9aa6b2;
-  border-radius: 8px;
-  box-shadow: 0 16px 48px rgb(24 33 47 / 20%);
+  background: var(--mnext-surface-raised);
+  border: 1px solid var(--mnext-border-strong);
+  border-radius: var(--mnext-radius-lg);
+  box-shadow: 0 18px 52px rgb(0 0 0 / 34%);
+  color: var(--mnext-ink);
   max-width: calc(100vw - 2rem);
   overflow: hidden;
   width: 38rem;
 }
 
 .command-palette input {
+  background: transparent;
   border: 0;
-  border-bottom: 1px solid #d7dde7;
+  border-bottom: 1px solid var(--mnext-border);
   box-sizing: border-box;
+  color: var(--mnext-ink);
   font: inherit;
   outline: none;
   padding: 0.9rem 1rem;
@@ -150,13 +212,13 @@ main {
 }
 
 .command-palette-empty {
-  color: #546273;
+  color: var(--mnext-ink-muted);
   margin: 0;
   padding: 1rem;
 }
 
 .command-palette-group h2 {
-  color: #6b7788;
+  color: var(--mnext-ink-muted);
   font-size: 0.78rem;
   font-weight: 700;
   margin: 0.65rem 0.45rem 0.35rem;
@@ -165,8 +227,8 @@ main {
 .command-palette-group button {
   background: transparent;
   border: 0;
-  border-radius: 6px;
-  color: #18212f;
+  border-radius: var(--mnext-radius-md);
+  color: var(--mnext-ink);
   cursor: pointer;
   display: grid;
   gap: 0.2rem;
@@ -177,11 +239,11 @@ main {
 
 .command-palette-group button[aria-current="true"],
 .command-palette-group button:hover {
-  background: #e6f4ff;
+  background: var(--mnext-accent-bg);
 }
 
 .command-palette-group small {
-  color: #546273;
+  color: var(--mnext-ink-muted);
 }
 
 .diagram-panel {
@@ -194,10 +256,11 @@ main {
 .diagram-grid-controls,
 .diagram-align-toolbar {
   align-items: center;
-  background: rgb(255 255 255 / 92%);
-  border: 1px solid #c7d2df;
-  border-radius: 6px;
-  box-shadow: 0 2px 10px rgb(24 33 47 / 12%);
+  background: var(--mnext-surface-raised);
+  border: 1px solid var(--mnext-border);
+  border-radius: var(--mnext-radius-md);
+  box-shadow: var(--mnext-shadow-1);
+  color: var(--mnext-ink-soft);
   display: flex;
   gap: 0.35rem;
   position: absolute;
@@ -225,9 +288,10 @@ main {
 
 .diagram-grid-controls select,
 .diagram-align-toolbar button {
-  border: 1px solid #8793a0;
-  border-radius: 4px;
-  background: #ffffff;
+  border: 1px solid var(--mnext-border-strong);
+  border-radius: var(--mnext-radius-sm);
+  background: var(--mnext-surface-raised);
+  color: var(--mnext-ink-soft);
   min-height: 1.85rem;
 }
 
@@ -239,10 +303,14 @@ main {
   cursor: pointer;
   min-width: 2.35rem;
   padding: 0.25rem 0.45rem;
+  transition:
+    border-color 120ms ease,
+    color 120ms ease;
 }
 
 .diagram-align-toolbar button:hover {
-  background: #eef6f1;
+  border-color: var(--mnext-accent);
+  color: var(--mnext-accent);
 }
 
 .diagram-guides {
@@ -252,7 +320,7 @@ main {
 }
 
 .diagram-guide {
-  background: #d4380d;
+  background: var(--mnext-accent);
   position: absolute;
 }
 
@@ -269,11 +337,11 @@ main {
 }
 
 .object-node {
-  background: #ffffff;
-  border: 1px solid #6f7f91;
+  background: var(--mnext-surface-raised);
+  border: 1px solid var(--mnext-border);
   border-radius: 6px;
   box-shadow: 0 2px 8px rgb(25 36 54 / 10%);
-  color: #18212f;
+  color: var(--mnext-ink);
   display: grid;
   gap: 0.25rem;
   min-width: 12rem;
@@ -282,24 +350,24 @@ main {
 }
 
 .object-node-selected {
-  border-color: #1677ff;
-  outline: 2px solid #1677ff;
+  border-color: var(--mnext-accent);
+  outline: 2px solid var(--mnext-accent);
 }
 
 .object-node-type {
-  color: #546273;
+  color: var(--mnext-ink-soft);
   font-size: 0.75rem;
 }
 
 .object-node-port {
-  background: #ffffff;
-  border: 2px solid #315b7d;
+  background: var(--mnext-surface-raised);
+  border: 2px solid var(--mnext-border-strong);
   height: 0.55rem;
   width: 0.55rem;
 }
 
 .object-node-port-source {
-  border-color: #8a5a00;
+  border-color: var(--mnext-warn);
 }
 
 .object-node-port-top.object-node-port-source,
@@ -315,16 +383,16 @@ main {
 .object-node-port:hover,
 .react-flow__handle-connecting,
 .react-flow__handle-valid {
-  background: #e6f4ff;
-  border-color: #1677ff;
+  background: var(--mnext-accent-bg);
+  border-color: var(--mnext-accent);
 }
 
 .diagram-edge-label {
-  background: #ffffff;
-  border: 1px solid #cbd5e1;
+  background: var(--mnext-surface-raised);
+  border: 1px solid var(--mnext-border);
   border-radius: 4px;
   box-shadow: 0 1px 4px rgb(25 36 54 / 12%);
-  color: #18212f;
+  color: var(--mnext-ink);
   font-size: 0.72rem;
   max-width: 11rem;
   padding: 0.16rem 0.38rem;
@@ -334,7 +402,7 @@ main {
 }
 
 .diagram-edge-label-selected {
-  border-color: #1677ff;
+  border-color: var(--mnext-accent);
 }
 
 .tree-panel,
@@ -358,7 +426,7 @@ main {
 }
 
 .inspector-section {
-  border-top: 1px solid #d7dde7;
+  border-top: 1px solid var(--mnext-border);
   margin-top: 0.75rem;
   padding-top: 0.75rem;
 }
@@ -372,19 +440,19 @@ main {
 }
 
 .selected-cell {
-  outline: 2px solid #1677ff;
+  outline: 2px solid var(--mnext-accent);
 }
 
 .selected-row {
-  background: #e6f4ff;
+  background: var(--mnext-accent-bg);
 }
 
 .selected-node {
-  outline: 2px solid #1677ff;
+  outline: 2px solid var(--mnext-accent);
 }
 
 .failed-cell {
-  outline: 2px solid #d4380d;
+  outline: 2px solid var(--mnext-block);
 }
 
 .document-view {
@@ -393,7 +461,7 @@ main {
 }
 
 .document-section {
-  border-left: 2px solid #d9e2ec;
+  border-left: 2px solid var(--mnext-border);
   margin-bottom: 1rem;
   padding: 0.5rem 0.75rem;
 }
@@ -401,12 +469,12 @@ main {
 .document-section[aria-current="true"],
 .document-field [aria-current="true"],
 .document-text [aria-current="true"] {
-  outline: 2px solid #1677ff;
+  outline: 2px solid var(--mnext-accent);
 }
 
 .document-section-terminal {
-  color: #7b8794;
-  background: #f0f2f5;
+  color: var(--mnext-ink-muted);
+  background: var(--mnext-surface-subtle);
 }
 
 .document-title,
@@ -444,7 +512,7 @@ main {
 .document-field-editor input,
 .document-field-editor select,
 .document-field-editor textarea {
-  border: 1px solid #8c9bab;
+  border: 1px solid var(--mnext-border-strong);
   border-radius: 0.25rem;
   padding: 0.25rem 0.4rem;
 }
@@ -456,7 +524,7 @@ main {
 
 .matrix-grid th,
 .matrix-grid td {
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--mnext-border);
   min-width: 7rem;
   padding: 0.4rem;
   text-align: center;
@@ -467,13 +535,13 @@ main {
 }
 
 .matrix-cell-selected {
-  outline: 2px solid #1677ff;
+  outline: 2px solid var(--mnext-accent);
 }
 
 .matrix-header-selected,
 .matrix-axis-selected,
 .matrix-axis-selected td {
-  background: #e6f4ff;
+  background: var(--mnext-accent-bg);
 }
 
 .matrix-pagination {
@@ -483,7 +551,7 @@ main {
 }
 
 .matrix-cell-editable {
-  background: #fffbe6;
+  background: var(--mnext-warn-bg);
 }
 
 .matrix-cell-editable button + button {
@@ -522,15 +590,15 @@ main {
 .object-node {
   --object-accent: var(--mnext-type-component);
   background: var(--mnext-surface-raised);
-  border-color: var(--mnext-border);
-  border-left-color: var(--object-accent);
+  border: 1px solid var(--mnext-border);
   border-radius: var(--mnext-radius-lg);
-  box-shadow: var(--mnext-shadow-1);
+  box-shadow: var(--mnext-shadow-node);
   color: var(--mnext-ink);
-  gap: var(--mnext-gap-2);
+  display: block;
+  gap: 0;
   min-width: 15rem;
   overflow: hidden;
-  padding: 0.7rem 0.8rem 0.65rem;
+  padding: 0;
   transition:
     border-color 120ms ease,
     box-shadow 120ms ease,
@@ -538,15 +606,14 @@ main {
 }
 
 .object-node:hover {
-  border-color: var(--object-accent);
+  border-color: var(--mnext-border-firm);
   box-shadow: var(--mnext-shadow-2);
   transform: translateY(-1px);
 }
 
 .object-node-selected {
-  border-color: var(--mnext-brand);
-  outline: 2px solid color-mix(in srgb, var(--mnext-brand) 35%, transparent);
-  outline-offset: 2px;
+  border-color: var(--mnext-accent);
+  box-shadow: 0 0 0 2px var(--mnext-accent-ring);
 }
 
 .object-node-subsystem {
@@ -576,9 +643,12 @@ main {
 
 .object-node-header {
   align-items: center;
+  background: var(--mnext-surface-subtle);
+  border-bottom: 1px solid var(--mnext-border);
   display: grid;
   gap: var(--mnext-gap-2);
   grid-template-columns: auto minmax(0, 1fr) auto;
+  padding: 0.4rem 0.6rem 0.4rem 0.7rem;
 }
 
 .object-node-icon {
@@ -633,6 +703,7 @@ main {
   display: grid;
   gap: 0.3rem;
   margin: 0;
+  padding: 0.5rem 0.7rem 0.45rem;
 }
 
 .object-node-field {
@@ -658,9 +729,12 @@ main {
 
 .object-node-footer {
   align-items: center;
+  background: var(--mnext-surface-subtle);
+  border-top: 1px solid var(--mnext-border);
   display: flex;
   gap: var(--mnext-gap-2);
   min-width: 0;
+  padding: 0.35rem 0.7rem;
 }
 
 .fx-chip,
@@ -757,7 +831,11 @@ main {
 .object-node-status {
   background: var(--mnext-surface-subtle);
   color: var(--mnext-ink-muted);
-  justify-self: start;
+  font-family: var(--mnext-font-mono);
+  font-size: 0.66rem;
+  letter-spacing: 0.04em;
+  margin: 0.4rem 0.7rem 0.5rem;
+  text-transform: uppercase;
 }
 
 .object-node-state-recomputing .fx-chip span {
@@ -816,7 +894,7 @@ main {
 .diagram-dimension-switcher,
 .diagram-dimension-legend {
   align-items: center;
-  background: rgb(255 255 255 / 94%);
+  background: var(--mnext-surface-raised);
   border: 1px solid var(--mnext-border);
   border-radius: var(--mnext-radius-md);
   box-shadow: var(--mnext-shadow-1);
@@ -932,4 +1010,55 @@ main {
   color: var(--mnext-ink-muted);
   font-size: 0.78rem;
   padding: 0.4rem 0.5rem;
+}
+
+/* ReactFlow canvas — warm Office 2026 surface + grid */
+.diagram-panel .react-flow {
+  --xy-background-color: var(--mnext-canvas);
+  --xy-background-pattern-color: var(--mnext-grid);
+  background-color: var(--mnext-canvas);
+}
+
+.diagram-panel .react-flow__background {
+  color: var(--mnext-grid);
+}
+
+/* dock + tree + inspector chrome */
+.tree-panel,
+.inspector-panel {
+  background: var(--mnext-panel);
+  color: var(--mnext-ink);
+}
+
+.inspector-panel h2,
+.inspector-panel h3 {
+  color: var(--mnext-ink);
+}
+
+.inspector-section {
+  border-top: 1px solid var(--mnext-border);
+}
+
+.tree-panel button {
+  background: transparent;
+  border: 0;
+  border-radius: var(--mnext-radius-sm);
+  color: var(--mnext-ink-soft);
+  cursor: pointer;
+  padding: 0.3rem 0.45rem;
+  width: 100%;
+}
+
+.tree-panel button:hover {
+  background: var(--mnext-surface-hover);
+  color: var(--mnext-accent);
+}
+
+.selected-node,
+.selected-cell {
+  outline: 2px solid var(--mnext-accent);
+}
+
+.selected-row {
+  background: var(--mnext-accent-bg);
 }

@@ -1,66 +1,139 @@
+/*
+ * M-Next design tokens — Fluent / "Office 2026" direction.
+ * Ported from Claude Design handoff (docs/design/平台UI-图元与令牌-ClaudeDesign.md).
+ * Legacy --mnext-* names are preserved so existing components keep working;
+ * values are aligned to the design and richer nuance tokens are added.
+ */
 :root {
   --mnext-font-sans:
-    "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", system-ui, sans-serif;
+    "Segoe UI Variable", "Segoe UI", system-ui, -apple-system, "PingFang SC",
+    "Microsoft YaHei", sans-serif;
   --mnext-font-mono:
-    "Cascadia Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
-  --mnext-brand: #5b5fc7;
-  --mnext-brand-hover: #4f52b2;
-  --mnext-info: #0f6cbd;
-  --mnext-ok: #0e700e;
-  --mnext-warn: #835b00;
-  --mnext-block: #b10e1c;
-  --mnext-stale: #9a6700;
-  --mnext-ink: #242424;
-  --mnext-ink-soft: #616161;
-  --mnext-ink-muted: #8a8886;
-  --mnext-surface: #fafaf9;
+    "Cascadia Code", "Cascadia Mono", ui-monospace, Consolas, "SF Mono",
+    monospace;
+
+  /* surfaces — warm neutral */
+  --mnext-bg: #eeedeb;
+  --mnext-panel: #faf9f8;
+  --mnext-surface: #faf9f8;
   --mnext-surface-raised: #ffffff;
-  --mnext-surface-subtle: #f3f2f1;
-  --mnext-surface-hover: #f6f6fb;
-  --mnext-border: #d1d1d1;
-  --mnext-border-strong: #c7c7c7;
-  --mnext-ok-bg: #eff8ef;
-  --mnext-warn-bg: #fff4ce;
-  --mnext-block-bg: #fde7e9;
-  --mnext-stale-bg: #fff8e5;
-  --mnext-neutral-bg: #f5f5f5;
-  --mnext-shadow-1: 0 2px 8px rgb(0 0 0 / 10%);
-  --mnext-shadow-2: 0 8px 24px rgb(0 0 0 / 14%);
+  --mnext-surface-subtle: #f4f3f1;
+  --mnext-surface-hover: #f0efed;
+  --mnext-canvas: #f3f2f0;
+  --mnext-grid: #e5e3df;
+
+  /* ink — four levels */
+  --mnext-ink: #242424;
+  --mnext-ink-soft: #57534f;
+  --mnext-ink-muted: #8a8886;
+  --mnext-ink-faint: #b3b0ad;
+
+  /* borders */
+  --mnext-border: #e6e3e1;
+  --mnext-border-strong: #cfccc9;
+  --mnext-border-firm: #bbb8b4;
+
+  /* accent — single brand blue */
+  --mnext-accent: #0f6cbd;
+  --mnext-accent-strong: #0a538f;
+  --mnext-accent-bg: #eef5fc;
+  --mnext-accent-border: #bad7f2;
+  --mnext-accent-ring: rgb(15 108 189 / 32%);
+  --mnext-info: #0f6cbd;
+  --mnext-brand: #0f6cbd;
+  --mnext-brand-hover: #0a538f;
+
+  /* semantic four-state — base / strong / bg / border */
+  --mnext-ok: #0e700e;
+  --mnext-ok-strong: #107c10;
+  --mnext-ok-bg: #e2f4e0;
+  --mnext-ok-border: #9bd49b;
+  --mnext-warn: #8a5a00;
+  --mnext-warn-strong: #b98900;
+  --mnext-warn-bg: #fcf3d2;
+  --mnext-warn-border: #e7c766;
+  --mnext-block: #b10e1c;
+  --mnext-block-strong: #c50f1f;
+  --mnext-block-bg: #fce6e8;
+  --mnext-block-border: #eba9af;
+  --mnext-stale: #6e5400;
+  --mnext-stale-strong: #8a6d00;
+  --mnext-stale-bg: #f8f0d2;
+  --mnext-stale-border: #dec987;
+  --mnext-neutral-bg: #f4f3f1;
+
+  /* object type colors */
+  --mnext-type-subsystem: #5b5fc7;
+  --mnext-type-component: #0e7c7b;
+  --mnext-type-interface: #b146c2;
+  --mnext-type-requirement: #ca5010;
+  --mnext-edge: #57534f;
+
+  /* elevation */
+  --mnext-shadow-node: 0 1px 2px rgb(0 0 0 / 10%);
+  --mnext-shadow-1: 0 1px 2px rgb(0 0 0 / 10%);
+  --mnext-shadow-2: 0 14px 36px rgb(0 0 0 / 22%);
+
   --mnext-radius-sm: 4px;
   --mnext-radius-md: 6px;
-  --mnext-radius-lg: 8px;
+  --mnext-radius-lg: 7px;
   --mnext-gap-2: 0.5rem;
-  --mnext-type-subsystem: #0f6cbd;
-  --mnext-type-component: #5b5fc7;
-  --mnext-type-interface: #008575;
-  --mnext-type-requirement: #8764b8;
-  --mnext-edge: #616161;
 }
 
 [data-theme="dark"],
 .theme-dark {
-  --mnext-brand: #7f85f5;
-  --mnext-brand-hover: #9297ff;
+  --mnext-bg: #1a1a1a;
+  --mnext-panel: #242322;
+  --mnext-surface: #242322;
+  --mnext-surface-raised: #2c2b2a;
+  --mnext-surface-subtle: #333130;
+  --mnext-surface-hover: #38322f;
+  --mnext-canvas: #1f1e1d;
+  --mnext-grid: #2b2a28;
+
+  --mnext-ink: #f3f2f1;
+  --mnext-ink-soft: #c8c6c4;
+  --mnext-ink-muted: #979593;
+  --mnext-ink-faint: #6b6a68;
+
+  --mnext-border: #3a3938;
+  --mnext-border-strong: #4a4847;
+  --mnext-border-firm: #5c5a58;
+
+  --mnext-accent: #479ef5;
+  --mnext-accent-strong: #7dbaf7;
+  --mnext-accent-bg: #10283c;
+  --mnext-accent-border: #2a4b68;
+  --mnext-accent-ring: rgb(71 158 245 / 42%);
   --mnext-info: #479ef5;
-  --mnext-ok: #54b054;
-  --mnext-warn: #f3c04d;
-  --mnext-block: #ff8c95;
-  --mnext-stale: #f2b84b;
-  --mnext-ink: #f5f5f5;
-  --mnext-ink-soft: #d1d1d1;
-  --mnext-ink-muted: #a6a6a6;
-  --mnext-surface: #1f1f1f;
-  --mnext-surface-raised: #292929;
-  --mnext-surface-subtle: #333333;
-  --mnext-surface-hover: #343453;
-  --mnext-border: #4a4a4a;
-  --mnext-border-strong: #5c5c5c;
-  --mnext-ok-bg: #103d10;
-  --mnext-warn-bg: #4a3400;
-  --mnext-block-bg: #5a1118;
-  --mnext-stale-bg: #4a3400;
-  --mnext-neutral-bg: #303030;
-  --mnext-shadow-1: 0 2px 10px rgb(0 0 0 / 35%);
-  --mnext-shadow-2: 0 10px 28px rgb(0 0 0 / 42%);
-  --mnext-edge: #d1d1d1;
+  --mnext-brand: #479ef5;
+  --mnext-brand-hover: #7dbaf7;
+
+  --mnext-ok: #73c173;
+  --mnext-ok-strong: #57ae57;
+  --mnext-ok-bg: #15300f;
+  --mnext-ok-border: #2e5e2a;
+  --mnext-warn: #e6c45c;
+  --mnext-warn-strong: #c9a227;
+  --mnext-warn-bg: #332b0c;
+  --mnext-warn-border: #5a4e1f;
+  --mnext-block: #ff9aa4;
+  --mnext-block-strong: #ec6b76;
+  --mnext-block-bg: #3a171a;
+  --mnext-block-border: #6e2b31;
+  --mnext-stale: #dcbb52;
+  --mnext-stale-strong: #be9c2e;
+  --mnext-stale-bg: #2c2611;
+  --mnext-stale-border: #534720;
+  --mnext-neutral-bg: #333130;
+
+  --mnext-type-subsystem: #9ea2f0;
+  --mnext-type-component: #4fd0cf;
+  --mnext-type-interface: #db8fe0;
+  --mnext-type-requirement: #f1894f;
+  --mnext-edge: #c8c6c4;
+
+  --mnext-shadow-node: 0 1px 4px rgb(0 0 0 / 55%);
+  --mnext-shadow-1: 0 1px 4px rgb(0 0 0 / 55%);
+  --mnext-shadow-2: 0 14px 36px rgb(0 0 0 / 50%);
 }
