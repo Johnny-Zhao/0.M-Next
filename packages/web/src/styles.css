@@ -90,6 +90,24 @@ main {
   background: #eef6f1;
 }
 
+.document-output-action {
+  align-items: center;
+  display: inline-flex;
+  gap: 0.4rem;
+  margin-left: auto;
+}
+
+.document-output-action select {
+  border: 1px solid #9aa6b2;
+  border-radius: 4px;
+  padding: 0.3rem 0.4rem;
+}
+
+.document-output-action span {
+  color: #2f6b3f;
+  font-size: 0.85rem;
+}
+
 .workbench-dock {
   min-height: 34rem;
 }

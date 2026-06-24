@@ -14,7 +14,12 @@ import {
   type ReactElement,
 } from "react";
 
-import { CommandClient, SelectionCoordinator, ViewClient } from "@m-next/views";
+import {
+  CommandClient,
+  SelectionCoordinator,
+  ViewClient,
+  type OutputFormat,
+} from "@m-next/views";
 
 import { CommandPalette, isCommandPaletteShortcut } from "./command-palette";
 import type {
@@ -23,6 +28,11 @@ import type {
   CommandRegistry,
 } from "./commands";
 import { DiagramPanel } from "./diagram-panel";
+import {
+  DocumentOutputAction,
+  downloadOutput,
+  generateDocumentOutput,
+} from "./document-output-action";
 import { InspectorPanel } from "./inspector-panel";
 import { TreePanel } from "./tree-panel";
 
@@ -102,6 +112,7 @@ export function openWorkbenchPanel(
 }
 
 export interface WorkbenchProps {
+  readonly actorId: string;
   readonly workspaceId: string;
   readonly viewClient: ViewClient;
   readonly commandClient: CommandClient;
@@ -120,6 +131,7 @@ const dockviewComponents: Record<
 };
 
 export function Workbench({
+  actorId,
   workspaceId,
   viewClient,
   commandClient,
@@ -145,6 +157,20 @@ export function Workbench({
       openWorkbenchPanel(dockviewApi, panelId);
     },
     [dockviewApi],
+  );
+
+  const generateOutput = useCallback(
+    async (format: OutputFormat) => {
+      const detail = await generateDocumentOutput({
+        actorId,
+        format,
+        objectType,
+        viewClient,
+        workspaceId,
+      });
+      downloadOutput(detail);
+    },
+    [actorId, objectType, viewClient, workspaceId],
   );
 
   const context = useMemo<WorkbenchContextValue>(
@@ -183,6 +209,7 @@ export function Workbench({
       objectType,
       viewClient,
       commandClient,
+      generateOutput,
       selection,
       activatePanel,
       openPanel: activatePanel,
@@ -192,6 +219,7 @@ export function Workbench({
     [
       activatePanel,
       commandClient,
+      generateOutput,
       objectType,
       refreshViews,
       selection,
@@ -238,6 +266,13 @@ export function Workbench({
           <button onClick={context.refreshViews} type="button">
             刷新
           </button>
+          <DocumentOutputAction
+            actorId={actorId}
+            objectType={objectType}
+            reportError={onError}
+            viewClient={viewClient}
+            workspaceId={workspaceId}
+          />
         </div>
         <div className="dockview-theme-light mnext-dockview-theme workbench-dock">
           <DockviewReact
