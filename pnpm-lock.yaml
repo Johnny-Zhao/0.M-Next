@@ -35,6 +35,8 @@ importers:
 
   packages/domains/interior-design: {}
 
+  packages/domains/technical-proposal: {}
+
   packages/views:
     dependencies:
       '@antv/g6':

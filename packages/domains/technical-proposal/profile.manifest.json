@@ -1,0 +1,236 @@
+{
+  "id": "technical-proposal",
+  "name": "技术方案",
+  "version": "1.0.0",
+  "templateCode": "technical_proposal",
+  "valueTypes": [
+    {
+      "code": "coverage_ratio",
+      "name": "Coverage Ratio",
+      "basePrimitive": "number"
+    }
+  ],
+  "objectTypes": [
+    {
+      "code": "proposal_node",
+      "name": "Proposal Node"
+    },
+    {
+      "code": "proposal",
+      "name": "Proposal",
+      "parent": "proposal_node"
+    },
+    {
+      "code": "system",
+      "name": "System",
+      "parent": "proposal_node"
+    },
+    {
+      "code": "module",
+      "name": "Module",
+      "parent": "proposal_node"
+    },
+    {
+      "code": "interface",
+      "name": "Interface"
+    },
+    {
+      "code": "requirement",
+      "name": "Requirement"
+    }
+  ],
+  "fields": [
+    {
+      "objectType": "proposal",
+      "code": "title",
+      "name": "Title",
+      "dataType": "string",
+      "required": true
+    },
+    {
+      "objectType": "proposal",
+      "code": "version",
+      "name": "Version",
+      "dataType": "string",
+      "required": true
+    },
+    {
+      "objectType": "proposal",
+      "code": "author",
+      "name": "Author",
+      "dataType": "string",
+      "required": true
+    },
+    {
+      "objectType": "system",
+      "code": "name",
+      "name": "Name",
+      "dataType": "string",
+      "required": true
+    },
+    {
+      "objectType": "system",
+      "code": "responsibility",
+      "name": "Responsibility",
+      "dataType": "string",
+      "required": false
+    },
+    {
+      "objectType": "module",
+      "code": "name",
+      "name": "Name",
+      "dataType": "string",
+      "required": true
+    },
+    {
+      "objectType": "module",
+      "code": "responsibility",
+      "name": "Responsibility",
+      "dataType": "string",
+      "required": false
+    },
+    {
+      "objectType": "module",
+      "code": "description",
+      "name": "Description",
+      "dataType": "string",
+      "required": false
+    },
+    {
+      "objectType": "interface",
+      "code": "name",
+      "name": "Name",
+      "dataType": "string",
+      "required": true
+    },
+    {
+      "objectType": "interface",
+      "code": "direction",
+      "name": "Direction",
+      "dataType": "string",
+      "required": true
+    },
+    {
+      "objectType": "interface",
+      "code": "protocol",
+      "name": "Protocol",
+      "dataType": "string",
+      "required": false
+    },
+    {
+      "objectType": "interface",
+      "code": "data",
+      "name": "Data",
+      "dataType": "string",
+      "required": false
+    },
+    {
+      "objectType": "requirement",
+      "code": "code",
+      "name": "Code",
+      "dataType": "string",
+      "required": true
+    },
+    {
+      "objectType": "requirement",
+      "code": "text",
+      "name": "Text",
+      "dataType": "string",
+      "required": true
+    },
+    {
+      "objectType": "requirement",
+      "code": "priority",
+      "name": "Priority",
+      "dataType": "string",
+      "required": true
+    }
+  ],
+  "relations": [
+    {
+      "code": "proposal_contains_system",
+      "name": "Contains",
+      "source": "proposal",
+      "target": "system",
+      "direction": "directed",
+      "cardinality": "one_to_many",
+      "semantics": "strong",
+      "hierarchical": true
+    },
+    {
+      "code": "proposal_contains_module",
+      "name": "Contains",
+      "source": "proposal_node",
+      "target": "module",
+      "direction": "directed",
+      "cardinality": "one_to_many",
+      "semantics": "strong",
+      "hierarchical": true
+    },
+    {
+      "code": "proposal_depends_on",
+      "name": "Depends On",
+      "source": "module",
+      "target": "module",
+      "direction": "directed",
+      "cardinality": "many_to_many",
+      "semantics": "weak",
+      "hierarchical": false
+    },
+    {
+      "code": "proposal_interfaces_with",
+      "name": "Interfaces With",
+      "source": "module",
+      "target": "interface",
+      "direction": "undirected",
+      "cardinality": "many_to_many",
+      "semantics": "weak",
+      "hierarchical": false
+    },
+    {
+      "code": "proposal_satisfies",
+      "name": "Satisfies",
+      "source": "module",
+      "target": "requirement",
+      "direction": "directed",
+      "cardinality": "many_to_many",
+      "semantics": "weak",
+      "hierarchical": false
+    }
+  ],
+  "derived": [
+    {
+      "objectType": "module",
+      "code": "child_count_fx",
+      "name": "Child Count",
+      "resultType": "number",
+      "derivation": "count(traverse('proposal_contains_module','out'))"
+    }
+  ],
+  "rules": [
+    {
+      "code": "R-TD-RESP",
+      "objectType": "module",
+      "severity": "WARN",
+      "when": "isBlank(field('responsibility'))",
+      "message": "模块缺少 responsibility",
+      "lightweight": false
+    },
+    {
+      "code": "R-TD-IF",
+      "objectType": "interface",
+      "severity": "WARN",
+      "when": "isBlank(field('protocol')) || isBlank(field('data'))",
+      "message": "接口缺少 protocol 或 data",
+      "lightweight": false
+    },
+    {
+      "code": "R-TD-COV",
+      "objectType": "requirement",
+      "severity": "WARN",
+      "when": "relationCount('proposal_satisfies') == 0",
+      "message": "需求未被模块 satisfies 覆盖",
+      "lightweight": false
+    }
+  ]
+}
