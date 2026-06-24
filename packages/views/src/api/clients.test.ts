@@ -100,6 +100,33 @@ describe("view and command clients", () => {
     expect(lineage.algorithm.kind).toBe("derived");
   });
 
+  it("reads the template catalog without workspace scope", async () => {
+    const fetchFn = vi.fn<FetchFn>(
+      async () =>
+        new Response(
+          JSON.stringify([
+            {
+              templateId: "template-1",
+              code: "interior_design",
+              name: "室内设计",
+              version: 2,
+              latestPublishedVersion: 2,
+              publishedAt: "2026-06-22T00:00:00Z",
+              description: null,
+              typeOverview: [{ code: "room", name: "Room" }],
+              typeOverviewTruncated: false,
+            },
+          ]),
+        ),
+    );
+
+    const templates = await new ViewClient("/api", fetchFn).templates();
+
+    expect(fetchFn.mock.calls[0]?.[0]).toBe("/api/views/templates");
+    expect(templates[0]?.description).toBeNull();
+    expect(templates[0]?.typeOverview[0]?.code).toBe("room");
+  });
+
   it("creates outputs with snapshot scope and actor header", async () => {
     const fetchFn = vi.fn<FetchFn>(
       async () =>
