@@ -127,6 +127,81 @@ describe("view and command clients", () => {
     expect(templates[0]?.typeOverview[0]?.code).toBe("room");
   });
 
+  it("creates outputs with snapshot scope and actor header", async () => {
+    const fetchFn = vi.fn<FetchFn>(
+      async () =>
+        new Response(
+          JSON.stringify({
+            outputId: "out-1",
+            dataSnapshotId: "snap-1",
+            format: "markdown",
+            templateId: null,
+            templateVersion: null,
+            reviewStatus: "UNKNOWN",
+            checkStatus: "UNKNOWN",
+            dataVersion: 3,
+            createdAt: "2026-06-24T00:00:00Z",
+            createdBy: "alice",
+            contentHash: "hash",
+          }),
+        ),
+    );
+    const client = new ViewClient("/api", fetchFn);
+
+    const output = await client.createOutput("ws", "alice", {
+      snapshotId: "snap-1",
+      format: "markdown",
+      objectType: "room",
+      fieldOrder: ["name"],
+    });
+
+    expect(fetchFn.mock.calls[0]?.[0]).toBe("/api/workspaces/ws/outputs");
+    expect(fetchFn.mock.calls[0]?.[1]?.method).toBe("POST");
+    expect(fetchFn.mock.calls[0]?.[1]?.headers).toMatchObject({
+      "content-type": "application/json",
+      "X-Actor-Id": "alice",
+    });
+    expect(JSON.parse(String(fetchFn.mock.calls[0]?.[1]?.body))).toEqual({
+      snapshotId: "snap-1",
+      format: "markdown",
+      objectType: "room",
+      fieldOrder: ["name"],
+    });
+    expect(output.outputId).toBe("out-1");
+  });
+
+  it("gets generated output artifacts", async () => {
+    const fetchFn = vi.fn<FetchFn>(
+      async () =>
+        new Response(
+          JSON.stringify({
+            meta: {
+              outputId: "out-1",
+              dataSnapshotId: "snap-1",
+              format: "docx",
+              templateId: null,
+              templateVersion: null,
+              reviewStatus: "UNKNOWN",
+              checkStatus: "UNKNOWN",
+              dataVersion: 3,
+              createdAt: "2026-06-24T00:00:00Z",
+              createdBy: "alice",
+              contentHash: "hash",
+            },
+            artifact: "UEs=",
+          }),
+        ),
+    );
+    const detail = await new ViewClient("/api", fetchFn).getOutput(
+      "ws",
+      "out-1",
+    );
+
+    expect(fetchFn.mock.calls[0]?.[0]).toBe("/api/workspaces/ws/outputs/out-1");
+    expect(detail.artifact).toBe("UEs=");
+    expect(detail.meta.format).toBe("docx");
+  });
+
   it("posts UpdateFields with expectedFieldVersion", async () => {
     const fetchFn = vi.fn<FetchFn>(
       async () => new Response(null, { status: 200 }),

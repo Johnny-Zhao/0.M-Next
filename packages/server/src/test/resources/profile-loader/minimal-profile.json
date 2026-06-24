@@ -1,0 +1,89 @@
+{
+  "id": "profile-loader-minimal",
+  "name": "Profile Loader Minimal",
+  "version": "1.0.0",
+  "templateCode": "profile_loader_minimal",
+  "valueTypes": [
+    {
+      "code": "score_value",
+      "name": "Score Value",
+      "basePrimitive": "number"
+    },
+    {
+      "code": "load_value",
+      "name": "Load Value",
+      "basePrimitive": "number"
+    }
+  ],
+  "objectTypes": [
+    {
+      "code": "room",
+      "name": "Room"
+    },
+    {
+      "code": "fixture",
+      "name": "Fixture"
+    }
+  ],
+  "fields": [
+    {
+      "objectType": "room",
+      "code": "name",
+      "name": "Name",
+      "dataType": "string",
+      "required": true
+    },
+    {
+      "objectType": "room",
+      "code": "base_score",
+      "name": "Base Score",
+      "valueType": "score_value",
+      "required": true
+    },
+    {
+      "objectType": "fixture",
+      "code": "name",
+      "name": "Name",
+      "dataType": "string",
+      "required": true
+    },
+    {
+      "objectType": "fixture",
+      "code": "load",
+      "name": "Load",
+      "valueType": "load_value",
+      "required": true
+    }
+  ],
+  "relations": [
+    {
+      "code": "contains_fixture",
+      "name": "Contains Fixture",
+      "source": "room",
+      "target": "fixture",
+      "direction": "directed",
+      "cardinality": "many_to_many",
+      "semantics": "strong",
+      "hierarchical": false
+    }
+  ],
+  "derived": [
+    {
+      "objectType": "room",
+      "code": "fixture_load",
+      "name": "Fixture Load",
+      "resultType": "number",
+      "derivation": "sum(traverse('contains_fixture','out'),'load')"
+    }
+  ],
+  "rules": [
+    {
+      "code": "base_score_floor",
+      "objectType": "room",
+      "severity": "WARN",
+      "when": "field('base_score') < 1",
+      "message": "base_score should be at least 1",
+      "lightweight": false
+    }
+  ]
+}

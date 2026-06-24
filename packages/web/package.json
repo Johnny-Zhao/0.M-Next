@@ -4,11 +4,13 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
   "dependencies": {
+    "@m-next/domain-interior-design": "workspace:*",
     "@m-next/views": "workspace:*",
     "@xyflow/react": "12.11.0",
     "dockview": "6.6.1",
