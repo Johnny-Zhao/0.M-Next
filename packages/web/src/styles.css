@@ -67,6 +67,37 @@ main {
   margin-left: auto;
 }
 
+.workbench header button {
+  align-items: center;
+  background: var(--mnext-surface-raised);
+  border: 1px solid var(--mnext-border-strong);
+  border-radius: var(--mnext-radius-sm);
+  color: var(--mnext-ink-soft);
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 12px;
+  gap: 0.35rem;
+  height: 26px;
+  padding: 0 0.6rem;
+  transition:
+    border-color 120ms ease,
+    color 120ms ease;
+}
+
+.workbench header button:hover {
+  border-color: var(--mnext-accent);
+  color: var(--mnext-accent);
+}
+
+.workbench header select {
+  background: var(--mnext-surface-raised);
+  border: 1px solid var(--mnext-border-strong);
+  border-radius: var(--mnext-radius-sm);
+  color: var(--mnext-ink);
+  height: 26px;
+  padding: 0 0.4rem;
+}
+
 .workbench footer {
   background: var(--mnext-panel);
   border-top: 1px solid var(--mnext-border);
