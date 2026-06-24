@@ -61,6 +61,58 @@ export interface SyncStatus {
   readonly caughtUp: boolean;
 }
 
+export interface SnapshotMeta {
+  readonly snapshotId: string;
+  readonly createdAt: string;
+  readonly createdBy: string;
+  readonly dataVersion: number;
+  readonly contentHash: string;
+  readonly scopeObjectType: string | null;
+}
+
+export type OutputFormat =
+  | "markdown"
+  | "docx"
+  | "pdf"
+  | "html"
+  | "csv"
+  | "xlsx";
+
+export interface OutputCreateRequest {
+  readonly snapshotId: string;
+  readonly format: OutputFormat;
+  readonly templateId?: string | null;
+  readonly templateVersion?: number | null;
+  readonly objectType?: string | null;
+  readonly fieldOrder?: readonly string[] | null;
+}
+
+export interface OutputMeta {
+  readonly outputId: string;
+  readonly dataSnapshotId: string;
+  readonly format: OutputFormat;
+  readonly templateId: string | null;
+  readonly templateVersion: number | null;
+  readonly reviewStatus: string;
+  readonly checkStatus: string;
+  readonly dataVersion: number;
+  readonly createdAt: string;
+  readonly createdBy: string;
+  readonly contentHash: string;
+}
+
+export interface OutputDetail {
+  readonly meta: OutputMeta;
+  readonly artifact: string;
+}
+
+export interface OutputPage {
+  readonly items: readonly OutputMeta[];
+  readonly page: number;
+  readonly pageSize: number;
+  readonly total: number;
+}
+
 export interface MatrixObject {
   readonly objectId: string;
   readonly label: string;
@@ -117,6 +169,37 @@ export class ViewClient {
     private readonly baseUrl: string,
     private readonly fetchFn: FetchFn = fetch,
   ) {}
+
+  captureSnapshot(
+    workspaceId: string,
+    actorId: string,
+    scopeObjectType?: string | null,
+  ): Promise<SnapshotMeta> {
+    return this.post(`/workspaces/${workspaceId}/snapshots`, actorId, {
+      scopeObjectType: scopeObjectType || null,
+    });
+  }
+
+  createOutput(
+    workspaceId: string,
+    actorId: string,
+    request: OutputCreateRequest,
+  ): Promise<OutputMeta> {
+    return this.post(`/workspaces/${workspaceId}/outputs`, actorId, request);
+  }
+
+  getOutput(workspaceId: string, outputId: string): Promise<OutputDetail> {
+    return this.get(`/workspaces/${workspaceId}/outputs/${outputId}`);
+  }
+
+  listOutputs(workspaceId: string, page = 0, size = 50): Promise<OutputPage> {
+    if (page < 0 || size < 1 || size > 50)
+      throw new Error(
+        "output page must be non-negative and size must be 1..50",
+      );
+    const query = new URLSearchParams({ page: `${page}`, size: `${size}` });
+    return this.get(`/workspaces/${workspaceId}/outputs?${query}`);
+  }
 
   objectTypes(workspaceId: string): Promise<readonly ObjectType[]> {
     return this.get(`/workspaces/${workspaceId}/views/object-types`);
@@ -226,6 +309,20 @@ export class ViewClient {
   private async get<T>(path: string): Promise<T> {
     const response = await this.fetchFn(`${this.baseUrl}${path}`);
     if (!response.ok) throw new Error("读取视图数据失败");
+    return response.json() as Promise<T>;
+  }
+
+  private async post<T>(
+    path: string,
+    actorId: string,
+    body: unknown,
+  ): Promise<T> {
+    const response = await this.fetchFn(`${this.baseUrl}${path}`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "X-Actor-Id": actorId },
+      body: JSON.stringify(body),
+    });
+    if (!response.ok) throw new Error("写入视图制品失败");
     return response.json() as Promise<T>;
   }
 }

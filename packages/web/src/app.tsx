@@ -79,6 +79,7 @@ export function App({
       </header>
       <div className="workbench-body">
         <Workbench
+          actorId={actorId ?? "demo-actor"}
           commandClient={commandClient}
           onError={() => setErrors((value) => value + 1)}
           selection={selection}

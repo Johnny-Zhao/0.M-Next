@@ -1,6 +1,7 @@
 import type {
   CommandClient,
   ObjectDetail,
+  OutputFormat,
   SelectionCoordinator,
   ViewClient,
   ViewObject,
@@ -18,6 +19,7 @@ export interface CommandContext {
   readonly objectType: string;
   readonly viewClient: Pick<ViewClient, "object" | "objects">;
   readonly commandClient: Pick<CommandClient, "updateFields">;
+  readonly generateOutput: (format: OutputFormat) => Promise<void>;
   readonly selection: Pick<SelectionCoordinator, "current" | "select">;
   readonly activatePanel: (panelId: CommandPanelId) => void;
   readonly openPanel: (panelId: CommandPanelId) => void;
@@ -197,6 +199,30 @@ const builtInCommands: readonly CommandDefinition[] = [
       );
       context.refreshViews();
     },
+  },
+  {
+    id: "output-generate-markdown",
+    title: "生成文档:Markdown",
+    group: "分析",
+    description: "捕获当前快照并导出 Markdown 文档",
+    keywords: ["生成文档", "导出", "markdown", "md"],
+    run: (context) => context.generateOutput("markdown"),
+  },
+  {
+    id: "output-generate-docx",
+    title: "生成文档:Docx",
+    group: "分析",
+    description: "捕获当前快照并导出 Word 文档",
+    keywords: ["生成文档", "导出", "word", "docx"],
+    run: (context) => context.generateOutput("docx"),
+  },
+  {
+    id: "output-generate-pdf",
+    title: "生成文档:Pdf",
+    group: "分析",
+    description: "捕获当前快照并导出 PDF 文档",
+    keywords: ["生成文档", "导出", "pdf"],
+    run: (context) => context.generateOutput("pdf"),
   },
   {
     id: "view-open-diagram",
