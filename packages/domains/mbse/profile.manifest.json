@@ -1,0 +1,239 @@
+{
+  "id": "mbse",
+  "name": "MBSE / 验证",
+  "version": "1.0.0",
+  "templateCode": "mbse_verification",
+  "valueTypes": [
+    {
+      "code": "margin_ratio",
+      "name": "Margin Ratio",
+      "basePrimitive": "number"
+    }
+  ],
+  "objectTypes": [
+    {
+      "code": "mission",
+      "name": "Mission"
+    },
+    {
+      "code": "mission_context",
+      "name": "Mission Context"
+    },
+    {
+      "code": "phase",
+      "name": "Mission Phase",
+      "parent": "mission_context"
+    },
+    {
+      "code": "env_condition",
+      "name": "Environment Condition",
+      "parent": "mission_context"
+    },
+    {
+      "code": "capability",
+      "name": "Capability"
+    },
+    {
+      "code": "requirement",
+      "name": "Requirement"
+    },
+    {
+      "code": "test_case",
+      "name": "Test Case"
+    },
+    {
+      "code": "test_result",
+      "name": "Test Result"
+    }
+  ],
+  "fields": [
+    {
+      "objectType": "mission",
+      "code": "name",
+      "name": "Name",
+      "dataType": "string",
+      "required": true
+    },
+    {
+      "objectType": "mission_context",
+      "code": "name",
+      "name": "Name",
+      "dataType": "string",
+      "required": true
+    },
+    {
+      "objectType": "env_condition",
+      "code": "value",
+      "name": "Value",
+      "dataType": "string",
+      "required": true
+    },
+    {
+      "objectType": "capability",
+      "code": "name",
+      "name": "Name",
+      "dataType": "string",
+      "required": true
+    },
+    {
+      "objectType": "requirement",
+      "code": "code",
+      "name": "Code",
+      "dataType": "string",
+      "required": true
+    },
+    {
+      "objectType": "requirement",
+      "code": "text",
+      "name": "Text",
+      "dataType": "text",
+      "required": true
+    },
+    {
+      "objectType": "requirement",
+      "code": "target",
+      "name": "Target",
+      "dataType": "string",
+      "required": true
+    },
+    {
+      "objectType": "requirement",
+      "code": "margin_threshold",
+      "name": "Margin Threshold",
+      "valueType": "margin_ratio",
+      "required": true
+    },
+    {
+      "objectType": "test_case",
+      "code": "name",
+      "name": "Name",
+      "dataType": "string",
+      "required": true
+    },
+    {
+      "objectType": "test_result",
+      "code": "value",
+      "name": "Value",
+      "dataType": "number",
+      "required": true
+    },
+    {
+      "objectType": "test_result",
+      "code": "verdict",
+      "name": "Verdict",
+      "dataType": "string",
+      "required": true
+    }
+  ],
+  "relations": [
+    {
+      "code": "occurs_in",
+      "name": "Occurs In",
+      "source": "phase",
+      "target": "mission",
+      "direction": "directed",
+      "cardinality": "many_to_many",
+      "semantics": "strong",
+      "hierarchical": false
+    },
+    {
+      "code": "imposes",
+      "name": "Imposes",
+      "source": "phase",
+      "target": "env_condition",
+      "direction": "directed",
+      "cardinality": "one_to_many",
+      "semantics": "strong",
+      "hierarchical": false
+    },
+    {
+      "code": "requires",
+      "name": "Requires",
+      "source": "mission_context",
+      "target": "capability",
+      "direction": "directed",
+      "cardinality": "many_to_many",
+      "semantics": "strong",
+      "hierarchical": false
+    },
+    {
+      "code": "derives",
+      "name": "Derives",
+      "source": "capability",
+      "target": "requirement",
+      "direction": "directed",
+      "cardinality": "one_to_many",
+      "semantics": "strong",
+      "hierarchical": false
+    },
+    {
+      "code": "verified_by",
+      "name": "Verified By",
+      "source": "requirement",
+      "target": "test_case",
+      "direction": "directed",
+      "cardinality": "many_to_many",
+      "semantics": "weak",
+      "hierarchical": false
+    },
+    {
+      "code": "produces",
+      "name": "Produces",
+      "source": "test_case",
+      "target": "test_result",
+      "direction": "directed",
+      "cardinality": "one_to_many",
+      "semantics": "weak",
+      "hierarchical": false
+    }
+  ],
+  "derived": [
+    {
+      "objectType": "capability",
+      "code": "requirement_count_fx",
+      "name": "Requirement Count",
+      "resultType": "number",
+      "derivation": "count(traverse('derives','out'))"
+    },
+    {
+      "objectType": "env_condition",
+      "code": "required_requirement_min_fx",
+      "name": "Required Requirement Minimum",
+      "resultType": "number",
+      "derivation": "min(traverse('requires','out'),'requirement_count_fx')"
+    },
+    {
+      "objectType": "requirement",
+      "code": "verify_status_fx",
+      "name": "Verify Status",
+      "resultType": "string",
+      "derivation": "if(any(traverseFrom(traverse('verified_by','out'),'produces','out'), field('verdict') == 'fail'), 'fail', if(count(traverseFrom(traverse('verified_by','out'),'produces','out')) == 0, 'unverified', 'pass'))"
+    }
+  ],
+  "rules": [
+    {
+      "code": "R-COV-01",
+      "objectType": "env_condition",
+      "severity": "BLOCK",
+      "when": "field('required_requirement_min_fx') == 0",
+      "message": "工况要求的能力缺少需求覆盖",
+      "lightweight": false
+    },
+    {
+      "code": "R-VER-01",
+      "objectType": "requirement",
+      "severity": "WARN",
+      "when": "relationCount('verified_by') == 0",
+      "message": "需求缺少验证用例",
+      "lightweight": false
+    },
+    {
+      "code": "R-VER-02",
+      "objectType": "requirement",
+      "severity": "BLOCK",
+      "when": "field('verify_status_fx') == 'fail'",
+      "message": "需求关联的测试结果失败",
+      "lightweight": false
+    }
+  ]
+}
