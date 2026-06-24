@@ -202,6 +202,48 @@ describe("view and command clients", () => {
     expect(detail.meta.format).toBe("docx");
   });
 
+  it("runs a rule check and returns the runId from events", async () => {
+    const fetchFn = vi.fn<FetchFn>(
+      async () =>
+        new Response(
+          JSON.stringify({
+            commandId: "cmd-1",
+            status: "ACCEPTED",
+            events: ["run-1"],
+          }),
+        ),
+    );
+    const runId = await new ViewClient("/api", fetchFn).runRuleCheck(
+      "ws",
+      "alice",
+      "room",
+    );
+
+    expect(runId).toBe("run-1");
+    expect(fetchFn.mock.calls[0]?.[0]).toBe("/api/workspaces/ws/rule-commands");
+    expect(fetchFn.mock.calls[0]?.[1]?.method).toBe("POST");
+    expect(fetchFn.mock.calls[0]?.[1]?.headers).toMatchObject({
+      "X-Actor-Id": "alice",
+    });
+    const body = JSON.parse(String(fetchFn.mock.calls[0]?.[1]?.body));
+    expect(body.commandType).toBe("RunRuleCheck");
+    expect(body.payload.scope.objectTypeCode).toBe("room");
+  });
+
+  it("lists check results for a run", async () => {
+    const fetchFn = vi.fn<FetchFn>(
+      async () =>
+        new Response(
+          JSON.stringify({ items: [], page: 0, pageSize: 50, total: 0 }),
+        ),
+    );
+    await new ViewClient("/api", fetchFn).checkResults("ws", "run-1");
+
+    expect(fetchFn.mock.calls[0]?.[0]).toBe(
+      "/api/workspaces/ws/views/check-results?runId=run-1&page=0&size=50",
+    );
+  });
+
   it("posts UpdateFields with expectedFieldVersion", async () => {
     const fetchFn = vi.fn<FetchFn>(
       async () => new Response(null, { status: 200 }),

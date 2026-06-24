@@ -1093,3 +1093,136 @@ main {
 .selected-row {
   background: var(--mnext-accent-bg);
 }
+
+/* 校验底栏 */
+.validate-panel {
+  background: var(--mnext-panel);
+  box-sizing: border-box;
+  color: var(--mnext-ink);
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: auto;
+}
+
+.validate-panel-bar {
+  align-items: center;
+  background: var(--mnext-panel);
+  border-bottom: 1px solid var(--mnext-border);
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.4rem 0.7rem;
+  position: sticky;
+  top: 0;
+}
+
+.validate-panel-bar strong {
+  font-size: 12px;
+}
+
+.validate-spacer {
+  flex: 1;
+}
+
+.validate-count {
+  background: var(--mnext-block-bg);
+  border: 1px solid var(--mnext-block-border);
+  border-radius: 999px;
+  color: var(--mnext-block);
+  font-family: var(--mnext-font-mono);
+  font-size: 10px;
+  padding: 0 0.4rem;
+}
+
+.validate-run {
+  background: var(--mnext-surface-raised);
+  border: 1px solid var(--mnext-border-strong);
+  border-radius: var(--mnext-radius-sm);
+  color: var(--mnext-ink-soft);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 0.25rem 0.6rem;
+}
+
+.validate-run:hover {
+  border-color: var(--mnext-accent);
+  color: var(--mnext-accent);
+}
+
+.validate-message,
+.validate-empty {
+  color: var(--mnext-ink-soft);
+  font-size: 12px;
+  margin: 0;
+  padding: 0.7rem;
+}
+
+.validate-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.validate-row {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--mnext-border);
+  color: var(--mnext-ink);
+  cursor: pointer;
+  display: flex;
+  gap: 0.6rem;
+  padding: 0.45rem 0.7rem;
+  text-align: left;
+  width: 100%;
+}
+
+.validate-row:hover {
+  background: var(--mnext-surface-hover);
+}
+
+.validate-badge {
+  border: 1px solid transparent;
+  border-radius: 999px;
+  flex: none;
+  font-family: var(--mnext-font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  min-width: 2.4rem;
+  padding: 0.05rem 0.4rem;
+  text-align: center;
+}
+
+.validate-badge-block {
+  background: var(--mnext-block-bg);
+  border-color: var(--mnext-block-border);
+  color: var(--mnext-block);
+}
+
+.validate-badge-warn {
+  background: var(--mnext-warn-bg);
+  border-color: var(--mnext-warn-border);
+  color: var(--mnext-warn);
+}
+
+.validate-badge-info {
+  background: var(--mnext-accent-bg);
+  border-color: var(--mnext-accent-border);
+  color: var(--mnext-accent);
+}
+
+.validate-rule {
+  color: var(--mnext-ink-muted);
+  flex: none;
+  font-family: var(--mnext-font-mono);
+  font-size: 11px;
+  min-width: 6rem;
+}
+
+.validate-msg {
+  color: var(--mnext-ink-soft);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

@@ -159,6 +159,24 @@ export interface LineageView {
   readonly truncated: boolean;
 }
 
+export interface CheckResultItem {
+  readonly runId: string;
+  readonly ruleCode: string;
+  readonly severity: string;
+  readonly message: string;
+  readonly objectId: string;
+  readonly fieldCode: string | null;
+  readonly configHash: string;
+  readonly createdAt: string;
+}
+
+export interface CheckResultPage {
+  readonly items: readonly CheckResultItem[];
+  readonly page: number;
+  readonly pageSize: number;
+  readonly total: number;
+}
+
 export interface TemplateTypeOverview {
   readonly code: string;
   readonly name: string;
@@ -325,6 +343,43 @@ export class ViewClient {
   ): Promise<LineageView> {
     const query = new URLSearchParams({ objectId, fieldCode });
     return this.get(`/workspaces/${workspaceId}/views/lineage?${query}`);
+  }
+
+  /** 触发一次规则校验运行,返回 runId(取自命令结果 events[0])。 */
+  async runRuleCheck(
+    workspaceId: string,
+    actorId: string,
+    objectTypeCode?: string | null,
+  ): Promise<string> {
+    const result = await this.post<{ readonly events?: readonly string[] }>(
+      `/workspaces/${workspaceId}/rule-commands`,
+      actorId,
+      {
+        commandType: "RunRuleCheck",
+        workspaceId,
+        correlationId: crypto.randomUUID(),
+        idempotencyKey: `rc-${crypto.randomUUID()}`,
+        payload: objectTypeCode ? { scope: { objectTypeCode } } : {},
+      },
+    );
+    const runId = result.events?.[0];
+    if (!runId) throw new Error("RunRuleCheck 未返回 runId");
+    return runId;
+  }
+
+  /** 列出某次校验运行的命中结果(分页)。 */
+  checkResults(
+    workspaceId: string,
+    runId: string,
+    page = 0,
+    size = 50,
+  ): Promise<CheckResultPage> {
+    const query = new URLSearchParams({
+      runId,
+      page: `${page}`,
+      size: `${size}`,
+    });
+    return this.get(`/workspaces/${workspaceId}/views/check-results?${query}`);
   }
 
   private async get<T>(path: string): Promise<T> {

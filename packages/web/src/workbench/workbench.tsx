@@ -35,8 +35,9 @@ import {
 } from "./document-output-action";
 import { InspectorPanel } from "./inspector-panel";
 import { TreePanel } from "./tree-panel";
+import { ValidatePanel } from "./validate-panel";
 
-export type WorkbenchPanelId = "diagram" | "tree" | "inspector";
+export type WorkbenchPanelId = "diagram" | "tree" | "inspector" | "validate";
 
 export interface WorkbenchPanelDefinition {
   readonly id: WorkbenchPanelId;
@@ -48,9 +49,11 @@ export const workbenchPanelDefinitions: readonly WorkbenchPanelDefinition[] = [
   { id: "diagram", title: "图", component: "diagram" },
   { id: "tree", title: "模型树", component: "tree" },
   { id: "inspector", title: "属性/校验", component: "inspector" },
+  { id: "validate", title: "校验", component: "validate" },
 ];
 
 export interface WorkbenchContextValue {
+  readonly actorId: string;
   readonly workspaceId: string;
   readonly objectType: string;
   readonly relationType: string;
@@ -90,6 +93,15 @@ export function ensureWorkbenchPanels(api: DockviewApi): void {
     initialWidth: 320,
     position: { direction: "right", referencePanel: diagram.id },
   });
+  const validate = workbenchPanelDefinitions[3];
+  if (validate) {
+    api.addPanel({
+      ...validate,
+      inactive: true,
+      initialHeight: 200,
+      position: { direction: "below", referencePanel: diagram.id },
+    });
+  }
 }
 
 export function openWorkbenchPanel(
@@ -128,6 +140,7 @@ const dockviewComponents: Record<
   diagram: () => <DiagramPanel />,
   tree: () => <TreePanel />,
   inspector: () => <InspectorPanel />,
+  validate: () => <ValidatePanel />,
 };
 
 export function Workbench({
@@ -175,6 +188,7 @@ export function Workbench({
 
   const context = useMemo<WorkbenchContextValue>(
     () => ({
+      actorId,
       workspaceId,
       objectType,
       relationType,
@@ -190,6 +204,7 @@ export function Workbench({
       reportError: onError,
     }),
     [
+      actorId,
       commandClient,
       objectType,
       onError,
