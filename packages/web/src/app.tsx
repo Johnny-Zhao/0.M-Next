@@ -8,6 +8,14 @@ import {
 } from "@m-next/views";
 
 import { Home } from "./home/home";
+import {
+  applyTheme,
+  nextTheme,
+  readStoredTheme,
+  storeTheme,
+  themeLabel,
+  type Theme,
+} from "./theme";
 import { Workbench } from "./workbench/workbench";
 
 const demoWorkspace = "11111111-1111-4111-8111-111111111111";
@@ -31,6 +39,16 @@ export function App({
   const [selection] = useState(() => new SelectionCoordinator());
   const [viewClient] = useState(() => new ViewClient(baseUrl, fetchFn));
   const [commandClient] = useState(() => new CommandClient(baseUrl, fetchFn));
+  const [theme, setTheme] = useState<Theme>(() => readStoredTheme());
+
+  useEffect(() => {
+    applyTheme(theme, document.documentElement);
+  }, [theme]);
+  const toggleTheme = () => {
+    const next = nextTheme(theme);
+    setTheme(next);
+    storeTheme(next);
+  };
 
   useEffect(() => {
     if (workspaceId) selection.switchWorkspace(workspaceId);
@@ -76,6 +94,14 @@ export function App({
           </select>
         </label>
         <SyncBadge sync={sync} />
+        <button
+          aria-label="切换亮暗主题"
+          className="theme-toggle"
+          onClick={toggleTheme}
+          type="button"
+        >
+          {themeLabel(theme)}
+        </button>
       </header>
       <div className="workbench-body">
         <Workbench
