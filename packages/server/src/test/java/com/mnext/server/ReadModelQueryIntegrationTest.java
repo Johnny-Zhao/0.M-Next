@@ -88,11 +88,20 @@ class ReadModelQueryIntegrationTest {
     assertEquals(2, ((Number) objects.get("total")).intValue());
     assertEquals(1, ((java.util.List<?>) objects.get("items")).size());
     assertEquals(1, relations.size());
+    assertEquals(1, ((Number) relations.getFirst().get("version")).longValue());
     assertEquals(1, tree.size());
     assertFalse(types.isEmpty());
     assertEquals("CONFIRMED", ((Map<?, ?>) detail.get("object")).get("status"));
     assertEquals(0, ((Number) sync.get("pendingEvents")).intValue());
     assertTrue((Boolean) sync.get("caughtUp"));
+
+    projection.apply(relationUpdated(2));
+    var updatedRelations =
+        getList(
+            "/views/relations?relationType=decomposes_to&direction=out&sourceId="
+                + FIRST
+                + "&depth=1");
+    assertEquals(2, ((Number) updatedRelations.getFirst().get("version")).longValue());
   }
 
   @Test
@@ -258,6 +267,18 @@ class ReadModelQueryIntegrationTest {
             SECOND.toString(),
             "fields",
             Map.of()));
+  }
+
+  private EventEnvelope relationUpdated(long version) {
+    return event(
+        "RelationUpdated",
+        "relation",
+        RELATION.toString(),
+        version,
+        Map.of(
+            "sourceId", FIRST.toString(),
+            "targetId", SECOND.toString(),
+            "fields", Map.of("label", "v" + version)));
   }
 
   private EventEnvelope event(
