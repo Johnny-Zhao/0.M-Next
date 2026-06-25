@@ -5,6 +5,7 @@ import type {
   LineageNode,
   LineageView,
   ObjectDetail,
+  RelationSummary,
   ViewClient,
   ViewObject,
 } from "@m-next/views";
@@ -115,17 +116,29 @@ export function partitionFields(
   return { derived, stored };
 }
 
+/** 连线两端的可读标签:源 → 目标。纯函数。 */
+export function relationEndpointsLabel(relation: RelationSummary): string {
+  return `${relation.sourceId} → ${relation.targetId}`;
+}
+
 const MUTED = { opacity: 0.65, fontSize: "0.85em" } as const;
 
 export function InspectorPanel(): ReactElement {
   const context = useWorkbenchContext();
   const [detail, setDetail] = useState<ObjectDetail | null>(null);
+  const [relationId, setRelationId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
 
   useEffect(
     () =>
       context.selection.subscribe((selected) => {
+        if (selected?.entityType === "relation") {
+          // 保留已加载的 detail,以便从其关系列表中解析这条连线
+          setRelationId(selected.entityId);
+          return;
+        }
+        setRelationId(null);
         if (
           selected?.entityType === "object" ||
           selected?.entityType === "field"
@@ -147,6 +160,26 @@ export function InspectorPanel(): ReactElement {
       context.workspaceId,
     ],
   );
+
+  if (relationId) {
+    const relation =
+      detail?.relations.find((item) => item.relationId === relationId) ?? null;
+    return (
+      <EdgeInspector
+        onBack={() => {
+          setRelationId(null);
+          if (relation) {
+            context.selection.select({
+              entityType: "object",
+              entityId: relation.sourceId,
+            });
+          }
+        }}
+        relation={relation}
+        relationId={relationId}
+      />
+    );
+  }
 
   if (!detail) {
     return (
@@ -379,5 +412,54 @@ function FieldLineage({
         </ul>
       ) : null}
     </div>
+  );
+}
+
+/**
+ * 只读连线检查器:展示选中关系的类型与两端。改型/反转/删除需关系版本投影,
+ * 读侧暂未提供,故本版只读(见 docs 计划)。关系若不在当前对象的关系列表中,
+ * 仅显示其 id。
+ */
+function EdgeInspector({
+  relation,
+  relationId,
+  onBack,
+}: {
+  readonly relation: RelationSummary | null;
+  readonly relationId: string;
+  readonly onBack: () => void;
+}): ReactElement {
+  return (
+    <aside aria-label="连线属性" className="inspector-panel">
+      <div className="edge-inspector-head">
+        <h2>连线属性</h2>
+        <button onClick={onBack} type="button">
+          返回图元
+        </button>
+      </div>
+      {relation ? (
+        <>
+          <section aria-label="关系类型" className="inspector-section">
+            <h3>关系类型</h3>
+            <p>
+              <span className="edge-kind">{relation.relationType}</span>
+            </p>
+          </section>
+          <section aria-label="两端" className="inspector-section">
+            <h3>两端</h3>
+            <p className="edge-endpoints">{relationEndpointsLabel(relation)}</p>
+          </section>
+        </>
+      ) : (
+        <section className="inspector-section">
+          <p>已选连线 {relationId}。请先选中其一端的图元以查看类型与两端。</p>
+        </section>
+      )}
+      <section className="inspector-section">
+        <p className="edge-readonly-note">
+          连线的改型 / 反转 / 删除需要关系版本(读侧暂未投出),当前为只读。
+        </p>
+      </section>
+    </aside>
   );
 }

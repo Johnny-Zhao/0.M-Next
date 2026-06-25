@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   lineageNodeLabel,
   partitionFields,
+  relationEndpointsLabel,
   relativeTime,
   sourceLabel,
 } from "./inspector-panel";
@@ -59,6 +60,19 @@ describe("sourceLabel", () => {
   it("falls back to 未知 for null and passes through unknowns", () => {
     expect(sourceLabel(null)).toBe("未知");
     expect(sourceLabel("custom_kind")).toBe("custom_kind");
+  });
+});
+
+describe("relationEndpointsLabel", () => {
+  it("formats source → target", () => {
+    expect(
+      relationEndpointsLabel({
+        relationId: "r1",
+        relationType: "depends_on",
+        sourceId: "a",
+        targetId: "b",
+      }),
+    ).toBe("a → b");
   });
 });
 

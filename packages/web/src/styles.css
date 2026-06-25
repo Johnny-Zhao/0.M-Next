@@ -1070,6 +1070,35 @@ main {
   border-top: 1px solid var(--mnext-border);
 }
 
+/* 连线检查器(只读) */
+.edge-inspector-head {
+  align-items: center;
+  display: flex;
+  gap: 0.5rem;
+  justify-content: space-between;
+}
+
+.edge-kind {
+  background: var(--mnext-accent-bg);
+  border: 1px solid var(--mnext-accent-border);
+  border-radius: 999px;
+  color: var(--mnext-accent);
+  font-size: 0.78rem;
+  padding: 0.05rem 0.5rem;
+}
+
+.edge-endpoints {
+  color: var(--mnext-ink);
+  font-family: var(--mnext-font-mono);
+  font-size: 0.82rem;
+}
+
+.edge-readonly-note {
+  color: var(--mnext-ink-muted);
+  font-size: 0.76rem;
+  line-height: 1.5;
+}
+
 /* 来源 · 护照 */
 .passport-grid {
   display: grid;
