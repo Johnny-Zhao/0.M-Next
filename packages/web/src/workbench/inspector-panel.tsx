@@ -1,6 +1,13 @@
 import { useEffect, useState, type ReactElement } from "react";
 
-import type { CommandClient, ObjectDetail, ViewObject } from "@m-next/views";
+import type {
+  CommandClient,
+  LineageNode,
+  LineageView,
+  ObjectDetail,
+  ViewClient,
+  ViewObject,
+} from "@m-next/views";
 
 import { isDerivedField } from "./diagram-panel";
 import { useWorkbenchContext } from "./workbench";
@@ -40,6 +47,41 @@ export async function saveDrivingField(
 
 export function ruleStatusText(object: ViewObject): string {
   return object.ruleStatus;
+}
+
+/** 对象来源 kind → 中文标签。未知/缺省回落到 "未知"。纯函数。 */
+export function sourceLabel(source: string | null): string {
+  switch (source) {
+    case "manual":
+      return "手填";
+    case "import":
+      return "导入";
+    case "artifact_sync":
+      return "工具同步";
+    case "derived":
+      return "派生";
+    case "simulation":
+      return "仿真";
+    case "system":
+      return "系统";
+    default:
+      return source ?? "未知";
+  }
+}
+
+/** 血缘节点 → 一行可读标签。纯函数。 */
+export function lineageNodeLabel(node: LineageNode): string {
+  const head =
+    node.kind === "derived"
+      ? "派生"
+      : node.kind === "rule"
+        ? "规则"
+        : node.kind === "recommendation"
+          ? "推荐"
+          : "字段";
+  const tail =
+    node.fieldCode ?? node.ref ?? node.objectType ?? node.objectId ?? "";
+  return tail ? `${head} · ${tail}` : head;
 }
 
 /** 新鲜度:把 ISO 时间转成相对描述。无法解析返回 "—"。纯函数,便于测试。 */
@@ -122,6 +164,33 @@ export function InspectorPanel(): ReactElement {
       <p className="inspector-passport">
         {object.status} · v{object.version}
       </p>
+      <section aria-label="来源" className="inspector-section">
+        <h3>来源 · 护照</h3>
+        <dl className="passport-grid">
+          <div>
+            <dt>来源</dt>
+            <dd>
+              <span
+                className={`source-badge source-${object.source ?? "unknown"}`}
+              >
+                {sourceLabel(object.source)}
+              </span>
+            </dd>
+          </div>
+          <div>
+            <dt>新鲜度</dt>
+            <dd>{relativeTime(object.updatedAt)}</dd>
+          </div>
+          <div>
+            <dt>下游</dt>
+            <dd>↓{detail.relations.length}</dd>
+          </div>
+          <div>
+            <dt>版本</dt>
+            <dd>v{object.version}</dd>
+          </div>
+        </dl>
+      </section>
       <section aria-label="规则态" className="inspector-section">
         <h3>校验</h3>
         <p>{ruleStatusText(object)}</p>
@@ -153,19 +222,26 @@ export function InspectorPanel(): ReactElement {
           <div aria-label="派生字段">
             <h4 style={MUTED}>派生 (fx · 后端实时)</h4>
             {derived.map(([code, value]) => (
-              <FieldEditor
-                fieldCode={code}
-                key={code}
-                object={object}
-                onSaved={() => {
-                  setMessage(`${code} 已保存`);
-                  context.refreshViews();
-                }}
-                reportError={context.reportError}
-                value={value}
-                workspaceId={context.workspaceId}
-                commandClient={context.commandClient}
-              />
+              <div className="derived-field" key={code}>
+                <FieldEditor
+                  fieldCode={code}
+                  object={object}
+                  onSaved={() => {
+                    setMessage(`${code} 已保存`);
+                    context.refreshViews();
+                  }}
+                  reportError={context.reportError}
+                  value={value}
+                  workspaceId={context.workspaceId}
+                  commandClient={context.commandClient}
+                />
+                <FieldLineage
+                  fieldCode={code}
+                  objectId={object.objectId}
+                  viewClient={context.viewClient}
+                  workspaceId={context.workspaceId}
+                />
+              </div>
             ))}
           </div>
         ) : null}
@@ -254,5 +330,54 @@ function FieldEditor({
         保存
       </button>
     </form>
+  );
+}
+
+function FieldLineage({
+  fieldCode,
+  objectId,
+  workspaceId,
+  viewClient,
+}: {
+  readonly fieldCode: string;
+  readonly objectId: string;
+  readonly workspaceId: string;
+  readonly viewClient: Pick<ViewClient, "lineage">;
+}): ReactElement {
+  const [view, setView] = useState<LineageView | null>(null);
+  const [open, setOpen] = useState(false);
+
+  async function toggle(): Promise<void> {
+    if (open) {
+      setOpen(false);
+      return;
+    }
+    setOpen(true);
+    try {
+      setView(await viewClient.lineage(workspaceId, objectId, fieldCode));
+    } catch {
+      setView(null);
+    }
+  }
+
+  return (
+    <div className="field-lineage">
+      <button
+        className="field-lineage-toggle"
+        onClick={() => void toggle()}
+        type="button"
+      >
+        {open ? "隐藏血缘" : "血缘"}
+      </button>
+      {open && view ? (
+        <ul className="lineage-list">
+          {view.upstream.length === 0 ? <li>无上游来源</li> : null}
+          {view.upstream.map((node, index) => (
+            <li key={`${node.kind}-${index}`}>{lineageNodeLabel(node)}</li>
+          ))}
+          {view.truncated ? <li className="lineage-more">…(已截断)</li> : null}
+        </ul>
+      ) : null}
+    </div>
   );
 }

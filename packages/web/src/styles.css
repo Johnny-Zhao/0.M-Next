@@ -1070,6 +1070,82 @@ main {
   border-top: 1px solid var(--mnext-border);
 }
 
+/* 来源 · 护照 */
+.passport-grid {
+  display: grid;
+  gap: 0.4rem 0.8rem;
+  grid-template-columns: 1fr 1fr;
+  margin: 0;
+}
+
+.passport-grid div {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.passport-grid dt {
+  color: var(--mnext-ink-muted);
+  font-size: 0.7rem;
+  letter-spacing: 0.04em;
+}
+
+.passport-grid dd {
+  color: var(--mnext-ink);
+  font-family: var(--mnext-font-mono);
+  font-size: 0.82rem;
+  margin: 0;
+}
+
+.source-badge {
+  background: var(--mnext-surface-subtle);
+  border: 1px solid var(--mnext-border);
+  border-radius: 999px;
+  color: var(--mnext-ink-soft);
+  font-family: var(--mnext-font-sans);
+  font-size: 0.72rem;
+  padding: 0.05rem 0.45rem;
+}
+
+.source-artifact_sync,
+.source-derived {
+  background: var(--mnext-accent-bg);
+  border-color: var(--mnext-accent-border);
+  color: var(--mnext-accent);
+}
+
+.derived-field {
+  margin-bottom: 0.45rem;
+}
+
+.field-lineage-toggle {
+  background: transparent;
+  border: 0;
+  color: var(--mnext-accent);
+  cursor: pointer;
+  font-size: 0.72rem;
+  padding: 0.1rem 0;
+}
+
+.lineage-list {
+  border-left: 2px solid var(--mnext-accent-border);
+  color: var(--mnext-ink-soft);
+  font-size: 0.74rem;
+  list-style: none;
+  margin: 0.15rem 0 0.35rem;
+  padding: 0.1rem 0 0.1rem 0.6rem;
+}
+
+.lineage-list li {
+  font-family: var(--mnext-font-mono);
+  padding: 0.1rem 0;
+}
+
+.lineage-more {
+  color: var(--mnext-ink-muted);
+}
+
 .tree-panel button {
   background: transparent;
   border: 0;
