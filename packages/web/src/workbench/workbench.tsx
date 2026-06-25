@@ -34,10 +34,18 @@ import {
   generateDocumentOutput,
 } from "./document-output-action";
 import { InspectorPanel } from "./inspector-panel";
+import { MatrixPanel } from "./matrix-panel";
+import { TablePanel } from "./table-panel";
 import { TreePanel } from "./tree-panel";
 import { ValidatePanel } from "./validate-panel";
 
-export type WorkbenchPanelId = "diagram" | "tree" | "inspector" | "validate";
+export type WorkbenchPanelId =
+  | "diagram"
+  | "table"
+  | "matrix"
+  | "tree"
+  | "inspector"
+  | "validate";
 
 export interface WorkbenchPanelDefinition {
   readonly id: WorkbenchPanelId;
@@ -47,6 +55,8 @@ export interface WorkbenchPanelDefinition {
 
 export const workbenchPanelDefinitions: readonly WorkbenchPanelDefinition[] = [
   { id: "diagram", title: "图", component: "diagram" },
+  { id: "table", title: "表格", component: "table" },
+  { id: "matrix", title: "矩阵", component: "matrix" },
   { id: "tree", title: "模型树", component: "tree" },
   { id: "inspector", title: "属性/校验", component: "inspector" },
   { id: "validate", title: "校验", component: "validate" },
@@ -79,29 +89,31 @@ export function useWorkbenchContext(): WorkbenchContextValue {
 
 export function ensureWorkbenchPanels(api: DockviewApi): void {
   if (api.panels.length > 0) return;
-  const [diagram, tree, inspector] = workbenchPanelDefinitions;
-  api.addPanel(diagram);
+  const byId = (id: WorkbenchPanelId): WorkbenchPanelDefinition =>
+    workbenchPanelDefinitions.find((panel) => panel.id === id) ??
+    workbenchPanelDefinitions[0];
+  api.addPanel(byId("diagram"));
+  // 表格 / 矩阵 与「图」同组,呈现为视图切换标签页
+  api.addPanel({ ...byId("table"), inactive: true });
+  api.addPanel({ ...byId("matrix"), inactive: true });
   api.addPanel({
-    ...tree,
+    ...byId("tree"),
     inactive: true,
     initialWidth: 260,
-    position: { direction: "left", referencePanel: diagram.id },
+    position: { direction: "left", referencePanel: "diagram" },
   });
   api.addPanel({
-    ...inspector,
+    ...byId("inspector"),
     inactive: true,
     initialWidth: 320,
-    position: { direction: "right", referencePanel: diagram.id },
+    position: { direction: "right", referencePanel: "diagram" },
   });
-  const validate = workbenchPanelDefinitions[3];
-  if (validate) {
-    api.addPanel({
-      ...validate,
-      inactive: true,
-      initialHeight: 200,
-      position: { direction: "below", referencePanel: diagram.id },
-    });
-  }
+  api.addPanel({
+    ...byId("validate"),
+    inactive: true,
+    initialHeight: 200,
+    position: { direction: "below", referencePanel: "diagram" },
+  });
 }
 
 export function openWorkbenchPanel(
@@ -138,6 +150,8 @@ const dockviewComponents: Record<
   (props: IDockviewPanelProps) => ReactElement
 > = {
   diagram: () => <DiagramPanel />,
+  table: () => <TablePanel />,
+  matrix: () => <MatrixPanel />,
   tree: () => <TreePanel />,
   inspector: () => <InspectorPanel />,
   validate: () => <ValidatePanel />,

@@ -1170,6 +1170,17 @@ main {
   background: var(--mnext-accent-bg);
 }
 
+/* 表格 / 矩阵视图面板 */
+.table-panel,
+.matrix-panel {
+  background: var(--mnext-panel);
+  box-sizing: border-box;
+  color: var(--mnext-ink);
+  height: 100%;
+  overflow: auto;
+  padding: 0.5rem 0.75rem;
+}
+
 /* 校验底栏 */
 .validate-panel {
   background: var(--mnext-panel);
