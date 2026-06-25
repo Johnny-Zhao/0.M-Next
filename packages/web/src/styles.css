@@ -1199,9 +1199,10 @@ main {
   background: var(--mnext-accent-bg);
 }
 
-/* 表格 / 矩阵视图面板 */
+/* 表格 / 矩阵 / 文档视图面板 */
 .table-panel,
-.matrix-panel {
+.matrix-panel,
+.document-panel {
   background: var(--mnext-panel);
   box-sizing: border-box;
   color: var(--mnext-ink);
