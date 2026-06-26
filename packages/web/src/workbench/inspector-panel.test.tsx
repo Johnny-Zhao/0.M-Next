@@ -71,6 +71,7 @@ describe("relationEndpointsLabel", () => {
         relationType: "depends_on",
         sourceId: "a",
         targetId: "b",
+        version: 1,
       }),
     ).toBe("a → b");
   });

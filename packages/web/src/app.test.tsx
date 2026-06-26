@@ -58,6 +58,7 @@ describe("App", () => {
           relationType: "depends_on",
           sourceId: "obj-a",
           targetId: "obj-b",
+          version: 1,
         },
       ],
       "obj-b",
