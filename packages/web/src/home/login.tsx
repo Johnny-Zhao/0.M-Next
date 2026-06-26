@@ -15,8 +15,8 @@ export function Login({ onLogin }: LoginProps): ReactElement {
     <section className="home-shell login-shell" aria-label="登录">
       <div className="home-hero">
         <strong>M-Next</strong>
-        <h1>项目入口</h1>
-        <p>TODO(待后端): 真实认证与 SSO 未接入。</p>
+        <h1>数据驱动的工程建模平台</h1>
+        <p>结构化建模、实时校验与可信溯源统一在同一工作台。</p>
       </div>
       <form
         className="login-form"
@@ -45,7 +45,7 @@ export function Login({ onLogin }: LoginProps): ReactElement {
         </label>
         <button type="submit">进入项目</button>
         <button disabled type="button">
-          SSO/企业入口 待接入
+          SSO / 企业入口 待接入
         </button>
       </form>
     </section>
