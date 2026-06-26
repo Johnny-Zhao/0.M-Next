@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+  body { margin:0; }
+  * { box-sizing:border-box; }
+</style>
+</helmet>
+<div style="min-width:100%;min-height:100vh;width:max-content;padding:48px;background:#E7E6E4;font-family:'Segoe UI Variable','Segoe UI',system-ui,-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;color:#242424;-webkit-font-smoothing:antialiased">
+
+  <!-- header -->
+  <div style="max-width:760px;margin-bottom:36px">
+    <div style="font-size:12px;letter-spacing:.16em;font-weight:600;color:#5B5FC7;text-transform:uppercase;margin-bottom:10px">M-Next · 图元视觉风格探索</div>
+    <div style="font-size:30px;font-weight:600;letter-spacing:-.01em;line-height:1.2;margin-bottom:12px">5 种基调方向 —— 内容相同，处理不同</div>
+    <div style="font-size:14px;line-height:1.65;color:#5C5C5C">同一个图元（<span style="font-family:'Cascadia Code',ui-monospace,Consolas,monospace;font-size:13px">分系统 · BAT · 主蓄电池组</span>）在 5 种风格下的样子，方向由保守到表现力递进，都落在 Office / Fluent 家族内。请挑一种作为基调，我再展开完整令牌表 + 四类型 × 全状态 + 连线规范。</div>
+  </div>
+
+  <!-- frames row -->
+  <div style="display:flex;gap:40px;align-items:flex-start">
+
+    <!-- ============ A · Fluent 净版 ============ -->
+    <div style="flex:none;width:340px;display:flex;flex-direction:column;gap:16px">
+      <div>
+        <div style="font-size:13px;font-weight:600;margin-bottom:3px">A · Fluent 净版</div>
+        <div style="font-size:12px;color:#7A7A7A;line-height:1.5">柔和材质 · 8px 圆角 · 单一蓝强调 · 经典 Office</div>
+      </div>
+      <div style="background:#fff;border-radius:2px;box-shadow:0 1px 3px rgba(0,0,0,.08);padding:24px">
+        <!-- canvas -->
+        <div style="border-radius:6px;padding:26px 22px;display:flex;justify-content:center;background-color:#FAFAF9;background-image:radial-gradient(#E3E1DE 1px,transparent 1px);background-size:16px 16px">
+          <!-- NODE A -->
+          <div style="position:relative;width:248px;background:#fff;border:1px solid #EDEBE9;border-radius:8px;box-shadow:0 2px 5px rgba(0,0,0,.07),0 0 1px rgba(0,0,0,.16);overflow:hidden">
+            <div style="position:absolute;left:0;top:0;bottom:0;width:4px;background:#5B5FC7"></div>
+            <!-- ports -->
+            <div style="position:absolute;left:-4.5px;top:50%;width:9px;height:9px;border-radius:50%;background:#fff;border:1.5px solid #B3B0AD;transform:translateY(-50%)"></div>
+            <div style="position:absolute;right:-4.5px;top:50%;width:9px;height:9px;border-radius:50%;background:#fff;border:1.5px solid #B3B0AD;transform:translateY(-50%)"></div>
+            <div style="position:absolute;top:-4.5px;left:50%;width:9px;height:9px;border-radius:50%;background:#fff;border:1.5px solid #B3B0AD;transform:translateX(-50%)"></div>
+            <!-- header -->
+            <div style="display:flex;align-items:center;gap:8px;padding:11px 13px 9px 16px">
+              <div style="width:22px;height:22px;border-radius:5px;background:#EEEEFB;display:flex;align-items:center;justify-content:center;flex:none">
+                <div style="width:11px;height:11px;border:1.6px solid #5B5FC7;border-radius:2px"></div>
+              </div>
+              <code style="font-family:'Cascadia Code',ui-monospace,Consolas,monospace;font-size:11px;font-weight:600;color:#5B5FC7;background:#F0F0FA;padding:2px 6px;border-radius:4px;letter-spacing:.04em">BAT</code>
+              <div style="font-size:13px;font-weight:600;color:#242424;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">主蓄电池组</div>
+              <div style="display:flex;align-items:center;gap:3px;color:#0E700E;flex:none"><span style="font-size:11px;font-weight:700;line-height:1">✓</span></div>
+            </div>
+            <div style="height:1px;background:#F3F2F1;margin:0 13px"></div>
+            <!-- fields -->
+            <div style="padding:10px 13px 4px 16px;display:flex;flex-direction:column;gap:9px">
+              <div style="display:flex;justify-content:space-between;align-items:center">
+                <span style="font-size:12px;color:#616161">额定容量</span>
+                <span style="font-family:'Cascadia Code',ui-monospace,Consolas,monospace;font-size:12px;color:#242424">100 <span style="color:#8A8886">Ah</span></span>
+              </div>
+              <div style="display:flex;justify-content:space-between;align-items:center">
+                <span style="font-size:12px;color:#616161">可用能量</span>
+                <span style="display:inline-flex;align-items:center;gap:5px;background:#E8F1FB;padding:2px 7px;border-radius:5px">
+                  <span style="font-family:'Cascadia Code',ui-monospace,Consolas,monospace;font-style:italic;font-size:10px;font-weight:700;color:#0F6CBD">fx</span>
+                  <span style="font-family:'Cascadia Code',ui-monospace,Consolas,monospace;font-size:12px;color:#0F6CBD">3.6 <span style="opacity:.7">kWh</span></span>
+                </span>
+              </div>
+            </div>
+            <!-- provenance -->
+            <div style="display:flex;align-items:center;gap:7px;padding:9px 16px;margin-top:8px;border-top:1px solid #F3F2F1;background:#FAFAF9;font-size:11px;color:#8A8886">
+              <span style="display:inline-flex;align-items:center;gap:4px"><span style="width:5px;height:5px;border-radius:50%;background:#A19F9D"></span>工具</span>
+              <span style="color:#D2D0CE">·</span><span>新鲜 12m</span>
+              <span style="color:#D2D0CE">·</span><span>↓ 3</span>
+            </div>
+          </div>
+        </div>
+        <!-- edge -->
+        <div style="margin-top:18px">
+          <div style="font-size:10px;letter-spacing:.1em;color:#A19F9D;text-transform:uppercase;margin-bottom:6px">连线 · 正交实线</div>
+          <svg width="100%" height="40" viewBox="0 0 290 40">
+            <path d="M6,20 H120 V20 H210" fill="none" stroke="#8A8886" stroke-width="1.6"/>
+            <rect x="124" y="9" width="42" height="20" rx="4" fill="#fff" stroke="#E1DFDD"/>
+            <text x="145" y="23" font-size="11" fill="#605E5C" text-anchor="middle" font-family="Segoe UI,system-ui">供电</text>
+            <path d="M210,20 l-8,-4 v8 z" fill="#8A8886"/>
+            <circle cx="6" cy="20" r="3" fill="#fff" stroke="#8A8886" stroke-width="1.4"/>
+          </svg>
+        </div>
+        <!-- semantic chips -->
+        <div style="margin-top:14px;display:flex;flex-wrap:wrap;gap:7px">
+          <span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;padding:3px 8px;border-radius:5px;background:#DFF6DD;color:#0E700E"><b>✓</b> 达标</span>
+          <span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;padding:3px 8px;border-radius:5px;background:#FFF4CE;color:#835B00"><b>!</b> 告警</span>
+          <span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;padding:3px 8px;border-radius:5px;background:#FDE7E9;color:#B10E1C"><b>✕</b> 阻断</span>
+          <span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;padding:3px 8px;border-radius:5px;background:#FBF2D5;color:#6E5400">◴ 陈旧</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ B · 描边扁平 ============ -->
+    <div style="flex:none;width:340px;display:flex;flex-direction:column;gap:16px">
+      <div>
+        <div style="font-size:13px;font-weight:600;margin-bottom:3px">B · 描边扁平</div>
+        <div style="font-size:12px;color:#7A7A7A;line-height:1.5">无阴影 · 4px 圆角 · 线框驱动 · Teams 风</div>
+      </div>
+      <div style="background:#fff;border-radius:2px;box-shadow:0 1px 3px rgba(0,0,0,.08);padding:24px">
+        <div style="border-radius:6px;padding:26px 22px;display:flex;justify-content:center;background-color:#FBFBFA;background-image:radial-gradient(#E6E4E1 1px,transparent 1px);background-size:16px 16px">
+          <!-- NODE B -->
+          <div style="position:relative;width:248px;background:#fff;border:1.5px solid #C8C6C4;border-radius:4px;overflow:hidden">
+            <div style="height:3px;background:#5B5FC7"></div>
+            <div style="position:absolute;left:-5px;top:52%;width:8px;height:8px;border-radius:50%;background:#fff;border:1.5px solid #8A8886"></div>
+            <div style="position:absolute;right:-5px;top:52%;width:8px;height:8px;border-radius:50%;background:#fff;border:1.5px solid #8A8886"></div>
+            <div style="display:flex;align-items:center;gap:8px;padding:11px 13px 9px">
+              <div style="width:20px;height:20px;border-radius:3px;border:1.5px solid #5B5FC7;display:flex;align-items:center;justify-content:center;flex:none">
+                <div style="width:9px;height:9px;border:1.5px solid #5B5FC7;border-radius:1px"></div>
+              </div>
+              <code style="font-family:'Cascadia Code',ui-monospace,Consolas,monospace;font-size:11px;font-weight:700;color:#3B3F9E;border:1px solid #C9CAEC;padding:1px 6px;border-radius:3px;letter-spacing:.04em">BAT</code>
+              <div style="font-size:13px;font-weight:600;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">主蓄电池组</div>
+              <span style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;border:1.5px solid #0E700E;color:#0E700E;font-size:9px;font-weight:800;flex:none">✓</span>
+            </div>
+            <div style="height:1.5px;background:#EDEBE9"></div>
+            <div style="padding:10px 13px;display:flex;flex-direction:column;gap:9px">
+              <div style="display:flex;justify-content:space-between;align-items:center">
+                <span style="font-size:12px;color:#616161">额定容量</span>
+                <span style="font-family:'Cascadia Code',ui-monospace,Consolas,monospace;font-size:12px;color:#242424">100 <span style="color:#8A8886">Ah</span></span>
+              </div>
+              <div style="display:flex;justify-content:space-between;align-items:center">
+                <span style="font-size:12px;color:#616161">可用能量</span>
+                <span style="display:inline-flex;align-items:center;gap:5px;border:1px solid #BBD6F2;padding:1px 6px;border-radius:4px">
+                  <span style="font-family:'Cascadia Code',ui-monospace,Consolas,monospace;font-style:italic;font-size:10px;font-weight:700;color:#0F6CBD">fx</span>
+                  <span style="font-family:'Cascadia Code',ui-monospace,Consolas,monospace;font-size:12px;color:#0F6CBD">3.6 <span style="opacity:.7">kWh</span></span>
+                </span>
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:7px;padding:8px 13px;border-top:1.5px dashed #E6E4E1;font-size:11px;color:#8A8886">
+              <span style="border:1px solid #E1DFDD;border-radius:3px;padding:0 5px">工具</span>
+              <span>新鲜 12m</span><span style="color:#D2D0CE">·</span><span>↓ 3</span>
+            </div>
+          </div>
+        </div>
+        <div style="margin-top:18px">
+          <div style="font-size:10px;letter-spacing:.1em;color:#A19F9D;text-transform:uppercase;margin-bottom:6px">连线 · 正交 · 虚线=未链</div>
+          <svg width="100%" height="40" viewBox="0 0 290 40">
+            <path d="M6,20 H210" fill="none" stroke="#8A8886" stroke-width="1.6" stroke-dasharray="5 4"/>
+            <rect x="123" y="9" width="44" height="20" rx="3" fill="#fff" stroke="#C8C6C4"/>
+            <text x="145" y="23" font-size="11" fill="#605E5C" text-anchor="middle" font-family="Segoe UI,system-ui">引用</text>
+            <path d="M210,20 l-8,-4 v8 z" fill="#8A8886"/>
+            <circle cx="6" cy="20" r="3" fill="#fff" stroke="#8A8886" stroke-width="1.4"/>
+          </svg>
+        </div>
+        <div style="margin-top:14px;display:flex;flex-wrap:wrap;gap:7px">
+          <span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;padding:2px 8px;border-radius:4px;border:1px solid #9BD49B;color:#0E700E"><b>✓</b> 达标</span>
+          <span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;padding:2px 8px;border-radius:4px;border:1px solid #ECCF73;color:#835B00"><b>!</b> 告警</span>
+          <span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;padding:2px 8px;border-radius:4px;border:1px solid #EBA9AF;color:#B10E1C"><b>✕</b> 阻断</span>
+          <span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;padding:2px 8px;border-radius:4px;border:1px solid #E0CE8E;color:#6E5400">◴ 陈旧</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ C · 柔和材质 Mica ============ -->
+    <div style="flex:none;width:340px;display:flex;flex-direction:column;gap:16px">
+      <div>
+        <div style="font-size:13px;font-weight:600;margin-bottom:3px">C · 柔和材质 Mica</div>
+        <div style="font-size:12px;color:#7A7A7A;line-height:1.5">12px 圆角 · 大柔影 · 类型色淡底 · Win11 风</div>
+      </div>
+      <div style="background:#fff;border-radius:2px;box-shadow:0 1px 3px rgba(0,0,0,.08);padding:24px">
+        <div style="border-radius:8px;padding:30px 22px;display:flex;justify-content:center;background-color:#F7F6F4;background-image:radial-gradient(#E1DEDA 1px,transparent 1px);background-size:18px 18px">
+          <!-- NODE C -->
+          <div style="position:relative;width:252px;background:#FFFFFF;border:1px solid #ECEAE8;border-radius:12px;box-shadow:0 10px 28px rgba(40,40,60,.12),0 2px 6px rgba(0,0,0,.05);overflow:hidden">
+            <div style="position:absolute;left:-5px;top:50%;width:10px;height:10px;border-radius:50%;background:#fff;border:1.5px solid #B3B0AD;transform:translateY(-50%)"></div>
+            <div style="position:absolute;right:-5px;top:50%;width:10px;height:10px;border-radius:50%;background:#fff;border:1.5px solid #B3B0AD;transform:translateY(-50%)"></div>
+            <!-- tinted header band -->
+            <div style="display:flex;align-items:center;gap:9px;padding:13px 15px;background:linear-gradient(180deg,#F0F0FB,#F7F7FD)">
+              <div style="width:26px;height:26px;border-radius:7px;background:#fff;box-shadow:0 1px 3px rgba(91,95,199,.25);display:flex;align-items:center;justify-content:center;flex:none">
+                <div style="width:12px;height:12px;border:1.8px solid #5B5FC7;border-radius:3px"></div>
+              </div>
+              <div style="flex:1;min-width:0">
+                <div style="display:flex;align-items:center;gap:6px">
+                  <code style="font-family:'Cascadia Code',ui-monospace,Consolas,monospace;font-size:10px;font-weight:700;color:#4B4FB8;letter-spacing:.06em">BAT</code>
+                  <span style="font-size:10px;color:#8A89C0">分系统</span>
+                </div>
+                <div style="font-size:13.5px;font-weight:600;color:#2B2B40;margin-top:1px">主蓄电池组</div>
+              </div>
+              <span style="display:inline-flex;align-items:center;gap:3px;background:#fff;padding:3px 7px;border-radius:20px;font-size:10px;font-weight:600;color:#0E700E;box-shadow:0 1px 2px rgba(0,0,0,.08)"><b>✓</b> 达标</span>
+            </div>
+            <div style="padding:13px 15px 6px;display:flex;flex-direction:column;gap:10px">
+              <div style="display:flex;justify-content:space-between;align-items:center">
+                <span style="font-size:12px;color:#6B6B78">额定容量</span>
+                <span style="font-family:'Cascadia Code',ui-monospace,Consolas,monospace;font-size:12px;color:#2B2B40">100 <span style="color:#9C9CA8">Ah</span></span>
+              </div>
+              <div style="display:flex;justify-content:space-between;align-items:center">
+                <span style="font-size:12px;color:#6B6B78">可用能量</span>
+                <span style="display:inline-flex;align-items:center;gap:5px;background:#EAF2FC;padding:2px 8px;border-radius:20px">
+                  <span style="font-family:'Cascadia Code',ui-monospace,Consolas,monospace;font-style:italic;font-size:10px;font-weight:700;color:#0F6CBD">fx</span>
+                  <span style="font-family:'Cascadia Code',ui-monospace,Consolas,monospace;font-size:12px;color:#0F6CBD">3.6 <span style="opacity:.7">kWh</span></span>
+                </span>
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;padding:11px 15px;font-size:11px;color:#9694A0">
+              <span style="display:inline-flex;align-items:center;gap:4px"><span style="width:5px;height:5px;border-radius:50%;background:#5B5FC7;opacity:.6"></span>工具</span>
+              <span style="color:#D9D7DE">·</span><span>新鲜 12m</span>
+              <span style="color:#D9D7DE">·</span><span>↓ 3 依赖</span>
+            </div>
+          </div>
+        </div>
+        <div style="margin-top:18px">
+          <div style="font-size:10px;letter-spacing:.1em;color:#A19F9D;text-transform:uppercase;margin-bottom:6px">连线 · 曲线 · 软箭头</div>
+          <svg width="100%" height="40" viewBox="0 0 290 40">
+            <path d="M6,28 C70,28 130,10 210,12" fill="none" stroke="#9C9CC8" stroke-width="2"/>
+            <rect x="118" y="6" width="46" height="20" rx="10" fill="#fff" stroke="#E5E3F2"/>
+            <text x="141" y="20" font-size="11" fill="#6B6B78" text-anchor="middle" font-family="Segoe UI,system-ui">供电</text>
+            <path d="M210,12 l-8,-2.5 l3,5 z" fill="#9C9CC8"/>
+            <circle cx="6" cy="28" r="3.2" fill="#9C9CC8"/>
+          </svg>
+        </div>
+        <div style="margin-top:14px;display:flex;flex-wrap:wrap;gap:7px">
+          <span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;padding:3px 9px;border-radius:20px;background:#E4F4E2;color:#0E700E"><b>✓</b> 达标</span>
+          <span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;padding:3px 9px;border-radius:20px;background:#FCF1CF;color:#835B00"><b>!</b> 告警</span>
+          <span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;padding:3px 9px;border-radius:20px;background:#FBE2E5;color:#B10E1C"><b>✕</b> 阻断</span>
+          <span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;padding:3px 9px;border-radius:20px;background:#F7EFD3;color:#6E5400">◴ 陈旧</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ D · 高密度专业 ============ -->
+    <div style="flex:none;width:340px;display:flex;flex-direction:column;gap:16px">
+      <div>
+        <div style="font-size:13px;font-weight:600;margin-bottom:3px">D · 高密度专业</div>
+        <div style="font-size:12px;color:#7A7A7A;line-height:1.5">2px 圆角 · 紧凑 · 等宽优先 · 工程工具风</div>
+      </div>
+      <div style="background:#fff;border-radius:2px;box-shadow:0 1px 3px rgba(0,0,0,.08);padding:24px">
+        <div style="border-radius:4px;padding:26px 22px;display:flex;justify-content:center;background-color:#F4F4F2;background-image:linear-gradient(#E7E6E2 1px,transparent 1px),linear-gradient(90deg,#E7E6E2 1px,transparent 1px);background-size:15px 15px">
+          <!-- NODE D -->
+          <div style="position:relative;width:248px;background:#fff;border:1px solid #BFBDBA;border-radius:2px;box-shadow:0 1px 2px rgba(0,0,0,.08);overflow:hidden;font-family:'Cascadia Code',ui-monospace,Consolas,monospace">
+            <div style="position:absolute;left:0;top:0;bottom:0;width:3px;background:#5B5FC7"></div>
+            <div style="position:absolute;left:-4px;top:50%;width:7px;height:7px;background:#fff;border:1.5px solid #8A8886;transform:translateY(-50%)"></div>
+            <div style="position:absolute;right:-4px;top:50%;width:7px;height:7px;background:#fff;border:1.5px solid #8A8886;transform:translateY(-50%)"></div>
+            <div style="display:flex;align-items:center;gap:7px;padding:7px 10px 7px 12px;background:#F6F6F4;border-bottom:1px solid #E1DFDD">
+              <span style="font-size:10px;font-weight:700;color:#4B4FB8;letter-spacing:.06em">BAT</span>
+              <span style="font-size:9px;color:#8A8886;background:#EAEAE8;padding:1px 4px;border-radius:2px">分系统</span>
+              <div style="flex:1"></div>
+              <span style="display:inline-flex;align-items:center;gap:3px;font-size:9px;font-weight:700;color:#0E700E"><span style="width:7px;height:7px;border-radius:50%;background:#107C10"></span>OK</span>
+            </div>
+            <div style="padding:7px 12px;font-family:'Segoe UI Variable','Segoe UI',system-ui,'Microsoft YaHei',sans-serif">
+              <div style="font-size:13px;font-weight:600;color:#242424;margin-bottom:7px">主蓄电池组</div>
+            </div>
+            <div style="border-top:1px solid #EDEBE9">
+              <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 12px;font-size:11px;border-bottom:1px solid #F3F2F1">
+                <span style="color:#616161;font-family:'Segoe UI',system-ui,sans-serif">额定容量</span>
+                <span style="color:#242424">100 <span style="color:#8A8886">Ah</span></span>
+              </div>
+              <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 12px;font-size:11px;background:#F7FAFE">
+                <span style="color:#0F6CBD;font-family:'Segoe UI',system-ui,sans-serif;display:inline-flex;align-items:center;gap:4px"><span style="font-style:italic;font-weight:700;font-family:'Cascadia Code',monospace">fx</span>可用能量</span>
+                <span style="color:#0F6CBD">3.6 <span style="opacity:.7">kWh</span></span>
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:6px;padding:5px 12px;background:#FAFAF9;border-top:1px solid #EDEBE9;font-size:10px;color:#8A8886">
+              <span style="color:#605E5C">SRC</span>工具<span style="color:#D2D0CE">|</span>12m<span style="color:#D2D0CE">|</span>↓3
+            </div>
+          </div>
+        </div>
+        <div style="margin-top:18px">
+          <div style="font-size:10px;letter-spacing:.1em;color:#A19F9D;text-transform:uppercase;margin-bottom:6px">连线 · 正交 · 加粗=强依赖</div>
+          <svg width="100%" height="40" viewBox="0 0 290 40">
+            <path d="M6,20 H120 V20 H208" fill="none" stroke="#605E5C" stroke-width="2.4"/>
+            <rect x="123" y="9" width="46" height="20" rx="2" fill="#fff" stroke="#BFBDBA"/>
+            <text x="146" y="23" font-size="10" fill="#3B3A39" text-anchor="middle" font-family="Cascadia Code,monospace">PWR</text>
+            <path d="M208,20 l-9,-4.5 v9 z" fill="#605E5C"/>
+            <rect x="3" y="17" width="6" height="6" fill="#605E5C"/>
+          </svg>
+        </div>
+        <div style="margin-top:14px;display:flex;flex-wrap:wrap;gap:6px;font-family:'Cascadia Code',ui-monospace,Consolas,monospace">
+          <span style="display:inline-flex;align-items:center;gap:4px;font-size:10px;padding:2px 7px;border-radius:2px;background:#DFF6DD;color:#0E700E"><span style="width:6px;height:6px;border-radius:50%;background:#107C10"></span>PASS</span>
+          <span style="display:inline-flex;align-items:center;gap:4px;font-size:10px;padding:2px 7px;border-radius:2px;background:#FFF4CE;color:#835B00"><span style="width:6px;height:6px;background:#C19C00"></span>WARN</span>
+          <span style="display:inline-flex;align-items:center;gap:4px;font-size:10px;padding:2px 7px;border-radius:2px;background:#FDE7E9;color:#B10E1C"><span style="width:6px;height:6px;background:#C50F1F;clip-path:polygon(50% 0,100% 100%,0 100%)"></span>BLOCK</span>
+          <span style="display:inline-flex;align-items:center;gap:4px;font-size:10px;padding:2px 7px;border-radius:2px;background:#FBF2D5;color:#6E5400">STALE</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ E · 彩色表现力 ============ -->
+    <div style="flex:none;width:340px;display:flex;flex-direction:column;gap:16px">
+      <div>
+        <div style="font-size:13px;font-weight:600;margin-bottom:3px">E · 彩色表现力</div>
+        <div style="font-size:12px;color:#7A7A7A;line-height:1.5">类型色填充头 · 强语义 · 高对比 · 识别优先</div>
+      </div>
+      <div style="background:#fff;border-radius:2px;box-shadow:0 1px 3px rgba(0,0,0,.08);padding:24px">
+        <div style="border-radius:6px;padding:26px 22px;display:flex;justify-content:center;background-color:#FAFAF9;background-image:radial-gradient(#E3E1DE 1px,transparent 1px);background-size:16px 16px">
+          <!-- NODE E -->
+          <div style="position:relative;width:252px;background:#fff;border-radius:10px;box-shadow:0 4px 14px rgba(91,95,199,.18),0 1px 3px rgba(0,0,0,.1);overflow:hidden">
+            <div style="position:absolute;left:-5px;top:58%;width:10px;height:10px;border-radius:50%;background:#fff;border:2px solid #5B5FC7;transform:translateY(-50%)"></div>
+            <div style="position:absolute;right:-5px;top:58%;width:10px;height:10px;border-radius:50%;background:#fff;border:2px solid #5B5FC7;transform:translateY(-50%)"></div>
+            <!-- filled header -->
+            <div style="display:flex;align-items:center;gap:9px;padding:12px 14px;background:#5B5FC7;color:#fff">
+              <div style="width:26px;height:26px;border-radius:7px;background:rgba(255,255,255,.18);display:flex;align-items:center;justify-content:center;flex:none">
+                <div style="width:12px;height:12px;border:2px solid #fff;border-radius:3px"></div>
+              </div>
+              <div style="flex:1;min-width:0">
+                <code style="font-family:'Cascadia Code',ui-monospace,Consolas,monospace;font-size:10px;font-weight:700;letter-spacing:.08em;opacity:.9">BAT · 分系统</code>
+                <div style="font-size:14px;font-weight:700;margin-top:1px">主蓄电池组</div>
+              </div>
+              <span style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:#107C10;color:#fff;font-size:11px;font-weight:800;box-shadow:0 0 0 3px rgba(16,124,16,.25)">✓</span>
+            </div>
+            <div style="padding:13px 14px 7px;display:flex;flex-direction:column;gap:10px">
+              <div style="display:flex;justify-content:space-between;align-items:center">
+                <span style="font-size:12px;color:#616161">额定容量</span>
+                <span style="font-family:'Cascadia Code',ui-monospace,Consolas,monospace;font-size:12.5px;font-weight:600;color:#242424">100 <span style="color:#8A8886;font-weight:400">Ah</span></span>
+              </div>
+              <div style="display:flex;justify-content:space-between;align-items:center">
+                <span style="font-size:12px;color:#616161">可用能量</span>
+                <span style="display:inline-flex;align-items:center;gap:5px;background:#0F6CBD;padding:3px 9px;border-radius:6px;box-shadow:0 1px 2px rgba(15,108,189,.3)">
+                  <span style="font-family:'Cascadia Code',ui-monospace,Consolas,monospace;font-style:italic;font-size:10px;font-weight:800;color:#fff">fx</span>
+                  <span style="font-family:'Cascadia Code',ui-monospace,Consolas,monospace;font-size:12px;font-weight:600;color:#fff">3.6 kWh</span>
+                </span>
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;padding:10px 14px;border-top:1px solid #F3F2F1;font-size:11px;color:#8A8886">
+              <span style="display:inline-flex;align-items:center;gap:4px;color:#5B5FC7;font-weight:600"><span style="width:6px;height:6px;border-radius:50%;background:#5B5FC7"></span>工具</span>
+              <span style="color:#D2D0CE">·</span><span>新鲜 12m</span>
+              <span style="color:#D2D0CE">·</span><span style="background:#F0F0FA;color:#5B5FC7;padding:1px 6px;border-radius:10px;font-weight:600">↓ 3</span>
+            </div>
+          </div>
+        </div>
+        <div style="margin-top:18px">
+          <div style="font-size:10px;letter-spacing:.1em;color:#A19F9D;text-transform:uppercase;margin-bottom:6px">连线 · 类型着色 · 标签胶囊</div>
+          <svg width="100%" height="40" viewBox="0 0 290 40">
+            <path d="M6,20 C80,20 130,20 208,20" fill="none" stroke="#5B5FC7" stroke-width="2.4"/>
+            <rect x="116" y="8" width="50" height="22" rx="11" fill="#5B5FC7"/>
+            <text x="141" y="23" font-size="11" fill="#fff" text-anchor="middle" font-family="Segoe UI,system-ui" font-weight="600">供电</text>
+            <path d="M210,20 l-10,-5 v10 z" fill="#5B5FC7"/>
+            <circle cx="6" cy="20" r="3.5" fill="#5B5FC7"/>
+          </svg>
+        </div>
+        <div style="margin-top:14px;display:flex;flex-wrap:wrap;gap:7px">
+          <span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;padding:3px 9px;border-radius:6px;background:#107C10;color:#fff"><b>✓</b> 达标</span>
+          <span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;padding:3px 9px;border-radius:6px;background:#C19C00;color:#fff"><b>!</b> 告警</span>
+          <span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;padding:3px 9px;border-radius:6px;background:#C50F1F;color:#fff"><b>✕</b> 阻断</span>
+          <span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;padding:3px 9px;border-radius:6px;background:#8A6D00;color:#fff">◴ 陈旧</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- footer note -->
+  <div style="max-width:760px;margin-top:38px;font-size:13px;color:#6B6B6B;line-height:1.65">
+    四个类型（分系统 / 组件 / 接口 / 需求）各有类型色与图标；上面统一用 <span style="color:#5B5FC7;font-weight:600">分系统紫</span> 做示例。确认风格后，我会出：① 完整设计令牌表（亮/暗，CSS 变量）② 四类型 × 全状态（默认/悬停/选中/recomputing/blocked/stale/否决/只读）③ 连线规范 ④ fx 芯片 / 规则灯 / provenance 护照 / 陈旧标 小组件。
+  </div>
+
+</div>
+</x-dc>
+</body>
+</html>
