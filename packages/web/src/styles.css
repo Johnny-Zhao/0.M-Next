@@ -653,6 +653,47 @@ main {
   --dv-tab-border-radius: var(--mnext-radius-md);
   --dv-tab-divider-color: var(--mn-border);
   --dv-tabs-and-actions-container-background-color: var(--mn-surface-2);
+  background: var(--mn-surface);
+  color: var(--mn-ink);
+}
+
+.mnext-dockview-theme .dv-dockview,
+.mnext-dockview-theme .dv-grid-view,
+.mnext-dockview-theme .dv-branch-node,
+.mnext-dockview-theme .dv-groupview,
+.mnext-dockview-theme .dv-content-container,
+.mnext-dockview-theme .dv-view,
+.mnext-dockview-theme .dv-watermark-container {
+  background: var(--mn-surface);
+  color: var(--mn-ink);
+}
+
+.mnext-dockview-theme .dv-tabs-and-actions-container,
+.mnext-dockview-theme .dv-groupview-titlebar {
+  background: var(--mn-panel);
+  border-color: var(--mn-border);
+  color: var(--mn-ink-2);
+}
+
+.mnext-dockview-theme .dv-tab {
+  background: var(--mn-surface-2);
+  border-color: var(--mn-border);
+  color: var(--mn-ink-2);
+}
+
+.mnext-dockview-theme .dv-tab.dv-active-tab,
+.mnext-dockview-theme .dv-tab.dv-active-tab .dv-default-tab-content {
+  background: var(--mn-surface);
+  color: var(--mn-accent);
+}
+
+.mnext-dockview-theme .dv-default-tab-content,
+.mnext-dockview-theme .dv-icon {
+  color: inherit;
+}
+
+.mnext-dockview-theme .dv-separator-border {
+  background: var(--mn-border);
 }
 
 .object-node {
@@ -1109,17 +1150,17 @@ main {
 /* dock + tree + inspector chrome */
 .tree-panel,
 .inspector-panel {
-  background: var(--mnext-panel);
-  color: var(--mnext-ink);
+  background: var(--mn-surface);
+  color: var(--mn-ink);
 }
 
 .inspector-panel h2,
 .inspector-panel h3 {
-  color: var(--mnext-ink);
+  color: var(--mn-ink);
 }
 
 .inspector-section {
-  border-top: 1px solid var(--mnext-border);
+  border-top: 1px solid var(--mn-border);
 }
 
 /* 连线检查器(只读) */
@@ -1255,9 +1296,9 @@ main {
 .table-panel,
 .matrix-panel,
 .document-panel {
-  background: var(--mnext-panel);
+  background: var(--mn-surface);
   box-sizing: border-box;
-  color: var(--mnext-ink);
+  color: var(--mn-ink);
   height: 100%;
   overflow: auto;
   padding: 0.5rem 0.75rem;
@@ -1265,9 +1306,9 @@ main {
 
 /* 校验底栏 */
 .validate-panel {
-  background: var(--mnext-panel);
+  background: var(--mn-surface);
   box-sizing: border-box;
-  color: var(--mnext-ink);
+  color: var(--mn-ink);
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -1276,8 +1317,8 @@ main {
 
 .validate-panel-bar {
   align-items: center;
-  background: var(--mnext-panel);
-  border-bottom: 1px solid var(--mnext-border);
+  background: var(--mn-panel);
+  border-bottom: 1px solid var(--mn-border);
   display: flex;
   gap: 0.5rem;
   padding: 0.4rem 0.7rem;
