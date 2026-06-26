@@ -1,0 +1,739 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<style>
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;height:100%;}
+  body{overflow:hidden;}
+  input{font-family:inherit;}
+  ::-webkit-scrollbar{width:10px;height:10px;}
+  ::-webkit-scrollbar-thumb{background:#CFCCC9;border-radius:5px;border:2px solid #FAF9F8;}
+  ::-webkit-scrollbar-track{background:transparent;}
+  @keyframes mnspin{to{transform:rotate(360deg);}}
+  @keyframes mnpop{from{transform:translateY(8px) scale(.98)}to{transform:none}}
+  @keyframes mnfade{from{opacity:.4}to{opacity:1}}
+  @keyframes mnpulse{0%,100%{opacity:.55}50%{opacity:1}}
+  .mn{
+    --bg:#EEEDEB; --bg-1:#F3F2F0; --panel:#FAF9F8; --surface:#FFFFFF; --surface-2:#F4F3F1; --surface-3:#ECEAE7;
+    --border:#E6E3E1; --border-2:#CFCCC9; --border-3:#B7B4B0;
+    --ink:#242424; --ink-2:#57534F; --ink-3:#8A8886; --ink-4:#AEABA8;
+    --accent:#0F6CBD; --accent-2:#0A538F; --accent-d:#0A538F; --accent-bg:#EEF5FC; --accent-bd:#BAD7F2; --accent-ring:rgba(15,108,189,.26);
+    --ok:#107C10; --ok-bg:#E2F4E0; --ok-bd:#9BD49B;
+    --warn:#9A6700; --warn-bg:#FCF3D2; --warn-bd:#E7C766;
+    --bad:#C50F1F; --bad-bg:#FCE6E8; --bad-bd:#EBA9AF;
+    --grid:#E5E3DF;
+    --mono:'Cascadia Code','Cascadia Mono',ui-monospace,Consolas,'SF Mono',monospace;
+    --sans:'Segoe UI Variable','Segoe UI',system-ui,-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;
+  }
+  .mn[data-accent="cyan"]{--accent:#0E7C7B;--accent-2:#0A5A59;--accent-d:#0A5A59;--accent-bg:#E0F3F2;--accent-bd:#9BD4D2;--accent-ring:rgba(14,124,123,.26);}
+  .mn[data-accent="violet"]{--accent:#5B5FC7;--accent-2:#4549A0;--accent-d:#4549A0;--accent-bg:#EEEEFB;--accent-bd:#C4C6EE;--accent-ring:rgba(91,95,199,.28);}
+</style>
+</helmet>
+
+<div class="mn" data-accent="{{ accentName }}" style="position:relative;height:100vh;width:100%;background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:13px;-webkit-font-smoothing:antialiased;overflow:hidden">
+
+  <!-- ============ ① 登录 ============ -->
+  <sc-if value="{{ showLogin }}" hint-placeholder-val="{{ true }}">
+    <div data-screen-label="登录" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:radial-gradient(1100px 700px at 72% -12%,#E3EEF9 0%,rgba(238,237,235,0) 58%),radial-gradient(880px 580px at -2% 112%,#EAEFF6 0%,rgba(238,237,235,0) 55%),var(--bg)">
+      <div style="position:absolute;inset:0;background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);background-size:46px 46px;opacity:.5;pointer-events:none"></div>
+      <div style="position:relative;width:392px;background:linear-gradient(180deg,#FFFFFF,var(--panel));border:1px solid var(--border-2);border-radius:14px;box-shadow:0 18px 50px rgba(40,36,33,.16);padding:38px 36px 30px;animation:mnpop .3s ease">
+        <div style="display:flex;align-items:center;gap:11px;margin-bottom:7px">
+          <div style="width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg,var(--accent),var(--accent-d));display:flex;align-items:center;justify-content:center;color:#fff;font-family:var(--mono);font-weight:800;font-size:18px;box-shadow:0 4px 14px var(--accent-ring)">M</div>
+          <div style="font-size:22px;font-weight:700;letter-spacing:.02em">M-Next</div>
+        </div>
+        <div style="font-size:13px;color:var(--ink-3);margin-bottom:26px;letter-spacing:.02em">数据驱动的工程建模平台</div>
+        <div style="font-size:11px;color:var(--ink-3);margin-bottom:6px">账号</div>
+        <div style="display:flex;align-items:center;gap:9px;height:42px;padding:0 13px;background:var(--bg-1);border:1px solid var(--border-2);border-radius:9px;margin-bottom:15px;transition:border-color .14s" style-focus-within="border-color:var(--accent)">
+          <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="var(--ink-3)" stroke-width="1.5"><circle cx="8" cy="5" r="2.6"/><path d="M3 13.2c0-2.4 2.2-3.8 5-3.8s5 1.4 5 3.8"/></svg>
+          <input type="text" value="{{ loginUser }}" onChange="{{ onLoginUser }}" placeholder="姓名 / 工号" style="flex:1;border:none;outline:none;background:transparent;font-size:14px;color:var(--ink)" />
+        </div>
+        <div style="font-size:11px;color:var(--ink-3);margin-bottom:6px">密码</div>
+        <div style="display:flex;align-items:center;gap:9px;height:42px;padding:0 13px;background:var(--bg-1);border:1px solid var(--border-2);border-radius:9px;margin-bottom:24px;transition:border-color .14s" style-focus-within="border-color:var(--accent)">
+          <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="var(--ink-3)" stroke-width="1.5"><rect x="3.2" y="7" width="9.6" height="6.4" rx="1.6"/><path d="M5.4 7V5.2a2.6 2.6 0 015.2 0V7"/></svg>
+          <input type="password" value="{{ loginPass }}" onChange="{{ onLoginPass }}" placeholder="••••••••" style="flex:1;border:none;outline:none;background:transparent;font-size:14px;color:var(--ink);letter-spacing:.1em" />
+        </div>
+        <div onClick="{{ doLogin }}" style="display:flex;align-items:center;justify-content:center;gap:8px;height:44px;border-radius:9px;background:linear-gradient(135deg,var(--accent),var(--accent-d));color:#fff;font-size:14px;font-weight:600;cursor:pointer;box-shadow:0 6px 18px var(--accent-ring);transition:filter .14s" style-hover="filter:brightness(1.08)">
+          <sc-if value="{{ loginBusy }}" hint-placeholder-val="{{ false }}"><span style="display:inline-block;animation:mnspin .7s linear infinite">↻</span></sc-if>
+          进入
+        </div>
+        <div style="display:flex;align-items:center;gap:12px;margin:18px 0">
+          <div style="flex:1;height:1px;background:var(--border-2)"></div><span style="font-size:11px;color:var(--ink-4)">或</span><div style="flex:1;height:1px;background:var(--border-2)"></div>
+        </div>
+        <div onClick="{{ doLogin }}" style="display:flex;align-items:center;justify-content:center;gap:8px;height:42px;border-radius:9px;background:transparent;border:1px solid var(--border-2);color:var(--ink-2);font-size:13px;cursor:pointer;transition:border-color .14s,color .14s" style-hover="border-color:var(--accent);color:var(--accent)">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2.5" y="3" width="11" height="10" rx="2"/><path d="M2.5 6h11M5.5 9.5h3"/></svg>
+          企业 SSO 登录
+        </div>
+      </div>
+      <div style="position:absolute;bottom:22px;font-size:11px;color:var(--ink-4);letter-spacing:.04em">M-Next · 数据驱动的工程建模平台 · v2.6</div>
+    </div>
+  </sc-if>
+
+  <!-- ============ ② 项目列表 ============ -->
+  <sc-if value="{{ showProjects }}" hint-placeholder-val="{{ false }}">
+    <div data-screen-label="项目列表" style="position:absolute;inset:0;display:flex;flex-direction:column;background:var(--bg)">
+      <div style="display:flex;align-items:center;gap:14px;height:54px;padding:0 22px;border-bottom:1px solid var(--border);background:var(--panel);flex:none">
+        <div style="display:flex;align-items:center;gap:9px">
+          <div style="width:24px;height:24px;border-radius:6px;background:linear-gradient(135deg,var(--accent),var(--accent-d));display:flex;align-items:center;justify-content:center;color:#fff;font-family:var(--mono);font-weight:800;font-size:13px">M</div>
+          <span style="font-size:16px;font-weight:700;letter-spacing:.02em">M-Next</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;height:34px;padding:0 12px;width:340px;background:var(--bg-1);border:1px solid var(--border-2);border-radius:8px;margin-left:14px;transition:border-color .14s" style-focus-within="border-color:var(--accent)">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="var(--ink-3)" stroke-width="1.6"><circle cx="7" cy="7" r="4.5"/><path d="M11 11l3 3"/></svg>
+          <input type="text" value="{{ projQuery }}" onChange="{{ onProjQuery }}" placeholder="搜索项目 / 模块…" style="flex:1;border:none;outline:none;background:transparent;font-size:13px;color:var(--ink)" />
+        </div>
+        <div style="flex:1"></div>
+        <div onClick="{{ openNew }}" style="display:inline-flex;align-items:center;gap:7px;height:36px;padding:0 16px;border-radius:8px;background:linear-gradient(135deg,var(--accent),var(--accent-d));color:#fff;font-size:13px;font-weight:600;cursor:pointer;box-shadow:0 4px 14px var(--accent-ring);transition:filter .14s" style-hover="filter:brightness(1.08)">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M8 3v10M3 8h10"/></svg>新建项目
+        </div>
+        <div style="width:32px;height:32px;border-radius:50%;background:var(--surface-3);border:1px solid var(--border-2);display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--ink-2);font-weight:600">叶</div>
+      </div>
+
+      <div style="flex:1;overflow:auto;padding:26px 28px">
+        <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:18px">
+          <span style="font-size:15px;font-weight:600">我的项目</span>
+          <span style="font-family:var(--mono);font-size:12px;color:var(--ink-3)">{{ projCount }} 个</span>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:16px;max-width:1180px">
+          <sc-for list="{{ projects }}" as="p" hint-placeholder-count="3">
+            <div onClick="{{ p.onOpen }}" style="background:linear-gradient(180deg,var(--surface),var(--panel));border:1px solid var(--border-2);border-radius:12px;padding:17px 17px 14px;cursor:pointer;transition:border-color .14s,transform .14s,box-shadow .14s" style-hover="border-color:var(--accent-bd);transform:translateY(-2px);box-shadow:0 8px 22px rgba(40,36,33,.14)">
+              <div style="display:flex;align-items:flex-start;gap:10px;margin-bottom:14px">
+                <div style="{{ p.iconStyle }}">{{ p.iconEl }}</div>
+                <div style="flex:1;min-width:0">
+                  <div style="font-size:15px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ p.name }}</div>
+                  <div style="font-size:11px;color:var(--ink-3);margin-top:2px">我的角色 · {{ p.role }}</div>
+                </div>
+                <div style="display:flex;align-items:center;gap:5px;flex:none" title="{{ p.healthText }}">
+                  <span style="{{ p.dotStyle }}"></span>
+                </div>
+              </div>
+              <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px;min-height:22px">
+                <sc-for list="{{ p.tags }}" as="t" hint-placeholder-count="2">
+                  <span style="display:inline-flex;align-items:center;height:22px;padding:0 9px;border-radius:11px;background:var(--surface-2);border:1px solid var(--border-2);font-size:11px;color:var(--ink-2);white-space:nowrap">{{ t }}</span>
+                </sc-for>
+              </div>
+              <div style="display:flex;align-items:center;justify-content:space-between;padding-top:11px;border-top:1px solid var(--border)">
+                <span style="{{ p.healthChipStyle }}">{{ p.healthGlyph }} {{ p.healthText }}</span>
+                <span style="font-family:var(--mono);font-size:10.5px;color:var(--ink-4)">{{ p.modified }}</span>
+              </div>
+            </div>
+          </sc-for>
+          <div onClick="{{ openNew }}" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:9px;min-height:148px;border:1.5px dashed var(--border-3);border-radius:12px;color:var(--ink-3);cursor:pointer;transition:border-color .14s,color .14s" style-hover="border-color:var(--accent);color:var(--accent)">
+            <svg width="22" height="22" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 3v10M3 8h10"/></svg>
+            <span style="font-size:12px">新建项目</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- ============ ④ 工作台 ============ -->
+  <sc-if value="{{ showWorkbench }}" hint-placeholder-val="{{ false }}">
+    <div data-screen-label="工作台" style="position:absolute;inset:0;display:flex;flex-direction:column;background:var(--bg)">
+
+      <!-- toolbar -->
+      <div style="display:flex;align-items:center;gap:9px;height:48px;padding:0 14px;border-bottom:1px solid var(--border);background:var(--panel);flex:none;position:relative;z-index:45;overflow-x:auto">
+        <div onClick="{{ backToProjects }}" title="返回项目" style="display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 11px;border-radius:7px;background:var(--surface);border:1px solid var(--border-2);color:var(--ink-2);font-size:12px;cursor:pointer;flex:none;white-space:nowrap;transition:border-color .14s,color .14s" style-hover="border-color:var(--accent);color:var(--accent)">
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M9.5 3.5L5 8l4.5 4.5"/></svg>返回项目
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;padding-left:4px;flex:none">
+          <span style="width:7px;height:7px;border-radius:2px;background:var(--accent);flex:none"></span>
+          <span style="font-size:13px;font-weight:600;white-space:nowrap">样板户型 · 户型 #1</span>
+        </div>
+        <div style="width:1px;height:22px;background:var(--border-2);margin:0 4px"></div>
+        <span style="font-size:10px;color:var(--ink-4);letter-spacing:.08em;text-transform:uppercase;white-space:nowrap;flex:none">维度</span>
+        <div style="display:flex;gap:2px;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:3px;flex:none">
+          <sc-for list="{{ dims }}" as="d" hint-placeholder-count="4">
+            <div onClick="{{ d.onClick }}" title="{{ d.title }}" style="{{ d.style }}">{{ d.label }}</div>
+          </sc-for>
+        </div>
+        <div style="width:1px;height:22px;background:var(--border-2);margin:0 2px"></div>
+        <sc-for list="{{ editTools }}" as="t" hint-placeholder-count="6">
+          <sc-if value="{{ t.isSep }}" hint-placeholder-val="{{ false }}"><div style="width:1px;height:18px;background:var(--border-2);margin:0 2px"></div></sc-if>
+          <sc-if value="{{ t.isBtn }}" hint-placeholder-val="{{ true }}"><span onClick="{{ t.onClick }}" title="{{ t.title }}" style="{{ t.style }}" style-hover="{{ t.hover }}">{{ t.iconEl }}</span></sc-if>
+        </sc-for>
+        <div style="position:relative">
+          <span onClick="{{ toggleAlign }}" title="对齐与分布" style="{{ alignBtnStyle }}">{{ alignIconEl }}<svg width="9" height="9" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6l4 4 4-4"/></svg></span>
+          <sc-if value="{{ alignOpen }}" hint-placeholder-val="{{ false }}">
+            <div style="position:absolute;left:0;top:34px;width:178px;background:var(--surface);border:1px solid var(--border-2);border-radius:9px;box-shadow:0 12px 30px rgba(40,36,33,.18);padding:8px;z-index:40;animation:mnpop .1s ease">
+              <div style="font-size:10px;letter-spacing:.06em;color:var(--ink-3);text-transform:uppercase;margin-bottom:6px">对齐（选中 ≥2）</div>
+              <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:5px">
+                <sc-for list="{{ alignItems }}" as="a" hint-placeholder-count="6"><span onClick="{{ a.onClick }}" title="{{ a.title }}" style="{{ a.style }}" style-hover="border-color:var(--accent);color:var(--accent)">{{ a.iconEl }}</span></sc-for>
+              </div>
+              <div style="font-size:10px;letter-spacing:.06em;color:var(--ink-3);text-transform:uppercase;margin:9px 0 6px">分布（选中 ≥3）</div>
+              <div style="display:flex;gap:5px">
+                <sc-for list="{{ distItems }}" as="a" hint-placeholder-count="2"><span onClick="{{ a.onClick }}" title="{{ a.title }}" style="{{ a.style }}" style-hover="border-color:var(--accent);color:var(--accent)">{{ a.iconEl }}{{ a.label }}</span></sc-for>
+              </div>
+            </div>
+          </sc-if>
+        </div>
+        <sc-if value="{{ multiSel }}" hint-placeholder-val="{{ false }}"><span style="font-family:var(--mono);font-size:10px;color:var(--accent);background:var(--accent-bg);border:1px solid var(--accent-bd);border-radius:9px;padding:1px 7px;white-space:nowrap">已选 {{ selCount }}</span></sc-if>
+        <div style="flex:1"></div>
+        <div style="display:flex;gap:2px;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:3px">
+          <sc-for list="{{ views }}" as="v" hint-placeholder-count="5">
+            <div onClick="{{ v.onClick }}" title="{{ v.title }}" style="{{ v.style }}">{{ v.iconEl }}<span style="font-size:12px">{{ v.label }}</span></div>
+          </sc-for>
+        </div>
+        <div style="width:1px;height:22px;background:var(--border-2);margin:0 4px"></div>
+        <div onClick="{{ genDoc }}" style="display:inline-flex;align-items:center;gap:7px;height:32px;padding:0 13px;border-radius:7px;background:linear-gradient(135deg,var(--accent),var(--accent-d));color:#fff;font-size:12px;font-weight:600;cursor:pointer;box-shadow:0 4px 12px var(--accent-ring);transition:filter .14s;white-space:nowrap" style-hover="filter:brightness(1.08)">
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 2h5l3 3v9H4z"/><path d="M9 2v3h3M6 8.5h4M6 11h4"/></svg>生成文档
+        </div>
+      </div>
+
+      <div style="flex:1;display:flex;min-height:0">
+        <!-- LEFT: model tree -->
+        <sc-if value="{{ leftOpen }}" hint-placeholder-val="{{ true }}">
+          <div style="width:228px;flex:none;background:var(--panel);border-right:1px solid var(--border);display:flex;flex-direction:column;min-height:0">
+            <div style="display:flex;align-items:center;gap:7px;height:38px;padding:0 14px;border-bottom:1px solid var(--border);flex:none">
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="var(--ink-3)" stroke-width="1.6"><path d="M2.5 4h11M2.5 8h11M2.5 12h7"/></svg>
+              <span style="font-size:12px;font-weight:600;color:var(--ink-2)">模型树</span>
+            </div>
+            <div style="flex:1;overflow:auto;padding:8px 8px">
+              <div style="display:flex;align-items:center;gap:6px;padding:6px 8px;font-size:12px;color:var(--ink-2);font-weight:600">
+                <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 6l4 4 4-4"/></svg>户型 #1
+              </div>
+              <sc-for list="{{ tree }}" as="t" hint-placeholder-count="6">
+                <div onClick="{{ t.onClick }}" style="{{ t.rowStyle }}" style-hover="background:var(--surface-2)">
+                  <span style="{{ t.dotStyle }}"></span>
+                  <span style="flex:1;font-size:12.5px;color:{{ t.textColor }}">{{ t.name }}</span>
+                  <span style="font-family:var(--mono);font-size:10px;color:var(--ink-4)">{{ t.area }}㎡</span>
+                </div>
+              </sc-for>
+            </div>
+            <div style="padding:10px 14px;border-top:1px solid var(--border);font-size:10.5px;color:var(--ink-4);line-height:1.6">状态点 = 规则健康度<br/><span style="color:var(--bad)">●</span> 阻断 · <span style="color:var(--warn)">●</span> 警示 · <span style="color:var(--ok)">●</span> 达标</div>
+          </div>
+        </sc-if>
+
+        <!-- CENTER -->
+        <div style="flex:1;display:flex;flex-direction:column;min-width:0;min-height:0;position:relative">
+
+          <!-- PLAN -->
+          <sc-if value="{{ centerPlan }}" hint-placeholder-val="{{ true }}">
+            <div style="flex:1;overflow:auto;position:relative;background:var(--bg-1)">
+              <div style="position:absolute;inset:0;background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);background-size:24px 24px;opacity:.6"></div>
+              <div style="position:relative;padding:34px 40px;min-width:max-content">
+                <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+                  <span style="font-size:13px;font-weight:600;color:var(--ink)">户型平面 · {{ dimName }}视图</span>
+                  <span style="{{ dimHintStyle }}">{{ dimHint }}</span>
+                </div>
+                <div ref="{{ planRef }}" onMouseDown="{{ onPlanDown }}" onMouseMove="{{ onPlanMove }}" onMouseUp="{{ onPlanUp }}" onMouseLeave="{{ onPlanUp }}" style="position:relative;width:656px;height:444px;background:var(--surface);border:2px solid var(--border-3);border-radius:6px;box-shadow:inset 0 0 0 6px var(--bg-1)">
+                  <sc-for list="{{ rooms }}" as="r" hint-placeholder-count="6">
+                    <div onMouseDown="{{ r.onDown }}" style="{{ r.boxStyle }}" style-hover="filter:brightness(1.12)">
+                      <div style="display:flex;align-items:center;gap:6px">
+                        <span style="font-size:13px;font-weight:600;color:var(--ink)">{{ r.name }}</span>
+                      </div>
+                      <span style="position:absolute;top:9px;right:9px;{{ r.lightStyle }}" title="{{ r.lightText }}">{{ r.lightGlyph }}</span>
+                      <span style="{{ r.chipStyle }}">{{ r.chipText }}</span>
+                      <span style="position:absolute;bottom:9px;right:10px;font-family:var(--mono);font-size:9.5px;color:var(--ink-4)">{{ r.dimReadout }}</span>
+                    </div>
+                  </sc-for>
+                  <sc-if value="{{ marquee.show }}" hint-placeholder-val="{{ false }}"><div style="{{ marquee.style }}"></div></sc-if>
+                </div>
+                <div style="display:flex;gap:18px;margin-top:16px;font-size:11px;color:var(--ink-3)">
+                  <span style="display:inline-flex;align-items:center;gap:6px"><span style="width:9px;height:9px;border-radius:3px;background:var(--ok)"></span>达标</span>
+                  <span style="display:inline-flex;align-items:center;gap:6px"><span style="width:9px;height:9px;border-radius:3px;background:var(--warn)"></span>警示</span>
+                  <span style="display:inline-flex;align-items:center;gap:6px"><span style="width:9px;height:9px;border-radius:3px;background:var(--bad)"></span>阻断</span>
+                  <span style="margin-left:6px;color:var(--ink-4)">提示：拖拽房间可移动，Shift点选或空白处拖动框选多间；工具栏可复制/粘贴/回撤/对齐。</span>
+                </div>
+              </div>
+            </div>
+          </sc-if>
+
+          <!-- MATRIX -->
+          <sc-if value="{{ centerMatrix }}" hint-placeholder-val="{{ false }}">
+            <div style="flex:1;overflow:auto;background:var(--bg-1);padding:30px 36px">
+              <div style="font-size:13px;font-weight:600;margin-bottom:16px">规则矩阵 · 房间 × 校验项</div>
+              <div style="display:inline-block;border:1px solid var(--border-2);border-radius:10px;overflow:hidden;background:var(--panel)">
+                <div style="display:flex;border-bottom:1px solid var(--border)">
+                  <div style="width:120px;padding:11px 14px;font-size:11px;color:var(--ink-3);border-right:1px solid var(--border)">房间</div>
+                  <sc-for list="{{ matrixCols }}" as="c" hint-placeholder-count="4">
+                    <div style="width:104px;padding:11px 0;text-align:center;font-size:11px;color:var(--ink-3);border-right:1px solid var(--border)">{{ c }}</div>
+                  </sc-for>
+                </div>
+                <sc-for list="{{ matrixRows }}" as="row" hint-placeholder-count="6">
+                  <div onClick="{{ row.onClick }}" style="{{ row.rowStyle }}" style-hover="background:var(--surface-2)">
+                    <div style="width:120px;padding:11px 14px;display:flex;align-items:center;gap:7px;border-right:1px solid var(--border)"><span style="{{ row.dotStyle }}"></span><span style="font-size:12.5px;color:var(--ink-2)">{{ row.name }}</span></div>
+                    <sc-for list="{{ row.cells }}" as="cell" hint-placeholder-count="4">
+                      <div style="width:104px;padding:11px 0;text-align:center;border-right:1px solid var(--border)"><span style="{{ cell.style }}">{{ cell.glyph }}</span></div>
+                    </sc-for>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </sc-if>
+
+          <!-- DOC -->
+          <sc-if value="{{ centerDoc }}" hint-placeholder-val="{{ false }}">
+            <div style="flex:1;overflow:auto;background:var(--bg-1);padding:30px 0">
+              <div style="max-width:620px;margin:0 auto;background:var(--surface);border:1px solid var(--border-2);border-radius:12px;padding:38px 44px;box-shadow:0 12px 32px rgba(40,36,33,.12)">
+                <div style="font-size:11px;color:var(--accent);letter-spacing:.1em;text-transform:uppercase;margin-bottom:6px">自动生成 · 随模型实时更新</div>
+                <div style="font-size:22px;font-weight:700;margin-bottom:4px">样板户型 设计校核报告</div>
+                <div style="font-size:12px;color:var(--ink-3);margin-bottom:24px">户型 #1 · 共 {{ roomCount }} 个房间 · 生成于 {{ docTime }}</div>
+                <div style="height:1px;background:var(--border);margin-bottom:22px"></div>
+                <div style="font-size:14px;font-weight:600;margin-bottom:12px">1 · 校核结论</div>
+                <div style="font-size:13px;color:var(--ink-2);line-height:1.75;margin-bottom:8px">本户型共 {{ roomCount }} 个房间，其中 <span style="color:var(--bad);font-weight:600">{{ docBad }} 间存在阻断项</span>、<span style="color:var(--warn);font-weight:600">{{ docWarn }} 间存在警示项</span>、其余达标。</div>
+                <div style="font-size:13px;color:var(--ink-2);line-height:1.75;margin-bottom:24px">主要问题：次卧采光系数 {{ docNextDaylight }}% 低于 2% 限值（阻断）；次卧窗地比 {{ docNextWf }} 不足 0.11（警示）。建议增大次卧窗洞或调整朝向。</div>
+                <div style="font-size:14px;font-weight:600;margin-bottom:12px">2 · 房间指标汇总</div>
+                <div style="border:1px solid var(--border);border-radius:9px;overflow:hidden">
+                  <div style="display:flex;background:var(--surface-2);font-size:11px;color:var(--ink-3)">
+                    <div style="flex:1.4;padding:9px 13px">房间</div><div style="flex:1;padding:9px 13px">面积</div><div style="flex:1;padding:9px 13px">窗地比</div><div style="flex:1;padding:9px 13px">状态</div>
+                  </div>
+                  <sc-for list="{{ docRows }}" as="d" hint-placeholder-count="6">
+                    <div style="display:flex;border-top:1px solid var(--border);font-size:12.5px">
+                      <div style="flex:1.4;padding:9px 13px;color:var(--ink-2)">{{ d.name }}</div>
+                      <div style="flex:1;padding:9px 13px;font-family:var(--mono);color:var(--ink)">{{ d.area }}㎡</div>
+                      <div style="flex:1;padding:9px 13px;font-family:var(--mono);color:var(--ink)">{{ d.wf }}</div>
+                      <div style="flex:1;padding:9px 13px"><span style="{{ d.chipStyle }}">{{ d.statusText }}</span></div>
+                    </div>
+                  </sc-for>
+                </div>
+              </div>
+            </div>
+          </sc-if>
+
+        </div>
+
+        <!-- RIGHT: props / 校验 -->
+        <sc-if value="{{ rightOpen }}" hint-placeholder-val="{{ true }}">
+          <div style="width:306px;flex:none;background:var(--panel);border-left:1px solid var(--border);display:flex;flex-direction:column;min-height:0">
+            <div style="display:flex;align-items:center;gap:7px;height:38px;padding:0 14px;border-bottom:1px solid var(--border);flex:none">
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="var(--ink-3)" stroke-width="1.6"><path d="M3 3h10v10H3z"/><path d="M3 6.5h10M6.5 6.5V13"/></svg>
+              <span style="font-size:12px;font-weight:600;color:var(--ink-2)">属性 / 校验</span>
+            </div>
+            <div style="flex:1;overflow:auto">
+              <div style="padding:15px 15px 13px;border-bottom:1px solid var(--border)">
+                <div style="display:flex;align-items:center;gap:9px">
+                  <div style="{{ sel.iconStyle }}">{{ sel.iconEl }}</div>
+                  <div style="flex:1">
+                    <div style="font-size:15px;font-weight:600;color:var(--ink)">{{ sel.name }}</div>
+                    <div style="font-size:11px;color:var(--ink-3);margin-top:1px">已实例化 · 来源 {{ sel.source }}</div>
+                  </div>
+                  <span style="{{ sel.statusChipStyle }}">{{ sel.statusGlyph }} {{ sel.statusText }}</span>
+                </div>
+              </div>
+
+              <div style="padding:13px 15px;border-bottom:1px solid var(--border)">
+                <div style="font-size:10px;letter-spacing:.08em;color:var(--ink-3);text-transform:uppercase;margin-bottom:9px">校验</div>
+                <sc-for list="{{ sel.checks }}" as="c" hint-placeholder-count="3">
+                  <div style="display:flex;align-items:flex-start;gap:9px;padding:7px 0">
+                    <span style="{{ c.iconStyle }}">{{ c.glyph }}</span>
+                    <div style="flex:1">
+                      <div style="display:flex;align-items:center;gap:6px"><span style="font-size:12.5px;color:var(--ink-2);font-weight:500;white-space:nowrap">{{ c.label }}</span><span style="{{ c.levelStyle }}">{{ c.levelText }}</span></div>
+                      <div style="font-size:11px;color:var(--ink-3);margin-top:1px;line-height:1.45">{{ c.msg }}</div>
+                    </div>
+                  </div>
+                </sc-for>
+              </div>
+
+              <div style="padding:13px 15px;border-bottom:1px solid var(--border)">
+                <div style="font-size:10px;letter-spacing:.08em;color:var(--ink-3);text-transform:uppercase;margin-bottom:4px">字段 · 可编辑</div>
+                <div style="display:flex;align-items:center;gap:9px;padding:9px 0 5px">
+                  <span style="font-size:12.5px;color:var(--ink-2);flex:none;width:54px">宽</span>
+                  <input type="range" min="2" max="4.5" step="0.1" value="{{ sel.widthVal }}" onChange="{{ onWidth }}" onInput="{{ onWidth }}" style="flex:1;accent-color:var(--accent);height:4px" />
+                  <span style="font-family:var(--mono);font-size:12px;color:var(--accent);width:46px;text-align:right">{{ sel.widthVal }}m</span>
+                </div>
+                <sc-for list="{{ sel.fields }}" as="f" hint-placeholder-count="5">
+                  <div style="display:flex;align-items:center;gap:9px;padding:5px 0">
+                    <span style="flex:1;font-size:12.5px;color:var(--ink-2)">{{ f.label }}</span>
+                    <input type="number" value="{{ f.value }}" step="{{ f.step }}" onChange="{{ f.onChange }}" style="width:74px;font-family:var(--mono);font-size:12px;text-align:right;padding:5px 8px;border:1px solid var(--border-2);border-radius:6px;background:var(--bg-1);color:var(--ink)" style-focus="border-color:var(--accent);outline:none" />
+                    <span style="font-family:var(--mono);font-size:11px;color:var(--ink-3);width:30px">{{ f.unit }}</span>
+                  </div>
+                </sc-for>
+              </div>
+
+              <div style="padding:13px 15px">
+                <div style="display:flex;align-items:center;gap:6px;margin-bottom:9px">
+                  <span style="font-size:10px;letter-spacing:.08em;color:var(--ink-3);text-transform:uppercase">派生 · 只读</span>
+                  <span style="display:inline-flex;align-items:center;gap:3px;font-size:9px;color:var(--accent);background:var(--accent-bg);border:1px solid var(--accent-bd);border-radius:4px;padding:1px 6px">自动联动</span>
+                </div>
+                <sc-for list="{{ sel.derived }}" as="d" hint-placeholder-count="2">
+                  <div style="display:flex;align-items:center;justify-content:space-between;padding:9px 11px;background:var(--accent-bg);border:1px solid var(--accent-bd);border-radius:8px;margin-bottom:8px">
+                    <span style="display:inline-flex;align-items:center;gap:7px"><span style="font-family:var(--mono);font-style:italic;font-weight:800;font-size:10px;color:var(--accent)">fx</span><span style="font-size:12.5px;color:var(--ink-2)">{{ d.label }}</span></span>
+                    <span style="font-family:var(--mono);font-size:14px;font-weight:600;color:var(--accent-2)">{{ d.valueText }}</span>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </div>
+        </sc-if>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- ============ ③ 新建项目 modal ============ -->
+  <sc-if value="{{ newOpen }}" hint-placeholder-val="{{ false }}">
+    <div onMouseDown="{{ closeNew }}" style="position:absolute;inset:0;background:rgba(40,36,33,.42);backdrop-filter:blur(2px);display:flex;align-items:center;justify-content:center;z-index:60;animation:mnfade .16s ease">
+      <div onMouseDown="{{ stop }}" style="width:540px;background:linear-gradient(180deg,#FFFFFF,var(--panel));border:1px solid var(--border-2);border-radius:14px;box-shadow:0 26px 64px rgba(40,36,33,.26);overflow:hidden;animation:mnpop .22s ease">
+        <div style="display:flex;align-items:center;gap:10px;padding:18px 22px;border-bottom:1px solid var(--border)">
+          <span style="font-size:16px;font-weight:700">新建项目</span>
+          <span style="flex:1"></span>
+          <span onClick="{{ closeNew }}" style="display:inline-flex;color:var(--ink-3);cursor:pointer;padding:4px;border-radius:6px" style-hover="background:var(--surface-2);color:var(--ink)"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 4l8 8M12 4l-8 8"/></svg></span>
+        </div>
+        <div style="padding:20px 22px">
+          <div style="font-size:11px;color:var(--ink-3);margin-bottom:6px">项目名</div>
+          <input type="text" value="{{ newName }}" onChange="{{ onNewName }}" placeholder="例如：样板户型 B" style="width:100%;height:40px;padding:0 13px;background:var(--bg-1);border:1px solid var(--border-2);border-radius:9px;font-size:14px;color:var(--ink);margin-bottom:20px" style-focus="border-color:var(--accent);outline:none" />
+          <div style="font-size:11px;color:var(--ink-3);margin-bottom:9px">起步方式</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:18px">
+            <sc-for list="{{ startTypes }}" as="s" hint-placeholder-count="4">
+              <div onClick="{{ s.onClick }}" style="{{ s.cardStyle }}">
+                <div style="{{ s.iconStyle }}">{{ s.iconEl }}</div>
+                <div style="flex:1">
+                  <div style="font-size:13px;font-weight:600;color:var(--ink)">{{ s.name }}</div>
+                  <div style="font-size:11px;color:var(--ink-3);margin-top:1px">{{ s.desc }}</div>
+                </div>
+                <sc-if value="{{ s.checked }}" hint-placeholder-val="{{ false }}"><span style="color:var(--accent);font-size:14px">✓</span></sc-if>
+              </div>
+            </sc-for>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;padding:10px 12px;background:var(--accent-bg);border:1px solid var(--accent-bd);border-radius:9px;margin-bottom:20px">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="var(--accent)" stroke-width="1.5"><circle cx="8" cy="8" r="6"/><path d="M8 5v3.5M8 11h.01"/></svg>
+            <span style="font-size:11.5px;color:var(--ink-2)">进项目后能力随用随装。</span>
+          </div>
+          <div onClick="{{ createProject }}" style="display:flex;align-items:center;justify-content:center;gap:8px;height:44px;border-radius:9px;background:linear-gradient(135deg,var(--accent),var(--accent-d));color:#fff;font-size:14px;font-weight:600;cursor:pointer;box-shadow:0 6px 18px var(--accent-ring);transition:filter .14s" style-hover="filter:brightness(1.08)">创建并进入</div>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ alignOpen }}" hint-placeholder-val="{{ false }}">
+    <div onMouseDown="{{ closeAlign }}" style="position:absolute;inset:0;z-index:35"></div>
+  </sc-if>
+
+  <!-- toast -->
+  <sc-if value="{{ toast.show }}" hint-placeholder-val="{{ false }}">
+    <div style="position:absolute;bottom:26px;left:50%;transform:translateX(-50%);z-index:80;display:flex;align-items:center;gap:9px;padding:11px 18px;background:#2B2A28;border:1px solid #3A3938;border-radius:9px;box-shadow:0 10px 28px rgba(40,36,33,.32);font-size:13px;color:#F3F2F1;animation:mnpop .16s ease">
+      <span style="color:var(--accent)">●</span>{{ toast.msg }}
+    </div>
+  </sc-if>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1320,&quot;height&quot;:860},&quot;accent&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;azure&quot;,&quot;cyan&quot;,&quot;violet&quot;],&quot;default&quot;:&quot;azure&quot;,&quot;tsType&quot;:&quot;string&quot;}}">
+class Component extends DCLogic {
+  planRef = React.createRef();
+  state = {
+    screen: 'workbench',
+    loginUser: '叶工程师', loginPass: '••••••', loginBusy: false,
+    projQuery: '',
+    newOpen: false, newName: '', newType: 'interior',
+    dim: 'all', center: 'plan', leftOpen: true, rightOpen: true,
+    dim: 'all', center: 'plan', leftOpen: true, rightOpen: true,
+    selRoom: 'bed2', selRooms: ['bed2'],
+    past: [], future: [], clipboard: null, painter: null, drag: null, marquee: null, alignOpen: false,
+    toast: { show:false, msg:'' },
+    rooms: [
+      { id:'living', name:'客厅', x:336, y:216, w:308, h:216, len:6.8, wid:4.0, win:3.6, daylight:3.2, air:1.6, temp:22, source:'人工绘制' },
+      { id:'master', name:'主卧', x:12, y:12, w:212, h:196, len:4.2, wid:3.6, win:1.9, daylight:2.6, air:0.9, temp:22, source:'人工绘制' },
+      { id:'study', name:'书房', x:232, y:12, w:180, h:196, len:3.4, wid:3.0, win:1.3, daylight:2.3, air:1.3, temp:21, source:'人工绘制' },
+      { id:'bed2', name:'次卧', x:420, y:12, w:224, h:196, len:3.0, wid:3.0, win:0.8, daylight:1.5, air:1.0, temp:20, source:'人工绘制' },
+      { id:'kitchen', name:'厨房', x:12, y:216, w:180, h:216, len:3.2, wid:2.6, win:0.95, daylight:2.1, air:1.9, temp:24, source:'人工绘制' },
+      { id:'bath', name:'卫生间', x:200, y:216, w:128, h:216, len:2.6, wid:2.0, win:0.6, daylight:2.0, air:2.1, temp:23, source:'人工绘制' },
+    ],
+  };
+
+  RL = {
+    ok:  { color:'var(--ok)',  bg:'var(--ok-bg)',  bd:'var(--ok-bd)',  glyph:'✓', text:'达标' },
+    warn:{ color:'var(--warn)',bg:'var(--warn-bg)',bd:'var(--warn-bd)',glyph:'!', text:'警示' },
+    bad: { color:'var(--bad)', bg:'var(--bad-bg)', bd:'var(--bad-bd)', glyph:'✕', text:'阻断' },
+  };
+
+  componentDidMount(){
+    this._key=(e)=>{
+      if(this.state.screen!=='workbench') return;
+      const tag=(document.activeElement&&document.activeElement.tagName)||'';
+      if(tag==='INPUT'||tag==='TEXTAREA') return;
+      const mod=e.metaKey||e.ctrlKey;
+      if(mod&&/z/i.test(e.key)){ e.preventDefault(); e.shiftKey?this.redo():this.undo(); }
+      else if(mod&&/y/i.test(e.key)){ e.preventDefault(); this.redo(); }
+      else if(mod&&/c/i.test(e.key)){ e.preventDefault(); this.copySel(); }
+      else if(mod&&/v/i.test(e.key)){ e.preventDefault(); this.pasteClip(); }
+      else if(e.key==='Delete'||e.key==='Backspace'){ if(this.state.selRooms.length){ e.preventDefault(); this.deleteSel(); } }
+      else if(e.key==='Escape'){ this.setState({alignOpen:false, painter:null}); }
+    };
+    window.addEventListener('keydown', this._key);
+  }
+  componentWillUnmount(){ clearTimeout(this._t); clearTimeout(this._lt); window.removeEventListener('keydown', this._key); }
+  toast(msg){ this.setState({toast:{show:true,msg}}); clearTimeout(this._t); this._t=setTimeout(()=>this.setState(s=>({toast:{...s.toast,show:false}})),2000); }
+
+  // --- navigation ---
+  doLogin(){ if(this.state.loginBusy) return; this.setState({loginBusy:true}); clearTimeout(this._lt); this._lt=setTimeout(()=>this.setState({loginBusy:false, screen:'projects'}), 620); }
+  openProject(){ this.setState({screen:'workbench'}); }
+  gotoWorkbench(){ window.location.href = encodeURI('M-Next 工作台.dc.html'); }
+  backToProjects(){ window.location.href = encodeURI('M-Next 首页.dc.html'); }
+  openNew(){ this.setState({newOpen:true, newName:'', newType:'interior'}); }
+  closeNew(){ this.setState({newOpen:false}); }
+  createProject(){ if(this.state.newType==='interior'){ this.setState({newOpen:false, screen:'workbench'}); this.toast('已创建项目并进入工作台'); } else { window.location.href = encodeURI('M-Next 工作台.dc.html'); } }
+
+  // --- workbench ---
+  setDim(d){ this.setState({dim:d}); }
+  setCenter(c){ this.setState({center:c}); }
+  genDoc(){ this.setState({center:'doc'}); this.toast('已根据当前模型生成校核报告'); }
+  selectRoom(id){ this.setState({selRoom:id, selRooms:[id]}); }
+  setField(id, key, val){ const v=parseFloat(val); this.setState(s=>({ rooms:s.rooms.map(r=> r.id===id ? {...r, [key]: isNaN(v)?r[key]:v} : r) })); }
+
+  // --- editing toolset ---
+  ti(name){ const h=React.createElement; const c='currentColor'; const S=(ch,fill)=>h('svg',{width:14,height:14,viewBox:'0 0 16 16',fill:fill?c:'none',stroke:fill?'none':c,strokeWidth:1.6,strokeLinecap:'round',strokeLinejoin:'round',style:{display:'block'}},ch);
+    switch(name){
+      case 'undo': return S([h('path',{key:1,d:'M5 7H10a3 3 0 110 6H7'}),h('path',{key:2,d:'M5 7l2.5-2.5M5 7l2.5 2.5'})]);
+      case 'redo': return S([h('path',{key:1,d:'M11 7H6a3 3 0 100 6h3'}),h('path',{key:2,d:'M11 7L8.5 4.5M11 7l-2.5 2.5'})]);
+      case 'copy': return S([h('rect',{key:1,x:5.5,y:5.5,width:8,height:8,rx:1.3}),h('path',{key:2,d:'M3.5 10.5h-.5a1 1 0 01-1-1V3a1 1 0 011-1h6.5a1 1 0 011 1v.5'})]);
+      case 'paste': return S([h('rect',{key:1,x:3.5,y:3,width:9,height:11,rx:1.3}),h('path',{key:2,d:'M6 3V2.2h4V3'}),h('path',{key:3,d:'M6 7h4M6 9.5h4'})]);
+      case 'brush': return S([h('path',{key:1,d:'M12.6 3c.5.5.5 1.2 0 1.6L8.4 8.8 7.2 7.6 11.4 3.4c.4-.5 1.1-.5 1.6 0z'}),h('path',{key:2,d:'M6.6 8c1 0 1.5.7 1.5 1.6 0 1.4-1.3 2.6-3 2.6-.7 0-1.4-.2-1.9-.5.8-.4 1-1 1.2-1.8.2-1 .9-1.9 2.2-1.9z',fill:c,stroke:'none'})]);
+      case 'trash': return S([h('path',{key:1,d:'M3.5 4.5h9'}),h('path',{key:2,d:'M6 4.5V3h4v1.5'}),h('path',{key:3,d:'M5 4.5l.5 9h5l.5-9'})]);
+      case 'alignL': return S([h('path',{key:1,d:'M2.5 2.5v11'}),h('rect',{key:2,x:4,y:4,width:8,height:2.4,rx:.5,fill:c,stroke:'none'}),h('rect',{key:3,x:4,y:9.6,width:5,height:2.4,rx:.5,fill:c,stroke:'none'})]);
+      case 'alignR': return S([h('path',{key:1,d:'M13.5 2.5v11'}),h('rect',{key:2,x:4,y:4,width:8,height:2.4,rx:.5,fill:c,stroke:'none'}),h('rect',{key:3,x:7,y:9.6,width:5,height:2.4,rx:.5,fill:c,stroke:'none'})]);
+      case 'alignH': return S([h('path',{key:1,d:'M8 2.5v11'}),h('rect',{key:2,x:4,y:4,width:8,height:2.4,rx:.5,fill:c,stroke:'none'}),h('rect',{key:3,x:5.5,y:9.6,width:5,height:2.4,rx:.5,fill:c,stroke:'none'})]);
+      case 'alignT': return S([h('path',{key:1,d:'M2.5 2.5h11'}),h('rect',{key:2,x:4,y:4,width:2.4,height:8,rx:.5,fill:c,stroke:'none'}),h('rect',{key:3,x:9.6,y:4,width:2.4,height:5,rx:.5,fill:c,stroke:'none'})]);
+      case 'alignB': return S([h('path',{key:1,d:'M2.5 13.5h11'}),h('rect',{key:2,x:4,y:4,width:2.4,height:8,rx:.5,fill:c,stroke:'none'}),h('rect',{key:3,x:9.6,y:7,width:2.4,height:5,rx:.5,fill:c,stroke:'none'})]);
+      case 'alignV': return S([h('path',{key:1,d:'M2.5 8h11'}),h('rect',{key:2,x:4,y:4,width:2.4,height:8,rx:.5,fill:c,stroke:'none'}),h('rect',{key:3,x:9.6,y:5.5,width:2.4,height:5,rx:.5,fill:c,stroke:'none'})]);
+      case 'distH': return S([h('rect',{key:1,x:2,y:5,width:2.2,height:6,rx:.5,fill:c,stroke:'none'}),h('rect',{key:2,x:6.9,y:5,width:2.2,height:6,rx:.5,fill:c,stroke:'none'}),h('rect',{key:3,x:11.8,y:5,width:2.2,height:6,rx:.5,fill:c,stroke:'none'})]);
+      case 'distV': return S([h('rect',{key:1,x:5,y:2,width:6,height:2.2,rx:.5,fill:c,stroke:'none'}),h('rect',{key:2,x:5,y:6.9,width:6,height:2.2,rx:.5,fill:c,stroke:'none'}),h('rect',{key:3,x:5,y:11.8,width:6,height:2.2,rx:.5,fill:c,stroke:'none'})]);
+    }
+    return null;
+  }
+  snap(){ return { rooms:JSON.parse(JSON.stringify(this.state.rooms)) }; }
+  pushUndo(){ const sn=this.snap(); this.setState(s=>({past:[...s.past.slice(-49),sn],future:[]})); }
+  undo(){ if(!this.state.past.length){ this.toast('没有可撤销的操作'); return;} this.setState(s=>{ const prev=s.past[s.past.length-1]; return {rooms:prev.rooms, past:s.past.slice(0,-1), future:[...s.future,{rooms:s.rooms}]}; }); this.toast('已撤销'); }
+  redo(){ if(!this.state.future.length){ this.toast('没有可重做的操作'); return;} this.setState(s=>{ const nx=s.future[s.future.length-1]; return {rooms:nx.rooms, future:s.future.slice(0,-1), past:[...s.past,{rooms:s.rooms}]}; }); this.toast('已重做'); }
+  copySel(){ const rs=this.state.rooms.filter(r=>this.state.selRooms.includes(r.id)); if(!rs.length){ this.toast('未选择房间'); return;} this.setState({clipboard:JSON.parse(JSON.stringify(rs))}); this.toast('已复制 '+rs.length+' 间'); }
+  pasteClip(){ const cb=this.state.clipboard; if(!cb||!cb.length){ this.toast('剪贴板为空'); return;} this.pushUndo(); const ids=[]; const news=cb.map(r=>{ const id='r'+Math.random().toString(36).slice(2,6); ids.push(id); return {...JSON.parse(JSON.stringify(r)), id, name:r.name+' 副本', x:Math.max(0,Math.min(656-r.w, r.x+24)), y:Math.max(0,Math.min(444-r.h, r.y+24))}; }); this.setState(s=>({rooms:[...s.rooms,...news], selRooms:ids, selRoom:ids[ids.length-1]})); this.toast('已粘贴 '+news.length+' 间'); }
+  deleteSel(){ const ids=this.state.selRooms.slice(); if(!ids.length) return; this.pushUndo(); this.setState(s=>({rooms:s.rooms.filter(r=>!ids.includes(r.id)), selRooms:[], selRoom:null})); this.toast('已删除 '+ids.length+' 间'); }
+  startPainter(){ const r=this.state.rooms.find(x=>x.id===this.state.selRoom); if(!r){ this.toast('请先选中一间房间作为规格来源'); return;} this.setState({painter:{len:r.len,wid:r.wid,win:r.win,daylight:r.daylight,air:r.air,temp:r.temp,from:r.name}}); this.toast('规格刷：点击目标房间，应用「'+r.name+'」的尺寸/窗/采光/换气规格'); }
+  applyPainter(id){ const p=this.state.painter; if(!p) return; this.pushUndo(); const spec={len:p.len,wid:p.wid,win:p.win,daylight:p.daylight,air:p.air,temp:p.temp}; this.setState(s=>({rooms:s.rooms.map(r=> r.id===id?{...r,...spec}:r), painter:null, selRooms:[id], selRoom:id})); this.toast('已应用规格到目标房间'); }
+  toggleAlign(e){ e&&e.stopPropagation&&e.stopPropagation(); this.setState(s=>({alignOpen:!s.alignOpen})); }
+  alignRooms(mode){ const ids=this.state.selRooms; if(ids.length<2){ this.toast('请选择至少 2 间房间'); return;} this.pushUndo(); const rs=this.state.rooms.filter(r=>ids.includes(r.id)); const minX=Math.min.apply(null,rs.map(r=>r.x)), maxR=Math.max.apply(null,rs.map(r=>r.x+r.w)), avgCx=rs.reduce((a,r)=>a+r.x+r.w/2,0)/rs.length; const minY=Math.min.apply(null,rs.map(r=>r.y)), maxB=Math.max.apply(null,rs.map(r=>r.y+r.h)), avgCy=rs.reduce((a,r)=>a+r.y+r.h/2,0)/rs.length; const set=(fn)=>this.setState(s=>({rooms:s.rooms.map(r=>ids.includes(r.id)?{...r,...fn(r)}:r), alignOpen:false})); if(mode==='left')set(()=>({x:Math.round(minX)})); else if(mode==='right')set(r=>({x:Math.round(maxR-r.w)})); else if(mode==='hcenter')set(r=>({x:Math.round(avgCx-r.w/2)})); else if(mode==='top')set(()=>({y:Math.round(minY)})); else if(mode==='bottom')set(r=>({y:Math.round(maxB-r.h)})); else if(mode==='vcenter')set(r=>({y:Math.round(avgCy-r.h/2)})); this.toast('已对齐所选房间'); }
+  distributeRooms(ax){ const ids=this.state.selRooms; if(ids.length<3){ this.toast('请选择至少 3 间房间'); return;} this.pushUndo(); const key=ax==='h'?'x':'y', dim=ax==='h'?'w':'h'; const rs=this.state.rooms.filter(r=>ids.includes(r.id)).slice().sort((a,b)=>(a[key]+a[dim]/2)-(b[key]+b[dim]/2)); const firstC=rs[0][key]+rs[0][dim]/2, lastC=rs[rs.length-1][key]+rs[rs.length-1][dim]/2, step=(lastC-firstC)/(rs.length-1); const pos={}; rs.forEach((r,i)=>pos[r.id]=Math.round(firstC+step*i-r[dim]/2)); this.setState(s=>({rooms:s.rooms.map(r=>pos[r.id]!=null?{...r,[key]:pos[r.id]}:r), alignOpen:false})); this.toast('已均匀分布'); }
+  startRoomDrag(e,id){ if(e.button===2) return; e.stopPropagation(); if(this.state.painter){ this.applyPainter(id); return; } const multi=e.shiftKey||e.metaKey||e.ctrlKey; this.setState(s=>{ let ids; if(multi){ ids=s.selRooms.includes(id)?s.selRooms.filter(x=>x!==id):[...s.selRooms,id]; if(!ids.length) ids=[id]; } else { ids=(s.selRooms.includes(id)&&s.selRooms.length>1)?s.selRooms:[id]; } const rm={}; s.rooms.forEach(r=>rm[r.id]=r); const origins={}; ids.forEach(i=>{ if(rm[i]) origins[i]={x:rm[i].x,y:rm[i].y}; }); return { selRooms:ids, selRoom:id, drag:multi?null:{sx:e.clientX,sy:e.clientY,origins,moved:false,snap:{rooms:JSON.parse(JSON.stringify(s.rooms))}} }; }); }
+  onPlanDown(e){ if(e.button!==0) return; if(!this.planRef.current) return; const r=this.planRef.current.getBoundingClientRect(); const x=e.clientX-r.left,y=e.clientY-r.top; this.setState({marquee:{x0:x,y0:y,x1:x,y1:y}, selRooms:[], selRoom:null, alignOpen:false}); }
+  onPlanMove(e){ const m=this.state.marquee; if(m&&this.planRef.current){ const r=this.planRef.current.getBoundingClientRect(); this.setState({marquee:{...m,x1:e.clientX-r.left,y1:e.clientY-r.top}}); return; } const d=this.state.drag; if(d){ const dx=e.clientX-d.sx,dy=e.clientY-d.sy; this.setState(s=>({drag:s.drag?{...s.drag,moved:true}:null, rooms:s.rooms.map(rr=> d.origins[rr.id]?{...rr,x:Math.max(0,Math.min(656-rr.w,d.origins[rr.id].x+dx)),y:Math.max(0,Math.min(444-rr.h,d.origins[rr.id].y+dy))}:rr)})); } }
+  onPlanUp(){ const m=this.state.marquee; if(m){ const x0=Math.min(m.x0,m.x1),x1=Math.max(m.x0,m.x1),y0=Math.min(m.y0,m.y1),y1=Math.max(m.y0,m.y1); const moved=Math.abs(x1-x0)>4||Math.abs(y1-y0)>4; const hit=moved?this.state.rooms.filter(r=> r.x<x1&&(r.x+r.w)>x0&&r.y<y1&&(r.y+r.h)>y0).map(r=>r.id):[]; this.setState({marquee:null, selRooms:hit, selRoom:hit.length?hit[hit.length-1]:null}); if(hit.length>1) this.toast('框选 '+hit.length+' 间'); return; } const d=this.state.drag; if(d){ if(d.moved&&d.snap){ const sn=d.snap; this.setState(s=>({past:[...s.past.slice(-49),sn],future:[]})); } this.setState({drag:null}); } }
+
+  // --- rules ---
+  area(r){ return r.len * r.wid; }
+  wf(r){ return r.win / this.area(r); }
+  daylightRule(r){ return r.daylight>=2 ? 'ok' : 'bad'; }
+  wfRule(r){ const v=this.wf(r); return v>=0.11 ? 'ok' : v>=0.08 ? 'warn' : 'bad'; }
+  ventRule(r){ return r.air>=1.4 ? 'ok' : r.air>=0.85 ? 'warn' : 'bad'; }
+  worst(r){ const lv=[this.daylightRule(r), this.wfRule(r), this.ventRule(r)]; if(lv.includes('bad')) return 'bad'; if(lv.includes('warn')) return 'warn'; return 'ok'; }
+
+  dimLevel(r, dim){
+    if(dim==='light') return r.daylight>=2.5 ? 'ok' : r.daylight>=2.0 ? 'warn' : 'bad';
+    if(dim==='wind')  return r.air>=1.4 ? 'ok' : r.air>=1.0 ? 'warn' : 'bad';
+    if(dim==='heat'){ const dv=Math.abs(r.temp-22); return dv<=1 ? 'ok' : dv<=2.5 ? 'warn' : 'bad'; }
+    return this.worst(r);
+  }
+
+  fmt(n, d){ return Number(n).toFixed(d==null?1:d); }
+
+  icon(kind, color){
+    const h=React.createElement; const p={width:15,height:15,viewBox:'0 0 16 16',fill:'none',stroke:color||'currentColor',strokeWidth:1.6,style:{display:'block'}};
+    if(kind==='interior') return h('svg',p,h('path',{key:1,d:'M2.5 7.5L8 3l5.5 4.5'}),h('path',{key:2,d:'M4 6.5v6h8v-6'}),h('path',{key:3,d:'M7 12.5v-3h2v3'}));
+    if(kind==='system') return h('svg',p,h('rect',{key:1,x:2.5,y:3,width:11,height:4,rx:1}),h('rect',{key:2,x:2.5,y:9,width:11,height:4,rx:1}));
+    if(kind==='scheme') return h('svg',p,h('path',{key:1,d:'M4 2h5l3 3v9H4z'}),h('path',{key:2,d:'M9 2v3h3'}));
+    if(kind==='blank') return h('svg',p,h('rect',{key:1,x:3,y:3,width:10,height:10,rx:2,strokeDasharray:'2.5 2'}));
+    if(kind==='sat') return h('svg',p,h('circle',{key:1,cx:8,cy:8,r:2.4}),h('path',{key:2,d:'M3 3l2.5 2.5M13 3l-2.5 2.5M3 13l2.5-2.5M13 13l-2.5-2.5'}));
+    if(kind==='room') return h('svg',{width:14,height:14,viewBox:'0 0 16 16',fill:'none',stroke:color||'currentColor',strokeWidth:1.6,style:{display:'block'}},h('rect',{key:1,x:3,y:3,width:10,height:10,rx:1.5}));
+    return null;
+  }
+
+  renderVals(){
+    const S=this.state;
+    const accent = 'var(--accent)';
+
+    // projects
+    const projDefs=[
+      { id:'sat', name:'卫星X总体', icon:'sat', role:'总体负责人', tags:['系统工程','功率分析'], health:'warn', modified:'12 分钟前' },
+      { id:'scheme', name:'技术方案A', icon:'scheme', role:'评审员', tags:['技术方案','选材'], health:'ok', modified:'2 小时前' },
+      { id:'interior', name:'样板户型', icon:'interior', role:'设计师', tags:['室内设计','选材'], health:'bad', modified:'昨天' },
+    ];
+    const q=(S.projQuery||'').trim();
+    const projects=projDefs.filter(p=> !q || (p.name+ p.tags.join('')).indexOf(q)>=0).map(p=>{
+      const rl=this.RL[p.health];
+      return { name:p.name, role:p.role, tags:p.tags, modified:p.modified,
+        iconEl:this.icon(p.icon, accent), iconStyle:{width:'38px',height:'38px',borderRadius:'9px',background:'var(--surface-2)',border:'1px solid var(--border-2)',display:'flex',alignItems:'center',justifyContent:'center',flex:'none',color:accent},
+        dotStyle:{width:'10px',height:'10px',borderRadius:'50%',background:rl.color,boxShadow:'0 0 0 3px '+rl.bg, animation: p.health==='bad'?'mnpulse 1.6s infinite':'none'},
+        healthGlyph:rl.glyph, healthText:rl.text,
+        healthChipStyle:{display:'inline-flex',alignItems:'center',gap:'4px',fontSize:'11px',fontWeight:600,padding:'2px 8px',borderRadius:'7px',background:rl.bg,color:rl.color,border:'1px solid '+rl.bd,whiteSpace:'nowrap'},
+        onOpen:()=> p.id==='interior' ? this.openProject() : this.gotoWorkbench() };
+    });
+
+    // start types
+    const stDefs=[
+      { id:'interior', name:'室内设计', desc:'户型 / 房间建模', icon:'interior' },
+      { id:'system', name:'系统工程', desc:'分系统 / 接口', icon:'system' },
+      { id:'scheme', name:'技术方案', desc:'方案 / 论证', icon:'scheme' },
+      { id:'blank', name:'空项目', desc:'从零开始', icon:'blank' },
+    ];
+    const startTypes=stDefs.map(s=>{ const on=S.newType===s.id;
+      return { name:s.name, desc:s.desc, checked:on, iconEl:this.icon(s.icon, on?accent:'var(--ink-3)'),
+        iconStyle:{width:'34px',height:'34px',borderRadius:'8px',background: on?'var(--accent-bg)':'var(--surface-2)',border:'1px solid '+(on?'var(--accent-bd)':'var(--border-2)'),display:'flex',alignItems:'center',justifyContent:'center',flex:'none'},
+        cardStyle:{display:'flex',alignItems:'center',gap:'11px',padding:'12px 13px',borderRadius:'10px',cursor:'pointer',background: on?'var(--accent-bg)':'var(--surface)',border:'1px solid '+(on?accent:'var(--border-2)'),transition:'border-color .12s'},
+        onClick:()=>this.setState({newType:s.id}) }; });
+
+    // dimensions
+    const dimDefs=[['all','全部','按规则健康度着色'],['wind','风','按换气量着色'],['heat','热','按设计温度偏差着色'],['light','光','按采光质量着色']];
+    const dims=dimDefs.map(([k,lb,ti])=>({ label:lb, title:ti, onClick:()=>this.setDim(k),
+      style:{display:'flex',alignItems:'center',padding:'0 13px',height:'26px',fontSize:'12.5px',cursor:'pointer',borderRadius:'6px',fontWeight:S.dim===k?600:400,whiteSpace:'nowrap',
+        background:S.dim===k?'var(--surface)':'transparent', color:S.dim===k?accent:'var(--ink-2)', boxShadow:S.dim===k?'0 1px 2px rgba(40,36,33,.16)':'none'} }));
+    const dimNameMap={all:'全部',wind:'通风',heat:'热工',light:'采光'};
+    const dimHintMap={all:'按规则健康度',wind:'按换气量 m³/h·㎡',heat:'按 |温度−22℃| 偏差',light:'按采光系数 %'};
+
+    // views
+    const viewDefs=[
+      ['plan','图','plan','户型画布'],
+      ['tree','模型树','tree','左侧模型树'],
+      ['props','属性/校验','props','右侧属性面板'],
+      ['matrix','矩阵','matrix','规则矩阵'],
+      ['doc','文档','doc','生成文档'],
+    ];
+    const isViewActive=(id)=>{ if(id==='plan') return S.center==='plan'; if(id==='matrix') return S.center==='matrix'; if(id==='doc') return S.center==='doc'; if(id==='tree') return S.leftOpen; if(id==='props') return S.rightOpen; };
+    const viewIcon=(id,color)=>{ const h=React.createElement; const p={width:14,height:14,viewBox:'0 0 16 16',fill:'none',stroke:color,strokeWidth:1.6,style:{display:'block'}};
+      if(id==='plan') return h('svg',p,h('rect',{key:1,x:2.5,y:2.5,width:11,height:11,rx:1.5}),h('path',{key:2,d:'M2.5 9.5h6M8.5 2.5v11'}));
+      if(id==='tree') return h('svg',p,h('path',{key:1,d:'M3 4h10M3 8h10M3 12h6'}));
+      if(id==='props') return h('svg',p,h('rect',{key:1,x:2.5,y:2.5,width:11,height:11,rx:1.5}),h('path',{key:2,d:'M9.5 2.5v11'}));
+      if(id==='matrix') return h('svg',p,h('rect',{key:1,x:2.5,y:2.5,width:11,height:11,rx:1.5}),h('path',{key:2,d:'M2.5 6.5h11M2.5 10.5h11M6.5 2.5v11M10.5 2.5v11'}));
+      if(id==='doc') return h('svg',p,h('path',{key:1,d:'M4 2h5l3 3v9H4z'}),h('path',{key:2,d:'M6 7.5h4M6 10h4'}));
+      return null; };
+    const views=viewDefs.map(([id,lb,act,ti])=>{ const on=isViewActive(id);
+      return { label:lb, title:ti, iconEl:viewIcon(id, on?accent:'var(--ink-2)'),
+        style:{display:'inline-flex',alignItems:'center',gap:'5px',padding:'0 10px',height:'26px',borderRadius:'6px',cursor:'pointer',whiteSpace:'nowrap',fontWeight:on?600:400,
+          background:on?'var(--surface)':'transparent', color:on?accent:'var(--ink-2)', boxShadow:on?'0 1px 2px rgba(40,36,33,.16)':'none'},
+        onClick:()=>{ if(id==='tree') this.setState(s=>({leftOpen:!s.leftOpen})); else if(id==='props') this.setState(s=>({rightOpen:!s.rightOpen})); else this.setCenter(act); } }; });
+
+    // rooms VM
+    const dimColor={ ok:'var(--ok)', warn:'var(--warn)', bad:'var(--bad)' };
+    const rooms=S.rooms.map(r=>{
+      const lvl=this.dimLevel(r, S.dim);
+      const wrule=this.worst(r);
+      const rl=this.RL[wrule];
+      const isSel=S.selRooms.includes(r.id);
+      const col=dimColor[lvl];
+      const area=this.area(r), wf=this.wf(r);
+      let chipText, dimReadout;
+      if(S.dim==='light'){ chipText='采光 '+this.fmt(r.daylight,1)+'%'; dimReadout='采光 '+this.fmt(r.daylight,1)+'%'; }
+      else if(S.dim==='wind'){ chipText='换气 '+this.fmt(r.air,1); dimReadout='换气 '+this.fmt(r.air,1); }
+      else if(S.dim==='heat'){ chipText=this.fmt(r.temp,0)+'℃'; dimReadout='设计 '+this.fmt(r.temp,0)+'℃'; }
+      else { chipText='面积 '+this.fmt(area,0)+'㎡'; dimReadout='窗地比 '+this.fmt(wf,2); }
+      return {
+        name:r.name, onDown:(e)=>this.startRoomDrag(e, r.id),
+        boxStyle:{position:'absolute', left:r.x+'px', top:r.y+'px', width:r.w+'px', height:r.h+'px',
+          background:'color-mix(in srgb,'+col+' 14%, var(--surface))', border:'1.5px solid '+(isSel?accent:'color-mix(in srgb,'+col+' 55%, var(--border-2))'),
+          boxShadow: isSel?'inset 0 0 0 1px '+accent+', 0 0 0 3px var(--accent-ring)':'none',
+          borderRadius:'7px', padding:'9px 11px', cursor:(S.drag?'grabbing':'grab'), transition:'border-color .14s,background .2s,box-shadow .14s', overflow:'hidden'},
+        lightGlyph:rl.glyph, lightText:rl.text,
+        lightStyle:{display:'inline-flex',alignItems:'center',justifyContent:'center',width:'18px',height:'18px',borderRadius:'50%',background:rl.bg,color:rl.color,border:'1px solid '+rl.bd,fontFamily:'var(--mono)',fontSize:'10px',fontWeight:800,flex:'none'},
+        chipText,
+        chipStyle:{position:'absolute',left:'11px',bottom:'9px',display:'inline-flex',alignItems:'center',height:'21px',padding:'0 9px',borderRadius:'11px',background:'var(--bg-1)',border:'1px solid var(--border-2)',fontFamily:'var(--mono)',fontSize:'11px',color:'var(--ink-2)',whiteSpace:'nowrap'},
+        dimReadout: S.dim==='all'?dimReadout:'',
+      };
+    });
+
+    // tree
+    const tree=S.rooms.map(r=>{ const w=this.worst(r); const rl=this.RL[w]; const isSel=r.id===S.selRoom;
+      return { name:r.name, area:this.fmt(this.area(r),0), textColor: isSel?accent:'var(--ink-2)',
+        dotStyle:{width:'8px',height:'8px',borderRadius:'50%',background:rl.color,flex:'none'},
+        rowStyle:{display:'flex',alignItems:'center',gap:'8px',padding:'7px 8px',borderRadius:'6px',cursor:'pointer',background:isSel?'var(--accent-bg)':'transparent'},
+        onClick:()=>this.selectRoom(r.id) }; });
+
+    // selection panel
+    const sr=S.rooms.find(r=>r.id===S.selRoom) || S.rooms[0];
+    const area=this.area(sr), wf=this.wf(sr);
+    const dRule=this.daylightRule(sr), wRule=this.wfRule(sr), vRule=this.ventRule(sr);
+    const worstRule=this.worst(sr); const wrl=this.RL[worstRule];
+    const ckMsg={
+      daylight: dRule==='ok'?'采光系数满足 ≥2% 要求。':'采光系数 '+this.fmt(sr.daylight,1)+'% 低于 2% 限值，禁止交付。',
+      wf: wRule==='ok'?'窗地比满足 ≥0.11。': wRule==='warn'?'窗地比 '+this.fmt(wf,2)+' 低于推荐值 0.11。':'窗地比 '+this.fmt(wf,2)+' 严重不足。',
+      vent: vRule==='ok'?'换气量满足要求。': vRule==='warn'?'换气量 '+this.fmt(sr.air,1)+' 偏低，建议加强通风。':'换气量严重不足。',
+    };
+    const mkCheck=(label,rule,msg)=>{ const rl=this.RL[rule]; return { label, glyph:rl.glyph, msg,
+      iconStyle:{display:'inline-flex',alignItems:'center',justifyContent:'center',width:'19px',height:'19px',borderRadius:'50%',background:rl.bg,color:rl.color,border:'1px solid '+rl.bd,fontFamily:'var(--mono)',fontSize:'10px',fontWeight:800,flex:'none',marginTop:'1px'},
+      levelText:rl.text, levelStyle:{fontSize:'10px',fontWeight:600,color:rl.color,background:rl.bg,border:'1px solid '+rl.bd,borderRadius:'5px',padding:'0 6px',whiteSpace:'nowrap',flex:'none'} }; };
+    const sel={
+      name:sr.name, source:sr.source,
+      iconEl:this.icon('room', accent), iconStyle:{width:'34px',height:'34px',borderRadius:'8px',background:'var(--surface-2)',border:'1px solid var(--border-2)',display:'flex',alignItems:'center',justifyContent:'center',flex:'none',color:accent},
+      statusGlyph:wrl.glyph, statusText:wrl.text,
+      statusChipStyle:{display:'inline-flex',alignItems:'center',gap:'4px',fontSize:'11px',fontWeight:600,padding:'3px 9px',borderRadius:'9px',background:wrl.bg,color:wrl.color,border:'1px solid '+wrl.bd,flex:'none',whiteSpace:'nowrap'},
+      checks:[ mkCheck('采光', dRule, ckMsg.daylight), mkCheck('窗地比', wRule, ckMsg.wf), mkCheck('通风', vRule, ckMsg.vent) ],
+      widthVal:this.fmt(sr.wid,1),
+      fields:[
+        { label:'长', value:this.fmt(sr.len,1), step:'0.1', unit:'m', onChange:(e)=>this.setField(sr.id,'len',e.target.value) },
+        { label:'窗面积', value:this.fmt(sr.win,2), step:'0.05', unit:'㎡', onChange:(e)=>this.setField(sr.id,'win',e.target.value) },
+        { label:'采光系数', value:this.fmt(sr.daylight,1), step:'0.1', unit:'%', onChange:(e)=>this.setField(sr.id,'daylight',e.target.value) },
+        { label:'换气', value:this.fmt(sr.air,1), step:'0.1', unit:'', onChange:(e)=>this.setField(sr.id,'air',e.target.value) },
+        { label:'设计温度', value:this.fmt(sr.temp,0), step:'1', unit:'℃', onChange:(e)=>this.setField(sr.id,'temp',e.target.value) },
+      ],
+      derived:[
+        { label:'面积', valueText:this.fmt(area,1)+' ㎡' },
+        { label:'窗地比', valueText:this.fmt(wf,2) },
+      ],
+    };
+
+    // matrix
+    const matrixCols=['采光','窗地比','通风','整体'];
+    const matrixRows=S.rooms.map(r=>{ const w=this.worst(r); const rlw=this.RL[w];
+      const cellOf=(rule)=>{ const rl=this.RL[rule]; return { glyph:rl.glyph, style:{display:'inline-flex',alignItems:'center',justifyContent:'center',width:'22px',height:'22px',borderRadius:'50%',background:rl.bg,color:rl.color,border:'1px solid '+rl.bd,fontFamily:'var(--mono)',fontSize:'10px',fontWeight:800} }; };
+      return { name:r.name, onClick:()=>this.selectRoom(r.id),
+        dotStyle:{width:'8px',height:'8px',borderRadius:'50%',background:rlw.color,flex:'none'},
+        rowStyle:{display:'flex',borderTop:'1px solid var(--border)',cursor:'pointer',background:r.id===S.selRoom?'var(--accent-bg)':'transparent'},
+        cells:[cellOf(this.daylightRule(r)), cellOf(this.wfRule(r)), cellOf(this.ventRule(r)), cellOf(w)] }; });
+
+    // doc
+    const docRows=S.rooms.map(r=>{ const w=this.worst(r); const rl=this.RL[w];
+      return { name:r.name, area:this.fmt(this.area(r),1), wf:this.fmt(this.wf(r),2), statusText:rl.text,
+        chipStyle:{display:'inline-flex',alignItems:'center',fontSize:'10.5px',fontWeight:600,padding:'1px 7px',borderRadius:'6px',background:rl.bg,color:rl.color,border:'1px solid '+rl.bd} }; });
+    const docBad=S.rooms.filter(r=>this.worst(r)==='bad').length;
+    const docWarn=S.rooms.filter(r=>this.worst(r)==='warn').length;
+    const bed2=S.rooms.find(r=>r.id==='bed2');
+
+    // editing toolset VM
+    const selCount=S.selRooms.length;
+    const clip=(S.clipboard&&S.clipboard.length)||0;
+    const tbtn=(en,active)=>({display:'inline-flex',alignItems:'center',justifyContent:'center',width:'27px',height:'26px',borderRadius:'6px',cursor:en?'pointer':'default',color:active?accent:(en?'var(--ink-2)':'var(--ink-4)'),background:active?'var(--accent-bg)':'transparent',border:'1px solid '+(active?'var(--accent-bd)':'transparent'),opacity:en?1:0.4});
+    const thov=(en)=> en?'background:var(--surface-2)':'background:transparent';
+    const mkT=(name,title,en,fn,active)=>({isBtn:true,isSep:false,title,iconEl:this.ti(name),style:tbtn(en,active),hover:thov(en),onClick:en?fn:(()=>{})});
+    const editTools=[ mkT('undo','撤销 (⌘Z)',S.past.length>0,()=>this.undo()), mkT('redo','重做 (⇧⌘Z)',S.future.length>0,()=>this.redo()), {isBtn:false,isSep:true}, mkT('copy','复制 (⌘C)',selCount>0,()=>this.copySel()), mkT('paste','粘贴 (⌘V)',clip>0,()=>this.pasteClip()), mkT('brush','规格刷（把所选房间的尺寸/窗规格刷到目标）',selCount>0,()=>this.startPainter(),!!S.painter), mkT('trash','删除 (⌫)',selCount>0,()=>this.deleteSel()) ];
+    const abtn={display:'inline-flex',alignItems:'center',justifyContent:'center',height:'28px',borderRadius:'6px',cursor:'pointer',color:'var(--ink-2)',background:'var(--surface-2)',border:'1px solid var(--border-2)'};
+    const alignItemsVM=[['left','左对齐','alignL'],['hcenter','水平居中','alignH'],['right','右对齐','alignR'],['top','顶对齐','alignT'],['vcenter','垂直居中','alignV'],['bottom','底对齐','alignB']].map(([m,t,ic])=>({title:t,iconEl:this.ti(ic),style:abtn,onClick:()=>this.alignRooms(m)}));
+    const distItemsVM=[['h','横向分布','distH'],['v','纵向分布','distV']].map(([ax,t,ic])=>({title:t,label:t,iconEl:this.ti(ic),style:{display:'inline-flex',alignItems:'center',gap:'6px',flex:1,justifyContent:'center',height:'28px',borderRadius:'6px',cursor:'pointer',fontSize:'11px',color:'var(--ink-2)',background:'var(--surface-2)',border:'1px solid var(--border-2)'},onClick:()=>this.distributeRooms(ax)}));
+    const alignBtnStyle={display:'inline-flex',alignItems:'center',gap:'3px',height:'28px',padding:'0 7px',borderRadius:'6px',cursor:'pointer',color:S.alignOpen?accent:'var(--ink-2)',background:S.alignOpen?'var(--accent-bg)':'transparent',border:'1px solid '+(S.alignOpen?'var(--accent-bd)':'var(--border-2)')};
+    const mq=S.marquee;
+    const marquee = mq? {show:true, style:{position:'absolute',left:Math.min(mq.x0,mq.x1)+'px',top:Math.min(mq.y0,mq.y1)+'px',width:Math.abs(mq.x1-mq.x0)+'px',height:Math.abs(mq.y1-mq.y0)+'px',background:'var(--accent-ring)',border:'1px solid '+accent,borderRadius:'3px',pointerEvents:'none',zIndex:5}} : {show:false,style:{}};
+
+    return {
+      accent,
+      accentName: this.props.accent || 'azure',
+      showLogin:S.screen==='login', showProjects:S.screen==='projects', showWorkbench:S.screen==='workbench',
+      loginUser:S.loginUser, loginPass:S.loginPass, loginBusy:S.loginBusy,
+      onLoginUser:(e)=>this.setState({loginUser:e.target.value}), onLoginPass:(e)=>this.setState({loginPass:e.target.value}),
+      doLogin:()=>this.doLogin(),
+      projQuery:S.projQuery, onProjQuery:(e)=>this.setState({projQuery:e.target.value}), projects, projCount:projects.length,
+      openNew:()=>this.openNew(), backToProjects:()=>this.backToProjects(),
+      newOpen:S.newOpen, closeNew:()=>this.closeNew(), stop:(e)=>e.stopPropagation(),
+      newName:S.newName, onNewName:(e)=>this.setState({newName:e.target.value}), startTypes, createProject:()=>this.createProject(),
+      dims, views, dimName:dimNameMap[S.dim], dimHint:dimHintMap[S.dim],
+      dimHintStyle:{fontSize:'11px',color:'var(--ink-3)',background:'var(--surface-2)',border:'1px solid var(--border-2)',borderRadius:'6px',padding:'2px 9px'},
+      leftOpen:S.leftOpen, rightOpen:S.rightOpen,
+      centerPlan:S.center==='plan', centerMatrix:S.center==='matrix', centerDoc:S.center==='doc',
+      genDoc:()=>this.genDoc(),
+      rooms, tree, sel,
+      editTools, alignItems:alignItemsVM, distItems:distItemsVM, alignBtnStyle, alignIconEl:this.ti('alignL'),
+      alignOpen:S.alignOpen, toggleAlign:(e)=>this.toggleAlign(e), closeAlign:()=>this.setState({alignOpen:false}),
+      multiSel:selCount>1, selCount,
+      planRef:this.planRef, onPlanDown:(e)=>this.onPlanDown(e), onPlanMove:(e)=>this.onPlanMove(e), onPlanUp:()=>this.onPlanUp(), marquee,
+      onWidth:(e)=>this.setField(sr.id,'wid',e.target.value),
+      matrixCols, matrixRows,
+      docRows, docBad, docWarn, roomCount:S.rooms.length, docTime:'刚刚',
+      docNextDaylight:this.fmt(bed2.daylight,1), docNextWf:this.fmt(this.wf(bed2),2),
+      toast:S.toast,
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;height:100%;}
+  body{overflow:hidden;}
+  input{font-family:inherit;}
+  ::-webkit-scrollbar{width:10px;height:10px;}
+  ::-webkit-scrollbar-thumb{background:var(--border-2);border-radius:5px;border:2px solid var(--panel);}
+  ::-webkit-scrollbar-track{background:transparent;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  @keyframes shimmer{0%{background-position:-380px 0}100%{background-position:380px 0}}
+  .mn-app{
+    --bg:#EEEDEB; --panel:#FAF9F8; --surface:#FFFFFF; --surface-2:#F4F3F1; --canvas:#F3F2F0;
+    --ink:#242424; --ink-2:#57534F; --ink-3:#8A8886; --ink-4:#B3B0AD;
+    --border:#E6E3E1; --border-2:#CFCCC9; --border-strong:#BBB8B4;
+    --accent:#0F6CBD; --accent-2:#0A538F; --accent-bg:#EEF5FC; --accent-bd:#BAD7F2; --accent-ring:rgba(15,108,189,.32);
+    --ok:#0E700E; --ok-d:#107C10; --ok-bg:#E2F4E0; --ok-bd:#9BD49B;
+    --warn:#8A5A00; --warn-d:#B98900; --warn-bg:#FCF3D2; --warn-bd:#E7C766;
+    --block:#B10E1C; --block-d:#C50F1F; --block-bg:#FCE6E8; --block-bd:#EBA9AF;
+    --t-subsystem:#5B5FC7; --t-component:#0E7C7B; --t-interface:#B146C2; --t-requirement:#CA5010;
+    --shimmer:linear-gradient(90deg,var(--surface-2) 0px,var(--border) 180px,var(--surface-2) 380px);
+    --mono:'Cascadia Code','Cascadia Mono',ui-monospace,Consolas,'SF Mono',monospace;
+    --sans:'Segoe UI Variable','Segoe UI',system-ui,-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;
+  }
+  .mn-app[data-theme="dark"]{
+    --bg:#1A1A1A; --panel:#242322; --surface:#2C2B2A; --surface-2:#333130; --canvas:#1F1E1D;
+    --ink:#F3F2F1; --ink-2:#C8C6C4; --ink-3:#979593; --ink-4:#6B6A68;
+    --border:#3A3938; --border-2:#4A4847; --border-strong:#5C5A58;
+    --accent:#479EF5; --accent-2:#7DBAF7; --accent-bg:#10283C; --accent-bd:#2A4B68; --accent-ring:rgba(71,158,245,.42);
+    --ok:#73C173; --ok-d:#57AE57; --ok-bg:#15300F; --ok-bd:#2E5E2A;
+    --warn:#E6C45C; --warn-d:#C9A227; --warn-bg:#332B0C; --warn-bd:#5A4E1F;
+    --block:#FF9AA4; --block-d:#EC6B76; --block-bg:#3A171A; --block-bd:#6E2B31;
+    --t-subsystem:#9EA2F0; --t-component:#4FD0CF; --t-interface:#DB8FE0; --t-requirement:#F1894F;
+    --shimmer:linear-gradient(90deg,var(--surface-2) 0px,var(--border) 180px,var(--surface-2) 380px);
+  }
+</style>
+</helmet>
+
+<div class="mn-app" data-theme="{{ theme }}" style="position:relative;height:100vh;background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:13px;-webkit-font-smoothing:antialiased;overflow:hidden">
+
+  <!-- ===================== LOGIN ===================== -->
+  <sc-if value="{{ isLogin }}" hint-placeholder-val="{{ true }}">
+    <div style="position:absolute;inset:0;display:flex">
+      <!-- brand panel -->
+      <div style="width:46%;flex:none;background:linear-gradient(150deg,var(--accent-2),var(--accent));position:relative;overflow:hidden;display:flex;flex-direction:column;justify-content:space-between;padding:48px 52px;color:#fff">
+        <div style="display:flex;align-items:center;gap:11px">
+          <div style="width:34px;height:34px;border-radius:8px;background:rgba(255,255,255,.16);display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-weight:800;font-size:18px;backdrop-filter:blur(4px)">M</div>
+          <div>
+            <div style="font-weight:600;font-size:17px;letter-spacing:.01em">M-Next</div>
+            <div style="font-family:var(--mono);font-size:10px;letter-spacing:.34em;opacity:.85">DATA HUB</div>
+          </div>
+        </div>
+        <div>
+          <div style="font-size:30px;font-weight:600;line-height:1.32;letter-spacing:-.01em;max-width:420px">结构化建模 ·<br/>实时校验 · 可信溯源</div>
+          <div style="font-size:14px;line-height:1.7;opacity:.82;margin-top:18px;max-width:400px">以插件实例化工作空间，在图 / 表 / 文本间编辑同一模型，规则与派生实时联动。</div>
+        </div>
+        <div style="display:flex;gap:26px;font-size:12px;opacity:.78">
+          <span>分系统</span><span>·</span><span>组件</span><span>·</span><span>接口</span><span>·</span><span>需求</span>
+        </div>
+        <svg width="340" height="340" viewBox="0 0 340 340" style="position:absolute;right:-70px;bottom:-60px;opacity:.13" fill="none" stroke="#fff" stroke-width="2">
+          <rect x="40" y="40" width="90" height="46" rx="6"/><rect x="210" y="40" width="90" height="46" rx="6"/>
+          <rect x="120" y="170" width="90" height="46" rx="6"/><rect x="20" y="260" width="90" height="46" rx="6"/>
+          <path d="M130 63h80M165 86v84M165 216v22h-55v22M255 86v84h-45"/>
+        </svg>
+      </div>
+      <!-- form -->
+      <div style="flex:1;display:flex;align-items:center;justify-content:center;padding:40px">
+        <div style="width:340px">
+          <div style="font-size:22px;font-weight:600;margin-bottom:5px">登录到工作台</div>
+          <div style="font-size:13px;color:var(--ink-3);margin-bottom:26px">使用企业分配的账号登录（不开放注册）</div>
+
+          <sc-if value="{{ login.error }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;align-items:center;gap:8px;padding:9px 12px;background:var(--block-bg);border:1px solid var(--block-bd);border-radius:5px;margin-bottom:16px;font-size:12px;color:var(--block)">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="8" cy="8" r="6"/><path d="M8 5v3.5M8 11h.01"/></svg>
+              账号或密码错误，请重试。
+            </div>
+          </sc-if>
+
+          <div style="font-size:12px;color:var(--ink-2);margin-bottom:5px">账号</div>
+          <input type="text" value="{{ login.user }}" onChange="{{ login.onUser }}" placeholder="actor-id / 邮箱" style="{{ login.userStyle }}" style-focus="border-color:var(--accent);outline:none" />
+          <div style="font-size:12px;color:var(--ink-2);margin:14px 0 5px">密码</div>
+          <input type="password" value="{{ login.pass }}" onChange="{{ login.onPass }}" placeholder="••••••••" style="{{ login.passStyle }}" style-focus="border-color:var(--accent);outline:none" />
+
+          <div style="display:flex;align-items:center;justify-content:space-between;margin:16px 0 20px">
+            <span onClick="{{ login.onRemember }}" style="display:inline-flex;align-items:center;gap:7px;cursor:pointer;font-size:12px;color:var(--ink-2)">
+              <span style="{{ login.checkStyle }}">{{ login.checkGlyph }}</span>记住我
+            </span>
+            <span style="font-size:12px;color:var(--accent);cursor:pointer">忘记密码？</span>
+          </div>
+
+          <div onClick="{{ login.onSubmit }}" style="{{ login.btnStyle }}">
+            <sc-if value="{{ login.loading }}" hint-placeholder-val="{{ false }}"><span style="display:inline-block;animation:spin .7s linear infinite">↻</span></sc-if>
+            <span>{{ login.btnLabel }}</span>
+          </div>
+
+          <div style="display:flex;align-items:center;gap:12px;margin:20px 0;color:var(--ink-4);font-size:11px">
+            <div style="flex:1;height:1px;background:var(--border)"></div>或<div style="flex:1;height:1px;background:var(--border)"></div>
+          </div>
+
+          <div style="position:relative;display:flex;align-items:center;justify-content:center;gap:8px;height:40px;border:1px solid var(--border-2);border-radius:6px;font-size:13px;color:var(--ink-3);background:var(--surface-2);cursor:not-allowed">
+            <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="3" width="12" height="10" rx="2"/><path d="M2 6h12"/></svg>
+            SSO / 企业登录
+            <span style="position:absolute;right:10px;font-size:9px;font-weight:600;color:var(--warn);background:var(--warn-bg);border:1px solid var(--warn-bd);border-radius:10px;padding:1px 7px;white-space:nowrap">待接入</span>
+          </div>
+          <div style="font-size:11px;color:var(--ink-4);text-align:center;margin-top:14px;line-height:1.6">真实认证 / SSO / 组织尚未打通，当前仅 actor-id 占位。</div>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- ===================== APP SHELL ===================== -->
+  <sc-if value="{{ inApp }}" hint-placeholder-val="{{ false }}">
+    <div style="display:flex;flex-direction:column;height:100vh">
+      <!-- top bar -->
+      <div style="display:flex;align-items:center;gap:14px;height:48px;padding:0 16px;background:var(--panel);border-bottom:1px solid var(--border);flex:none">
+        <div style="display:flex;align-items:center;gap:9px">
+          <div style="width:24px;height:24px;border-radius:6px;background:var(--accent);display:flex;align-items:center;justify-content:center;color:#fff;font-family:var(--mono);font-weight:800;font-size:13px">M</div>
+          <span style="font-weight:600;font-size:14px">M-Next</span>
+          <span style="font-family:var(--mono);font-size:9px;letter-spacing:.3em;color:var(--ink-3);border-left:1px solid var(--border-2);padding-left:9px">DATA HUB</span>
+        </div>
+        <div style="flex:1"></div>
+        <div onClick="{{ toggleTheme }}" style="display:flex;align-items:center;gap:5px;height:30px;padding:0 11px;background:var(--surface);border:1px solid var(--border-2);border-radius:5px;cursor:pointer;font-size:12px;color:var(--ink-2);white-space:nowrap" style-hover="border-color:var(--accent)">
+          <span style="font-family:var(--mono);font-size:12px">{{ themeIcon }}</span>{{ themeLabel }}
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;height:30px;padding:0 5px 0 11px;background:var(--surface);border:1px solid var(--border-2);border-radius:16px">
+          <span style="font-size:12px;color:var(--ink-2);white-space:nowrap">叶工程师</span>
+          <span style="{{ adminBadgeStyle }}">ADMIN</span>
+          <div style="width:24px;height:24px;border-radius:50%;background:var(--t-subsystem);color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600">叶</div>
+        </div>
+      </div>
+
+      <div style="flex:1;display:flex;min-height:0">
+        <!-- left rail -->
+        <div style="width:208px;flex:none;background:var(--panel);border-right:1px solid var(--border);padding:14px 10px;display:flex;flex-direction:column;gap:3px">
+          <div style="font-size:10px;letter-spacing:.1em;color:var(--ink-3);text-transform:uppercase;padding:4px 10px 8px">工作区</div>
+          <sc-for list="{{ nav }}" as="i" hint-placeholder-count="2">
+            <div onClick="{{ i.onClick }}" style="{{ i.style }}">
+              <span style="display:inline-flex;align-items:center">{{ i.icon }}</span>
+              <span style="flex:1">{{ i.label }}</span>
+              <sc-if value="{{ i.hasCount }}" hint-placeholder-val="{{ false }}"><span style="font-family:var(--mono);font-size:10px;color:var(--ink-3);background:var(--surface-2);border-radius:8px;padding:0 6px">{{ i.count }}</span></sc-if>
+            </div>
+          </sc-for>
+          <div style="flex:1"></div>
+          <div onClick="{{ logout }}" style="display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:5px;font-size:13px;color:var(--ink-3);cursor:pointer" style-hover="background:var(--surface-2);color:var(--ink-2)">
+            <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M6 2H3v12h3M10 11l3-3-3-3M13 8H6"/></svg>退出登录
+          </div>
+        </div>
+
+        <!-- content -->
+        <div style="flex:1;display:flex;flex-direction:column;min-width:0;min-height:0;overflow:auto;background:var(--bg)">
+
+          <!-- ===== PROJECTS ===== -->
+          <sc-if value="{{ isProjects }}" hint-placeholder-val="{{ true }}">
+            <div style="padding:26px 32px;max-width:1160px;width:100%">
+              <div style="display:flex;align-items:flex-end;gap:16px;margin-bottom:22px">
+                <div style="flex:1">
+                  <div style="font-size:22px;font-weight:600">项目</div>
+                  <div style="font-size:13px;color:var(--ink-3);margin-top:3px">每个项目是一套基于插件实例化的工作空间</div>
+                </div>
+                <div style="display:flex;align-items:center;gap:7px;height:34px;padding:0 11px;background:var(--surface);border:1px solid var(--border-2);border-radius:6px;width:230px;color:var(--ink-3)">
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="7" cy="7" r="4.5"/><path d="M11 11l3 3"/></svg>
+                  <input type="text" value="{{ proj.query }}" onChange="{{ proj.onQuery }}" placeholder="搜索项目…" style="flex:1;border:none;outline:none;background:transparent;font-size:13px;color:var(--ink)" />
+                </div>
+                <div onClick="{{ proj.openWizard }}" style="display:inline-flex;align-items:center;gap:7px;height:34px;padding:0 16px;background:var(--accent);color:#fff;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;white-space:nowrap" style-hover="background:var(--accent-2)">
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M8 3v10M3 8h10"/></svg>新建项目
+                </div>
+              </div>
+
+              <!-- filter chips -->
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:20px">
+                <span style="font-size:12px;color:var(--ink-3)">按插件：</span>
+                <sc-for list="{{ proj.filters }}" as="f" hint-placeholder-count="4">
+                  <span onClick="{{ f.onClick }}" style="{{ f.style }}">{{ f.label }}</span>
+                </sc-for>
+              </div>
+
+              <!-- DEFAULT grid -->
+              <sc-if value="{{ proj.showGrid }}" hint-placeholder-val="{{ true }}">
+                <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(296px,1fr));gap:16px">
+                  <sc-for list="{{ proj.cards }}" as="c" hint-placeholder-count="6">
+                    <div onClick="{{ c.onOpen }}" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;cursor:pointer;transition:box-shadow .12s,border-color .12s" style-hover="border-color:var(--accent);box-shadow:0 6px 18px rgba(0,0,0,.10)">
+                      <div style="display:flex;align-items:flex-start;gap:10px;margin-bottom:14px;min-width:0">
+                        <span style="{{ c.iconBox }}">{{ c.icon }}</span>
+                        <div style="flex:1;min-width:0">
+                          <div style="font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ c.name }}</div>
+                          <div style="font-size:11px;color:var(--ink-3);margin-top:2px">{{ c.plugin }}</div>
+                        </div>
+                        <span style="{{ c.roleStyle }}">{{ c.role }}</span>
+                      </div>
+                      <div style="display:flex;align-items:center;gap:10px;padding-top:12px;border-top:1px solid var(--border)">
+                        <span style="font-size:11px;color:var(--ink-3)">{{ c.updated }}</span>
+                        <span style="flex:1"></span>
+                        <sc-if value="{{ c.hasBlock }}" hint-placeholder-val="{{ false }}"><span style="display:inline-flex;align-items:center;gap:3px;font-size:11px;font-weight:600;color:var(--block)"><span style="width:6px;height:6px;border-radius:50%;background:var(--block-d)"></span>{{ c.blocks }} 红线</span></sc-if>
+                        <sc-if value="{{ c.hasWarn }}" hint-placeholder-val="{{ false }}"><span style="display:inline-flex;align-items:center;gap:3px;font-size:11px;font-weight:600;color:var(--warn)"><span style="width:6px;height:6px;border-radius:50%;background:var(--warn-d)"></span>{{ c.warns }} 告警</span></sc-if>
+                        <sc-if value="{{ c.clean }}" hint-placeholder-val="{{ false }}"><span style="display:inline-flex;align-items:center;gap:3px;font-size:11px;color:var(--ok)">✓ 无红线</span></sc-if>
+                      </div>
+                    </div>
+                  </sc-for>
+                </div>
+              </sc-if>
+
+              <!-- LOADING skeleton -->
+              <sc-if value="{{ proj.showLoading }}" hint-placeholder-val="{{ false }}">
+                <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(296px,1fr));gap:16px">
+                  <sc-for list="{{ skeletons }}" as="s" hint-placeholder-count="6">
+                    <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px">
+                      <div style="display:flex;gap:10px;margin-bottom:16px"><div style="width:34px;height:34px;border-radius:7px;background:var(--shimmer);background-size:760px;animation:shimmer 1.3s infinite linear"></div><div style="flex:1"><div style="height:13px;width:70%;border-radius:4px;background:var(--shimmer);background-size:760px;animation:shimmer 1.3s infinite linear"></div><div style="height:10px;width:45%;margin-top:8px;border-radius:4px;background:var(--shimmer);background-size:760px;animation:shimmer 1.3s infinite linear"></div></div></div>
+                      <div style="height:10px;width:100%;border-radius:4px;background:var(--shimmer);background-size:760px;animation:shimmer 1.3s infinite linear;border-top:none;margin-top:14px"></div>
+                    </div>
+                  </sc-for>
+                </div>
+              </sc-if>
+
+              <!-- EMPTY -->
+              <sc-if value="{{ proj.showEmpty }}" hint-placeholder-val="{{ false }}">
+                <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:64px 0;text-align:center">
+                  <svg width="76" height="76" viewBox="0 0 76 76" fill="none" stroke="var(--ink-4)" stroke-width="2" style="margin-bottom:18px"><rect x="12" y="20" width="30" height="18" rx="3"/><rect x="46" y="20" width="18" height="18" rx="3"/><rect x="24" y="48" width="30" height="14" rx="3"/><path d="M27 38v6h12v4M55 38v6h-9"/></svg>
+                  <div style="font-size:16px;font-weight:600;margin-bottom:6px">还没有项目</div>
+                  <div style="font-size:13px;color:var(--ink-3);max-width:330px;line-height:1.6;margin-bottom:20px">新建一个项目，选择领域插件即可实例化工作空间，开始建模。</div>
+                  <div onClick="{{ proj.openWizard }}" style="display:inline-flex;align-items:center;gap:7px;height:36px;padding:0 18px;background:var(--accent);color:#fff;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer" style-hover="background:var(--accent-2)">
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M8 3v10M3 8h10"/></svg>新建项目
+                  </div>
+                </div>
+              </sc-if>
+
+              <!-- ERROR -->
+              <sc-if value="{{ proj.showError }}" hint-placeholder-val="{{ false }}">
+                <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:64px 0;text-align:center">
+                  <div style="width:56px;height:56px;border-radius:50%;background:var(--block-bg);border:1px solid var(--block-bd);display:flex;align-items:center;justify-content:center;margin-bottom:16px;color:var(--block)"><svg width="26" height="26" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="8" cy="8" r="6"/><path d="M8 5v3.5M8 11h.01"/></svg></div>
+                  <div style="font-size:16px;font-weight:600;margin-bottom:6px">加载失败</div>
+                  <div style="font-size:13px;color:var(--ink-3);margin-bottom:20px">无法连接到工作空间服务，请检查网络后重试。</div>
+                  <div onClick="{{ proj.retry }}" style="display:inline-flex;align-items:center;gap:7px;height:34px;padding:0 16px;background:var(--surface);border:1px solid var(--border-2);border-radius:6px;font-size:13px;cursor:pointer;color:var(--ink-2)" style-hover="border-color:var(--accent)"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M13 8a5 5 0 11-1.5-3.5M13 2v3h-3"/></svg>重试</div>
+                </div>
+              </sc-if>
+
+              <!-- DENIED -->
+              <sc-if value="{{ proj.showDenied }}" hint-placeholder-val="{{ false }}">
+                <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:64px 0;text-align:center">
+                  <div style="width:56px;height:56px;border-radius:50%;background:var(--surface-2);border:1px solid var(--border-2);display:flex;align-items:center;justify-content:center;margin-bottom:16px;color:var(--ink-3)"><svg width="24" height="24" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="7" width="10" height="6" rx="1.5"/><path d="M5 7V5a3 3 0 016 0v2"/></svg></div>
+                  <div style="font-size:16px;font-weight:600;margin-bottom:6px">无访问权限</div>
+                  <div style="font-size:13px;color:var(--ink-3);max-width:340px;line-height:1.6">你的角色（VIEWER）无权浏览此组织的项目列表。请联系管理员提升权限。</div>
+                </div>
+              </sc-if>
+            </div>
+          </sc-if>
+
+          <!-- ===== PLUGIN LIBRARY ===== -->
+          <sc-if value="{{ isPlugins }}" hint-placeholder-val="{{ false }}">
+            <div style="padding:26px 32px;max-width:1000px;width:100%">
+              <div style="display:flex;align-items:flex-end;gap:16px;margin-bottom:22px">
+                <div style="flex:1">
+                  <div style="font-size:22px;font-weight:600">插件 / 模板库</div>
+                  <div style="font-size:13px;color:var(--ink-3);margin-top:3px">插件 = 领域 profile：一套类型 / 字段 / 关系 / 规则 / 图元库</div>
+                </div>
+                <div onClick="{{ plugImport }}" style="display:inline-flex;align-items:center;gap:7px;height:34px;padding:0 15px;background:var(--accent);color:#fff;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;white-space:nowrap" style-hover="background:var(--accent-2)">
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M8 2v8M5 7l3 3 3-3M3 13h10"/></svg>安装 / 导入插件
+                </div>
+              </div>
+
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:18px">
+                <div style="display:flex;align-items:center;gap:7px;height:32px;padding:0 11px;background:var(--surface);border:1px solid var(--border-2);border-radius:6px;width:220px;color:var(--ink-3)">
+                  <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="7" cy="7" r="4.5"/><path d="M11 11l3 3"/></svg>
+                  <input type="text" value="{{ plug.query }}" onChange="{{ plug.onQuery }}" placeholder="搜索插件…" style="flex:1;border:none;outline:none;background:transparent;font-size:12px;color:var(--ink)" />
+                </div>
+                <span style="flex:1"></span>
+                <sc-for list="{{ plug.cats }}" as="c" hint-placeholder-count="4">
+                  <span onClick="{{ c.onClick }}" style="{{ c.style }}">{{ c.label }}</span>
+                </sc-for>
+              </div>
+
+              <div style="display:flex;flex-direction:column;gap:10px">
+                <sc-for list="{{ plug.list }}" as="p" hint-placeholder-count="4">
+                  <div style="display:flex;align-items:center;gap:14px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px 16px">
+                    <span style="{{ p.iconBox }}">{{ p.icon }}</span>
+                    <div style="flex:1;min-width:0">
+                      <div style="display:flex;align-items:center;gap:8px">
+                        <span style="font-size:14px;font-weight:600">{{ p.name }}</span>
+                        <span style="font-size:10px;color:var(--ink-3);background:var(--surface-2);border-radius:3px;padding:1px 6px">{{ p.cat }}</span>
+                        <sc-if value="{{ p.builtin }}" hint-placeholder-val="{{ false }}"><span style="font-size:10px;color:var(--accent);background:var(--accent-bg);border:1px solid var(--accent-bd);border-radius:3px;padding:1px 6px">内置</span></sc-if>
+                      </div>
+                      <div style="font-size:12px;color:var(--ink-3);margin-top:3px">{{ p.desc }}</div>
+                      <div style="display:flex;gap:14px;margin-top:7px;font-family:var(--mono);font-size:10px;color:var(--ink-4)">
+                        <span>{{ p.types }} 类型</span><span>{{ p.rules }} 规则</span><span>{{ p.stencils }} 图元</span>
+                      </div>
+                    </div>
+                    <span style="font-size:12px;color:var(--ink-3);cursor:pointer;padding:0 4px" style-hover="color:var(--accent)">查看</span>
+                    <div onClick="{{ p.onToggle }}" title="启用 / 停用" style="{{ p.switchTrack }}"><div style="{{ p.switchKnob }}"></div></div>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </sc-if>
+
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- ===================== WIZARD OVERLAY ===================== -->
+  <sc-if value="{{ wizard.open }}" hint-placeholder-val="{{ false }}">
+    <div style="position:absolute;inset:0;background:rgba(0,0,0,.34);z-index:50;display:flex;align-items:center;justify-content:center;padding:40px">
+      <div style="width:760px;max-height:100%;background:var(--surface);border:1px solid var(--border-2);border-radius:10px;box-shadow:0 24px 64px rgba(0,0,0,.34);display:flex;flex-direction:column;overflow:hidden">
+        <!-- header + steps -->
+        <div style="padding:18px 22px 0;border-bottom:1px solid var(--border)">
+          <div style="display:flex;align-items:center;margin-bottom:16px">
+            <div style="font-size:16px;font-weight:600;flex:1">新建项目</div>
+            <span onClick="{{ wizard.close }}" style="color:var(--ink-3);cursor:pointer;font-size:18px;padding:0 4px" style-hover="color:var(--ink)">✕</span>
+          </div>
+          <div style="display:flex;gap:6px;padding-bottom:16px">
+            <sc-for list="{{ wizard.steps }}" as="s" hint-placeholder-count="3">
+              <div style="flex:1;display:flex;align-items:center;gap:9px">
+                <span style="{{ s.dotStyle }}">{{ s.dotInner }}</span>
+                <div><div style="{{ s.labelStyle }}">{{ s.label }}</div><div style="font-size:10px;color:var(--ink-4)">{{ s.sub }}</div></div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+
+        <!-- body -->
+        <div style="flex:1;overflow:auto;padding:24px 22px;min-height:300px">
+          <!-- step 1 -->
+          <sc-if value="{{ wizard.s1 }}" hint-placeholder-val="{{ true }}">
+            <div style="max-width:480px">
+              <div style="font-size:12px;color:var(--ink-2);margin-bottom:5px">项目名称</div>
+              <input type="text" value="{{ wizard.name }}" onChange="{{ wizard.onName }}" placeholder="例：风云四号 · 电源分系统" style="{{ wizard.nameStyle }}" style-focus="border-color:var(--accent);outline:none" />
+              <div style="font-size:12px;color:var(--ink-2);margin:18px 0 5px">描述（可选）</div>
+              <textarea value="{{ wizard.desc }}" onChange="{{ wizard.onDesc }}" placeholder="一句话说明这个工作空间的用途…" style="width:100%;height:88px;resize:none;font-family:var(--sans);font-size:13px;color:var(--ink);background:var(--surface);border:1px solid var(--border-2);border-radius:6px;padding:9px 11px" style-focus="border-color:var(--accent);outline:none"></textarea>
+            </div>
+          </sc-if>
+
+          <!-- step 2: pick plugin -->
+          <sc-if value="{{ wizard.s2 }}" hint-placeholder-val="{{ false }}">
+            <div>
+              <div style="display:flex;align-items:center;gap:7px;height:32px;padding:0 11px;background:var(--surface-2);border:1px solid var(--border-2);border-radius:6px;margin-bottom:14px;color:var(--ink-3)">
+                <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="7" cy="7" r="4.5"/><path d="M11 11l3 3"/></svg>
+                <input type="text" value="{{ wizard.plugQuery }}" onChange="{{ wizard.onPlugQuery }}" placeholder="搜索插件 / profile…" style="flex:1;border:none;outline:none;background:transparent;font-size:12px;color:var(--ink)" />
+              </div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+                <sc-for list="{{ wizard.plugins }}" as="p" hint-placeholder-count="4">
+                  <div onClick="{{ p.onPick }}" style="{{ p.cardStyle }}">
+                    <div style="height:80px;border-radius:6px;background:{{ p.thumbBg }};display:flex;align-items:center;justify-content:center;margin-bottom:11px;position:relative;overflow:hidden">
+                      {{ p.thumb }}
+                      <sc-if value="{{ p.picked }}" hint-placeholder-val="{{ false }}"><span style="position:absolute;top:7px;right:7px;width:18px;height:18px;border-radius:50%;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800">✓</span></sc-if>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:7px"><span style="font-size:13px;font-weight:600">{{ p.name }}</span><span style="font-size:10px;color:var(--ink-3);background:var(--surface-2);border-radius:3px;padding:1px 5px">{{ p.cat }}</span></div>
+                    <div style="font-size:11px;color:var(--ink-3);margin-top:4px;line-height:1.5">{{ p.desc }}</div>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </sc-if>
+
+          <!-- step 3: base config -->
+          <sc-if value="{{ wizard.s3 }}" hint-placeholder-val="{{ false }}">
+            <div style="max-width:560px">
+              <div style="font-size:12px;letter-spacing:.06em;color:var(--ink-3);text-transform:uppercase;margin-bottom:6px">设计流程</div>
+              <div style="font-size:11px;color:var(--ink-3);margin-bottom:12px;line-height:1.6">插件已封装该领域的业务流程。选择一个流程模板，进入工作台后按这些步骤推进。</div>
+              <div style="display:flex;flex-direction:column;gap:9px;margin-bottom:20px">
+                <sc-for list="{{ wizard.flows }}" as="f" hint-placeholder-count="2">
+                  <div onClick="{{ f.onClick }}" style="{{ f.cardStyle }}">
+                    <div style="{{ f.radioStyle }}"><sc-if value="{{ f.picked }}" hint-placeholder-val="{{ false }}"><div style="width:8px;height:8px;border-radius:50%;background:var(--accent)"></div></sc-if></div>
+                    <div style="flex:1;min-width:0">
+                      <div style="font-size:13px;font-weight:600;color:var(--ink)">{{ f.name }}</div>
+                      <div style="font-size:11px;color:var(--ink-3);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ f.summary }}</div>
+                    </div>
+                    <span style="font-family:var(--mono);font-size:11px;color:var(--ink-3);flex:none">{{ f.count }} 步</span>
+                  </div>
+                </sc-for>
+              </div>
+              <div style="font-size:12px;letter-spacing:.06em;color:var(--ink-3);text-transform:uppercase;margin-bottom:12px">流程步骤 · {{ wizard.flowName }}</div>
+              <div style="display:flex;flex-direction:column;margin-bottom:6px;padding-bottom:8px;border-bottom:1px solid var(--border)">
+                <sc-for list="{{ wizard.flowSteps }}" as="st" hint-placeholder-count="4">
+                  <div style="display:flex;gap:11px">
+                    <div style="display:flex;flex-direction:column;align-items:center;flex:none">
+                      <span style="{{ st.numStyle }}">{{ st.n }}</span>
+                      <sc-if value="{{ st.line }}" hint-placeholder-val="{{ true }}"><span style="width:1.5px;flex:1;background:var(--border-2);min-height:14px"></span></sc-if>
+                    </div>
+                    <div style="padding-bottom:14px">
+                      <div style="font-size:13px;font-weight:500;color:var(--ink)">{{ st.t }}</div>
+                      <div style="font-size:11px;color:var(--ink-3);margin-top:1px;line-height:1.5">{{ st.d }}</div>
+                    </div>
+                  </div>
+                </sc-for>
+              </div>
+              <div style="padding:13px 0">
+                <div style="font-size:13px;color:var(--ink);margin-bottom:9px">邀请成员并分配角色</div>
+                <sc-for list="{{ wizard.members }}" as="m" hint-placeholder-count="2">
+                  <div style="display:flex;align-items:center;gap:10px;padding:7px 0">
+                    <div style="width:26px;height:26px;border-radius:50%;background:{{ m.avBg }};color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600">{{ m.initial }}</div>
+                    <span style="flex:1;font-size:13px;color:var(--ink-2)">{{ m.name }}</span>
+                    <div style="display:flex;gap:2px;background:var(--surface-2);border:1px solid var(--border);border-radius:6px;padding:2px">
+                      <sc-for list="{{ m.roles }}" as="r" hint-placeholder-count="4"><span onClick="{{ r.onClick }}" style="{{ r.style }}">{{ r.label }}</span></sc-for>
+                    </div>
+                  </div>
+                </sc-for>
+                <div style="display:inline-flex;align-items:center;gap:6px;margin-top:8px;font-size:12px;color:var(--accent);cursor:pointer"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M8 3v10M3 8h10"/></svg>邀请成员</div>
+              </div>
+            </div>
+          </sc-if>
+        </div>
+
+        <!-- footer -->
+        <div style="display:flex;align-items:center;gap:10px;padding:14px 22px;border-top:1px solid var(--border);background:var(--panel)">
+          <span style="font-size:12px;color:var(--ink-3)">{{ wizard.footMeta }}</span>
+          <span style="flex:1"></span>
+          <sc-if value="{{ wizard.canBack }}" hint-placeholder-val="{{ false }}"><div onClick="{{ wizard.back }}" style="height:34px;padding:0 16px;display:inline-flex;align-items:center;border:1px solid var(--border-2);border-radius:6px;font-size:13px;color:var(--ink-2);cursor:pointer" style-hover="border-color:var(--accent)">上一步</div></sc-if>
+          <div onClick="{{ wizard.next }}" style="{{ wizard.nextStyle }}">{{ wizard.nextLabel }}</div>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- ===================== TOAST ===================== -->
+  <sc-if value="{{ toast.show }}" hint-placeholder-val="{{ false }}">
+    <div style="position:absolute;bottom:74px;left:50%;transform:translateX(-50%);z-index:70;display:flex;align-items:center;gap:9px;padding:11px 18px;background:var(--ink);color:var(--bg);border-radius:8px;box-shadow:0 8px 28px rgba(0,0,0,.3);font-size:13px">
+      <span style="color:var(--ok-d)">✓</span>{{ toast.msg }}
+    </div>
+  </sc-if>
+
+  <!-- ===================== DEMO STATE SWITCHER ===================== -->
+  <div style="position:absolute;right:16px;bottom:16px;z-index:80;display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--border-2);border-radius:10px;box-shadow:0 6px 20px rgba(0,0,0,.16);padding:8px 11px">
+    <span style="font-size:10px;letter-spacing:.08em;color:var(--ink-3);text-transform:uppercase">演示</span>
+    <div style="width:1px;height:18px;background:var(--border)"></div>
+    <span style="font-size:11px;color:var(--ink-3)">屏</span>
+    <div style="display:flex;gap:2px;background:var(--surface-2);border:1px solid var(--border);border-radius:6px;padding:2px">
+      <sc-for list="{{ demoScreens }}" as="d" hint-placeholder-count="4"><span onClick="{{ d.onClick }}" style="{{ d.style }}">{{ d.label }}</span></sc-for>
+    </div>
+    <sc-if value="{{ demoHasStates }}" hint-placeholder-val="{{ true }}">
+      <span style="font-size:11px;color:var(--ink-3);margin-left:4px">态</span>
+      <div style="display:flex;gap:2px;background:var(--surface-2);border:1px solid var(--border);border-radius:6px;padding:2px">
+        <sc-for list="{{ demoStates }}" as="d" hint-placeholder-count="5"><span onClick="{{ d.onClick }}" style="{{ d.style }}">{{ d.label }}</span></sc-for>
+      </div>
+    </sc-if>
+  </div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1320,&quot;height&quot;:860}}">
+class Component extends DCLogic {
+  state = {
+    theme: 'light',
+    screen: 'login',        // login | projects | plugins
+    projState: 'default',   // default | loading | empty | error | denied
+    login: { user:'', pass:'', remember:true, loading:false, error:false },
+    proj: { query:'', filter:'all' },
+    plug: { query:'', cat:'all', off:{} },
+    wizard: { open:false, step:1, name:'', desc:'', plugQuery:'', picked:'sat', flow:'std', defaults:true, weight:60, roles:{ ml:'AUTHOR', zh:'REVIEWER' } },
+    toast: { show:false, msg:'' },
+  };
+
+  PLUGINS = [
+    { id:'sat', name:'卫星总体', cat:'航天', desc:'分系统 / 单机 / 接口 / 指标，含功率、质量、链路预算规则。', color:'var(--t-subsystem)', types:12, rules:34, stencils:48, builtin:true },
+    { id:'arch', name:'室内建筑', cat:'建筑', desc:'空间 / 构件 / 管线 / 规范，含面积与净高校验。', color:'var(--t-component)', types:9, rules:21, stencils:36, builtin:true },
+    { id:'trade', name:'方案比选', cat:'通用', desc:'候选 / 准则 / 权重 / 评分，多方案加权对比。', color:'var(--t-requirement)', types:6, rules:12, stencils:18, builtin:true },
+    { id:'net', name:'网络拓扑', cat:'IT', desc:'节点 / 链路 / 服务 / SLA，含带宽与冗余规则。', color:'var(--t-interface)', types:8, rules:17, stencils:24, builtin:false },
+  ];
+  PROJECTS = [
+    { id:1, name:'风云四号 · 电源分系统', plugin:'卫星总体', pid:'sat', updated:'12 分钟前', role:'ADMIN', blocks:2, warns:1 },
+    { id:2, name:'城市展馆 B 区', plugin:'室内建筑', pid:'arch', updated:'2 小时前', role:'AUTHOR', blocks:0, warns:3 },
+    { id:3, name:'载荷供电方案比选', plugin:'方案比选', pid:'trade', updated:'昨天', role:'REVIEWER', blocks:0, warns:0 },
+    { id:4, name:'测控链路拓扑 v2', plugin:'网络拓扑', pid:'net', updated:'3 天前', role:'VIEWER', blocks:1, warns:0 },
+    { id:5, name:'综合电子机箱', plugin:'卫星总体', pid:'sat', updated:'上周', role:'AUTHOR', blocks:0, warns:2 },
+    { id:6, name:'地面站布局', plugin:'室内建筑', pid:'arch', updated:'上周', role:'ADMIN', blocks:0, warns:0 },
+  ];
+  ROLES = ['VIEWER','AUTHOR','REVIEWER','ADMIN'];
+  FLOWS = {
+    sat:[
+      {id:'std', name:'标准总体设计', steps:[{t:'分系统建模',d:'建立分系统 / 单机层级与接口'},{t:'预算分配',d:'分配功率、质量、链路预算'},{t:'规则校核',d:'功率平衡、裕度、接口一致性'},{t:'生成报告',d:'输出预算与校核报告'}]},
+      {id:'fast', name:'快速评估', steps:[{t:'导入清单',d:'从 BOM 导入单机'},{t:'预算校核',d:'功率/质量裕度快速校验'},{t:'导出结论',d:'输出评估结论'}]},
+    ],
+    arch:[
+      {id:'std', name:'户型标准校核', steps:[{t:'绘制户型',d:'划分房间与开窗'},{t:'属性录入',d:'尺寸、窗面积、朝向'},{t:'规范校验',d:'采光、通风、窗地比、面积'},{t:'出报告',d:'生成设计校核报告'}]},
+      {id:'retro', name:'既有改造', steps:[{t:'导入现状',d:'导入既有户型'},{t:'问题标注',d:'标注不达标房间'},{t:'方案复核',d:'调整并重新校验'}]},
+    ],
+    trade:[
+      {id:'std', name:'加权比选', steps:[{t:'列候选',d:'录入候选方案'},{t:'定准则权重',d:'设定评分准则与权重'},{t:'打分',d:'各候选按准则打分'},{t:'排序',d:'加权汇总并排序'}]},
+      {id:'quick', name:'快速优选', steps:[{t:'列候选',d:'录入候选'},{t:'打分',d:'专家直接打分'},{t:'排序',d:'汇总排序'}]},
+    ],
+    net:[
+      {id:'std', name:'拓扑设计', steps:[{t:'布节点',d:'放置节点 / 设备'},{t:'连链路',d:'建立链路与带宽'},{t:'SLA 校验',d:'带宽/时延/冗余校验'},{t:'导出',d:'输出拓扑与校验'}]},
+      {id:'audit', name:'冗余审计', steps:[{t:'导入拓扑',d:'导入现有拓扑'},{t:'冗余分析',d:'单点故障与冗余检查'},{t:'报告',d:'输出审计结论'}]},
+    ],
+  };
+  ROLE_COLOR = { VIEWER:'var(--ink-3)', AUTHOR:'var(--accent)', REVIEWER:'var(--t-subsystem)', ADMIN:'var(--t-requirement)' };
+
+  pluginIcon(color, size){
+    const h=React.createElement; const s=size||15;
+    return h('svg',{width:s,height:s,viewBox:'0 0 16 16',fill:'none',stroke:'currentColor',strokeWidth:1.6,style:{color,display:'block'}},
+      h('rect',{x:2.5,y:2.5,width:5,height:5,rx:1,key:1}), h('rect',{x:8.5,y:2.5,width:5,height:5,rx:1,key:2}),
+      h('rect',{x:2.5,y:8.5,width:5,height:5,rx:1,key:3}), h('path',{d:'M11 8.5v5M8.5 11h5',key:4}));
+  }
+  navIcon(name){
+    const h=React.createElement; const p={width:16,height:16,viewBox:'0 0 16 16',fill:'none',stroke:'currentColor',strokeWidth:1.6,style:{display:'block'}};
+    if(name==='projects') return h('svg',p,h('rect',{x:2,y:3,width:12,height:10,rx:2,key:1}),h('path',{d:'M2 6h12M6 3v3',key:2}));
+    return h('svg',p,h('rect',{x:2.5,y:2.5,width:5,height:5,rx:1,key:1}),h('rect',{x:8.5,y:8.5,width:5,height:5,rx:1,key:2}),h('path',{d:'M8.5 5h3.5v3.5M5 8.5v3.5h3.5',key:3}));
+  }
+  thumbSvg(id, color){
+    const h=React.createElement;
+    const wrap=(kids)=>h('svg',{width:'100%',height:'100%',viewBox:'0 0 200 80',fill:'none',stroke:color,strokeWidth:2,style:{opacity:.65}}, ...kids);
+    if(id==='sat') return wrap([h('rect',{x:78,y:26,width:44,height:28,rx:3,key:1}),h('rect',{x:14,y:32,width:34,height:16,rx:2,key:2}),h('rect',{x:152,y:32,width:34,height:16,rx:2,key:3}),h('path',{d:'M48 40h30M122 40h30',key:4})]);
+    if(id==='arch') return wrap([h('rect',{x:30,y:18,width:140,height:44,rx:2,key:1}),h('path',{d:'M30 40h140M86 18v44M128 40v22',key:2})]);
+    if(id==='trade') return wrap([h('rect',{x:24,y:48,width:24,height:18,key:1}),h('rect',{x:60,y:34,width:24,height:32,key:2}),h('rect',{x:96,y:24,width:24,height:42,key:3}),h('rect',{x:132,y:40,width:24,height:26,key:4})]);
+    return wrap([h('circle',{cx:100,cy:20,r:8,key:1}),h('circle',{cx:50,cy:58,r:8,key:2}),h('circle',{cx:150,cy:58,r:8,key:3}),h('path',{d:'M94 27l-38 24M106 27l38 24M58 58h84',key:4})]);
+  }
+
+  toggleTheme(){ this.setState(s=>({theme:s.theme==='dark'?'light':'dark'})); }
+  go(screen){ this.setState(s=>({screen, wizard:{...s.wizard, open:false}})); }
+  enterWorkbench(pid){ const f = pid==='arch' ? 'M-Next 户型工作台.dc.html' : 'M-Next 工作台.dc.html'; window.location.href = encodeURI(f); }
+  showToast(msg){ this.setState({toast:{show:true,msg}}); clearTimeout(this._tt); this._tt=setTimeout(()=>this.setState(s=>({toast:{...s.toast,show:false}})),2200); }
+
+  submitLogin(){
+    if(this.state.login.loading) return;
+    this.setState(s=>({login:{...s.login, loading:true, error:false}}));
+    clearTimeout(this._lt);
+    this._lt=setTimeout(()=>{
+      const bad = this.state.login.user.trim()==='' || this.state.login.pass==='wrong';
+      if(bad && this.state.login.pass==='wrong') this.setState(s=>({login:{...s.login, loading:false, error:true}}));
+      else this.setState(s=>({login:{...s.login, loading:false}, screen:'projects'}));
+    }, 900);
+  }
+  logout(){ this.setState({screen:'login', login:{user:'',pass:'',remember:true,loading:false,error:false}}); }
+
+  // wizard
+  openWizard(){ this.setState(s=>({wizard:{...s.wizard, open:true, step:1}})); }
+  closeWizard(){ this.setState(s=>({wizard:{...s.wizard, open:false}})); }
+  wizNext(){
+    const w=this.state.wizard;
+    if(w.step<3) this.setState({wizard:{...w, step:w.step+1}});
+    else { const pid=this.state.wizard.picked; this.setState({wizard:{...w, open:false, step:1}}); this.showToast('项目「'+(w.name||'未命名项目')+'」已创建，正在进入工作台…'); setTimeout(()=>this.enterWorkbench(pid), 500); }
+  }
+  wizBack(){ const w=this.state.wizard; if(w.step>1) this.setState({wizard:{...w, step:w.step-1}}); }
+
+  togglePlugin(id){ this.setState(s=>{ const off={...s.plug.off}; off[id]=!off[id]; return {plug:{...s.plug, off}}; }); }
+
+  componentWillUnmount(){ clearTimeout(this._tt); clearTimeout(this._lt); }
+
+  renderVals(){
+    const S=this.state;
+    const seg=(active, onClick, label, extra)=>({ onClick, label,
+      style:Object.assign({display:'flex',alignItems:'center',justifyContent:'center',padding:'0 10px',height:'22px',fontSize:'11px',cursor:'pointer',borderRadius:'5px',whiteSpace:'nowrap',
+        background:active?'var(--surface)':'transparent',color:active?'var(--accent)':'var(--ink-2)',fontWeight:active?600:400,boxShadow:active?'0 1px 2px rgba(0,0,0,.12)':'none'}, extra||{}) });
+
+    // ---- LOGIN ----
+    const L=S.login;
+    const inputBase={width:'100%',height:'40px',padding:'0 12px',fontSize:'13px',color:'var(--ink)',background:'var(--surface)',border:'1px solid '+(L.error?'var(--block-bd)':'var(--border-2)'),borderRadius:'6px'};
+    const login={
+      user:L.user, pass:L.pass, error:L.error, loading:L.loading,
+      onUser:(e)=>this.setState(s=>({login:{...s.login,user:e.target.value}})),
+      onPass:(e)=>this.setState(s=>({login:{...s.login,pass:e.target.value}})),
+      onRemember:()=>this.setState(s=>({login:{...s.login,remember:!s.login.remember}})),
+      onSubmit:()=>this.submitLogin(),
+      userStyle:inputBase, passStyle:inputBase,
+      checkGlyph:L.remember?'✓':'', 
+      checkStyle:{display:'inline-flex',alignItems:'center',justifyContent:'center',width:'16px',height:'16px',borderRadius:'4px',fontSize:'10px',fontWeight:800,color:'#fff',
+        background:L.remember?'var(--accent)':'var(--surface)',border:'1px solid '+(L.remember?'var(--accent)':'var(--border-2)')},
+      btnLabel:L.loading?'登录中…':'登录',
+      btnStyle:{display:'flex',alignItems:'center',justifyContent:'center',gap:'8px',height:'42px',background:'var(--accent)',color:'#fff',borderRadius:'6px',fontSize:'14px',fontWeight:600,cursor:L.loading?'default':'pointer',opacity:L.loading?.8:1},
+    };
+
+    // ---- NAV ----
+    const nav=[
+      { key:'projects', label:'项目', icon:this.navIcon('projects'), hasCount:true, count:this.PROJECTS.length, onClick:()=>this.go('projects'),
+        style:{display:'flex',alignItems:'center',gap:'9px',padding:'8px 10px',borderRadius:'5px',fontSize:'13px',cursor:'pointer',
+          background:S.screen==='projects'?'var(--accent-bg)':'transparent',color:S.screen==='projects'?'var(--accent)':'var(--ink-2)',fontWeight:S.screen==='projects'?600:400} },
+      { key:'plugins', label:'插件 / 模板库', icon:this.navIcon('plugins'), hasCount:false, onClick:()=>this.go('plugins'),
+        style:{display:'flex',alignItems:'center',gap:'9px',padding:'8px 10px',borderRadius:'5px',fontSize:'13px',cursor:'pointer',
+          background:S.screen==='plugins'?'var(--accent-bg)':'transparent',color:S.screen==='plugins'?'var(--accent)':'var(--ink-2)',fontWeight:S.screen==='plugins'?600:400} },
+    ];
+
+    // ---- PROJECTS ----
+    const roleBadge=(role, big)=>({display:'inline-flex',alignItems:'center',fontSize: big?'9px':'9px',fontWeight:700,letterSpacing:'.04em',padding:'1px 6px',borderRadius:'4px',whiteSpace:'nowrap',
+      color:this.ROLE_COLOR[role],background:'var(--surface-2)',border:'1px solid var(--border-2)'});
+    const filters=[{id:'all',label:'全部'}].concat(this.PLUGINS.map(p=>({id:p.id,label:p.name}))).map(f=>{
+      const active=S.proj.filter===f.id;
+      return { label:f.label, onClick:()=>this.setState(s=>({proj:{...s.proj,filter:f.id}})),
+        style:{display:'inline-flex',alignItems:'center',height:'26px',padding:'0 12px',fontSize:'12px',borderRadius:'14px',cursor:'pointer',
+          background:active?'var(--accent)':'var(--surface)',color:active?'#fff':'var(--ink-2)',border:'1px solid '+(active?'var(--accent)':'var(--border-2)')} };
+    });
+    const q=(S.proj.query||'').trim();
+    const cards=this.PROJECTS
+      .filter(p=> S.proj.filter==='all'||p.pid===S.proj.filter)
+      .filter(p=> !q || p.name.includes(q) || p.plugin.includes(q))
+      .map(p=>{ const pl=this.PLUGINS.find(x=>x.id===p.pid)||{color:'var(--accent)'};
+        return { name:p.name, plugin:p.plugin, updated:'更新于 '+p.updated, role:p.role, roleStyle:roleBadge(p.role),
+          icon:this.pluginIcon(pl.color,16), iconBox:{display:'inline-flex',alignItems:'center',justifyContent:'center',width:'34px',height:'34px',borderRadius:'7px',background:'var(--surface-2)',flex:'none'},
+          hasBlock:p.blocks>0, blocks:p.blocks, hasWarn:p.warns>0, warns:p.warns, clean:p.blocks===0&&p.warns===0, onOpen:()=>this.enterWorkbench(p.pid) }; });
+    const proj={
+      query:S.proj.query, onQuery:(e)=>this.setState(s=>({proj:{...s.proj,query:e.target.value}})),
+      filters, cards, openWizard:()=>this.openWizard(), retry:()=>this.setState({projState:'default'}),
+      showGrid:S.projState==='default', showLoading:S.projState==='loading', showEmpty:S.projState==='empty', showError:S.projState==='error', showDenied:S.projState==='denied',
+    };
+
+    // ---- PLUGINS ----
+    const pcats=[{id:'all',label:'全部'},{id:'航天',label:'航天'},{id:'建筑',label:'建筑'},{id:'通用',label:'通用'},{id:'IT',label:'IT'}].map(c=>{
+      const active=S.plug.cat===c.id;
+      return { label:c.label, onClick:()=>this.setState(s=>({plug:{...s.plug,cat:c.id}})),
+        style:{display:'inline-flex',alignItems:'center',height:'26px',padding:'0 11px',fontSize:'12px',borderRadius:'13px',cursor:'pointer',
+          background:active?'var(--accent-bg)':'transparent',color:active?'var(--accent)':'var(--ink-3)',border:'1px solid '+(active?'var(--accent-bd)':'transparent')} };
+    });
+    const pq=(S.plug.query||'').trim();
+    const plist=this.PLUGINS
+      .filter(p=> S.plug.cat==='all'||p.cat===S.plug.cat)
+      .filter(p=> !pq || p.name.includes(pq) || p.desc.includes(pq))
+      .map(p=>{ const on=!S.plug.off[p.id];
+        return { name:p.name, cat:p.cat, desc:p.desc, builtin:p.builtin, types:p.types, rules:p.rules, stencils:p.stencils,
+          icon:this.pluginIcon(p.color,17), iconBox:{display:'inline-flex',alignItems:'center',justifyContent:'center',width:'40px',height:'40px',borderRadius:'9px',background:'var(--surface-2)',flex:'none'},
+          onToggle:()=>this.togglePlugin(p.id),
+          switchTrack:{width:'34px',height:'19px',borderRadius:'10px',background:on?'var(--accent)':'var(--border-2)',position:'relative',cursor:'pointer',transition:'background .15s',flex:'none'},
+          switchKnob:{position:'absolute',top:'2px',left:on?'17px':'2px',width:'15px',height:'15px',borderRadius:'50%',background:'#fff',transition:'left .15s',boxShadow:'0 1px 2px rgba(0,0,0,.3)'} }; });
+    const plug={ query:S.plug.query, onQuery:(e)=>this.setState(s=>({plug:{...s.plug,query:e.target.value}})), cats:pcats, list:plist };
+
+    // ---- WIZARD ----
+    const W=S.wizard;
+    const stepDefs=[{n:1,label:'命名',sub:'名称 + 描述'},{n:2,label:'选插件',sub:'profile 库'},{n:3,label:'配置',sub:'默认值 + 成员'}];
+    const steps=stepDefs.map(d=>{ const done=W.step>d.n, cur=W.step===d.n;
+      return { label:d.label, sub:d.sub, dotInner: done?'✓':String(d.n),
+        dotStyle:{display:'inline-flex',alignItems:'center',justifyContent:'center',width:'26px',height:'26px',borderRadius:'50%',fontSize:'12px',fontWeight:700,flex:'none',
+          background: (done||cur)?'var(--accent)':'var(--surface-2)', color:(done||cur)?'#fff':'var(--ink-3)', border:'1px solid '+((done||cur)?'var(--accent)':'var(--border-2)')},
+        labelStyle:{fontSize:'12px',fontWeight:cur?600:500,color:cur?'var(--ink)':'var(--ink-2)'} }; });
+    const wizPlugins=this.PLUGINS.filter(p=> !W.plugQuery.trim() || p.name.includes(W.plugQuery)||p.desc.includes(W.plugQuery)).map(p=>{
+      const picked=W.picked===p.id;
+      return { name:p.name, cat:p.cat, desc:p.desc, picked, thumb:this.thumbSvg(p.id,p.color), thumbBg:'var(--surface-2)', onPick:()=>this.setState(s=>({wizard:{...s.wizard,picked:p.id}})),
+        cardStyle:{padding:'12px',borderRadius:'8px',cursor:'pointer',background:'var(--surface)',border:'1px solid '+(picked?'var(--accent)':'var(--border-2)'),boxShadow:picked?'0 0 0 2px var(--accent-ring)':'none'} }; });
+    const memDefs=[{id:'ml',name:'马磊 · ml@org',initial:'马',avBg:'var(--t-component)'},{id:'zh',name:'周航 · zh@org',initial:'周',avBg:'var(--t-requirement)'}];
+    const members=memDefs.map(m=>({ name:m.name, initial:m.initial, avBg:m.avBg,
+      roles:this.ROLES.map(r=>{ const active=W.roles[m.id]===r;
+        return { label:r, onClick:()=>this.setState(s=>({wizard:{...s.wizard,roles:{...s.wizard.roles,[m.id]:r}}})),
+          style:{display:'inline-flex',alignItems:'center',height:'22px',padding:'0 7px',fontSize:'9.5px',fontWeight:700,letterSpacing:'.02em',borderRadius:'4px',cursor:'pointer',
+            background:active?'var(--surface)':'transparent',color:active?this.ROLE_COLOR[r]:'var(--ink-4)',boxShadow:active?'0 1px 2px rgba(0,0,0,.12)':'none'} }; }) }));
+    const swTrack=(on)=>({width:'36px',height:'20px',borderRadius:'10px',background:on?'var(--accent)':'var(--border-2)',position:'relative',cursor:'pointer',flex:'none'});
+    const swKnob=(on)=>({position:'absolute',top:'2px',left:on?'18px':'2px',width:'16px',height:'16px',borderRadius:'50%',background:'#fff',boxShadow:'0 1px 2px rgba(0,0,0,.3)',transition:'left .15s'});
+    const curFlows=this.FLOWS[W.picked]||this.FLOWS.sat;
+    const selFlow=curFlows.find(f=>f.id===W.flow)||curFlows[0];
+    const flows=curFlows.map(f=>{ const on=selFlow.id===f.id; return { name:f.name, summary:f.steps.map(s=>s.t).join(' · '), count:f.steps.length, picked:on,
+      onClick:()=>this.setState(s=>({wizard:{...s.wizard,flow:f.id}})),
+      cardStyle:{display:'flex',alignItems:'center',gap:'11px',padding:'11px 13px',borderRadius:'8px',cursor:'pointer',background:on?'var(--accent-bg)':'var(--surface)',border:'1px solid '+(on?'var(--accent)':'var(--border-2)')},
+      radioStyle:{width:'16px',height:'16px',borderRadius:'50%',border:'1px solid '+(on?'var(--accent)':'var(--border-3)'),display:'flex',alignItems:'center',justifyContent:'center',flex:'none'} }; });
+    const flowSteps=selFlow.steps.map((st,i,arr)=>({ n:String(i+1), t:st.t, d:st.d, line:i<arr.length-1,
+      numStyle:{display:'inline-flex',alignItems:'center',justifyContent:'center',width:'22px',height:'22px',borderRadius:'50%',background:'var(--accent-bg)',color:'var(--accent)',border:'1px solid var(--accent-bd)',fontFamily:'var(--mono)',fontSize:'11px',fontWeight:700,flex:'none'} }));
+    const wizard={
+      open:W.open, close:()=>this.closeWizard(), steps,
+      s1:W.step===1, s2:W.step===2, s3:W.step===3,
+      name:W.name, onName:(e)=>this.setState(s=>({wizard:{...s.wizard,name:e.target.value}})),
+      desc:W.desc, onDesc:(e)=>this.setState(s=>({wizard:{...s.wizard,desc:e.target.value}})),
+      nameStyle:{width:'100%',height:'40px',padding:'0 12px',fontSize:'14px',color:'var(--ink)',background:'var(--surface)',border:'1px solid var(--border-2)',borderRadius:'6px'},
+      plugQuery:W.plugQuery, onPlugQuery:(e)=>this.setState(s=>({wizard:{...s.wizard,plugQuery:e.target.value}})), plugins:wizPlugins,
+      defaults:W.defaults, toggleDefaults:()=>this.setState(s=>({wizard:{...s.wizard,defaults:!s.wizard.defaults}})), defTrack:swTrack(W.defaults), defKnob:swKnob(W.defaults),
+      weight:W.weight, onWeight:(e)=>this.setState(s=>({wizard:{...s.wizard,weight:Number(e.target.value)}})), members,
+      flows, flowName:selFlow.name, flowSteps,
+      canBack:W.step>1, back:()=>this.wizBack(), next:()=>this.wizNext(),
+      nextLabel:W.step<3?'下一步':'创建并进入工作台',
+      nextStyle:{height:'34px',padding:'0 18px',display:'inline-flex',alignItems:'center',gap:'6px',background:'var(--accent)',color:'#fff',borderRadius:'6px',fontSize:'13px',fontWeight:500,cursor:'pointer'},
+      footMeta:'步骤 '+W.step+' / 3'+(W.step===2?(' · 已选：'+(this.PLUGINS.find(x=>x.id===W.picked)||{}).name):''),
+    };
+
+    // ---- DEMO ----
+    const demoScreens=[['login','登录'],['projects','项目'],['plugins','插件库']].map(([k,lb])=>seg(S.screen===k, ()=>{ if(k==='login') this.logout(); else this.go(k); }, lb));
+    const demoStateDefs=[['default','常规'],['empty','空'],['error','错误'],['denied','无权限']];
+    const demoStates=demoStateDefs.map(([k,lb])=>seg(S.projState===k, ()=>this.setState({projState:k}), lb));
+
+    return {
+      theme:S.theme, themeLabel:S.theme==='dark'?'暗色':'亮色', themeIcon:S.theme==='dark'?'☾':'☀', toggleTheme:()=>this.toggleTheme(),
+      isLogin:S.screen==='login', inApp:S.screen!=='login', isProjects:S.screen==='projects', isPlugins:S.screen==='plugins',
+      login, nav, logout:()=>this.logout(),
+      adminBadgeStyle:{display:'inline-flex',alignItems:'center',fontSize:'9px',fontWeight:700,letterSpacing:'.04em',padding:'1px 6px',borderRadius:'4px',color:this.ROLE_COLOR.ADMIN,background:'var(--bg)',border:'1px solid var(--border-2)'},
+      proj, plug, wizard,
+      plugImport:()=>this.showToast('模板导入：支持 Visio / draw.io / 自有格式（占位）'),
+      skeletons:[1,2,3,4,5,6],
+      toast:S.toast,
+      demoScreens, demoStates, demoHasStates:S.screen==='projects',
+    };
+  }
+}
+</script>
+</body>
+</html>
