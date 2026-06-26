@@ -33,6 +33,11 @@ export function filterProjects(
   );
 }
 
+export function projectHealth(project: ProjectSummary): "ok" | "warn" | "bad" {
+  if (project.alertCount === 0) return "ok";
+  return project.alertCount > 2 ? "bad" : "warn";
+}
+
 export interface ProjectListProps {
   readonly actorId: string | null;
   readonly viewClient: ViewClient;
@@ -88,14 +93,53 @@ export function ProjectList({
               onClick={() => onOpenProject(project)}
               type="button"
             >
-              <strong>{project.name}</strong>
-              <span>{project.plugin}</span>
-              <small>我的角色 {project.role}</small>
-              <small>告警 {project.alertCount}</small>
+              <span className="project-card-head">
+                <span>
+                  <strong>{project.name}</strong>
+                  <small>{project.plugin}</small>
+                </span>
+                <span className="project-plugin-tag">{project.role}</span>
+              </span>
+              <span className="project-card-meta">
+                <span>所属插件</span>
+                <strong>{project.plugin}</strong>
+              </span>
+              <span className="project-card-foot">
+                <span>更新 2026-06-26</span>
+                <ProjectHealthDot
+                  alertCount={project.alertCount}
+                  tone={projectHealth(project)}
+                />
+              </span>
             </button>
           ))}
         </div>
       )}
     </section>
+  );
+}
+
+function ProjectHealthDot({
+  alertCount,
+  tone,
+}: {
+  readonly alertCount: number;
+  readonly tone: "ok" | "warn" | "bad";
+}): ReactElement {
+  const label =
+    tone === "ok"
+      ? "健康"
+      : tone === "warn"
+        ? `${alertCount} 告警`
+        : `${alertCount} 红线`;
+  const glyph = tone === "ok" ? "✓" : tone === "warn" ? "!" : "×";
+  return (
+    <span
+      aria-label={`规则健康度 ${label}`}
+      className={`project-health-dot project-health-${tone}`}
+    >
+      <span aria-hidden="true">{glyph}</span>
+      {label}
+    </span>
   );
 }
