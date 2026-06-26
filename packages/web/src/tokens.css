@@ -5,57 +5,90 @@
  * values are aligned to the design and richer nuance tokens are added.
  */
 :root {
-  --mnext-font-sans:
+  --mn-accent: #5b5fc7;
+  --mn-accent-d: #4549a0;
+  --mn-accent-bg: #eeeefb;
+  --mn-accent-bd: #c4c6ee;
+  --mn-accent-ring: rgba(91, 95, 199, 0.28);
+  --mn-bg: #eeedeb;
+  --mn-bg-1: #f3f2f0;
+  --mn-surface: #ffffff;
+  --mn-surface-2: #f4f3f1;
+  --mn-surface-3: #eceae7;
+  --mn-panel: #faf9f8;
+  --mn-border: #e6e3e1;
+  --mn-border-2: #cfccc9;
+  --mn-border-3: #b7b4b0;
+  --mn-grid: #e5e3df;
+  --mn-ink: #242424;
+  --mn-ink-2: #57534f;
+  --mn-ink-3: #8a8886;
+  --mn-ink-4: #aeaba8;
+  --mn-ok: #107c10;
+  --mn-ok-bg: #e2f4e0;
+  --mn-ok-bd: #9bd49b;
+  --mn-warn: #9a6700;
+  --mn-warn-bg: #fcf3d2;
+  --mn-warn-bd: #e7c766;
+  --mn-bad: #c50f1f;
+  --mn-bad-bg: #fce6e8;
+  --mn-bad-bd: #eba9af;
+  --mn-shadow-node: 0 1px 2px rgba(0, 0, 0, 0.1);
+  --mn-shadow-popover: 0 14px 36px rgba(0, 0, 0, 0.22);
+  --mn-overlay: rgba(0, 0, 0, 0.32);
+  --mn-sans:
     "Segoe UI Variable", "Segoe UI", system-ui, -apple-system, "PingFang SC",
     "Microsoft YaHei", sans-serif;
-  --mnext-font-mono:
-    "Cascadia Code", "Cascadia Mono", ui-monospace, Consolas, "SF Mono",
-    monospace;
+  --mn-mono:
+    "Cascadia Code", "Cascadia Mono", ui-monospace, Consolas, monospace;
+
+  --mnext-font-sans: var(--mn-sans);
+  --mnext-font-mono: var(--mn-mono);
 
   /* surfaces — warm neutral */
-  --mnext-bg: #eeedeb;
-  --mnext-panel: #faf9f8;
-  --mnext-surface: #faf9f8;
-  --mnext-surface-raised: #ffffff;
-  --mnext-surface-subtle: #f4f3f1;
-  --mnext-surface-hover: #f0efed;
-  --mnext-canvas: #f3f2f0;
-  --mnext-grid: #e5e3df;
+  --mnext-bg: var(--mn-bg);
+  --mnext-panel: var(--mn-panel);
+  --mnext-surface: var(--mn-panel);
+  --mnext-surface-raised: var(--mn-surface);
+  --mnext-surface-subtle: var(--mn-surface-2);
+  --mnext-surface-hover: var(--mn-surface-3);
+  --mnext-canvas: var(--mn-bg-1);
+  --mnext-grid: var(--mn-grid);
 
   /* ink — four levels */
-  --mnext-ink: #242424;
-  --mnext-ink-soft: #57534f;
-  --mnext-ink-muted: #8a8886;
-  --mnext-ink-faint: #b3b0ad;
+  --mnext-ink: var(--mn-ink);
+  --mnext-ink-soft: var(--mn-ink-2);
+  --mnext-ink-muted: var(--mn-ink-3);
+  --mnext-ink-faint: var(--mn-ink-4);
 
   /* borders */
-  --mnext-border: #e6e3e1;
-  --mnext-border-strong: #cfccc9;
-  --mnext-border-firm: #bbb8b4;
+  --mnext-border: var(--mn-border);
+  --mnext-border-strong: var(--mn-border-2);
+  --mnext-border-firm: var(--mn-border-3);
 
-  /* accent — single brand blue */
-  --mnext-accent: #0f6cbd;
-  --mnext-accent-strong: #0a538f;
-  --mnext-accent-bg: #eef5fc;
-  --mnext-accent-border: #bad7f2;
-  --mnext-accent-ring: rgb(15 108 189 / 32%);
-  --mnext-info: #0f6cbd;
-  --mnext-brand: #0f6cbd;
-  --mnext-brand-hover: #0a538f;
+  /* accent — Fluent brand purple */
+  --mnext-accent: var(--mn-accent);
+  --mnext-accent-strong: var(--mn-accent-d);
+  --mnext-accent-bg: var(--mn-accent-bg);
+  --mnext-accent-border: var(--mn-accent-bd);
+  --mnext-accent-ring: var(--mn-accent-ring);
+  --mnext-info: var(--mn-accent);
+  --mnext-brand: var(--mn-accent);
+  --mnext-brand-hover: var(--mn-accent-d);
 
   /* semantic four-state — base / strong / bg / border */
-  --mnext-ok: #0e700e;
-  --mnext-ok-strong: #107c10;
-  --mnext-ok-bg: #e2f4e0;
-  --mnext-ok-border: #9bd49b;
-  --mnext-warn: #8a5a00;
-  --mnext-warn-strong: #b98900;
-  --mnext-warn-bg: #fcf3d2;
-  --mnext-warn-border: #e7c766;
-  --mnext-block: #b10e1c;
-  --mnext-block-strong: #c50f1f;
-  --mnext-block-bg: #fce6e8;
-  --mnext-block-border: #eba9af;
+  --mnext-ok: var(--mn-ok);
+  --mnext-ok-strong: var(--mn-ok);
+  --mnext-ok-bg: var(--mn-ok-bg);
+  --mnext-ok-border: var(--mn-ok-bd);
+  --mnext-warn: var(--mn-warn);
+  --mnext-warn-strong: var(--mn-warn);
+  --mnext-warn-bg: var(--mn-warn-bg);
+  --mnext-warn-border: var(--mn-warn-bd);
+  --mnext-block: var(--mn-bad);
+  --mnext-block-strong: var(--mn-bad);
+  --mnext-block-bg: var(--mn-bad-bg);
+  --mnext-block-border: var(--mn-bad-bd);
   --mnext-stale: #6e5400;
   --mnext-stale-strong: #8a6d00;
   --mnext-stale-bg: #f8f0d2;
@@ -70,9 +103,9 @@
   --mnext-edge: #57534f;
 
   /* elevation */
-  --mnext-shadow-node: 0 1px 2px rgb(0 0 0 / 10%);
-  --mnext-shadow-1: 0 1px 2px rgb(0 0 0 / 10%);
-  --mnext-shadow-2: 0 14px 36px rgb(0 0 0 / 22%);
+  --mnext-shadow-node: var(--mn-shadow-node);
+  --mnext-shadow-1: var(--mn-shadow-node);
+  --mnext-shadow-2: var(--mn-shadow-popover);
 
   --mnext-radius-sm: 4px;
   --mnext-radius-md: 6px;
@@ -82,45 +115,77 @@
 
 [data-theme="dark"],
 .theme-dark {
-  --mnext-bg: #1a1a1a;
-  --mnext-panel: #242322;
-  --mnext-surface: #242322;
-  --mnext-surface-raised: #2c2b2a;
-  --mnext-surface-subtle: #333130;
-  --mnext-surface-hover: #38322f;
-  --mnext-canvas: #1f1e1d;
-  --mnext-grid: #2b2a28;
+  --mn-bg: #1a1a1a;
+  --mn-bg-1: #1f1e1d;
+  --mn-surface: #2c2b2a;
+  --mn-surface-2: #333130;
+  --mn-surface-3: #38322f;
+  --mn-panel: #242322;
+  --mn-border: #3a3938;
+  --mn-border-2: #4a4847;
+  --mn-border-3: #5c5a58;
+  --mn-grid: #2b2a28;
+  --mn-ink: #f3f2f1;
+  --mn-ink-2: #c8c6c4;
+  --mn-ink-3: #979593;
+  --mn-ink-4: #6b6a68;
+  --mn-accent: #479ef5;
+  --mn-accent-d: #7dbaf7;
+  --mn-accent-bg: #10283c;
+  --mn-accent-bd: #2a4b68;
+  --mn-accent-ring: rgba(71, 158, 245, 0.42);
+  --mn-ok: #73c173;
+  --mn-ok-bg: #15300f;
+  --mn-ok-bd: #2e5e2a;
+  --mn-warn: #e6c45c;
+  --mn-warn-bg: #332b0c;
+  --mn-warn-bd: #5a4e1f;
+  --mn-bad: #ff9aa4;
+  --mn-bad-bg: #3a171a;
+  --mn-bad-bd: #6e2b31;
+  --mn-shadow-node: 0 1px 4px rgba(0, 0, 0, 0.55);
+  --mn-shadow-popover: 0 14px 36px rgba(0, 0, 0, 0.5);
+  --mn-overlay: rgba(0, 0, 0, 0.52);
 
-  --mnext-ink: #f3f2f1;
-  --mnext-ink-soft: #c8c6c4;
-  --mnext-ink-muted: #979593;
-  --mnext-ink-faint: #6b6a68;
+  --mnext-bg: var(--mn-bg);
+  --mnext-panel: var(--mn-panel);
+  --mnext-surface: var(--mn-panel);
+  --mnext-surface-raised: var(--mn-surface);
+  --mnext-surface-subtle: var(--mn-surface-2);
+  --mnext-surface-hover: var(--mn-surface-3);
+  --mnext-canvas: var(--mn-bg-1);
+  --mnext-grid: var(--mn-grid);
 
-  --mnext-border: #3a3938;
-  --mnext-border-strong: #4a4847;
-  --mnext-border-firm: #5c5a58;
+  --mnext-ink: var(--mn-ink);
+  --mnext-ink-soft: var(--mn-ink-2);
+  --mnext-ink-muted: var(--mn-ink-3);
+  --mnext-ink-faint: var(--mn-ink-4);
 
-  --mnext-accent: #479ef5;
-  --mnext-accent-strong: #7dbaf7;
-  --mnext-accent-bg: #10283c;
-  --mnext-accent-border: #2a4b68;
-  --mnext-accent-ring: rgb(71 158 245 / 42%);
-  --mnext-info: #479ef5;
-  --mnext-brand: #479ef5;
-  --mnext-brand-hover: #7dbaf7;
+  --mnext-border: var(--mn-border);
+  --mnext-border-strong: var(--mn-border-2);
+  --mnext-border-firm: var(--mn-border-3);
 
-  --mnext-ok: #73c173;
+  --mnext-accent: var(--mn-accent);
+  --mnext-accent-strong: var(--mn-accent-d);
+  --mnext-accent-bg: var(--mn-accent-bg);
+  --mnext-accent-border: var(--mn-accent-bd);
+  --mnext-accent-ring: var(--mn-accent-ring);
+  --mnext-info: var(--mn-accent);
+  --mnext-brand: var(--mn-accent);
+  --mnext-brand-hover: var(--mn-accent-d);
+
+  --mnext-ok: var(--mn-ok);
   --mnext-ok-strong: #57ae57;
-  --mnext-ok-bg: #15300f;
-  --mnext-ok-border: #2e5e2a;
-  --mnext-warn: #e6c45c;
+  --mnext-ok-bg: var(--mn-ok-bg);
+  --mnext-ok-border: var(--mn-ok-bd);
+  --mnext-warn: var(--mn-warn);
   --mnext-warn-strong: #c9a227;
-  --mnext-warn-bg: #332b0c;
-  --mnext-warn-border: #5a4e1f;
-  --mnext-block: #ff9aa4;
+  --mnext-warn-bg: var(--mn-warn-bg);
+  --mnext-warn-border: var(--mn-warn-bd);
+  --mnext-block: var(--mn-bad);
   --mnext-block-strong: #ec6b76;
-  --mnext-block-bg: #3a171a;
-  --mnext-block-border: #6e2b31;
+  --mnext-block-bg: var(--mn-bad-bg);
+  --mnext-block-border: var(--mn-bad-bd);
   --mnext-stale: #dcbb52;
   --mnext-stale-strong: #be9c2e;
   --mnext-stale-bg: #2c2611;
@@ -133,7 +198,7 @@
   --mnext-type-requirement: #f1894f;
   --mnext-edge: #c8c6c4;
 
-  --mnext-shadow-node: 0 1px 4px rgb(0 0 0 / 55%);
-  --mnext-shadow-1: 0 1px 4px rgb(0 0 0 / 55%);
-  --mnext-shadow-2: 0 14px 36px rgb(0 0 0 / 50%);
+  --mnext-shadow-node: var(--mn-shadow-node);
+  --mnext-shadow-1: var(--mn-shadow-node);
+  --mnext-shadow-2: var(--mn-shadow-popover);
 }
