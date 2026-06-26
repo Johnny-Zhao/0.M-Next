@@ -11,7 +11,17 @@
 }
 
 body {
+  background: var(--mn-bg);
+  color: var(--mn-ink);
+  font-family: var(--mn-sans);
   margin: 0;
+}
+
+code,
+kbd,
+pre,
+samp {
+  font-family: var(--mn-mono);
 }
 
 main {
@@ -204,7 +214,7 @@ main {
 
 .command-palette-backdrop {
   align-items: flex-start;
-  background: rgb(0 0 0 / 32%);
+  background: var(--mn-overlay);
   display: flex;
   inset: 0;
   justify-content: center;
@@ -217,7 +227,7 @@ main {
   background: var(--mnext-surface-raised);
   border: 1px solid var(--mnext-border-strong);
   border-radius: var(--mnext-radius-lg);
-  box-shadow: 0 18px 52px rgb(0 0 0 / 34%);
+  box-shadow: var(--mnext-shadow-2);
   color: var(--mnext-ink);
   max-width: calc(100vw - 2rem);
   overflow: hidden;
@@ -371,7 +381,7 @@ main {
   background: var(--mnext-surface-raised);
   border: 1px solid var(--mnext-border);
   border-radius: 6px;
-  box-shadow: 0 2px 8px rgb(25 36 54 / 10%);
+  box-shadow: var(--mnext-shadow-node);
   color: var(--mnext-ink);
   display: grid;
   gap: 0.25rem;
@@ -422,7 +432,7 @@ main {
   background: var(--mnext-surface-raised);
   border: 1px solid var(--mnext-border);
   border-radius: 4px;
-  box-shadow: 0 1px 4px rgb(25 36 54 / 12%);
+  box-shadow: var(--mnext-shadow-1);
   color: var(--mnext-ink);
   font-size: 0.72rem;
   max-width: 11rem;
@@ -815,7 +825,14 @@ main {
 
 .rule-lamp-mark {
   border-radius: 999px;
+  color: var(--mnext-surface-raised);
+  display: inline-flex;
+  font-size: 0.52rem;
+  font-weight: 800;
   height: 0.45rem;
+  justify-content: center;
+  line-height: 1;
+  place-items: center;
   width: 0.45rem;
 }
 
@@ -840,6 +857,10 @@ main {
   background: var(--mnext-warn);
 }
 
+.rule-lamp-warn .rule-lamp-mark::before {
+  content: "!";
+}
+
 .rule-lamp-ok {
   background: var(--mnext-ok-bg);
   border-color: color-mix(in srgb, var(--mnext-ok) 35%, transparent);
@@ -848,6 +869,10 @@ main {
 
 .rule-lamp-ok .rule-lamp-mark {
   background: var(--mnext-ok);
+}
+
+.rule-lamp-ok .rule-lamp-mark::before {
+  content: "✓";
 }
 
 .rule-lamp-todo {
