@@ -17,12 +17,14 @@ describe("GraphView", () => {
         relationType: "depends_on",
         sourceId: "a",
         targetId: "b",
+        version: 1,
       },
       {
         relationId: "r2",
         relationType: "depends_on",
         sourceId: "a",
         targetId: "c",
+        version: 1,
       },
     ]);
 

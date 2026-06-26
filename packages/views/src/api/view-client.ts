@@ -36,6 +36,7 @@ export interface RelationSummary {
   readonly relationType: string;
   readonly sourceId: string;
   readonly targetId: string;
+  readonly version: number;
 }
 
 export interface TreeNodeSummary {

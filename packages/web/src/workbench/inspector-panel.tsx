@@ -166,6 +166,7 @@ export function InspectorPanel(): ReactElement {
       detail?.relations.find((item) => item.relationId === relationId) ?? null;
     return (
       <EdgeInspector
+        commandClient={context.commandClient}
         onBack={() => {
           setRelationId(null);
           if (relation) {
@@ -175,8 +176,20 @@ export function InspectorPanel(): ReactElement {
             });
           }
         }}
+        onDeleted={() => {
+          setRelationId(null);
+          context.refreshViews();
+          if (relation) {
+            context.selection.select({
+              entityType: "object",
+              entityId: relation.sourceId,
+            });
+          }
+        }}
         relation={relation}
         relationId={relationId}
+        reportError={context.reportError}
+        workspaceId={context.workspaceId}
       />
     );
   }
@@ -423,12 +436,39 @@ function FieldLineage({
 function EdgeInspector({
   relation,
   relationId,
+  workspaceId,
+  commandClient,
   onBack,
+  onDeleted,
+  reportError,
 }: {
   readonly relation: RelationSummary | null;
   readonly relationId: string;
+  readonly workspaceId: string;
+  readonly commandClient: Pick<CommandClient, "unlink">;
   readonly onBack: () => void;
+  readonly onDeleted: () => void;
+  readonly reportError: (message: string) => void;
 }): ReactElement {
+  const [deleting, setDeleting] = useState(false);
+
+  async function remove(): Promise<void> {
+    if (!relation) return;
+    setDeleting(true);
+    try {
+      await commandClient.unlink(
+        workspaceId,
+        relation.relationId,
+        relation.version,
+      );
+      onDeleted();
+    } catch (error) {
+      reportError(error instanceof Error ? error.message : "删除连线失败");
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   return (
     <aside aria-label="连线属性" className="inspector-panel">
       <div className="edge-inspector-head">
@@ -449,17 +489,27 @@ function EdgeInspector({
             <h3>两端</h3>
             <p className="edge-endpoints">{relationEndpointsLabel(relation)}</p>
           </section>
+          <section aria-label="操作" className="inspector-section">
+            <button
+              className="edge-delete"
+              disabled={deleting}
+              onClick={() => void remove()}
+              type="button"
+            >
+              {deleting ? "删除中…" : "删除连线"}
+            </button>
+            <p className="edge-readonly-note">
+              删除经命令入口、按关系版本乐观锁;改型 / 反转待后续。
+            </p>
+          </section>
         </>
       ) : (
         <section className="inspector-section">
-          <p>已选连线 {relationId}。请先选中其一端的图元以查看类型与两端。</p>
+          <p>
+            已选连线 {relationId}。请先选中其一端的图元以查看类型、两端并删除。
+          </p>
         </section>
       )}
-      <section className="inspector-section">
-        <p className="edge-readonly-note">
-          连线的改型 / 反转 / 删除需要关系版本(读侧暂未投出),当前为只读。
-        </p>
-      </section>
     </aside>
   );
 }
