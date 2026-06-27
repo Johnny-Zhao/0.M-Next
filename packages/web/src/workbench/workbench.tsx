@@ -37,6 +37,7 @@ import { DocumentPanel } from "./document-panel";
 import { FloorplanPanel } from "./floorplan-panel";
 import { InspectorPanel } from "./inspector-panel";
 import { MatrixPanel } from "./matrix-panel";
+import { WorkbenchShellChrome } from "./shell-chrome";
 import { TablePanel } from "./table-panel";
 import { TreePanel } from "./tree-panel";
 import { ValidatePanel } from "./validate-panel";
@@ -150,6 +151,8 @@ export interface WorkbenchProps {
   readonly commandClient: CommandClient;
   readonly selection: SelectionCoordinator;
   readonly onError: (message: string) => void;
+  readonly onToggleTheme: () => void;
+  readonly themeLabel: string;
   readonly commandRegistry?: CommandRegistry;
 }
 
@@ -177,6 +180,8 @@ export function Workbench({
   commandClient,
   selection,
   onError,
+  onToggleTheme,
+  themeLabel,
   commandRegistry,
 }: WorkbenchProps): ReactElement {
   const [objectType, setAppliedObjectType] = useState(defaultObjectType);
@@ -189,6 +194,8 @@ export function Workbench({
   const [refreshVersion, setRefreshVersion] = useState(0);
   const [dockviewApi, setDockviewApi] = useState<DockviewApi | null>(null);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+  const [activePanel, setActivePanel] = useState<WorkbenchPanelId>("diagram");
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const refreshViews = useCallback(
     () => setRefreshVersion((value) => value + 1),
@@ -217,6 +224,15 @@ export function Workbench({
     (panelId: CommandPanelId) => {
       if (!dockviewApi) return;
       openWorkbenchPanel(dockviewApi, panelId);
+      setActivePanel(panelId);
+    },
+    [dockviewApi],
+  );
+  const openShellPanel = useCallback(
+    (panelId: WorkbenchPanelId) => {
+      if (!dockviewApi) return;
+      openWorkbenchPanel(dockviewApi, panelId);
+      setActivePanel(panelId);
     },
     [dockviewApi],
   );
@@ -234,6 +250,18 @@ export function Workbench({
     },
     [actorId, objectType, viewClient, workspaceId],
   );
+  const generateOutputSafely = useCallback(
+    (format: OutputFormat): void => {
+      void generateOutput(format).catch((error) =>
+        onError(error instanceof Error ? error.message : "生成文档失败"),
+      );
+    },
+    [generateOutput, onError],
+  );
+  const revalidate = useCallback(() => {
+    openShellPanel("validate");
+    refreshViews();
+  }, [openShellPanel, refreshViews]);
 
   const context = useMemo<WorkbenchContextValue>(
     () => ({
@@ -309,49 +337,66 @@ export function Workbench({
   return (
     <WorkbenchContext.Provider value={context}>
       <section aria-label="制图工作台" className="dock-workbench">
-        <div className="workbench-controls" aria-label="工作台参数">
-          <label>
-            对象类型
-            <input
-              onChange={(event) =>
-                setDraftObjectType(event.currentTarget.value)
-              }
-              value={draftObjectType}
+        <WorkbenchShellChrome
+          activePanel={activePanel}
+          advancedOpen={settingsOpen}
+          documentOutputAction={
+            <DocumentOutputAction
+              actorId={actorId}
+              objectType={objectType}
+              reportError={onError}
+              viewClient={viewClient}
+              workspaceId={workspaceId}
             />
-          </label>
-          <label>
-            关系类型
-            <input
-              onChange={(event) =>
-                setDraftRelationType(event.currentTarget.value)
-              }
-              value={draftRelationType}
-            />
-          </label>
-          <label>
-            根对象
-            <input
-              onChange={(event) => setDraftRootId(event.currentTarget.value)}
-              value={draftRootId}
-            />
-          </label>
-          <button onClick={applyWorkbenchParameters} type="button">
-            刷新
-          </button>
-          <DocumentOutputAction
-            actorId={actorId}
-            objectType={objectType}
-            reportError={onError}
-            viewClient={viewClient}
-            workspaceId={workspaceId}
-          />
-        </div>
+          }
+          onGenerateOutput={generateOutputSafely}
+          onOpenCommandPalette={() => setCommandPaletteOpen(true)}
+          onOpenPanel={openShellPanel}
+          onRefreshViews={refreshViews}
+          onRevalidate={revalidate}
+          onToggleAdvanced={() => setSettingsOpen((value) => !value)}
+          onToggleTheme={onToggleTheme}
+          themeLabel={themeLabel}
+        />
+        {settingsOpen ? (
+          <div className="workbench-controls" aria-label="高级视图设置">
+            <label>
+              对象类型
+              <input
+                onChange={(event) =>
+                  setDraftObjectType(event.currentTarget.value)
+                }
+                value={draftObjectType}
+              />
+            </label>
+            <label>
+              关系类型
+              <input
+                onChange={(event) =>
+                  setDraftRelationType(event.currentTarget.value)
+                }
+                value={draftRelationType}
+              />
+            </label>
+            <label>
+              根对象
+              <input
+                onChange={(event) => setDraftRootId(event.currentTarget.value)}
+                value={draftRootId}
+              />
+            </label>
+            <button onClick={applyWorkbenchParameters} type="button">
+              应用并刷新
+            </button>
+          </div>
+        ) : null}
         <div className="dockview-theme-light mnext-dockview-theme workbench-dock">
           <DockviewReact
             components={dockviewComponents}
             onReady={(event: DockviewReadyEvent) => {
               setDockviewApi(event.api);
               ensureWorkbenchPanels(event.api);
+              setActivePanel("diagram");
             }}
           />
         </div>
