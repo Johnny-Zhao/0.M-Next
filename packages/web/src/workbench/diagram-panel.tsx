@@ -697,8 +697,14 @@ export function DiagramPanel(): ReactElement {
           entityType: "object",
           entityId: nodeIds[0],
         });
+      } else if (selection.edges.length === 1) {
+        context.selection.select({
+          entityType: "relation",
+          entityId: selection.edges[0].id,
+        });
       } else {
         setSelectedObjectId(null);
+        context.selection.clear();
       }
     },
     [context.selection],
@@ -724,13 +730,14 @@ export function DiagramPanel(): ReactElement {
       event.preventDefault();
       setSelectedNodeIds([]);
       setSelectedEdgeIds([edge.id]);
+      context.selection.select({ entityType: "relation", entityId: edge.id });
       setMenu({
         context: { kind: "edge", edgeId: edge.id },
         x: event.clientX,
         y: event.clientY,
       });
     },
-    [],
+    [context.selection],
   );
 
   function openPaneMenu(event: MouseEvent | ReactMouseEvent): void {
@@ -844,6 +851,7 @@ export function DiagramPanel(): ReactElement {
     setSelectedObjectId(null);
     setSelectedNodeIds([]);
     setSelectedEdgeIds([]);
+    context.selection.clear();
     setMenu(null);
   }
 

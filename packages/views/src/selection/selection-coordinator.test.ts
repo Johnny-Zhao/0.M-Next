@@ -18,6 +18,11 @@ describe("SelectionCoordinator", () => {
     expect(coordinator.current()?.fieldCode).toBe("cost");
     expect(writeRequest).not.toHaveBeenCalled();
 
+    coordinator.clear();
+    expect(coordinator.current()).toBeNull();
+    expect(listener).toHaveBeenLastCalledWith(null);
+
+    coordinator.select({ entityType: "object", entityId: "again" });
     coordinator.switchWorkspace("two");
     expect(coordinator.current()).toBeNull();
     expect(listener).toHaveBeenLastCalledWith(null);
