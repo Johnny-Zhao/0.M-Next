@@ -59,11 +59,13 @@ import {
 } from "./edges";
 import {
   ObjectNode,
+  type ObjectDerivedChip,
   type ObjectDimensionTone,
   type ObjectFieldPreview,
   type ObjectFlowNode,
   type ObjectNodeData,
   type ObjectTypeVariant,
+  type ObjectVisualState,
 } from "./object-node";
 import {
   fieldDimension,
@@ -122,53 +124,47 @@ export function objectCode(object: ViewObject): string {
   return object.objectId.slice(0, 8).toUpperCase();
 }
 
-export function objectFxText(object: ViewObject): string {
-  const derived = object.derived ?? {};
-  const entries = Object.entries(derived).filter(
-    ([, value]) => value !== undefined && value !== null,
-  );
-  if (entries.length === 0) {
-    const fieldEntries = Object.entries(object.fields).filter(([code]) =>
-      isDerivedField(code),
-    );
-    if (fieldEntries.length === 0) return "派生值未提供";
-    return fieldEntries
-      .map(
-        ([code, value]) =>
-          `${derivedLabel(code)}=${formatDerivedValue(code, value)}`,
-      )
-      .join(", ");
-  }
-  return `后端实时只读: ${entries
-    .map(
-      ([code, value]) =>
-        `${derivedLabel(code)}=${formatDerivedValue(code, value)}`,
-    )
-    .join(", ")}`;
+export function objectDerivedChips(
+  object: ViewObject,
+): readonly ObjectDerivedChip[] {
+  return derivedChipDefinitions.flatMap((definition) => {
+    const value =
+      object.derived?.[definition.code] ?? object.fields[definition.code];
+    if (value === undefined || value === null) return [];
+    const formatted = formatDerivedValue(definition.code, value);
+    if (!formatted) return [];
+    return [
+      {
+        label: definition.label,
+        value: formatted.value,
+        unit: formatted.unit,
+      },
+    ];
+  });
 }
 
-function derivedLabel(code: string): string {
-  if (code === "area_fx") return "面积";
-  if (code === "total_area_fx") return "总面积";
-  if (code === "window_floor_ratio_fx") return "窗地比";
-  return code;
-}
-
-function formatDerivedValue(code: string, value: unknown): string {
+function formatDerivedValue(
+  code: string,
+  value: unknown,
+): { readonly value: string; readonly unit?: string } | null {
   const numeric = typeof value === "number" ? value : Number(value);
   if (Number.isFinite(numeric)) {
-    const text = code.includes("ratio")
-      ? numeric.toFixed(3)
-      : numeric.toLocaleString("zh-CN", { maximumFractionDigits: 2 });
-    return code.includes("area") && !code.includes("ratio")
-      ? `${text}㎡`
-      : text;
+    if (code === "area_fx" || code === "total_area_fx") {
+      return { value: formatNumber(numeric, 2), unit: "㎡" };
+    }
+    if (code === "window_floor_ratio_fx") {
+      return { value: numeric.toFixed(3) };
+    }
   }
-  return String(value);
+  const text = String(value).trim();
+  return text ? { value: text } : null;
 }
 
 export function objectTypeVariant(objectType: string): ObjectTypeVariant {
   const normalized = objectType.toLowerCase();
+  if (normalized === "room" || objectType.includes("房间")) {
+    return "room";
+  }
   if (normalized.includes("subsystem") || objectType.includes("分系统")) {
     return "subsystem";
   }
@@ -185,15 +181,24 @@ export function objectFieldPreviews(
   object: ViewObject,
   activeDimension: ActiveDimensionId = "all",
 ): readonly ObjectFieldPreview[] {
-  return Object.entries(object.fields)
+  const entries =
+    activeDimension === "all"
+      ? prioritizedFieldEntries(object.fields)
+      : Object.entries(object.fields);
+  return entries
     .filter(
       ([code]) =>
         !isDerivedField(code) &&
         !reservedObjectFieldCodes.has(code) &&
+        !layoutOnlyFieldCodes.has(code) &&
         (activeDimension === "all" || fieldDimension(code) === activeDimension),
     )
-    .slice(0, 2)
-    .map(([code, value]) => ({ code, value: String(value) }));
+    .slice(0, activeDimension === "all" ? 4 : 2)
+    .map(([code, value]) => ({
+      code,
+      label: fieldLabel(code),
+      value: formatFieldValue(code, value),
+    }));
 }
 
 export function objectReadonly(object: ViewObject): boolean {
@@ -231,6 +236,33 @@ function objectDimensionTone(
   return "normal";
 }
 
+export function objectProvenanceText(
+  object: ViewObject,
+  now = Date.now(),
+): string | null {
+  const parts = [
+    sourceText(object.source),
+    freshnessText(object.updatedAt, now),
+  ]
+    .filter((part): part is string => Boolean(part))
+    .map((part) => part.trim());
+  return parts.length > 0 ? parts.join(" · ") : null;
+}
+
+export function objectVisualState(object: ViewObject): ObjectVisualState {
+  const status = object.status.toLowerCase();
+  const freshness = String(
+    object.fields.freshnessStatus ?? object.fields.freshness ?? "",
+  ).toLowerCase();
+  if (status.includes("veto") || status.includes("reject")) return "vetoed";
+  if (object.ruleStatus === "BLOCK" || status.includes("block")) {
+    return "blocked";
+  }
+  if (status.includes("recomput")) return "recomputing";
+  if (status.includes("stale") || freshness === "stale") return "stale";
+  return "default";
+}
+
 export function objectNodeData(
   object: ViewObject,
   activeDimension: ActiveDimensionId = "all",
@@ -247,14 +279,14 @@ export function objectNodeData(
     code: objectCode(object),
     typeVariant: objectTypeVariant(object.objectType),
     fields,
-    fxText: objectFxText(object),
+    derivedChips: objectDerivedChips(object),
     ruleStatus: object.ruleStatus,
     activeDimension: dimension?.id,
     dimensionLabel: dimension?.label,
     dimensionTone,
     dimensionEmpty: Boolean(dimension && fields.length === 0),
-    provenanceText: `${object.status} / TODO(view-API): provenance`,
-    visualState: "default",
+    provenanceText: objectProvenanceText(object),
+    visualState: objectVisualState(object),
     readonly: objectReadonly(object),
   };
 }
@@ -371,6 +403,101 @@ const reservedObjectFieldCodes = new Set([
   "uiState",
   "visualState",
 ]);
+const layoutOnlyFieldCodes = new Set(["name", "title", "usage"]);
+const preferredFieldCodes = [
+  "length_m",
+  "width_m",
+  "orientation",
+  "window_area_m2",
+] as const;
+const derivedChipDefinitions = [
+  { code: "area_fx", label: "面积" },
+  { code: "window_floor_ratio_fx", label: "窗地比" },
+] as const;
+
+function prioritizedFieldEntries(
+  fields: Readonly<Record<string, unknown>>,
+): ReadonlyArray<readonly [string, unknown]> {
+  const used = new Set<string>();
+  const preferred = preferredFieldCodes.flatMap((code) => {
+    const value = fields[code];
+    if (value === undefined || value === null) return [];
+    used.add(code);
+    return [[code, value] as const];
+  });
+  const rest = Object.entries(fields).filter(([code, value]) => {
+    if (used.has(code)) return false;
+    return value !== undefined && value !== null && String(value).trim() !== "";
+  });
+  return [...preferred, ...rest];
+}
+
+function fieldLabel(code: string): string {
+  if (code === "length_m") return "长";
+  if (code === "width_m") return "宽";
+  if (code === "orientation") return "朝向";
+  if (code === "window_area_m2") return "窗面积";
+  return code;
+}
+
+function formatFieldValue(code: string, value: unknown): string {
+  const numeric = typeof value === "number" ? value : Number(value);
+  if (Number.isFinite(numeric)) {
+    if (code === "length_m" || code === "width_m") {
+      return `${formatNumber(numeric, 2)} m`;
+    }
+    if (code === "window_area_m2") return `${formatNumber(numeric, 2)} ㎡`;
+  }
+  if (code === "orientation") return orientationLabel(value);
+  return String(value);
+}
+
+function orientationLabel(value: unknown): string {
+  const normalized = String(value).trim().toUpperCase();
+  if (normalized === "N") return "北";
+  if (normalized === "S") return "南";
+  if (normalized === "E") return "东";
+  if (normalized === "W") return "西";
+  return String(value);
+}
+
+function formatNumber(value: number, maximumFractionDigits: number): string {
+  return value.toLocaleString("zh-CN", { maximumFractionDigits });
+}
+
+function sourceText(source: string | null): string | null {
+  if (!source || source.trim() === "") return null;
+  const normalized = source.trim();
+  const label =
+    sourceLabels[normalized] ??
+    sourceLabels[normalized.toLowerCase()] ??
+    normalized;
+  return `来源 ${label}`;
+}
+
+function freshnessText(updatedAt: string | null, now: number): string | null {
+  if (!updatedAt) return null;
+  const time = Date.parse(updatedAt);
+  if (!Number.isFinite(time)) return null;
+  const elapsed = Math.max(0, now - time);
+  const minute = 60_000;
+  const hour = 60 * minute;
+  const day = 24 * hour;
+  if (elapsed < minute) return "刚刚更新";
+  if (elapsed < hour) return `新鲜 ${Math.floor(elapsed / minute)}m`;
+  if (elapsed < day) return `新鲜 ${Math.floor(elapsed / hour)}h`;
+  return `新鲜 ${Math.floor(elapsed / day)}d`;
+}
+
+const sourceLabels: Readonly<Record<string, string>> = {
+  manual: "人工绘制",
+  rule: "规则",
+  AI: "AI",
+  ai: "AI",
+  artifact_sync: "制品同步",
+  simulation: "仿真",
+  system: "系统",
+};
 
 function selectedIdsFor(nodes: readonly DiagramNode[]): ReadonlySet<string> {
   return new Set(nodes.filter((node) => node.selected).map((node) => node.id));

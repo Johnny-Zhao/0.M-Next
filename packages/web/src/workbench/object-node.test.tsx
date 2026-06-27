@@ -18,12 +18,15 @@ const baseData: ObjectNodeData = {
   code: "PWR",
   typeVariant: "subsystem",
   fields: [
-    { code: "voltage", value: "28" },
-    { code: "owner", value: "AOCS" },
+    { code: "length_m", label: "长", value: "4.7 m" },
+    { code: "orientation", label: "朝向", value: "南" },
   ],
-  fxText: "fx_score=92",
+  derivedChips: [
+    { label: "面积", value: "23.5", unit: "㎡" },
+    { label: "窗地比", value: "0.078" },
+  ],
   ruleStatus: "OK",
-  provenanceText: "ACTIVE / TODO(view-API): provenance",
+  provenanceText: "来源 人工绘制 · 新鲜 12m",
   visualState: "default",
   readonly: false,
 };
@@ -36,10 +39,26 @@ describe("ObjectNode", () => {
     expect(html).toContain("object-node-subsystem");
     expect(html).toContain("PWR");
     expect(html).toContain("供电子系统");
-    expect(html).toContain("voltage");
-    expect(html).toContain("fx_score=92");
+    expect(html).toContain("长");
+    expect(html).toContain("4.7 m");
+    expect(html).toContain("面积");
+    expect(html).toContain("23.5");
+    expect(html).toContain("窗地比");
+    expect(html).toContain("后端实时·只读");
     expect(html).toContain("rule-lamp-ok");
-    expect(html).toContain("TODO(view-API): provenance");
+    expect(html).toContain("来源 人工绘制");
+    expect(html).not.toContain("TODO");
+  });
+
+  it("omits derived and provenance chrome when the view has no data", () => {
+    const html = renderNode({
+      ...baseData,
+      derivedChips: [],
+      provenanceText: null,
+    });
+
+    expect(html).not.toContain("fx-chip");
+    expect(html).not.toContain("provenance-passport");
   });
 
   it("renders the required visual states", () => {
@@ -64,6 +83,7 @@ describe("ObjectNode", () => {
       "component",
       "interface",
       "requirement",
+      "room",
     ] as const) {
       expect(renderNode({ ...baseData, typeVariant })).toContain(
         `object-node-${typeVariant}`,
@@ -96,7 +116,7 @@ describe("ObjectNode", () => {
     expect(html).toContain("object-node-dimension-thermal");
     expect(html).toContain("object-node-dimension-tone-empty");
     expect(html).toContain("该维度无数据");
-    expect(html).not.toContain("voltage");
+    expect(html).not.toContain("4.7 m");
   });
 });
 
