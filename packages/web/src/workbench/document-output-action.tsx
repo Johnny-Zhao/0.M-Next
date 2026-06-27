@@ -2,6 +2,8 @@ import { useState, type ReactElement } from "react";
 
 import type { OutputDetail, OutputFormat, ViewClient } from "@m-next/views";
 
+import { useToast } from "../toast";
+
 const outputFormats: readonly OutputFormat[] = ["markdown", "docx", "pdf"];
 
 const extensions: Readonly<Record<OutputFormat, string>> = {
@@ -74,6 +76,7 @@ export function DocumentOutputAction({
   viewClient,
   workspaceId,
 }: DocumentOutputActionProps): ReactElement {
+  const toast = useToast();
   const [format, setFormat] = useState<OutputFormat>("markdown");
   const [generating, setGenerating] = useState(false);
   const [message, setMessage] = useState("");
@@ -90,9 +93,9 @@ export function DocumentOutputAction({
         workspaceId,
       });
       download(detail);
-      setMessage(
-        `已生成 ${filename(detail.meta.format, detail.meta.outputId)}`,
-      );
+      const outputName = filename(detail.meta.format, detail.meta.outputId);
+      setMessage(`已生成 ${outputName}`);
+      toast.success(`已导出 ${outputName}`);
     } catch (error) {
       reportError(error instanceof Error ? error.message : "生成文档失败");
     } finally {
