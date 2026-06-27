@@ -1,6 +1,10 @@
 import { useEffect, useState, type ReactElement } from "react";
 
-import type { TreeNodeSummary, ViewClient } from "../api/view-client";
+import type {
+  TreeNodeSummary,
+  ViewClient,
+  ViewObject,
+} from "../api/view-client";
 import type { SelectionCoordinator } from "../selection/selection-coordinator";
 import {
   isObjectSelected,
@@ -9,6 +13,7 @@ import {
 
 export interface TreeBranch {
   readonly id: string;
+  readonly label?: string;
   readonly depth: number;
   readonly children: readonly TreeBranch[];
 }
@@ -31,17 +36,31 @@ export function buildTree(
   return branch(rootId, 0);
 }
 
+export function buildFlatTree(
+  objects: readonly ViewObject[],
+): readonly TreeBranch[] {
+  return objects.map((object) => ({
+    id: object.objectId,
+    label: treeObjectLabel(object),
+    depth: 0,
+    children: [],
+  }));
+}
+
 export interface TreeViewProps {
   readonly workspaceId: string;
   readonly relationType: string;
   readonly rootId: string;
+  readonly fallbackObjectType?: string;
   readonly client: ViewClient;
   readonly selection: SelectionCoordinator;
+  readonly onError?: (message: string) => void;
 }
 
 export function supportsTreeRelation(relationType: string): boolean {
   return new Set([
     "decomposes_to",
+    "contains",
     "proposal_contains_system",
     "proposal_contains_module",
   ]).has(relationType.trim());
@@ -54,34 +73,97 @@ export function treeEmptyMessage(rootId: string, relationType: string): string {
 }
 
 export function TreeView(props: TreeViewProps): ReactElement {
-  const [tree, setTree] = useState<TreeBranch>(() =>
-    buildTree(props.rootId, []),
-  );
+  const {
+    client,
+    fallbackObjectType,
+    onError,
+    relationType,
+    rootId,
+    selection,
+    workspaceId,
+  } = props;
+  const [tree, setTree] = useState<TreeBranch>(() => buildTree(rootId, []));
+  const [fallbackTree, setFallbackTree] = useState<readonly TreeBranch[]>([]);
+  const [loading, setLoading] = useState(false);
   const [selected, setSelected] = useState<SelectionRef | null>(null);
+  const useFallback =
+    rootId.trim() === "" || !supportsTreeRelation(relationType);
   useEffect(() => {
-    if (
-      props.rootId.trim() === "" ||
-      !supportsTreeRelation(props.relationType)
-    ) {
-      setTree(buildTree(props.rootId, []));
-      return;
+    let disposed = false;
+    async function load(): Promise<void> {
+      setLoading(true);
+      if (useFallback) {
+        setTree(buildTree(rootId, []));
+        if (!fallbackObjectType) {
+          setFallbackTree([]);
+          setLoading(false);
+          return;
+        }
+        try {
+          const page = await client.objects(
+            workspaceId,
+            fallbackObjectType,
+            0,
+            50,
+          );
+          if (!disposed) setFallbackTree(buildFlatTree(page.items));
+        } catch (error) {
+          if (!disposed) {
+            setFallbackTree([]);
+            onError?.(
+              error instanceof Error ? error.message : "读取模型树失败",
+            );
+          }
+        } finally {
+          if (!disposed) setLoading(false);
+        }
+        return;
+      }
+      setTree(buildTree(rootId, []));
+      setFallbackTree([]);
+      try {
+        const edges = await client.tree(workspaceId, relationType, rootId);
+        if (!disposed) setTree(buildTree(rootId, edges));
+      } catch (error) {
+        if (!disposed) {
+          setTree(buildTree(rootId, []));
+          onError?.(error instanceof Error ? error.message : "读取模型树失败");
+        }
+      } finally {
+        if (!disposed) setLoading(false);
+      }
     }
-    void props.client
-      .tree(props.workspaceId, props.relationType, props.rootId)
-      .then((edges) => setTree(buildTree(props.rootId, edges)));
-  }, [props.client, props.relationType, props.rootId, props.workspaceId]);
-  useEffect(() => props.selection.subscribe(setSelected), [props.selection]);
-  const emptyMessage = treeEmptyMessage(props.rootId, props.relationType);
+    void load();
+    return () => {
+      disposed = true;
+    };
+  }, [
+    client,
+    fallbackObjectType,
+    onError,
+    relationType,
+    rootId,
+    workspaceId,
+    useFallback,
+  ]);
+  useEffect(() => selection.subscribe(setSelected), [selection]);
+  const emptyMessage = treeEmptyMessage(rootId, relationType);
   return (
     <section aria-label="树视图" className="tree-view">
-      {emptyMessage ? (
+      {loading ? <p className="view-empty-state">模型树加载中...</p> : null}
+      {useFallback && fallbackTree.length > 0 ? (
+        fallbackTree.map((branch) => (
+          <TreeNode
+            branch={branch}
+            key={branch.id}
+            selected={selected}
+            selection={selection}
+          />
+        ))
+      ) : emptyMessage && !loading ? (
         <p className="view-empty-state">{emptyMessage}</p>
       ) : (
-        <TreeNode
-          branch={tree}
-          selected={selected}
-          selection={props.selection}
-        />
+        <TreeNode branch={tree} selected={selected} selection={selection} />
       )}
     </section>
   );
@@ -106,7 +188,7 @@ function TreeNode(props: {
         onClick={() => selectTreeNode(props.selection, props.branch.id)}
         type="button"
       >
-        {props.branch.id}
+        {props.branch.label ?? props.branch.id}
       </button>
       {props.branch.children.map((child) => (
         <TreeNode
@@ -125,4 +207,11 @@ export function selectTreeNode(
   entityId: string,
 ): void {
   selection.select({ entityType: "object", entityId });
+}
+
+function treeObjectLabel(object: ViewObject): string {
+  const value = object.fields.name ?? object.fields.title ?? object.objectId;
+  return typeof value === "string" && value.trim() !== ""
+    ? value
+    : object.objectId;
 }

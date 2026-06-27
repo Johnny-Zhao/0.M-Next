@@ -165,7 +165,6 @@ describe("App", () => {
           {
             fieldDefCode: "name",
             value: "新值",
-            expectedFieldVersion: 7,
           },
         ],
       ],
