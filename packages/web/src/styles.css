@@ -408,6 +408,208 @@ main {
   width: 10000px;
 }
 
+.floorplan-panel {
+  background: var(--mn-bg-1);
+  color: var(--mn-ink);
+  height: 100%;
+  min-height: 26rem;
+  overflow: hidden;
+}
+
+.floorplan-toolbar {
+  align-items: center;
+  background: var(--mn-panel);
+  border-bottom: 1px solid var(--mn-border);
+  color: var(--mn-ink-2);
+  display: flex;
+  gap: 0.75rem;
+  min-height: 42px;
+  padding: 0 0.75rem;
+}
+
+.floorplan-toolbar > span {
+  font-size: 0.76rem;
+}
+
+.floorplan-dimension-switcher {
+  align-items: center;
+  display: flex;
+  gap: 0.35rem;
+}
+
+.floorplan-dimension-switcher button {
+  background: var(--mn-surface);
+  border: 1px solid var(--mn-border-2);
+  border-radius: 5px;
+  color: var(--mn-ink-2);
+  cursor: pointer;
+  font-size: 0.78rem;
+  height: 26px;
+  padding: 0 0.6rem;
+}
+
+.floorplan-dimension-switcher button:hover,
+.floorplan-dimension-switcher button[aria-pressed="true"] {
+  background: var(--mn-accent-bg);
+  border-color: var(--floorplan-dimension-color, var(--mn-accent));
+  color: var(--floorplan-dimension-color, var(--mn-accent));
+}
+
+.floorplan-dimension-light {
+  --floorplan-dimension-color: var(--mn-accent);
+}
+
+.floorplan-dimension-thermal {
+  --floorplan-dimension-color: var(--mn-warn);
+}
+
+.floorplan-dimension-wind {
+  --floorplan-dimension-color: var(--mn-ok);
+}
+
+.floorplan-stage {
+  height: calc(100% - 43px);
+  overflow: auto;
+  padding: 0.85rem;
+}
+
+.floorplan-canvas {
+  background:
+    linear-gradient(var(--mn-grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--mn-grid) 1px, transparent 1px), var(--mn-bg-1);
+  background-size: 24px 24px;
+  border: 1px solid var(--mn-border);
+  border-radius: 7px;
+  box-shadow: inset 0 0 0 1px
+    color-mix(in srgb, var(--mn-surface) 55%, transparent);
+  min-width: 100%;
+  position: relative;
+}
+
+.floorplan-empty {
+  color: var(--mn-ink-3);
+  left: 50%;
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.floorplan-room {
+  --floorplan-room-accent: var(--mn-border-3);
+  --floorplan-room-bg: var(--mn-surface);
+  align-content: center;
+  background:
+    linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--floorplan-room-accent) 16%, transparent),
+      transparent 52%
+    ),
+    var(--floorplan-room-bg);
+  border: 1px solid
+    color-mix(in srgb, var(--floorplan-room-accent) 62%, var(--mn-border));
+  border-radius: 8px;
+  box-shadow: var(--mn-shadow-node);
+  color: var(--mn-ink);
+  cursor: pointer;
+  display: grid;
+  gap: 0.4rem;
+  height: var(--floorplan-h);
+  justify-items: center;
+  left: var(--floorplan-x);
+  min-height: 0;
+  overflow: hidden;
+  padding: 0.85rem 0.75rem 0.7rem;
+  position: absolute;
+  text-align: center;
+  top: var(--floorplan-y);
+  transition:
+    border-color 120ms ease,
+    box-shadow 120ms ease,
+    transform 120ms ease;
+  width: var(--floorplan-w);
+}
+
+.floorplan-room:hover {
+  border-color: var(--mn-accent);
+  box-shadow: 0 0 0 3px var(--mn-accent-ring);
+  transform: translateY(-1px);
+}
+
+.floorplan-room-selected {
+  border-color: var(--mn-accent);
+  box-shadow:
+    0 0 0 3px var(--mn-accent-ring),
+    var(--mn-shadow-node);
+}
+
+.floorplan-room strong {
+  font-size: clamp(0.88rem, 0.82rem + 0.16vw, 1.02rem);
+  font-weight: 650;
+  line-height: 1.25;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.floorplan-room > .fx-chip {
+  background: color-mix(
+    in srgb,
+    var(--mn-surface) 84%,
+    var(--floorplan-room-accent)
+  );
+  border: 1px solid
+    color-mix(in srgb, var(--floorplan-room-accent) 35%, var(--mn-border));
+  border-radius: 999px;
+  color: var(--mn-ink-2);
+  font-family: var(--mn-mono);
+  font-size: 0.72rem;
+  line-height: 1;
+  padding: 0.22rem 0.48rem;
+}
+
+.floorplan-rule {
+  align-items: center;
+  display: inline-flex;
+  position: absolute;
+  right: 0.42rem;
+  top: 0.42rem;
+}
+
+.floorplan-rule .rule-lamp {
+  font-size: 0;
+  min-height: 1.2rem;
+  padding: 0;
+}
+
+.floorplan-rule .rule-lamp-mark {
+  font-size: 0.76rem;
+  height: 1.2rem;
+  width: 1.2rem;
+}
+
+.floorplan-room-tone-ok {
+  --floorplan-room-accent: var(--mn-ok);
+  --floorplan-room-bg: var(--mn-ok-bg);
+}
+
+.floorplan-room-tone-warn {
+  --floorplan-room-accent: var(--mn-warn);
+  --floorplan-room-bg: var(--mn-warn-bg);
+}
+
+.floorplan-room-tone-block {
+  --floorplan-room-accent: var(--mn-bad);
+  --floorplan-room-bg: var(--mn-bad-bg);
+}
+
+.floorplan-room-tone-normal {
+  --floorplan-room-accent: var(--mn-accent);
+}
+
+.floorplan-room-tone-empty {
+  --floorplan-room-accent: var(--mn-ink-3);
+  border-style: dashed;
+}
+
 .object-node {
   background: var(--mnext-surface-raised);
   border: 1px solid var(--mnext-border);
