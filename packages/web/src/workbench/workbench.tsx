@@ -34,6 +34,7 @@ import {
   generateDocumentOutput,
 } from "./document-output-action";
 import { DocumentPanel } from "./document-panel";
+import { FloorplanPanel } from "./floorplan-panel";
 import { InspectorPanel } from "./inspector-panel";
 import { MatrixPanel } from "./matrix-panel";
 import { TablePanel } from "./table-panel";
@@ -42,6 +43,7 @@ import { ValidatePanel } from "./validate-panel";
 
 export type WorkbenchPanelId =
   | "diagram"
+  | "floorplan"
   | "table"
   | "matrix"
   | "document"
@@ -57,6 +59,7 @@ export interface WorkbenchPanelDefinition {
 
 export const workbenchPanelDefinitions: readonly WorkbenchPanelDefinition[] = [
   { id: "diagram", title: "图", component: "diagram" },
+  { id: "floorplan", title: "平面图", component: "floorplan" },
   { id: "table", title: "表格", component: "table" },
   { id: "matrix", title: "矩阵", component: "matrix" },
   { id: "document", title: "文档", component: "document" },
@@ -96,7 +99,8 @@ export function ensureWorkbenchPanels(api: DockviewApi): void {
     workbenchPanelDefinitions.find((panel) => panel.id === id) ??
     workbenchPanelDefinitions[0];
   api.addPanel(byId("diagram"));
-  // 表格 / 矩阵 / 文档 与「图」同组,呈现为视图切换标签页
+  // 平面图 / 表格 / 矩阵 / 文档 与「图」同组,呈现为视图切换标签页
+  api.addPanel({ ...byId("floorplan"), inactive: true });
   api.addPanel({ ...byId("table"), inactive: true });
   api.addPanel({ ...byId("matrix"), inactive: true });
   api.addPanel({ ...byId("document"), inactive: true });
@@ -154,6 +158,7 @@ const dockviewComponents: Record<
   (props: IDockviewPanelProps) => ReactElement
 > = {
   diagram: () => <DiagramPanel />,
+  floorplan: () => <FloorplanPanel />,
   table: () => <TablePanel />,
   matrix: () => <MatrixPanel />,
   document: () => <DocumentPanel />,

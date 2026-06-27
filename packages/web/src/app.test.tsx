@@ -19,6 +19,7 @@ describe("App", () => {
   it("registers the dockable workbench panels", () => {
     expect(workbenchPanelDefinitions.map((panel) => panel.title)).toEqual([
       "图",
+      "平面图",
       "表格",
       "矩阵",
       "文档",
