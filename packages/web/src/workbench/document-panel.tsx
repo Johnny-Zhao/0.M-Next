@@ -1,5 +1,5 @@
 import { DocumentView } from "@m-next/views";
-import type { ReactElement } from "react";
+import { useEffect, useState, type ReactElement } from "react";
 
 import { useWorkbenchContext } from "./workbench";
 
@@ -9,8 +9,14 @@ import { useWorkbenchContext } from "./workbench";
  */
 export function DocumentPanel(): ReactElement {
   const context = useWorkbenchContext();
+  const [warming, setWarming] = useState(true);
+  useEffect(() => {
+    const id = window.setTimeout(() => setWarming(false), 160);
+    return () => window.clearTimeout(id);
+  }, []);
   return (
     <div className="document-panel">
+      {warming ? <PanelSkeleton label="文档加载中" /> : null}
       <DocumentView
         commandClient={context.commandClient}
         onEditField={context.refreshViews}
@@ -21,6 +27,17 @@ export function DocumentPanel(): ReactElement {
         viewClient={context.viewClient}
         workspaceId={context.workspaceId}
       />
+    </div>
+  );
+}
+
+function PanelSkeleton({ label }: { readonly label: string }): ReactElement {
+  return (
+    <div className="panel-skeleton" role="status">
+      <span>{label}</span>
+      <i />
+      <i />
+      <i />
     </div>
   );
 }

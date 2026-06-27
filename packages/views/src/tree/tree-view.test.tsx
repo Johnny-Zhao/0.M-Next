@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { SelectionCoordinator } from "../selection/selection-coordinator";
 import {
+  buildFlatTree,
   buildTree,
   selectTreeNode,
   supportsTreeRelation,
@@ -32,13 +33,30 @@ describe("TreeView", () => {
 
   it("only allows known hierarchical relation codes to call tree reads", () => {
     expect(supportsTreeRelation("decomposes_to")).toBe(true);
+    expect(supportsTreeRelation("contains")).toBe(true);
     expect(supportsTreeRelation("proposal_contains_system")).toBe(true);
     expect(supportsTreeRelation("adjacent")).toBe(false);
-    expect(supportsTreeRelation("contains")).toBe(false);
   });
 
   it("explains unsupported tree states", () => {
     expect(treeEmptyMessage("", "decomposes_to")).toContain("根对象");
     expect(treeEmptyMessage("root", "adjacent")).toBe("该关系不支持树视图。");
+  });
+
+  it("builds a flat fallback tree from object names", () => {
+    expect(
+      buildFlatTree([
+        {
+          objectId: "room-a",
+          objectType: "room",
+          status: "ACTIVE",
+          version: 1,
+          fields: { name: "客厅" },
+          updatedAt: "2026-06-21T00:00:00Z",
+          source: null,
+          ruleStatus: "OK",
+        },
+      ])[0],
+    ).toMatchObject({ id: "room-a", label: "客厅", depth: 0 });
   });
 });

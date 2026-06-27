@@ -1,5 +1,5 @@
 import { MatrixView } from "@m-next/views";
-import type { ReactElement } from "react";
+import { useEffect, useState, type ReactElement } from "react";
 
 import { useWorkbenchContext } from "./workbench";
 
@@ -9,8 +9,14 @@ import { useWorkbenchContext } from "./workbench";
  */
 export function MatrixPanel(): ReactElement {
   const context = useWorkbenchContext();
+  const [warming, setWarming] = useState(true);
+  useEffect(() => {
+    const id = window.setTimeout(() => setWarming(false), 160);
+    return () => window.clearTimeout(id);
+  }, []);
   return (
     <div className="matrix-panel">
+      {warming ? <PanelSkeleton label="矩阵加载中" /> : null}
       <MatrixView
         colType={context.objectType}
         commandClient={context.commandClient}
@@ -21,6 +27,17 @@ export function MatrixPanel(): ReactElement {
         viewClient={context.viewClient}
         workspaceId={context.workspaceId}
       />
+    </div>
+  );
+}
+
+function PanelSkeleton({ label }: { readonly label: string }): ReactElement {
+  return (
+    <div className="panel-skeleton" role="status">
+      <span>{label}</span>
+      <i />
+      <i />
+      <i />
     </div>
   );
 }
