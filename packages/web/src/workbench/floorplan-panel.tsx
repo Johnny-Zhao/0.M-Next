@@ -36,6 +36,8 @@ export interface FloorplanRoomBlock {
   readonly object: ViewObject;
 }
 
+export type FloorplanLayoutMode = "coordinate" | "fallback";
+
 export interface FloorplanAreaChip {
   readonly label: string;
   readonly value: string;
@@ -119,8 +121,15 @@ export function buildFloorplanRooms(
   readonly rooms: readonly FloorplanRoomBlock[];
   readonly width: number;
   readonly height: number;
+  readonly mode: FloorplanLayoutMode;
 } {
   const ordered = orderRoomsByAdjacency(objects, relations);
+  const coordinateLayout = buildCoordinateFloorplanRooms(
+    ordered,
+    selectedObjectId,
+    activeDimension,
+  );
+  if (coordinateLayout) return coordinateLayout;
   const options = floorplanDimensionOptions();
   const activeOption = options.find((option) => option.id === activeDimension);
   let x = floorplanInset;
@@ -157,7 +166,82 @@ export function buildFloorplanRooms(
     rooms,
     width: canvasWidth,
     height: Math.max(240, y + rowHeight + floorplanInset),
+    mode: "fallback",
   };
+}
+
+function buildCoordinateFloorplanRooms(
+  objects: readonly ViewObject[],
+  selectedObjectId: string | null,
+  activeDimension: FloorplanDimensionId,
+): {
+  readonly rooms: readonly FloorplanRoomBlock[];
+  readonly width: number;
+  readonly height: number;
+  readonly mode: FloorplanLayoutMode;
+} | null {
+  if (objects.length === 0) return null;
+  const coordinates = objects.map(planCoordinate);
+  if (coordinates.some((coordinate) => coordinate === null)) return null;
+
+  const typedCoordinates = coordinates as readonly PlanCoordinate[];
+  const minX = Math.min(...typedCoordinates.map((coordinate) => coordinate.x));
+  const minY = Math.min(...typedCoordinates.map((coordinate) => coordinate.y));
+  const maxX = Math.max(
+    ...typedCoordinates.map((coordinate) => coordinate.x + coordinate.length),
+  );
+  const maxY = Math.max(
+    ...typedCoordinates.map((coordinate) => coordinate.y + coordinate.width),
+  );
+  const scale = 56;
+  const planWidth = Math.max(1, maxX - minX);
+  const planHeight = Math.max(1, maxY - minY);
+  const options = floorplanDimensionOptions();
+  const activeOption = options.find((option) => option.id === activeDimension);
+
+  return {
+    rooms: typedCoordinates.map((coordinate) => ({
+      id: coordinate.object.objectId,
+      title: objectTitle(coordinate.object),
+      x: floorplanInset + Math.round((coordinate.x - minX) * scale),
+      y:
+        floorplanInset +
+        Math.round((maxY - coordinate.y - coordinate.width) * scale),
+      width: Math.round(coordinate.length * scale),
+      height: Math.round(coordinate.width * scale),
+      areaChip: areaChip(coordinate.object),
+      tone: floorplanTone(coordinate.object, activeOption),
+      selected: coordinate.object.objectId === selectedObjectId,
+      object: coordinate.object,
+    })),
+    width: Math.max(360, Math.round(planWidth * scale) + floorplanInset * 2),
+    height: Math.max(240, Math.round(planHeight * scale) + floorplanInset * 2),
+    mode: "coordinate",
+  };
+}
+
+interface PlanCoordinate {
+  readonly object: ViewObject;
+  readonly x: number;
+  readonly y: number;
+  readonly length: number;
+  readonly width: number;
+}
+
+function planCoordinate(object: ViewObject): PlanCoordinate | null {
+  const x = positiveOrZeroNumber(object.fields.plan_x);
+  const y = positiveOrZeroNumber(object.fields.plan_y);
+  const length = positiveNumber(object.fields.length_m);
+  const width = positiveNumber(object.fields.width_m);
+  if (
+    x === undefined ||
+    y === undefined ||
+    length === undefined ||
+    width === undefined
+  ) {
+    return null;
+  }
+  return { object, x, y, length, width };
 }
 
 function orderRoomsByAdjacency(
@@ -391,7 +475,11 @@ export function FloorplanPanel(): ReactElement {
             </button>
           ))}
         </div>
-        <span>示意平面 · 非真实坐标</span>
+        <span>
+          {layout.mode === "coordinate"
+            ? "数据坐标 · 1m≈56px"
+            : "示意平面 · 非真实坐标"}
+        </span>
       </div>
       <div className="floorplan-stage">
         <div

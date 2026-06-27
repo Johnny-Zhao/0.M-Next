@@ -40,6 +40,7 @@ describe("floorplan panel layout", () => {
       "room-kitchen",
       "room-master",
     ]);
+    expect(layout.mode).toBe("fallback");
     expect(layout.rooms[0]?.width).toBeGreaterThan(
       layout.rooms[0]?.height ?? 0,
     );
@@ -50,6 +51,44 @@ describe("floorplan panel layout", () => {
     });
     expect(layout.rooms[0]?.object.ruleStatus).toBe("OK");
     expect(layout.rooms[2]?.selected).toBe(true);
+  });
+
+  it("uses plan coordinates when every room has layout data", () => {
+    const layout = buildFloorplanRooms(
+      [
+        room("room-living", "客厅", "OK", {
+          length_m: 5.6,
+          width_m: 4.2,
+          plan_x: 0,
+          plan_y: 0,
+        }),
+        room("room-kitchen", "厨房", "OK", {
+          length_m: 3.2,
+          width_m: 2.4,
+          plan_x: 5.6,
+          plan_y: 0,
+        }),
+        room("room-master", "主卧", "WARN", {
+          length_m: 4.2,
+          width_m: 3.6,
+          plan_x: 0,
+          plan_y: 4.2,
+        }),
+      ],
+      [],
+      null,
+      "all",
+    );
+
+    const living = layout.rooms.find((block) => block.id === "room-living");
+    const kitchen = layout.rooms.find((block) => block.id === "room-kitchen");
+    const master = layout.rooms.find((block) => block.id === "room-master");
+
+    expect(layout.mode).toBe("coordinate");
+    expect(kitchen?.x).toBeGreaterThan(living?.x ?? 0);
+    expect(master?.y).toBeLessThan(living?.y ?? 0);
+    expect(living?.width).toBeGreaterThan(kitchen?.width ?? 0);
+    expect(layout.width).toBeGreaterThan(500);
   });
 
   it("switches floorplan dimension tones without moving rooms", () => {
