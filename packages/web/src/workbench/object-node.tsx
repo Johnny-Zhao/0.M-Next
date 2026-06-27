@@ -3,6 +3,12 @@ import type { ReactElement } from "react";
 
 import type { DimensionId } from "./dimensions";
 import { PortHandles } from "./ports";
+import {
+  FxChip,
+  ProvenancePassport,
+  RuleLamp,
+  type RuleLampStatus,
+} from "./widgets";
 
 export type ObjectTypeVariant =
   | "subsystem"
@@ -18,7 +24,7 @@ export type ObjectVisualState =
   | "stale"
   | "vetoed";
 
-export type ObjectRuleStatus = "BLOCK" | "WARN" | "OK" | "UNKNOWN" | "TODO";
+export type ObjectRuleStatus = RuleLampStatus;
 export type ObjectDimensionTone = "normal" | "ok" | "warn" | "block" | "empty";
 
 export interface ObjectFieldPreview {
@@ -108,62 +114,23 @@ export function ObjectNode({
           {data.derivedChips.length > 0 ? (
             <div className="fx-chip-list" aria-label="派生值">
               {data.derivedChips.map((chip) => (
-                <span
-                  className="fx-chip"
+                <FxChip
                   key={`${chip.label}-${chip.value}-${chip.unit ?? ""}`}
-                  aria-label={`${chip.label} ${chip.value}${chip.unit ?? ""} 后端实时只读`}
-                >
-                  <span className="fx-chip-mark" aria-hidden="true">
-                    fx
-                  </span>
-                  <span className="fx-chip-label">{chip.label}</span>
-                  <span className="fx-chip-value">{chip.value}</span>
-                  {chip.unit ? (
-                    <span className="fx-chip-unit">{chip.unit}</span>
-                  ) : null}
-                  <span className="fx-chip-source">后端实时·只读</span>
-                </span>
+                  label={chip.label}
+                  unit={chip.unit}
+                  value={chip.value}
+                />
               ))}
             </div>
           ) : null}
           {data.provenanceText ? (
-            <span className="provenance-passport">{data.provenanceText}</span>
+            <ProvenancePassport text={data.provenanceText} />
           ) : null}
         </footer>
       ) : null}
       <span className="object-node-status">{data.status}</span>
     </article>
   );
-}
-
-function RuleLamp({
-  status,
-}: {
-  readonly status: ObjectRuleStatus;
-}): ReactElement {
-  const meta = ruleLampMeta(status);
-  return (
-    <span
-      className={`rule-lamp rule-lamp-${status.toLowerCase()}`}
-      aria-label={`规则 ${meta.label}`}
-    >
-      <span aria-hidden="true" className="rule-lamp-mark">
-        {meta.icon}
-      </span>
-      {meta.label}
-    </span>
-  );
-}
-
-function ruleLampMeta(status: ObjectRuleStatus): {
-  readonly icon: string;
-  readonly label: string;
-} {
-  if (status === "BLOCK") return { icon: "×", label: "阻断" };
-  if (status === "WARN") return { icon: "!", label: "告警" };
-  if (status === "OK") return { icon: "✓", label: "达标" };
-  if (status === "TODO") return { icon: "…", label: "待接入" };
-  return { icon: "?", label: "未知" };
 }
 
 function TypeIcon({

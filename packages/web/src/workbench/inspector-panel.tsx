@@ -11,6 +11,7 @@ import type {
 } from "@m-next/views";
 
 import { isDerivedField } from "./diagram-panel";
+import { ProvenancePassport, RuleLamp } from "./widgets";
 import { useWorkbenchContext } from "./workbench";
 
 export function coerceEditedValue(
@@ -212,6 +213,11 @@ export function InspectorPanel(): ReactElement {
       </p>
       <section aria-label="来源" className="inspector-section">
         <h3>来源 · 护照</h3>
+        <ProvenancePassport
+          downstream={detail.relations.length}
+          freshness={relativeTime(object.updatedAt)}
+          source={sourceLabel(object.source)}
+        />
         <dl className="passport-grid">
           <div>
             <dt>来源</dt>
@@ -239,7 +245,7 @@ export function InspectorPanel(): ReactElement {
       </section>
       <section aria-label="规则态" className="inspector-section">
         <h3>校验</h3>
-        <p>{ruleStatusText(object)}</p>
+        <RuleLamp status={object.ruleStatus} />
       </section>
       <section aria-label="字段" className="inspector-section">
         <h3>字段</h3>
