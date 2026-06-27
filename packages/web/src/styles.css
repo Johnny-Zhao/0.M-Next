@@ -915,6 +915,7 @@ main {
 .fx-chip,
 .provenance-passport,
 .rule-lamp,
+.state-tag,
 .object-node-status {
   align-items: center;
   border-radius: 999px;
@@ -933,9 +934,9 @@ main {
 }
 
 .fx-chip {
-  background: color-mix(in srgb, var(--mnext-info) 11%, var(--mnext-surface));
-  border: 1px solid color-mix(in srgb, var(--mnext-info) 24%, transparent);
-  color: var(--mnext-info);
+  background: color-mix(in srgb, var(--mn-accent) 11%, var(--mn-surface));
+  border: 1px solid color-mix(in srgb, var(--mn-accent) 24%, transparent);
+  color: var(--mn-accent);
   gap: 0.25rem;
   line-height: 1.25;
   min-height: 1.55rem;
@@ -956,19 +957,19 @@ main {
 
 .fx-chip-unit,
 .fx-chip-source {
-  color: color-mix(in srgb, var(--mnext-info) 70%, var(--mnext-ink-muted));
+  color: color-mix(in srgb, var(--mn-accent) 70%, var(--mn-ink-3));
   font-size: 0.66rem;
 }
 
 .fx-chip-source {
-  border-left: 1px solid color-mix(in srgb, var(--mnext-info) 22%, transparent);
+  border-left: 1px solid color-mix(in srgb, var(--mn-accent) 22%, transparent);
   margin-left: 0.12rem;
   padding-left: 0.34rem;
 }
 
 .provenance-passport {
-  background: var(--mnext-neutral-bg);
-  color: var(--mnext-ink-soft);
+  background: var(--mn-surface-2);
+  color: var(--mn-ink-2);
   justify-content: flex-start;
   max-width: 100%;
   min-width: 0;
@@ -977,14 +978,14 @@ main {
 
 .rule-lamp {
   border: 1px solid transparent;
-  font-family: var(--mnext-font-mono);
+  font-family: var(--mn-mono);
   font-weight: 700;
   gap: 0.25rem;
 }
 
 .rule-lamp-mark {
   border-radius: 999px;
-  color: var(--mnext-surface);
+  color: var(--mn-surface);
   display: inline-flex;
   font-family: var(--mn-mono);
   font-size: 0.58rem;
@@ -997,23 +998,23 @@ main {
 }
 
 .rule-lamp-block {
-  background: var(--mnext-block-bg);
-  border-color: color-mix(in srgb, var(--mnext-block) 35%, transparent);
-  color: var(--mnext-block);
+  background: var(--mn-bad-bg);
+  border-color: color-mix(in srgb, var(--mn-bad) 35%, transparent);
+  color: var(--mn-bad);
 }
 
 .rule-lamp-block .rule-lamp-mark {
-  background: var(--mnext-block);
+  background: var(--mn-bad);
 }
 
 .rule-lamp-warn {
-  background: var(--mnext-warn-bg);
-  border-color: color-mix(in srgb, var(--mnext-warn) 35%, transparent);
-  color: var(--mnext-warn);
+  background: var(--mn-warn-bg);
+  border-color: color-mix(in srgb, var(--mn-warn) 35%, transparent);
+  color: var(--mn-warn);
 }
 
 .rule-lamp-warn .rule-lamp-mark {
-  background: var(--mnext-warn);
+  background: var(--mn-warn);
 }
 
 .rule-lamp-warn .rule-lamp-mark::before {
@@ -1021,13 +1022,13 @@ main {
 }
 
 .rule-lamp-ok {
-  background: var(--mnext-ok-bg);
-  border-color: color-mix(in srgb, var(--mnext-ok) 35%, transparent);
-  color: var(--mnext-ok);
+  background: var(--mn-ok-bg);
+  border-color: color-mix(in srgb, var(--mn-ok) 35%, transparent);
+  color: var(--mn-ok);
 }
 
 .rule-lamp-ok .rule-lamp-mark {
-  background: var(--mnext-ok);
+  background: var(--mn-ok);
 }
 
 .rule-lamp-ok .rule-lamp-mark::before {
@@ -1035,12 +1036,44 @@ main {
 }
 
 .rule-lamp-todo {
-  background: var(--mnext-neutral-bg);
-  color: var(--mnext-ink-muted);
+  background: var(--mn-surface-2);
+  color: var(--mn-ink-3);
 }
 
 .rule-lamp-todo .rule-lamp-mark {
-  background: var(--mnext-ink-muted);
+  background: var(--mn-ink-3);
+}
+
+.rule-lamp-unknown .rule-lamp-mark {
+  background: var(--mn-ink-3);
+}
+
+.state-tag {
+  background: var(--mn-surface-2);
+  border: 1px solid var(--mn-border-2);
+  color: var(--mn-ink-2);
+}
+
+.state-tag-recomputing {
+  border-color: var(--mn-accent-bd);
+  color: var(--mn-accent);
+}
+
+.state-tag-blocked {
+  background: var(--mn-bad-bg);
+  border-color: var(--mn-bad-bd);
+  color: var(--mn-bad);
+}
+
+.state-tag-stale {
+  background: var(--mn-warn-bg);
+  border-color: var(--mn-warn-bd);
+  color: var(--mn-warn);
+}
+
+.state-tag-vetoed {
+  color: var(--mn-ink-3);
+  text-decoration: line-through;
 }
 
 .object-node-status {
