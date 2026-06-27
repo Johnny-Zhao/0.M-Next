@@ -27,7 +27,7 @@ export interface AppProps {
 
 export function App({
   baseUrl = "",
-  fetchFn = fetch,
+  fetchFn = (input, init) => fetch(input, init),
 }: AppProps = {}): ReactElement {
   const [actorId, setActorId] = useState<string | null>(null);
   const [workspaceId, setWorkspaceId] = useState<string | null>(null);
