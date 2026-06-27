@@ -200,10 +200,12 @@ export type FetchFn = (
   init?: RequestInit,
 ) => Promise<Response>;
 
+export const defaultFetch: FetchFn = (input, init) => fetch(input, init);
+
 export class ViewClient {
   constructor(
     private readonly baseUrl: string,
-    private readonly fetchFn: FetchFn = fetch,
+    private readonly fetchFn: FetchFn = defaultFetch,
   ) {}
 
   captureSnapshot(

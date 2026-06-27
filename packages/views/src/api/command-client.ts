@@ -1,4 +1,4 @@
-import type { FetchFn } from "./view-client";
+import { defaultFetch, type FetchFn } from "./view-client";
 
 export interface FieldUpdate {
   readonly fieldDefCode: string;
@@ -45,7 +45,7 @@ export class CommandFailure extends Error {
 export class CommandClient {
   constructor(
     private readonly baseUrl: string,
-    private readonly fetchFn: FetchFn = fetch,
+    private readonly fetchFn: FetchFn = defaultFetch,
   ) {}
 
   async updateFields(
