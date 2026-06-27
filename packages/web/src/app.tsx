@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactElement } from "react";
+import { useCallback, useEffect, useState, type ReactElement } from "react";
 import {
   CommandClient,
   SelectionCoordinator,
@@ -40,6 +40,7 @@ export function App({
   const [viewClient] = useState(() => new ViewClient(baseUrl, fetchFn));
   const [commandClient] = useState(() => new CommandClient(baseUrl, fetchFn));
   const [theme, setTheme] = useState<Theme>(() => readStoredTheme());
+  const reportError = useCallback(() => setErrors((value) => value + 1), []);
 
   useEffect(() => {
     applyTheme(theme, document.documentElement);
@@ -107,7 +108,7 @@ export function App({
         <Workbench
           actorId={actorId ?? "demo-actor"}
           commandClient={commandClient}
-          onError={() => setErrors((value) => value + 1)}
+          onError={reportError}
           selection={selection}
           viewClient={viewClient}
           workspaceId={workspaceId}
