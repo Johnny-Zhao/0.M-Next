@@ -11,6 +11,7 @@ import {
   type ViewObject,
 } from "@m-next/views";
 
+import { useToast } from "../toast";
 import { isDerivedField } from "./diagram-panel";
 import { ProvenancePassport, RuleLamp } from "./widgets";
 import { useWorkbenchContext } from "./workbench";
@@ -139,6 +140,7 @@ const MUTED = { opacity: 0.65, fontSize: "0.85em" } as const;
 
 export function InspectorPanel(): ReactElement {
   const context = useWorkbenchContext();
+  const toast = useToast();
   const [detail, setDetail] = useState<ObjectDetail | null>(null);
   const [relationId, setRelationId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -193,6 +195,7 @@ export function InspectorPanel(): ReactElement {
         onDeleted={() => {
           setRelationId(null);
           context.refreshViews();
+          toast.success("连线已删除");
           if (relation) {
             context.selection.select({
               entityType: "object",
@@ -228,6 +231,7 @@ export function InspectorPanel(): ReactElement {
   };
   const onFieldSaved = (code: string): void => {
     setMessage(`${code} 已保存`);
+    toast.success(`${code} 已保存`);
     refreshSelected();
     window.setTimeout(refreshSelected, 800);
   };

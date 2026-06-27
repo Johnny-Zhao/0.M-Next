@@ -137,6 +137,82 @@ main {
   min-height: calc(100vh - 6.5rem);
 }
 
+.toast-viewport {
+  bottom: 1rem;
+  display: grid;
+  gap: 0.55rem;
+  pointer-events: none;
+  position: fixed;
+  right: 1rem;
+  width: min(22rem, calc(100vw - 2rem));
+  z-index: 1000;
+}
+
+.toast-card {
+  --toast-accent: var(--mn-accent);
+  align-items: center;
+  background: color-mix(in srgb, var(--mn-surface) 96%, transparent);
+  border: 1px solid var(--mn-border);
+  border-left: 3px solid var(--toast-accent);
+  border-radius: 6px;
+  box-shadow: var(--mn-shadow-popover);
+  color: var(--mn-ink);
+  display: grid;
+  gap: 0.55rem;
+  grid-template-columns: auto 1fr auto;
+  min-height: 2.45rem;
+  padding: 0.55rem 0.65rem;
+  pointer-events: auto;
+}
+
+.toast-card-success {
+  --toast-accent: var(--mn-ok);
+  background: color-mix(in srgb, var(--mn-ok-bg) 35%, var(--mn-surface));
+}
+
+.toast-card-error {
+  --toast-accent: var(--mn-bad);
+  background: color-mix(in srgb, var(--mn-bad-bg) 35%, var(--mn-surface));
+}
+
+.toast-card-info {
+  --toast-accent: var(--mn-accent);
+}
+
+.toast-card strong {
+  color: var(--toast-accent);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.toast-card span {
+  color: var(--mn-ink);
+  font-size: 0.82rem;
+  line-height: 1.35;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.toast-card button {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  color: var(--mn-ink-3);
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 1rem;
+  height: 1.6rem;
+  justify-content: center;
+  padding: 0;
+  width: 1.6rem;
+}
+
+.toast-card button:hover {
+  background: var(--mn-surface-2);
+  color: var(--mn-ink);
+}
+
 .dock-workbench,
 .workbench-dock {
   flex: 1;

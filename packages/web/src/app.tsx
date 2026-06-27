@@ -16,6 +16,7 @@ import {
   themeLabel,
   type Theme,
 } from "./theme";
+import { ToastProvider, useToast } from "./toast";
 import { Workbench } from "./workbench/workbench";
 
 const demoWorkspace = "11111111-1111-4111-8111-111111111111";
@@ -29,6 +30,20 @@ export function App({
   baseUrl = "",
   fetchFn = (input, init) => fetch(input, init),
 }: AppProps = {}): ReactElement {
+  return (
+    <ToastProvider>
+      <AppContent baseUrl={baseUrl} fetchFn={fetchFn} />
+    </ToastProvider>
+  );
+}
+
+function AppContent({
+  baseUrl,
+  fetchFn,
+}: {
+  readonly baseUrl: string;
+  readonly fetchFn: FetchFn;
+}): ReactElement {
   const [actorId, setActorId] = useState<string | null>(null);
   const [workspaceId, setWorkspaceId] = useState<string | null>(null);
   const [errors, setErrors] = useState(0);
@@ -40,7 +55,14 @@ export function App({
   const [viewClient] = useState(() => new ViewClient(baseUrl, fetchFn));
   const [commandClient] = useState(() => new CommandClient(baseUrl, fetchFn));
   const [theme, setTheme] = useState<Theme>(() => readStoredTheme());
-  const reportError = useCallback(() => setErrors((value) => value + 1), []);
+  const toast = useToast();
+  const reportError = useCallback(
+    (message: string) => {
+      setErrors((value) => value + 1);
+      toast.error(message || "操作失败");
+    },
+    [toast],
+  );
 
   useEffect(() => {
     applyTheme(theme, document.documentElement);

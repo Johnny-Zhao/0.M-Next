@@ -25,6 +25,7 @@ import {
 
 import type { RelationSummary, ViewObject } from "@m-next/views";
 
+import { useToast } from "../toast";
 import {
   alignNodes,
   distributeNodes,
@@ -546,6 +547,7 @@ export async function unlinkDiagramEdges(
 
 export function DiagramPanel(): ReactElement {
   const context = useWorkbenchContext();
+  const toast = useToast();
   const [data, setData] = useState<DiagramData>({
     objects: [],
     relations: [],
@@ -824,6 +826,7 @@ export function DiagramPanel(): ReactElement {
       }
       clearSelection();
       context.refreshViews();
+      toast.success("已删除选择");
     } catch (error) {
       context.reportError(errorMessage(error, "删除选择失败"));
     } finally {
@@ -891,6 +894,7 @@ export function DiagramPanel(): ReactElement {
         deletedEdges,
       );
       context.refreshViews();
+      toast.success("连线已删除");
     } catch (error) {
       context.reportError(
         error instanceof Error ? error.message : "删除关系失败",
