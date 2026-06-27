@@ -36,9 +36,10 @@ describe("App", () => {
           objectType: "demo_object",
           status: "DRAFT",
           version: 1,
-          fields: { name: "对象A", fx_score: 12 },
+          fields: { name: "对象A", length_m: 4, width_m: 3 },
+          derived: { area_fx: 12 },
           updatedAt: "2026-06-21T00:00:00Z",
-          source: null,
+          source: "manual",
           ruleStatus: "OK",
         },
         {
@@ -67,7 +68,12 @@ describe("App", () => {
     expect(flow.nodes).toHaveLength(2);
     expect(flow.edges).toHaveLength(1);
     expect(flow.nodes[1]?.selected).toBe(true);
-    expect(flow.nodes[0]?.data.fxText).toContain("fx_score=12");
+    expect(flow.nodes[0]?.data.derivedChips).toContainEqual({
+      label: "面积",
+      value: "12",
+      unit: "㎡",
+    });
+    expect(flow.nodes[0]?.data.provenanceText).toContain("人工绘制");
     expect(
       objectsAndRelationsToFlow(
         [
@@ -117,8 +123,8 @@ describe("App", () => {
 
     expect(energy.nodes[0]?.position).toEqual(all.nodes[0]?.position);
     expect(all.nodes[0]?.data.fields.map((field) => field.code)).toEqual([
-      "name",
       "energy_soc",
+      "temperature",
     ]);
     expect(energy.nodes[0]?.data.fields.map((field) => field.code)).toEqual([
       "energy_soc",

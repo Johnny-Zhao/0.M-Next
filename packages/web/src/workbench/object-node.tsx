@@ -8,7 +8,8 @@ export type ObjectTypeVariant =
   | "subsystem"
   | "component"
   | "interface"
-  | "requirement";
+  | "requirement"
+  | "room";
 
 export type ObjectVisualState =
   | "default"
@@ -22,7 +23,14 @@ export type ObjectDimensionTone = "normal" | "ok" | "warn" | "block" | "empty";
 
 export interface ObjectFieldPreview {
   readonly code: string;
+  readonly label: string;
   readonly value: string;
+}
+
+export interface ObjectDerivedChip {
+  readonly label: string;
+  readonly value: string;
+  readonly unit?: string;
 }
 
 export interface ObjectNodeData extends Record<string, unknown> {
@@ -32,13 +40,13 @@ export interface ObjectNodeData extends Record<string, unknown> {
   readonly code: string;
   readonly typeVariant: ObjectTypeVariant;
   readonly fields: readonly ObjectFieldPreview[];
-  readonly fxText: string;
+  readonly derivedChips: readonly ObjectDerivedChip[];
   readonly ruleStatus: ObjectRuleStatus;
   readonly activeDimension?: DimensionId;
   readonly dimensionLabel?: string;
   readonly dimensionTone?: ObjectDimensionTone;
   readonly dimensionEmpty?: boolean;
-  readonly provenanceText: string;
+  readonly provenanceText: string | null;
   readonly visualState: ObjectVisualState;
   readonly readonly: boolean;
 }
@@ -86,7 +94,7 @@ export function ObjectNode({
         {data.fields.length > 0
           ? data.fields.map((field) => (
               <div className="object-node-field" key={field.code}>
-                <dt>{field.code}</dt>
+                <dt>{field.label}</dt>
                 <dd>{field.value}</dd>
               </div>
             ))
@@ -95,13 +103,34 @@ export function ObjectNode({
           <div className="object-node-field-empty">该维度无数据</div>
         ) : null}
       </dl>
-      <footer className="object-node-footer">
-        <span className="fx-chip" aria-label={`派生值 ${data.fxText}`}>
-          <span aria-hidden="true">fx</span>
-          {data.fxText}
-        </span>
-        <span className="provenance-passport">{data.provenanceText}</span>
-      </footer>
+      {data.derivedChips.length > 0 || data.provenanceText ? (
+        <footer className="object-node-footer">
+          {data.derivedChips.length > 0 ? (
+            <div className="fx-chip-list" aria-label="派生值">
+              {data.derivedChips.map((chip) => (
+                <span
+                  className="fx-chip"
+                  key={`${chip.label}-${chip.value}-${chip.unit ?? ""}`}
+                  aria-label={`${chip.label} ${chip.value}${chip.unit ?? ""} 后端实时只读`}
+                >
+                  <span className="fx-chip-mark" aria-hidden="true">
+                    fx
+                  </span>
+                  <span className="fx-chip-label">{chip.label}</span>
+                  <span className="fx-chip-value">{chip.value}</span>
+                  {chip.unit ? (
+                    <span className="fx-chip-unit">{chip.unit}</span>
+                  ) : null}
+                  <span className="fx-chip-source">后端实时·只读</span>
+                </span>
+              ))}
+            </div>
+          ) : null}
+          {data.provenanceText ? (
+            <span className="provenance-passport">{data.provenanceText}</span>
+          ) : null}
+        </footer>
+      ) : null}
       <span className="object-node-status">{data.status}</span>
     </article>
   );
@@ -112,13 +141,29 @@ function RuleLamp({
 }: {
   readonly status: ObjectRuleStatus;
 }): ReactElement {
-  const label = status === "TODO" ? "TODO(view-API)" : status;
+  const meta = ruleLampMeta(status);
   return (
-    <span className={`rule-lamp rule-lamp-${status.toLowerCase()}`}>
-      <span aria-hidden="true" className="rule-lamp-mark" />
-      {label}
+    <span
+      className={`rule-lamp rule-lamp-${status.toLowerCase()}`}
+      aria-label={`规则 ${meta.label}`}
+    >
+      <span aria-hidden="true" className="rule-lamp-mark">
+        {meta.icon}
+      </span>
+      {meta.label}
     </span>
   );
+}
+
+function ruleLampMeta(status: ObjectRuleStatus): {
+  readonly icon: string;
+  readonly label: string;
+} {
+  if (status === "BLOCK") return { icon: "×", label: "阻断" };
+  if (status === "WARN") return { icon: "!", label: "告警" };
+  if (status === "OK") return { icon: "✓", label: "达标" };
+  if (status === "TODO") return { icon: "…", label: "待接入" };
+  return { icon: "?", label: "未知" };
 }
 
 function TypeIcon({
@@ -147,6 +192,14 @@ function TypeIcon({
       <svg aria-hidden="true" viewBox="0 0 16 16">
         <path d="M4 2h6l2 2v10H4z" />
         <path d="M6 7h4M6 10h4" />
+      </svg>
+    );
+  }
+  if (variant === "room") {
+    return (
+      <svg aria-hidden="true" viewBox="0 0 16 16">
+        <path d="M3 3h10v10H3z" />
+        <path d="M3 8h4v5M9 3v4h4M10.5 13v-2" />
       </svg>
     );
   }
