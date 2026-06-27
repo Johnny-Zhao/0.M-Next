@@ -48,6 +48,33 @@ class DerivedFieldRepository {
     this.mapper = mapper;
   }
 
+  List<String> codesForObjectType(UUID workspaceId, String objectTypeCode) {
+    if (workspaceId == null || blank(objectTypeCode)) return List.of();
+    return jdbc.query(
+        """
+        WITH RECURSIVE type_chain(id, parent_type_id, depth) AS (
+          SELECT id, parent_type_id, 0
+          FROM object_type
+          WHERE workspace_id = ? AND code = ?
+          UNION ALL
+          SELECT parent.id, parent.parent_type_id, child.depth + 1
+          FROM object_type parent
+          JOIN type_chain child ON parent.id = child.parent_type_id
+          WHERE parent.workspace_id = ? AND child.depth < 32
+        )
+        SELECT DISTINCT ON (derived.code) derived.code
+        FROM derived_field derived
+        JOIN type_chain type ON type.id = derived.object_type_id
+        WHERE derived.workspace_id = ?
+        ORDER BY derived.code, type.depth ASC
+        """,
+        (row, ignored) -> row.getString(1),
+        workspaceId,
+        objectTypeCode,
+        workspaceId,
+        workspaceId);
+  }
+
   @Transactional
   CommandResult define(DefineDerivedFieldRequest request, String actor) {
     validateEnvelope(request.workspaceId(), request.idempotencyKey());

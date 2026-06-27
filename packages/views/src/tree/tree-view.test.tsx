@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { SelectionCoordinator } from "../selection/selection-coordinator";
-import { buildTree, selectTreeNode } from "./tree-view";
+import { buildTree, selectTreeNode, supportsTreeRelation } from "./tree-view";
 
 describe("TreeView", () => {
   it("builds hierarchy and truncates beyond depth five", () => {
@@ -23,5 +23,12 @@ describe("TreeView", () => {
 
     expect(selection.current()?.entityId).toBe("node");
     expect(writeRequest).not.toHaveBeenCalled();
+  });
+
+  it("only allows known hierarchical relation codes to call tree reads", () => {
+    expect(supportsTreeRelation("decomposes_to")).toBe(true);
+    expect(supportsTreeRelation("proposal_contains_system")).toBe(true);
+    expect(supportsTreeRelation("adjacent")).toBe(false);
+    expect(supportsTreeRelation("contains")).toBe(false);
   });
 });

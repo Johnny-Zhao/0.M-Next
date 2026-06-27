@@ -16,6 +16,7 @@ import type {
 import { ConflictDialog } from "../conflict/conflict-dialog";
 import type { SelectionCoordinator } from "../selection/selection-coordinator";
 import type { SelectionRef } from "../selection/selection-ref";
+import { supportsTreeRelation } from "../tree/tree-view";
 
 const MAX_SECTIONS = 200;
 const terminalStatuses = new Set([
@@ -286,6 +287,7 @@ async function loadSections(
   rootId: string,
   relationType: string,
 ): Promise<readonly DocumentSection[]> {
+  if (rootId.trim() === "" || !supportsTreeRelation(relationType)) return [];
   const [edges, types] = await Promise.all([
     viewClient.tree(workspaceId, relationType, rootId),
     viewClient.objectTypes(workspaceId),

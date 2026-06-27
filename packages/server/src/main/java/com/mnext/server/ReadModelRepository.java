@@ -656,6 +656,7 @@ class ReadModelRepository {
         map(row.getString(5)),
         row.getTimestamp(6).toInstant(),
         row.getString(7),
+        Map.of(),
         "UNKNOWN");
   }
 

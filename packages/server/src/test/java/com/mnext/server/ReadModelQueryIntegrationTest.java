@@ -63,6 +63,9 @@ class ReadModelQueryIntegrationTest {
     jdbc.update("DELETE FROM rm_relation");
     jdbc.update("DELETE FROM rm_object");
     jdbc.update("DELETE FROM event_outbox");
+    jdbc.update(
+        "DELETE FROM derived_field WHERE workspace_id = ? AND code IN ('budget_double_fx', 'broken_fx')",
+        WORKSPACE);
   }
 
   @Test
@@ -120,6 +123,24 @@ class ReadModelQueryIntegrationTest {
             WORKSPACE,
             FIRST));
     assertEquals(3, count("rm_consumed_event"));
+  }
+
+  @Test
+  void objectViewsExposeDerivedValuesAndIgnoreSingleFieldFailures() {
+    insertDerived("budget_double_fx", "field('budget') * 2");
+    insertDerived("broken_fx", "field(");
+    projection.apply(objectCreated(FIRST));
+    projection.apply(fieldChanged(FIRST, 2, 5));
+
+    var objects = get("/views/objects?objectType=demo_object&page=0&pageSize=10");
+    var item = (Map<?, ?>) ((java.util.List<?>) objects.get("items")).getFirst();
+    var derived = (Map<?, ?>) item.get("derived");
+    var detail = get("/views/objects/" + FIRST);
+    var detailDerived = (Map<?, ?>) ((Map<?, ?>) detail.get("object")).get("derived");
+
+    assertEquals(10, ((Number) derived.get("budget_double_fx")).intValue());
+    assertFalse(derived.containsKey("broken_fx"));
+    assertEquals(10, ((Number) detailDerived.get("budget_double_fx")).intValue());
   }
 
   @Test
@@ -395,6 +416,27 @@ class ReadModelQueryIntegrationTest {
         BASE_TYPE,
         REQUIREMENT_TEXT_TYPE,
         CHILD_TYPE);
+  }
+
+  private void insertDerived(String code, String derivation) {
+    var objectType =
+        jdbc.queryForObject(
+            "SELECT id FROM object_type WHERE workspace_id = ? AND code = 'demo_object'",
+            UUID.class,
+            WORKSPACE);
+    jdbc.update(
+        """
+        INSERT INTO derived_field
+          (id, workspace_id, object_type_id, code, name, result_type, derivation,
+           created_by, updated_by, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, 'number', ?, 'test', 'test', now(), now())
+        """,
+        UUID.randomUUID(),
+        WORKSPACE,
+        objectType,
+        code,
+        code,
+        derivation);
   }
 
   private Map<String, Map<String, Object>> fieldsByCode(Map<String, Object> type) {
