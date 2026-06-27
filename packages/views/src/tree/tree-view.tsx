@@ -39,23 +39,32 @@ export interface TreeViewProps {
   readonly selection: SelectionCoordinator;
 }
 
+export function supportsTreeRelation(relationType: string): boolean {
+  return new Set([
+    "decomposes_to",
+    "proposal_contains_system",
+    "proposal_contains_module",
+  ]).has(relationType.trim());
+}
+
 export function TreeView(props: TreeViewProps): ReactElement {
   const [tree, setTree] = useState<TreeBranch>(() =>
     buildTree(props.rootId, []),
   );
   const [selected, setSelected] = useState<SelectionRef | null>(null);
   useEffect(() => {
+    if (
+      props.rootId.trim() === "" ||
+      !supportsTreeRelation(props.relationType)
+    ) {
+      setTree(buildTree(props.rootId, []));
+      return;
+    }
     void props.client
       .tree(props.workspaceId, props.relationType, props.rootId)
       .then((edges) => setTree(buildTree(props.rootId, edges)));
-    return props.selection.subscribe(setSelected);
-  }, [
-    props.client,
-    props.relationType,
-    props.rootId,
-    props.selection,
-    props.workspaceId,
-  ]);
+  }, [props.client, props.relationType, props.rootId, props.workspaceId]);
+  useEffect(() => props.selection.subscribe(setSelected), [props.selection]);
   return (
     <section aria-label="树视图">
       <TreeNode branch={tree} selected={selected} selection={props.selection} />

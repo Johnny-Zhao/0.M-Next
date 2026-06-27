@@ -123,11 +123,48 @@ export function objectCode(object: ViewObject): string {
 }
 
 export function objectFxText(object: ViewObject): string {
-  const entries = Object.entries(object.fields).filter(([code]) =>
-    isDerivedField(code),
+  const derived = object.derived ?? {};
+  const entries = Object.entries(derived).filter(
+    ([, value]) => value !== undefined && value !== null,
   );
-  if (entries.length === 0) return "TODO(view-API): 派生值未提供";
-  return entries.map(([code, value]) => `${code}=${String(value)}`).join(", ");
+  if (entries.length === 0) {
+    const fieldEntries = Object.entries(object.fields).filter(([code]) =>
+      isDerivedField(code),
+    );
+    if (fieldEntries.length === 0) return "派生值未提供";
+    return fieldEntries
+      .map(
+        ([code, value]) =>
+          `${derivedLabel(code)}=${formatDerivedValue(code, value)}`,
+      )
+      .join(", ");
+  }
+  return `后端实时只读: ${entries
+    .map(
+      ([code, value]) =>
+        `${derivedLabel(code)}=${formatDerivedValue(code, value)}`,
+    )
+    .join(", ")}`;
+}
+
+function derivedLabel(code: string): string {
+  if (code === "area_fx") return "面积";
+  if (code === "total_area_fx") return "总面积";
+  if (code === "window_floor_ratio_fx") return "窗地比";
+  return code;
+}
+
+function formatDerivedValue(code: string, value: unknown): string {
+  const numeric = typeof value === "number" ? value : Number(value);
+  if (Number.isFinite(numeric)) {
+    const text = code.includes("ratio")
+      ? numeric.toFixed(3)
+      : numeric.toLocaleString("zh-CN", { maximumFractionDigits: 2 });
+    return code.includes("area") && !code.includes("ratio")
+      ? `${text}㎡`
+      : text;
+  }
+  return String(value);
 }
 
 export function objectTypeVariant(objectType: string): ObjectTypeVariant {

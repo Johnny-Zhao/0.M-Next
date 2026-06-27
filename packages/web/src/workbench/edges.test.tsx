@@ -4,6 +4,7 @@ import type { ViewObject } from "@m-next/views";
 
 import {
   connectDiagramObjects,
+  objectFxText,
   objectsAndRelationsToFlow,
   relationLabel,
   unlinkDiagramEdges,
@@ -69,6 +70,18 @@ describe("diagram relation edges", () => {
     expect(relationEdgeVisual(edgeData, false)).toMatchObject({
       strokeDasharray: "9 4",
     });
+  });
+
+  it("formats real derived values for the fx chip", () => {
+    const text = objectFxText({
+      ...object("obj-a", "客厅"),
+      derived: { area_fx: 23.5, window_floor_ratio_fx: 0.078333 },
+    });
+
+    expect(text).toContain("后端实时只读");
+    expect(text).toContain("面积=23.5㎡");
+    expect(text).toContain("窗地比=0.078");
+    expect(text).not.toContain("TODO");
   });
 
   it("unlinks deleted edges through CommandClient with projected version", async () => {

@@ -32,6 +32,7 @@ class OpenApiContractTest {
   @MockitoBean KernelCommandService commands;
   @MockitoBean ReadModelRepository readModel;
   @MockitoBean CheckResultRepository checkResults;
+  @MockitoBean DerivedFieldRepository derivedFields;
   @MockitoBean LineageQueryRepository lineageQueries;
   @MockitoBean WorkspaceAuthorizer authorizer;
   @Autowired MockMvc http;

@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -27,6 +28,7 @@ public class ViewQueryController {
   private final ReadModelRepository repository;
   private final CheckResultRepository checkResults;
   private final ObjectProvider<DerivedEvaluator> derivedEvaluator;
+  private final DerivedFieldRepository derivedFields;
   private final SimulationRunRepository simulationRuns;
   private final LineageQueryRepository lineageQueries;
   private final WorkspaceAuthorizer authorizer;
@@ -35,12 +37,14 @@ public class ViewQueryController {
       ReadModelRepository repository,
       CheckResultRepository checkResults,
       ObjectProvider<DerivedEvaluator> derivedEvaluator,
+      DerivedFieldRepository derivedFields,
       @Nullable SimulationRunRepository simulationRuns,
       LineageQueryRepository lineageQueries,
       WorkspaceAuthorizer authorizer) {
     this.repository = repository;
     this.checkResults = checkResults;
     this.derivedEvaluator = derivedEvaluator;
+    this.derivedFields = derivedFields;
     this.simulationRuns = simulationRuns;
     this.lineageQueries = lineageQueries;
     this.authorizer = authorizer;
@@ -64,7 +68,9 @@ public class ViewQueryController {
       throw new IllegalArgumentException("page 必须非负且 pageSize 必须为 1..200");
     }
     return withRuleStatuses(
-        workspaceId, repository.objects(workspaceId, objectType, page, pageSize));
+        workspaceId,
+        withDerivedValues(
+            workspaceId, repository.objects(workspaceId, objectType, page, pageSize)));
   }
 
   @GetMapping("/workspaces/{workspaceId}/views/objects/{objectId}")
@@ -73,7 +79,9 @@ public class ViewQueryController {
     authorize(workspaceId);
     var detail = repository.object(workspaceId, objectId);
     return new ObjectDetailView(
-        withRuleStatus(detail.object(), ruleStatuses(workspaceId, List.of(objectId))),
+        withRuleStatus(
+            withDerivedValues(workspaceId, detail.object()),
+            ruleStatuses(workspaceId, List.of(objectId))),
         detail.relations());
   }
 
@@ -300,7 +308,50 @@ public class ViewQueryController {
         object.fields(),
         object.updatedAt(),
         object.source(),
+        object.derived(),
         statuses.getOrDefault(object.objectId(), "UNKNOWN"));
+  }
+
+  private PageView<ObjectView> withDerivedValues(UUID workspaceId, PageView<ObjectView> page) {
+    var codesByType = new HashMap<String, List<String>>();
+    return new PageView<>(
+        page.items().stream()
+            .map(object -> withDerivedValues(workspaceId, object, codesByType))
+            .toList(),
+        page.page(),
+        page.pageSize(),
+        page.total());
+  }
+
+  private ObjectView withDerivedValues(UUID workspaceId, ObjectView object) {
+    return withDerivedValues(workspaceId, object, new HashMap<>());
+  }
+
+  private ObjectView withDerivedValues(
+      UUID workspaceId, ObjectView object, Map<String, List<String>> codesByType) {
+    var codes =
+        codesByType.computeIfAbsent(
+            object.objectType(), type -> derivedFields.codesForObjectType(workspaceId, type));
+    if (codes.isEmpty()) return object;
+    var values = new LinkedHashMap<String, Object>();
+    for (var code : codes) {
+      try {
+        var value = derivedEvaluator.getObject().evaluate(workspaceId, object.objectId(), code);
+        if (value != null) values.put(code, value);
+      } catch (RuntimeException failure) {
+        // A single derived value must not make the whole read model query fail.
+      }
+    }
+    return new ObjectView(
+        object.objectId(),
+        object.objectType(),
+        object.status(),
+        object.version(),
+        object.fields(),
+        object.updatedAt(),
+        object.source(),
+        Map.copyOf(values),
+        object.ruleStatus());
   }
 
   private RecommendationView recommendationView(
