@@ -145,6 +145,17 @@ export function canInlineEditDocumentField(
   return canEditDocumentField(section) && commandClient !== undefined;
 }
 
+export function documentEmptyMessage(
+  rootId: string,
+  relationType: string,
+): string {
+  if (rootId.trim() === "") return "请选择根对象后查看文档大纲。";
+  if (!supportsTreeRelation(relationType)) {
+    return "当前关系不支持文档大纲，请切换到 hierarchical 关系。";
+  }
+  return "暂无可展示的文档节段。";
+}
+
 export async function saveDocumentField(
   commandClient: CommandClient,
   workspaceId: string,
@@ -260,6 +271,11 @@ export function DocumentView(props: DocumentViewProps): ReactElement {
 
   return (
     <section aria-label="文档视图" className="document-view">
+      {sections.length === 0 ? (
+        <p className="view-empty-state">
+          {documentEmptyMessage(rootId, relationType)}
+        </p>
+      ) : null}
       {sections.map((section) => (
         <DocumentSectionView
           key={section.object.objectId}

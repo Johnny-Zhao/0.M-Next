@@ -8,6 +8,7 @@ import {
   buildDocumentSections,
   canEditDocumentField,
   canInlineEditDocumentField,
+  documentEmptyMessage,
   isDocumentSelection,
   replaceDocumentField,
   saveDocumentField,
@@ -192,6 +193,11 @@ describe("DocumentView", () => {
     );
 
     expect(canInlineEditDocumentField(sections[0]!)).toBe(false);
+  });
+
+  it("explains empty document states without changing tree semantics", () => {
+    expect(documentEmptyMessage("", "decomposes_to")).toContain("根对象");
+    expect(documentEmptyMessage("root", "adjacent")).toContain("hierarchical");
   });
 });
 
