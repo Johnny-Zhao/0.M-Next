@@ -1,13 +1,14 @@
 import { useEffect, useState, type ReactElement } from "react";
 
-import type {
-  CommandClient,
-  LineageNode,
-  LineageView,
-  ObjectDetail,
-  RelationSummary,
-  ViewClient,
-  ViewObject,
+import {
+  CommandFailure,
+  type CommandClient,
+  type LineageNode,
+  type LineageView,
+  type ObjectDetail,
+  type RelationSummary,
+  type ViewClient,
+  type ViewObject,
 } from "@m-next/views";
 
 import { isDerivedField } from "./diagram-panel";
@@ -33,18 +34,30 @@ export async function saveDrivingField(
   fieldCode: string,
   value: unknown,
 ): Promise<void> {
-  await commandClient.updateFields(
-    workspaceId,
-    object.objectId,
-    object.version,
-    [
-      {
-        fieldDefCode: fieldCode,
-        value,
-        // 不传 expectedFieldVersion:仅按对象版本做乐观锁(字段版本≠对象版本会 409)
-      },
-    ],
-  );
+  // 不传 expectedFieldVersion:仅按对象版本做乐观锁(字段版本≠对象版本会 409)
+  const fields = [{ fieldDefCode: fieldCode, value }];
+  try {
+    await commandClient.updateFields(
+      workspaceId,
+      object.objectId,
+      object.version,
+      fields,
+    );
+  } catch (error) {
+    // 读库版本可能慢于写库;撞版本冲突时,用后端返回的真实版本重试一次
+    const current =
+      error instanceof CommandFailure &&
+      error.commandError.code === "KERNEL-409-VERSION-CONFLICT"
+        ? error.commandError.details?.currentVersion
+        : undefined;
+    if (typeof current !== "number") throw error;
+    await commandClient.updateFields(
+      workspaceId,
+      object.objectId,
+      current,
+      fields,
+    );
+  }
 }
 
 export function ruleStatusText(object: ViewObject): string {
@@ -205,6 +218,19 @@ export function InspectorPanel(): ReactElement {
 
   const object = detail.object;
   const { derived, stored } = partitionFields(object.fields);
+  // 保存后刷新:即时刷一次,再过一拍刷一次(等读库经投影追平,画布/派生自动跟上,免手动 F5)
+  const refreshSelected = (): void => {
+    context.refreshViews();
+    void context.viewClient
+      .object(context.workspaceId, object.objectId)
+      .then(setDetail)
+      .catch(() => {});
+  };
+  const onFieldSaved = (code: string): void => {
+    setMessage(`${code} 已保存`);
+    refreshSelected();
+    window.setTimeout(refreshSelected, 800);
+  };
   return (
     <aside aria-label="属性/校验面板" className="inspector-panel">
       <h2>{String(object.fields.name ?? object.objectId)}</h2>
@@ -258,10 +284,7 @@ export function InspectorPanel(): ReactElement {
                 fieldCode={code}
                 key={code}
                 object={object}
-                onSaved={() => {
-                  setMessage(`${code} 已保存`);
-                  context.refreshViews();
-                }}
+                onSaved={() => onFieldSaved(code)}
                 reportError={context.reportError}
                 value={value}
                 workspaceId={context.workspaceId}
@@ -278,10 +301,7 @@ export function InspectorPanel(): ReactElement {
                 <FieldEditor
                   fieldCode={code}
                   object={object}
-                  onSaved={() => {
-                    setMessage(`${code} 已保存`);
-                    context.refreshViews();
-                  }}
+                  onSaved={() => onFieldSaved(code)}
                   reportError={context.reportError}
                   value={value}
                   workspaceId={context.workspaceId}
@@ -374,6 +394,10 @@ function FieldEditor({
         </span>
         <input
           disabled={derived}
+          onBlur={() => {
+            // 失焦自动保存:值变了就提交(派生字段只读、不存)
+            if (!derived && draft !== String(value ?? "")) void save();
+          }}
           onChange={(event) => setDraft(event.currentTarget.value)}
           value={draft}
         />
