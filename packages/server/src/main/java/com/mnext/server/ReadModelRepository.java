@@ -82,21 +82,40 @@ class ReadModelRepository {
 
   void updateField(
       UUID workspaceId, UUID objectId, String code, Object value, long version, Instant updatedAt) {
+    // 字段值按"该字段自己的版本"(field_versions[code])去重排序:仅当来事件版本更高才落库,
+    // 旧/重复字段事件不覆盖新值。对象版本由 ObjectUpdated 经 bumpObjectVersion 单独维护,
+    // 两套版本计数器互不污染——修"编辑某字段被丢弃 / 持续 409"。
     jdbc.update(
         """
-        UPDATE rm_object SET fields = jsonb_set(fields, ARRAY[?], CAST(? AS jsonb), TRUE),
-          version = GREATEST(version, ?), updated_at = ?
+        UPDATE rm_object SET
+          fields = jsonb_set(fields, ARRAY[?], CAST(? AS jsonb), TRUE),
+          field_versions = jsonb_set(field_versions, ARRAY[?], to_jsonb(?::bigint), TRUE),
+          updated_at = GREATEST(updated_at, ?)
         WHERE workspace_id = ? AND object_id = ?
-          AND (NOT jsonb_exists(fields, ?) OR version < ?)
+          AND COALESCE((field_versions->>?)::bigint, 0) < ?
         """,
         code,
         json(value),
+        code,
         version,
         java.sql.Timestamp.from(updatedAt),
         workspaceId,
         objectId,
         code,
         version);
+  }
+
+  /** 把读模型对象版本单调追平写库对象版本(由 ObjectUpdated 事件驱动)。 */
+  void bumpObjectVersion(UUID workspaceId, UUID objectId, long version, Instant updatedAt) {
+    jdbc.update(
+        """
+        UPDATE rm_object SET version = GREATEST(version, ?), updated_at = GREATEST(updated_at, ?)
+        WHERE workspace_id = ? AND object_id = ?
+        """,
+        version,
+        java.sql.Timestamp.from(updatedAt),
+        workspaceId,
+        objectId);
   }
 
   void updateObjectStatus(

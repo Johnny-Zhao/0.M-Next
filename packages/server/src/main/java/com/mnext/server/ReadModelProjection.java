@@ -58,8 +58,9 @@ class ReadModelProjection {
       case "FileDetached" -> {
         if (attachments != null) attachments.projectDetached(event);
       }
-      case "BatchCommitted", "ObjectUpdated" -> {
-        // Child events and field events carry the read-model changes.
+      case "ObjectUpdated" -> objectUpdated(event);
+      case "BatchCommitted" -> {
+        // 批次标记事件,读模型变更由其字段/对象子事件承载。
       }
       default -> {
         // Other registered events have no read-model mapping in this batch.
@@ -89,6 +90,15 @@ class ReadModelProjection {
         objectId,
         text(after, "fieldDefCode", "unknown"),
         scalar(after.get("value")),
+        event.version(),
+        event.occurredAt());
+  }
+
+  private void objectUpdated(EventEnvelope event) {
+    // 读模型对象版本单调追平写库对象版本,使前端乐观锁版本匹配、画布反映改动
+    repository.bumpObjectVersion(
+        event.workspaceId(),
+        UUID.fromString(event.targetId()),
         event.version(),
         event.occurredAt());
   }
