@@ -161,6 +161,9 @@ const dockviewComponents: Record<
   inspector: () => <InspectorPanel />,
   validate: () => <ValidatePanel />,
 };
+const defaultObjectType = "room";
+const defaultRelationType = "adjacent";
+const defaultRootId = "";
 
 export function Workbench({
   actorId,
@@ -171,9 +174,13 @@ export function Workbench({
   onError,
   commandRegistry,
 }: WorkbenchProps): ReactElement {
-  const [objectType, setObjectType] = useState("demo_object");
-  const [relationType, setRelationType] = useState("depends_on");
-  const [rootId, setRootId] = useState("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
+  const [objectType, setAppliedObjectType] = useState(defaultObjectType);
+  const [relationType, setAppliedRelationType] = useState(defaultRelationType);
+  const [rootId, setAppliedRootId] = useState(defaultRootId);
+  const [draftObjectType, setDraftObjectType] = useState(defaultObjectType);
+  const [draftRelationType, setDraftRelationType] =
+    useState(defaultRelationType);
+  const [draftRootId, setDraftRootId] = useState(defaultRootId);
   const [refreshVersion, setRefreshVersion] = useState(0);
   const [dockviewApi, setDockviewApi] = useState<DockviewApi | null>(null);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
@@ -182,6 +189,24 @@ export function Workbench({
     () => setRefreshVersion((value) => value + 1),
     [],
   );
+  const setObjectType = useCallback((value: string) => {
+    setAppliedObjectType(value);
+    setDraftObjectType(value);
+  }, []);
+  const setRelationType = useCallback((value: string) => {
+    setAppliedRelationType(value);
+    setDraftRelationType(value);
+  }, []);
+  const setRootId = useCallback((value: string) => {
+    setAppliedRootId(value);
+    setDraftRootId(value);
+  }, []);
+  const applyWorkbenchParameters = useCallback(() => {
+    setAppliedObjectType(draftObjectType);
+    setAppliedRelationType(draftRelationType);
+    setAppliedRootId(draftRootId);
+    refreshViews();
+  }, [draftObjectType, draftRelationType, draftRootId, refreshViews]);
 
   const activatePanel = useCallback(
     (panelId: CommandPanelId) => {
@@ -232,6 +257,9 @@ export function Workbench({
       relationType,
       rootId,
       selection,
+      setObjectType,
+      setRelationType,
+      setRootId,
       viewClient,
       workspaceId,
     ],
@@ -257,6 +285,7 @@ export function Workbench({
       objectType,
       refreshViews,
       selection,
+      setRootId,
       viewClient,
       workspaceId,
     ],
@@ -279,25 +308,29 @@ export function Workbench({
           <label>
             对象类型
             <input
-              onChange={(event) => setObjectType(event.currentTarget.value)}
-              value={objectType}
+              onChange={(event) =>
+                setDraftObjectType(event.currentTarget.value)
+              }
+              value={draftObjectType}
             />
           </label>
           <label>
             关系类型
             <input
-              onChange={(event) => setRelationType(event.currentTarget.value)}
-              value={relationType}
+              onChange={(event) =>
+                setDraftRelationType(event.currentTarget.value)
+              }
+              value={draftRelationType}
             />
           </label>
           <label>
             根对象
             <input
-              onChange={(event) => setRootId(event.currentTarget.value)}
-              value={rootId}
+              onChange={(event) => setDraftRootId(event.currentTarget.value)}
+              value={draftRootId}
             />
           </label>
-          <button onClick={context.refreshViews} type="button">
+          <button onClick={applyWorkbenchParameters} type="button">
             刷新
           </button>
           <DocumentOutputAction
