@@ -3,7 +3,8 @@ import { defaultFetch, type FetchFn } from "./view-client";
 export interface FieldUpdate {
   readonly fieldDefCode: string;
   readonly value: unknown;
-  readonly expectedFieldVersion: number;
+  // 省略/置 null = 仅按对象版本做乐观锁(字段版本与对象版本不同步,内核约定见 UpdateFieldsHandler)
+  readonly expectedFieldVersion?: number | null;
 }
 
 export interface RelationCommandResult {

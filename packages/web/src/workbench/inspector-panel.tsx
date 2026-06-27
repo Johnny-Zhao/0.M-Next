@@ -41,7 +41,7 @@ export async function saveDrivingField(
       {
         fieldDefCode: fieldCode,
         value,
-        expectedFieldVersion: object.version,
+        // 不传 expectedFieldVersion:仅按对象版本做乐观锁(字段版本≠对象版本会 409)
       },
     ],
   );
