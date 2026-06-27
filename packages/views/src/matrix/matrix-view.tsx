@@ -290,7 +290,10 @@ export function MatrixView(props: MatrixViewProps): ReactElement {
   }
 
   return (
-    <section aria-label="矩阵视图">
+    <section aria-label="矩阵视图" className="matrix-view">
+      {matrix.rows.length === 0 || matrix.cols.length === 0 ? (
+        <p className="view-empty-state">暂无矩阵数据。</p>
+      ) : null}
       <MatrixGrid
         commandClient={commandClient}
         matrix={matrix}

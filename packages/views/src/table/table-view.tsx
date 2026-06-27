@@ -50,6 +50,13 @@ export function cellClassName(
   return `${selected ? "selected-cell" : ""} ${failed ? "failed-cell" : ""}`;
 }
 
+export function ruleStatusMark(status: ViewObject["ruleStatus"]): string {
+  if (status === "OK") return "✓";
+  if (status === "WARN") return "!";
+  if (status === "BLOCK") return "×";
+  return "?";
+}
+
 export interface TableViewProps {
   readonly workspaceId: string;
   readonly objectType: string;
@@ -197,19 +204,27 @@ export function TableView(props: TableViewProps): ReactElement {
 
   const fields = tableColumns(type);
   return (
-    <section aria-label="表格视图">
-      <table>
+    <section aria-label="表格视图" className="table-view">
+      <table className="table-grid">
         <thead>
           <tr>
             <th>#</th>
             {fields.map((field) => (
               <th key={field.code}>{field.name}</th>
             ))}
+            <th>规则</th>
             <th>状态</th>
             <th>版本</th>
           </tr>
         </thead>
         <tbody>
+          {page.items.length === 0 ? (
+            <tr>
+              <td className="view-empty-state" colSpan={fields.length + 4}>
+                暂无表格数据。
+              </td>
+            </tr>
+          ) : null}
           {page.items.map((row, index) => (
             <tr
               className={
@@ -241,6 +256,13 @@ export function TableView(props: TableViewProps): ReactElement {
                 />
               ))}
               <td>
+                <span
+                  className={`table-rule table-rule-${row.ruleStatus.toLowerCase()}`}
+                >
+                  {ruleStatusMark(row.ruleStatus)} {row.ruleStatus}
+                </span>
+              </td>
+              <td>
                 {isTerminalStatus(row.status) ? `🔒 ${row.status}` : row.status}
               </td>
               <td>v{row.version}</td>
@@ -248,23 +270,25 @@ export function TableView(props: TableViewProps): ReactElement {
           ))}
         </tbody>
       </table>
-      <p>
-        第 {page.page + 1} 页 共 {page.total} 条
-      </p>
-      <button
-        disabled={page.page === 0}
-        onClick={() => loadPage(page.page - 1)}
-        type="button"
-      >
-        上一页
-      </button>
-      <button
-        disabled={(page.page + 1) * page.pageSize >= page.total}
-        onClick={() => loadPage(page.page + 1)}
-        type="button"
-      >
-        下一页
-      </button>
+      <div className="table-pagination">
+        <p>
+          第 {page.page + 1} 页 共 {page.total} 条
+        </p>
+        <button
+          disabled={page.page === 0}
+          onClick={() => loadPage(page.page - 1)}
+          type="button"
+        >
+          上一页
+        </button>
+        <button
+          disabled={(page.page + 1) * page.pageSize >= page.total}
+          onClick={() => loadPage(page.page + 1)}
+          type="button"
+        >
+          下一页
+        </button>
+      </div>
       {conflict && conflict.fields.length > 0 ? (
         <ConflictDialog
           fields={conflict.fields}

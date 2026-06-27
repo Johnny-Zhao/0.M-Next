@@ -47,6 +47,12 @@ export function supportsTreeRelation(relationType: string): boolean {
   ]).has(relationType.trim());
 }
 
+export function treeEmptyMessage(rootId: string, relationType: string): string {
+  if (rootId.trim() === "") return "请选择根对象后查看模型树。";
+  if (!supportsTreeRelation(relationType)) return "该关系不支持树视图。";
+  return "";
+}
+
 export function TreeView(props: TreeViewProps): ReactElement {
   const [tree, setTree] = useState<TreeBranch>(() =>
     buildTree(props.rootId, []),
@@ -65,9 +71,18 @@ export function TreeView(props: TreeViewProps): ReactElement {
       .then((edges) => setTree(buildTree(props.rootId, edges)));
   }, [props.client, props.relationType, props.rootId, props.workspaceId]);
   useEffect(() => props.selection.subscribe(setSelected), [props.selection]);
+  const emptyMessage = treeEmptyMessage(props.rootId, props.relationType);
   return (
-    <section aria-label="树视图">
-      <TreeNode branch={tree} selected={selected} selection={props.selection} />
+    <section aria-label="树视图" className="tree-view">
+      {emptyMessage ? (
+        <p className="view-empty-state">{emptyMessage}</p>
+      ) : (
+        <TreeNode
+          branch={tree}
+          selected={selected}
+          selection={props.selection}
+        />
+      )}
     </section>
   );
 }
@@ -78,7 +93,10 @@ function TreeNode(props: {
   readonly selection: SelectionCoordinator;
 }): ReactElement {
   return (
-    <div style={{ marginLeft: `${props.branch.depth * 16}px` }}>
+    <div
+      className="tree-node"
+      style={{ marginLeft: `${props.branch.depth * 16}px` }}
+    >
       <button
         className={
           isObjectSelected(props.selected, props.branch.id)

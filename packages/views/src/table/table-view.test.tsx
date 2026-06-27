@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 
 import type { ObjectType } from "../api/view-client";
-import { cellClassName, isTerminalStatus, tableColumns } from "./table-view";
+import {
+  cellClassName,
+  isTerminalStatus,
+  ruleStatusMark,
+  tableColumns,
+} from "./table-view";
 
 describe("TableView behavior", () => {
   it("derives columns from changing object type definitions", () => {
@@ -46,5 +51,12 @@ describe("TableView behavior", () => {
     expect(cellClassName(selection, "object", "owner", false)).not.toContain(
       "selected-cell",
     );
+  });
+
+  it("maps rule status to compact visual marks", () => {
+    expect(ruleStatusMark("OK")).toBe("✓");
+    expect(ruleStatusMark("WARN")).toBe("!");
+    expect(ruleStatusMark("BLOCK")).toBe("×");
+    expect(ruleStatusMark("UNKNOWN")).toBe("?");
   });
 });

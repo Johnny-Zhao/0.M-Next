@@ -1,7 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { SelectionCoordinator } from "../selection/selection-coordinator";
-import { buildTree, selectTreeNode, supportsTreeRelation } from "./tree-view";
+import {
+  buildTree,
+  selectTreeNode,
+  supportsTreeRelation,
+  treeEmptyMessage,
+} from "./tree-view";
 
 describe("TreeView", () => {
   it("builds hierarchy and truncates beyond depth five", () => {
@@ -30,5 +35,10 @@ describe("TreeView", () => {
     expect(supportsTreeRelation("proposal_contains_system")).toBe(true);
     expect(supportsTreeRelation("adjacent")).toBe(false);
     expect(supportsTreeRelation("contains")).toBe(false);
+  });
+
+  it("explains unsupported tree states", () => {
+    expect(treeEmptyMessage("", "decomposes_to")).toContain("根对象");
+    expect(treeEmptyMessage("root", "adjacent")).toBe("该关系不支持树视图。");
   });
 });
