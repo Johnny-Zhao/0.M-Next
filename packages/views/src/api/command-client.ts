@@ -43,10 +43,17 @@ export class CommandFailure extends Error {
 }
 
 export class CommandClient {
+  private actorId: string | null = null;
+
   constructor(
     private readonly baseUrl: string,
     private readonly fetchFn: FetchFn = defaultFetch,
   ) {}
+
+  setActorId(actorId: string): void {
+    const normalized = actorId.trim();
+    this.actorId = normalized === "" ? null : normalized;
+  }
 
   async updateFields(
     workspaceId: string,
@@ -94,11 +101,17 @@ export class CommandClient {
     workspaceId: string,
     payload: Readonly<Record<string, unknown>>,
   ): Promise<T> {
+    if (!this.actorId) {
+      throw new Error("缺少 X-Actor-Id: 请先登录后再执行写命令");
+    }
     const response = await this.fetchFn(
       `${this.baseUrl}/workspaces/${workspaceId}/commands`,
       {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: {
+          "content-type": "application/json",
+          "X-Actor-Id": this.actorId,
+        },
         body: JSON.stringify({
           commandType,
           workspaceId,

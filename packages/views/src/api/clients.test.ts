@@ -249,14 +249,33 @@ describe("view and command clients", () => {
       async () => new Response(null, { status: 200 }),
     );
     const client = new CommandClient("/api", fetchFn);
+    client.setActorId("alice");
 
     await client.updateFields("ws", "object", 4, [
       { fieldDefCode: "cost", value: 8, expectedFieldVersion: 4 },
     ]);
 
     const request = JSON.parse(String(fetchFn.mock.calls[0]?.[1]?.body));
+    expect(fetchFn.mock.calls[0]?.[1]?.headers).toMatchObject({
+      "content-type": "application/json",
+      "X-Actor-Id": "alice",
+    });
     expect(request.commandType).toBe("UpdateFields");
     expect(request.payload.fields[0].expectedFieldVersion).toBe(4);
+  });
+
+  it("does not post commands until an actor id is set", async () => {
+    const fetchFn = vi.fn<FetchFn>(
+      async () => new Response(null, { status: 200 }),
+    );
+    const client = new CommandClient("/api", fetchFn);
+
+    await expect(
+      client.updateFields("ws", "object", 4, [
+        { fieldDefCode: "cost", value: 8, expectedFieldVersion: 4 },
+      ]),
+    ).rejects.toThrow("缺少 X-Actor-Id");
+    expect(fetchFn).not.toHaveBeenCalled();
   });
 
   it("posts CreateRelation and Unlink through the command endpoint", async () => {
@@ -264,10 +283,17 @@ describe("view and command clients", () => {
       async () => new Response(null, { status: 204 }),
     );
     const client = new CommandClient("/api", fetchFn);
+    client.setActorId("alice");
 
     await client.createRelation("ws", "rel", "source", "target");
     await client.unlink("ws", "relation", 3);
 
+    expect(fetchFn.mock.calls[0]?.[1]?.headers).toMatchObject({
+      "X-Actor-Id": "alice",
+    });
+    expect(fetchFn.mock.calls[1]?.[1]?.headers).toMatchObject({
+      "X-Actor-Id": "alice",
+    });
     const create = JSON.parse(String(fetchFn.mock.calls[0]?.[1]?.body));
     const unlink = JSON.parse(String(fetchFn.mock.calls[1]?.[1]?.body));
     expect(create.commandType).toBe("CreateRelation");
@@ -298,7 +324,9 @@ describe("command errors", () => {
         ),
     );
 
-    const failure = await new CommandClient("", fetchFn)
+    const client = new CommandClient("", fetchFn);
+    client.setActorId("alice");
+    const failure = await client
       .updateFields("ws", "object", 1, [])
       .catch((error: unknown) => error);
 
