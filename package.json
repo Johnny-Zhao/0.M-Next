@@ -9,6 +9,8 @@
     "architecture:check": "node scripts/check-architecture.mjs",
     "architecture:test": "node scripts/check-architecture.mjs --self-test",
     "contracts:check": "node scripts/check-contracts.mjs",
+    "dev:up": "node scripts/dev-up.mjs",
+    "dev:down": "node scripts/dev-down.mjs",
     "format": "prettier --write . && node scripts/run-maven.mjs spotless:apply",
     "format:check": "prettier --check . && node scripts/run-maven.mjs spotless:check",
     "lint": "eslint packages/views/src packages/web/src && node scripts/run-maven.mjs checkstyle:check",
