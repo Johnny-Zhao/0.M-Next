@@ -142,32 +142,32 @@ class DevSeedRunner implements ApplicationRunner {
         createObject(
             roomType,
             "room-living",
-            roomFields("客厅", "客厅", 5.6, 4.2, "S", 5.0, 3.2, 420, 24, 1.2, 0.8, 1.4));
+            roomFields("客厅", "客厅", 5.6, 4.2, 0.0, 0.0, "S", 5.0, 3.2, 420, 24, 1.2, 0.8, 1.4));
     var master =
         createObject(
             roomType,
             "room-master",
-            roomFields("主卧", "卧室", 4.2, 3.6, "E", 2.0, 2.6, 260, 24, 1.3, 0.6, 0.7));
+            roomFields("主卧", "卧室", 4.2, 3.6, 0.0, 4.2, "E", 2.0, 2.6, 260, 24, 1.3, 0.6, 0.7));
     var second =
         createObject(
             roomType,
             "room-second",
-            roomFields("暗次卧", "卧室", 3.4, 3.0, "N", 0.8, 1.4, 120, 22, 1.6, 0.5, 1.1));
+            roomFields("暗次卧", "卧室", 3.4, 3.0, 4.2, 4.2, "N", 0.8, 1.4, 120, 22, 1.6, 0.5, 1.1));
     var kitchen =
         createObject(
             roomType,
             "room-kitchen",
-            roomFields("厨房", "厨房", 3.2, 2.4, "E", 1.4, 2.8, 320, 25, 1.8, 0.9, 1.2));
+            roomFields("厨房", "厨房", 3.2, 2.4, 5.6, 0.0, "E", 1.4, 2.8, 320, 25, 1.8, 0.9, 1.2));
     var bath =
         createObject(
             roomType,
             "room-bath",
-            roomFields("卫生间", "卫生间", 2.4, 2.0, "N", 0.7, 2.4, 180, 23, 1.7, 0.4, 1.0));
+            roomFields("卫生间", "卫生间", 2.4, 2.0, 5.6, 2.4, "N", 0.7, 2.4, 180, 23, 1.7, 0.4, 1.0));
     var study =
         createObject(
             roomType,
             "room-study",
-            roomFields("西晒书房", "书房", 3.6, 2.8, "W", 1.8, 2.5, 300, 28, 1.5, 0.7, 1.3));
+            roomFields("西晒书房", "书房", 3.6, 2.8, 7.6, 4.2, "W", 1.8, 2.5, 300, 28, 1.5, 0.7, 1.3));
 
     relate(containsType, floorplan, living, "contains-living");
     relate(containsType, floorplan, master, "contains-master");
@@ -186,6 +186,8 @@ class DevSeedRunner implements ApplicationRunner {
       String usage,
       Number length,
       Number width,
+      Number planX,
+      Number planY,
       String orientation,
       Number windowArea,
       Number daylightFactor,
@@ -199,6 +201,8 @@ class DevSeedRunner implements ApplicationRunner {
     fields.put("usage", usage);
     fields.put("length_m", length);
     fields.put("width_m", width);
+    fields.put("plan_x", planX);
+    fields.put("plan_y", planY);
     fields.put("orientation", orientation);
     fields.put("window_area_m2", windowArea);
     fields.put("light_df", daylightFactor);
