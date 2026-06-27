@@ -35,6 +35,7 @@ class OpenApiContractTest {
   @MockitoBean DerivedFieldRepository derivedFields;
   @MockitoBean LineageQueryRepository lineageQueries;
   @MockitoBean WorkspaceAuthorizer authorizer;
+  @MockitoBean WorkspaceQueryRepository workspaces;
   @Autowired MockMvc http;
   @Autowired ObjectMapper mapper;
 

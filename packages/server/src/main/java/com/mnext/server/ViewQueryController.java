@@ -32,6 +32,7 @@ public class ViewQueryController {
   private final SimulationRunRepository simulationRuns;
   private final LineageQueryRepository lineageQueries;
   private final WorkspaceAuthorizer authorizer;
+  private final WorkspaceQueryRepository workspaces;
 
   public ViewQueryController(
       ReadModelRepository repository,
@@ -40,7 +41,8 @@ public class ViewQueryController {
       DerivedFieldRepository derivedFields,
       @Nullable SimulationRunRepository simulationRuns,
       LineageQueryRepository lineageQueries,
-      WorkspaceAuthorizer authorizer) {
+      WorkspaceAuthorizer authorizer,
+      WorkspaceQueryRepository workspaces) {
     this.repository = repository;
     this.checkResults = checkResults;
     this.derivedEvaluator = derivedEvaluator;
@@ -48,6 +50,12 @@ public class ViewQueryController {
     this.simulationRuns = simulationRuns;
     this.lineageQueries = lineageQueries;
     this.authorizer = authorizer;
+    this.workspaces = workspaces;
+  }
+
+  @GetMapping("/views/workspaces")
+  public List<WorkspaceSummaryView> workspaces() {
+    return workspaces.visibleWorkspaces(actorId());
   }
 
   @GetMapping("/workspaces/{workspaceId}/views/object-types")
@@ -277,12 +285,14 @@ public class ViewQueryController {
   }
 
   private void authorize(UUID workspaceId) {
+    authorizer.require(actorId(), workspaceId, WorkspaceAuthorizer.Action.READ);
+  }
+
+  private String actorId() {
     var attributes = RequestContextHolder.getRequestAttributes();
-    var actorId =
-        attributes instanceof ServletRequestAttributes servlet
-            ? servlet.getRequest().getHeader("X-Actor-Id")
-            : null;
-    authorizer.require(actorId, workspaceId, WorkspaceAuthorizer.Action.READ);
+    return attributes instanceof ServletRequestAttributes servlet
+        ? servlet.getRequest().getHeader("X-Actor-Id")
+        : null;
   }
 
   private PageView<ObjectView> withRuleStatuses(UUID workspaceId, PageView<ObjectView> page) {
