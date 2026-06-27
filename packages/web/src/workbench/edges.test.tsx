@@ -68,7 +68,47 @@ describe("diagram relation edges", () => {
     const edgeData = flow.edges[0]?.data;
     if (!edgeData) throw new Error("edge data missing");
     expect(relationEdgeVisual(edgeData, false)).toMatchObject({
+      color: "var(--mn-warn)",
       strokeDasharray: "9 4",
+    });
+  });
+
+  it("uses Fluent tokens for edge visual states", () => {
+    expect(relationEdgeVisual(edgeData("contains"), false)).toMatchObject({
+      color: "var(--mn-border-3)",
+      marker: "arrow",
+    });
+    expect(relationEdgeVisual(edgeData("depends_on"), false)).toMatchObject({
+      color: "var(--mn-warn)",
+      strokeDasharray: "9 4",
+    });
+    expect(relationEdgeVisual(edgeData("adjacent"), false)).toMatchObject({
+      color: "var(--mn-ink-3)",
+      marker: "none",
+      strokeDasharray: "2 6",
+    });
+    expect(
+      relationEdgeVisual(
+        { ...edgeData("adjacent"), status: "UNLINKED" },
+        false,
+      ),
+    ).toMatchObject({
+      color: "var(--mn-ink-3)",
+      marker: "none",
+      strokeDasharray: "7 5",
+    });
+    expect(
+      relationEdgeVisual(
+        { ...edgeData("depends_on"), ruleState: "failed" },
+        false,
+      ),
+    ).toMatchObject({
+      color: "var(--mn-bad)",
+      strokeWidth: 3,
+    });
+    expect(relationEdgeVisual(edgeData("depends_on"), true)).toMatchObject({
+      color: "var(--mn-accent)",
+      strokeWidth: 3,
     });
   });
 
@@ -152,6 +192,16 @@ function edgeWithVersion(id: string, version: number | undefined): DiagramEdge {
       route: "orthogonal",
       version,
     },
+  };
+}
+
+function edgeData(relationType: string): NonNullable<DiagramEdge["data"]> {
+  return {
+    label: relationType,
+    relationType,
+    route: relationRoute(relationType),
+    status: "ACTIVE",
+    ruleState: "normal",
   };
 }
 

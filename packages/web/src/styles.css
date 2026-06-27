@@ -460,21 +460,60 @@ main {
 }
 
 .diagram-edge-label {
-  background: var(--mnext-surface-raised);
-  border: 1px solid var(--mnext-border);
+  background: color-mix(in srgb, var(--mn-surface) 94%, transparent);
+  border: 1px solid var(--mn-border);
   border-radius: 4px;
-  box-shadow: var(--mnext-shadow-1);
-  color: var(--mnext-ink);
-  font-size: 0.72rem;
-  max-width: 11rem;
-  padding: 0.16rem 0.38rem;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+  color: var(--mn-ink-2);
+  font-size: 0.68rem;
+  max-width: 10rem;
+  padding: 0.1rem 0.34rem;
   pointer-events: all;
   position: absolute;
   white-space: nowrap;
 }
 
 .diagram-edge-label-selected {
-  border-color: var(--mnext-accent);
+  border-color: var(--mn-accent);
+  color: var(--mn-accent);
+  font-weight: 600;
+}
+
+.diagram-edge-marker-defs {
+  height: 0;
+  overflow: hidden;
+  position: absolute;
+  width: 0;
+}
+
+.diagram-edge-path {
+  transition:
+    opacity 120ms ease,
+    stroke 120ms ease,
+    stroke-width 120ms ease;
+}
+
+.diagram-edge-path:hover {
+  opacity: 0.82;
+  stroke-width: 2.8;
+}
+
+.diagram-edge-selected {
+  filter: drop-shadow(0 0 3px var(--mn-accent-ring));
+}
+
+.diagram-edge-failed {
+  filter: drop-shadow(
+    0 0 3px color-mix(in srgb, var(--mn-bad) 24%, transparent)
+  );
+}
+
+.diagram-edge-unlinked {
+  opacity: 0.72;
+}
+
+.diagram-edge-adjacent {
+  opacity: 0.86;
 }
 
 .tree-panel,
