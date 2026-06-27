@@ -55,6 +55,9 @@ export function App({
     if (workspaceId) selection.switchWorkspace(workspaceId);
   }, [selection, workspaceId]);
   useEffect(() => {
+    if (actorId) commandClient.setActorId(actorId);
+  }, [actorId, commandClient]);
+  useEffect(() => {
     if (!workspaceId) return;
     const refresh = () =>
       void viewClient
