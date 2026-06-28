@@ -22,8 +22,8 @@ const baseData: ObjectNodeData = {
     { code: "orientation", label: "朝向", value: "南" },
   ],
   derivedChips: [
-    { label: "面积", value: "23.5", unit: "㎡" },
-    { label: "窗地比", value: "0.078" },
+    { fieldCode: "area_fx", label: "面积", value: "23.5", unit: "㎡" },
+    { fieldCode: "window_floor_ratio_fx", label: "窗地比", value: "0.078" },
   ],
   ruleStatus: "OK",
   provenanceText: "来源 人工绘制 · 新鲜 12m",

@@ -34,6 +34,7 @@ export interface ObjectFieldPreview {
 }
 
 export interface ObjectDerivedChip {
+  readonly fieldCode: string;
   readonly label: string;
   readonly value: string;
   readonly unit?: string;
@@ -55,6 +56,7 @@ export interface ObjectNodeData extends Record<string, unknown> {
   readonly provenanceText: string | null;
   readonly visualState: ObjectVisualState;
   readonly readonly: boolean;
+  readonly onDerivedChipClick?: (fieldCode: string) => void;
 }
 
 export type ObjectFlowNode = Node<ObjectNodeData, "object">;
@@ -114,12 +116,22 @@ export function ObjectNode({
           {data.derivedChips.length > 0 ? (
             <div className="fx-chip-list" aria-label="派生值">
               {data.derivedChips.map((chip) => (
-                <FxChip
+                <button
+                  className="fx-chip-action"
                   key={`${chip.label}-${chip.value}-${chip.unit ?? ""}`}
-                  label={chip.label}
-                  unit={chip.unit}
-                  value={chip.value}
-                />
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    data.onDerivedChipClick?.(chip.fieldCode);
+                  }}
+                  title={`${chip.label} 血缘`}
+                  type="button"
+                >
+                  <FxChip
+                    label={chip.label}
+                    unit={chip.unit}
+                    value={chip.value}
+                  />
+                </button>
               ))}
             </div>
           ) : null}

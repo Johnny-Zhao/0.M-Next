@@ -68,6 +68,7 @@ import {
   type ObjectTypeVariant,
   type ObjectVisualState,
 } from "./object-node";
+import { LineageView } from "./lineage-view";
 import {
   fieldDimension,
   listDimensions,
@@ -136,6 +137,7 @@ export function objectDerivedChips(
     if (!formatted) return [];
     return [
       {
+        fieldCode: definition.code,
         label: definition.label,
         value: formatted.value,
         unit: formatted.unit,
@@ -509,6 +511,11 @@ interface DiagramData {
   readonly relations: readonly RelationSummary[];
 }
 
+interface LineageTarget {
+  readonly object: ViewObject;
+  readonly fieldCode: string;
+}
+
 export async function connectDiagramObjects(
   commandClient: Pick<DiagramCommandClient, "createRelation">,
   workspaceId: string,
@@ -565,6 +572,9 @@ export function DiagramPanel(): ReactElement {
   const [activeDimension, setActiveDimension] =
     useState<ActiveDimensionId>("all");
   const [guides, setGuides] = useState<SmartGuides>(noGuides);
+  const [lineageTarget, setLineageTarget] = useState<LineageTarget | null>(
+    null,
+  );
 
   useEffect(
     () =>
@@ -621,13 +631,25 @@ export function DiagramPanel(): ReactElement {
       selectedNodeIds.length > 0 ? selectedNodeIds : selectedObjectId,
       activeDimension,
     );
+    const objectsById = new Map(
+      data.objects.map((object) => [object.objectId, object]),
+    );
     setNodes((currentNodes) => {
       const currentById = new Map(currentNodes.map((node) => [node.id, node]));
       return flow.nodes.map((node) => {
         const current = currentById.get(node.id);
-        if (!current) return node;
+        const object = objectsById.get(node.id);
+        const dataWithLineage = object
+          ? {
+              ...node.data,
+              onDerivedChipClick: (fieldCode: string) =>
+                setLineageTarget({ object, fieldCode }),
+            }
+          : node.data;
+        if (!current) return { ...node, data: dataWithLineage };
         return {
           ...node,
+          data: dataWithLineage,
           position: current.position,
           width: current.width,
           height: current.height,
@@ -1059,6 +1081,15 @@ export function DiagramPanel(): ReactElement {
           onPaste={() => void pasteClipboard()}
           onSelectAll={selectAll}
           onViewDetail={viewDetail}
+        />
+      ) : null}
+      {lineageTarget ? (
+        <LineageView
+          fieldCode={lineageTarget.fieldCode}
+          object={lineageTarget.object}
+          onClose={() => setLineageTarget(null)}
+          viewClient={context.viewClient}
+          workspaceId={context.workspaceId}
         />
       ) : null}
     </section>

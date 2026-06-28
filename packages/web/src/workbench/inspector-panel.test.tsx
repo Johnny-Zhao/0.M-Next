@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  lineageNodeLabel,
   partitionFields,
   relationEndpointsLabel,
   relativeTime,
@@ -74,37 +73,5 @@ describe("relationEndpointsLabel", () => {
         version: 1,
       }),
     ).toBe("a → b");
-  });
-});
-
-describe("lineageNodeLabel", () => {
-  it("labels a derived field node", () => {
-    expect(
-      lineageNodeLabel({
-        kind: "derived",
-        objectId: "o1",
-        objectType: "room",
-        fieldCode: "area_fx",
-        ref: null,
-        source: null,
-        updatedAt: null,
-        depth: 1,
-      }),
-    ).toBe("派生 · area_fx");
-  });
-
-  it("labels a rule node by ref when no field", () => {
-    expect(
-      lineageNodeLabel({
-        kind: "rule",
-        objectId: null,
-        objectType: null,
-        fieldCode: null,
-        ref: "R-LIGHT-01",
-        source: null,
-        updatedAt: null,
-        depth: 2,
-      }),
-    ).toBe("规则 · R-LIGHT-01");
   });
 });

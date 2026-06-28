@@ -45,6 +45,7 @@ describe("floorplan panel layout", () => {
       layout.rooms[0]?.height ?? 0,
     );
     expect(layout.rooms[0]?.areaChip).toEqual({
+      fieldCode: "area_fx",
       label: "面积",
       value: "23.52",
       unit: "㎡",

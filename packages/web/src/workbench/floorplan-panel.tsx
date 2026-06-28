@@ -3,6 +3,7 @@ import {
   useMemo,
   useState,
   type CSSProperties,
+  type KeyboardEvent as ReactKeyboardEvent,
   type ReactElement,
 } from "react";
 
@@ -10,6 +11,7 @@ import type { RelationSummary, RuleStatus, ViewObject } from "@m-next/views";
 
 import { listDimensions, type DimensionDefinition } from "./dimensions";
 import { objectDerivedChips, objectTitle } from "./diagram-panel";
+import { LineageView } from "./lineage-view";
 import { FxChip, RuleLamp } from "./widgets";
 import { useWorkbenchContext } from "./workbench";
 
@@ -39,6 +41,7 @@ export interface FloorplanRoomBlock {
 export type FloorplanLayoutMode = "coordinate" | "fallback";
 
 export interface FloorplanAreaChip {
+  readonly fieldCode: string;
   readonly label: string;
   readonly value: string;
   readonly unit?: string;
@@ -47,6 +50,11 @@ export interface FloorplanAreaChip {
 interface FloorplanData {
   readonly objects: readonly ViewObject[];
   readonly relations: readonly RelationSummary[];
+}
+
+interface LineageTarget {
+  readonly object: ViewObject;
+  readonly fieldCode: string;
 }
 
 interface FloorplanRoomStyle extends CSSProperties {
@@ -317,7 +325,12 @@ function areaChip(object: ViewObject): FloorplanAreaChip | null {
   const length = positiveNumber(object.fields.length_m);
   const width = positiveNumber(object.fields.width_m);
   if (length === undefined || width === undefined) return null;
-  return { label: "面积", value: formatNumber(length * width, 2), unit: "㎡" };
+  return {
+    fieldCode: "area_fx",
+    label: "面积",
+    value: formatNumber(length * width, 2),
+    unit: "㎡",
+  };
 }
 
 function floorplanTone(
@@ -404,6 +417,9 @@ export function FloorplanPanel(): ReactElement {
   const [selectedObjectId, setSelectedObjectId] = useState<string | null>(null);
   const [activeDimension, setActiveDimension] =
     useState<FloorplanDimensionId>("all");
+  const [lineageTarget, setLineageTarget] = useState<LineageTarget | null>(
+    null,
+  );
 
   useEffect(
     () =>
@@ -458,6 +474,34 @@ export function FloorplanPanel(): ReactElement {
   );
   const dimensions = floorplanDimensionOptions();
 
+  function openLineage(object: ViewObject, fieldCode: string): void {
+    setLineageTarget({ object, fieldCode });
+  }
+
+  function openLineageFromKeyboard(
+    event: ReactKeyboardEvent,
+    object: ViewObject,
+    fieldCode: string,
+  ): void {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    event.preventDefault();
+    event.stopPropagation();
+    openLineage(object, fieldCode);
+  }
+
+  function selectRoom(roomId: string): void {
+    selection.select({ entityType: "object", entityId: roomId });
+  }
+
+  function selectRoomFromKeyboard(
+    event: ReactKeyboardEvent,
+    roomId: string,
+  ): void {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    event.preventDefault();
+    selectRoom(roomId);
+  }
+
   return (
     <section className="floorplan-panel" aria-label="户型平面图">
       <div className="floorplan-toolbar">
@@ -497,7 +541,7 @@ export function FloorplanPanel(): ReactElement {
             <div className="floorplan-empty">暂无房间对象</div>
           ) : (
             layout.rooms.map((room) => (
-              <button
+              <div
                 aria-pressed={room.selected}
                 className={[
                   "floorplan-room",
@@ -509,11 +553,10 @@ export function FloorplanPanel(): ReactElement {
                 key={room.id}
                 onClick={(event) => {
                   event.stopPropagation();
-                  selection.select({
-                    entityType: "object",
-                    entityId: room.id,
-                  });
+                  selectRoom(room.id);
                 }}
+                onKeyDown={(event) => selectRoomFromKeyboard(event, room.id)}
+                role="button"
                 style={
                   {
                     "--floorplan-x": `${room.x}px`,
@@ -522,25 +565,53 @@ export function FloorplanPanel(): ReactElement {
                     "--floorplan-h": `${room.height}px`,
                   } as FloorplanRoomStyle
                 }
-                type="button"
+                tabIndex={0}
               >
                 <span className="floorplan-rule">
                   <RuleLamp status={room.object.ruleStatus} />
                 </span>
                 <strong>{room.title}</strong>
                 {room.areaChip ? (
-                  <FxChip
-                    label={room.areaChip.label}
-                    readOnly={false}
-                    unit={room.areaChip.unit}
-                    value={room.areaChip.value}
-                  />
+                  <span
+                    aria-label={`${room.areaChip.label} 血缘`}
+                    className="fx-chip-action"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      openLineage(room.object, room.areaChip!.fieldCode);
+                    }}
+                    onKeyDown={(event) =>
+                      openLineageFromKeyboard(
+                        event,
+                        room.object,
+                        room.areaChip!.fieldCode,
+                      )
+                    }
+                    role="button"
+                    tabIndex={0}
+                    title={`${room.areaChip.label} 血缘`}
+                  >
+                    <FxChip
+                      label={room.areaChip.label}
+                      readOnly={false}
+                      unit={room.areaChip.unit}
+                      value={room.areaChip.value}
+                    />
+                  </span>
                 ) : null}
-              </button>
+              </div>
             ))
           )}
         </div>
       </div>
+      {lineageTarget ? (
+        <LineageView
+          fieldCode={lineageTarget.fieldCode}
+          object={lineageTarget.object}
+          onClose={() => setLineageTarget(null)}
+          viewClient={viewClient}
+          workspaceId={workspaceId}
+        />
+      ) : null}
     </section>
   );
 }
