@@ -13,6 +13,15 @@
   padding: 2rem;
 }
 
+.home-dashboard {
+  background: var(--mn-bg);
+  box-sizing: border-box;
+  display: grid;
+  gap: 1rem;
+  min-height: 100vh;
+  padding: 1rem;
+}
+
 .home-hero,
 .home-header {
   align-items: flex-start;
@@ -75,7 +84,8 @@
 
 .login-form,
 .wizard-shell,
-.project-list {
+.project-list,
+.capability-catalog {
   background: var(--mn-surface);
   border: 1px solid var(--mn-border);
   border-radius: 8px;
@@ -91,6 +101,7 @@
 
 .login-form label,
 .project-search,
+.capability-create label,
 .wizard-field,
 .wizard-config label {
   display: grid;
@@ -99,6 +110,7 @@
 
 .login-form input,
 .project-search input,
+.capability-create input,
 .wizard-field input,
 .wizard-config input,
 .wizard-config select {
@@ -111,6 +123,7 @@
 
 .login-form input:focus,
 .project-search input:focus,
+.capability-create input:focus,
 .wizard-field input:focus,
 .wizard-config input:focus,
 .wizard-config select:focus {
@@ -136,6 +149,7 @@
 
 .login-form button[type="submit"],
 .home-header > button,
+.capability-create button[type="submit"],
 .wizard-actions button:last-child {
   background: var(--mn-accent);
   border-color: var(--mn-accent);
@@ -149,21 +163,25 @@
 }
 
 .project-list,
-.wizard-shell {
+.wizard-shell,
+.capability-catalog {
   display: grid;
   gap: 1rem;
   margin: 0 auto;
   max-width: 68rem;
 }
 
-.project-list {
+.project-list,
+.capability-catalog {
   align-content: start;
   gap: 0.75rem;
   grid-auto-rows: max-content;
   padding: 1rem 1.25rem;
+  width: min(100%, 68rem);
 }
 
-.project-list .home-header {
+.project-list .home-header,
+.capability-catalog .home-header {
   margin-bottom: 0.15rem;
 }
 
@@ -175,6 +193,17 @@
 .project-search input {
   height: 2rem;
   padding: 0.35rem 0.55rem;
+}
+
+.home-error {
+  background: var(--mn-bad-bg);
+  border: 1px solid var(--mn-bad-bd);
+  border-radius: 6px;
+  color: var(--mn-bad);
+  margin: 0 auto;
+  max-width: 68rem;
+  padding: 0.7rem 0.85rem;
+  width: min(100%, 68rem);
 }
 
 .project-grid {
@@ -265,6 +294,115 @@
   background: var(--mn-bad-bg);
   border-color: var(--mn-bad-bd);
   color: var(--mn-bad);
+}
+
+.capability-grid {
+  align-items: start;
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr));
+}
+
+.capability-card {
+  background: var(--mn-panel);
+  border: 1px solid var(--mn-border);
+  border-radius: 8px;
+  box-shadow: var(--mn-shadow-node);
+  display: grid;
+  gap: 0.65rem;
+  min-height: 0;
+  padding: 0.85rem;
+}
+
+.capability-card-head,
+.capability-card footer,
+.capability-create div {
+  align-items: flex-start;
+  display: flex;
+  gap: 0.75rem;
+  justify-content: space-between;
+}
+
+.capability-card strong,
+.capability-card code {
+  display: block;
+}
+
+.capability-card code {
+  color: var(--mn-ink-3);
+  font-family: var(--mn-mono);
+  font-size: 0.75rem;
+  margin-top: 0.15rem;
+}
+
+.capability-card p,
+.capability-card footer {
+  color: var(--mn-ink-3);
+  margin: 0;
+}
+
+.capability-version,
+.capability-types span {
+  background: var(--mn-accent-bg);
+  border: 1px solid var(--mn-accent-bd);
+  border-radius: 999px;
+  color: var(--mn-accent);
+  font-size: 0.72rem;
+  padding: 0.1rem 0.5rem;
+  white-space: nowrap;
+}
+
+.capability-unpublished {
+  background: var(--mn-surface-2);
+  border-color: var(--mn-border-2);
+  color: var(--mn-ink-3);
+}
+
+.capability-types {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.capability-card footer {
+  border-top: 1px solid var(--mn-border);
+  padding-top: 0.6rem;
+}
+
+.capability-create {
+  background: var(--mn-surface-2);
+  border: 1px solid var(--mn-border);
+  border-radius: 8px;
+  display: grid;
+  gap: 0.75rem;
+  padding: 0.85rem;
+}
+
+.capability-create div {
+  justify-content: flex-start;
+}
+
+.capability-skeleton span {
+  background: linear-gradient(
+    90deg,
+    var(--mn-surface-2),
+    var(--mn-surface-3),
+    var(--mn-surface-2)
+  );
+  border-radius: 4px;
+  height: 0.85rem;
+}
+
+.capability-skeleton span:first-child {
+  width: 65%;
+}
+
+.capability-skeleton span:nth-child(2) {
+  width: 92%;
+}
+
+.capability-skeleton span:last-child {
+  width: 48%;
 }
 
 .wizard-shell {

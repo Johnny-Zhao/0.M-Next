@@ -1,8 +1,9 @@
-import { useState, type ReactElement } from "react";
+import { useCallback, useState, type ReactElement } from "react";
 
 import type { CommandClient, ViewClient } from "@m-next/views";
 
 import "./home.css";
+import { CapabilityCatalog } from "./capability-catalog";
 import { Login } from "./login";
 import { NewProjectWizard, type ProjectDraft } from "./new-project-wizard";
 import {
@@ -39,7 +40,18 @@ export function Home({
   const [route, setRoute] = useState<HomeRoute>(() =>
     nextHomeRoute(actorId, "login"),
   );
+  const [projectListKey, setProjectListKey] = useState(0);
+  const [homeError, setHomeError] = useState("");
   const effectiveRoute = nextHomeRoute(actorId, route);
+
+  const reportError = useCallback((message: string): void => {
+    setHomeError(message || "操作失败");
+  }, []);
+
+  const refreshProjects = useCallback((): void => {
+    setProjectListKey((value) => value + 1);
+    setHomeError("");
+  }, []);
 
   if (effectiveRoute === "login") {
     return <Login onLogin={onLogin} />;
@@ -64,13 +76,27 @@ export function Home({
   }
 
   return (
-    <ProjectList
-      actorId={actorId}
-      onCreateProject={() => setRoute("new-project")}
-      onOpenProject={(project: ProjectSummary) =>
-        onOpenWorkspace(project.workspaceId)
-      }
-      viewClient={viewClient}
-    />
+    <main className="home-dashboard" aria-label="项目首页">
+      {homeError ? (
+        <p className="home-error" role="alert">
+          {homeError}
+        </p>
+      ) : null}
+      <ProjectList
+        actorId={actorId}
+        key={projectListKey}
+        onCreateProject={() => setRoute("new-project")}
+        onOpenProject={(project: ProjectSummary) =>
+          onOpenWorkspace(project.workspaceId)
+        }
+        viewClient={viewClient}
+      />
+      <CapabilityCatalog
+        commandClient={commandClient}
+        onCreated={refreshProjects}
+        reportError={reportError}
+        viewClient={viewClient}
+      />
+    </main>
   );
 }
