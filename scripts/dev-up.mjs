@@ -23,12 +23,19 @@ async function main() {
   fs.mkdirSync(stateDir, { recursive: true });
   run("docker", ["compose", "up", "-d"], "启动 docker compose 失败");
   await waitForPostgres();
-  const jar = findServerJar();
-  await killJavaOnPort(8080);
-  const pid = startServer(jar);
-  console.log(`后端已后台启动 pid=${pid}, 日志: ${serverLog}`);
-  await waitForServerReady();
-  console.log("后端 dev seed 已就绪, 正在启动前端 http://localhost:5173/");
+  // 已有运行中的后端就复用,绝不重启——重启前端不会再误杀后端
+  if (await httpReady(serverReadyUrl())) {
+    console.log("检测到 8080 已有运行中的后端,直接复用(不重启后端)。");
+  } else {
+    const jar = findServerJar();
+    await killJavaOnPort(8080);
+    const pid = startServer(jar);
+    console.log(`后端已后台启动 pid=${pid}, 日志: ${serverLog}`);
+    await waitForServerReady();
+  }
+  console.log(
+    "后端就绪,启动前端 http://localhost:5173/ … (Ctrl+C 只停前端,后端继续运行;停后端用 corepack pnpm dev:down)",
+  );
   const status = foreground("corepack", [
     "pnpm",
     "--filter",
@@ -36,6 +43,10 @@ async function main() {
     "dev",
   ]);
   process.exit(status);
+}
+
+function serverReadyUrl() {
+  return `http://localhost:8080/workspaces/${demoWorkspaceId}/views/objects?objectType=room&page=0&pageSize=1`;
 }
 
 function run(command, args, message) {

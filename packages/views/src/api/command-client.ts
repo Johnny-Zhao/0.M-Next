@@ -97,6 +97,45 @@ export class CommandClient {
     });
   }
 
+  /** 用模板实例化一个新工作空间(新建项目)。新工作空间无成员=未治理,鉴权放行。 */
+  async instantiateWorkspace(
+    newWorkspaceId: string,
+    templateId: string,
+    version: number,
+    workspaceName: string,
+  ): Promise<void> {
+    if (!this.actorId) {
+      throw new Error("缺少 X-Actor-Id: 请先登录后再创建项目");
+    }
+    const response = await this.fetchFn(
+      `${this.baseUrl}/workspaces/${newWorkspaceId}/meta-commands`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "X-Actor-Id": this.actorId,
+        },
+        body: JSON.stringify({
+          commandType: "InstantiateWorkspace",
+          workspaceId: newWorkspaceId,
+          correlationId: crypto.randomUUID(),
+          idempotencyKey: `mc-${crypto.randomUUID()}`,
+          payload: { templateId, version, newWorkspaceId, workspaceName },
+        }),
+      },
+    );
+    if (!response.ok) {
+      const body = (await response.json().catch(() => ({}))) as {
+        readonly error?: Omit<CommandError, "title">;
+      };
+      const failure = body.error ?? { code: "META-COMMAND-FAILED" };
+      throw new CommandFailure({
+        ...failure,
+        title: errorTitles[failure.code] ?? "创建项目失败",
+      });
+    }
+  }
+
   private async post<T = void>(
     commandType: string,
     workspaceId: string,
@@ -127,7 +166,11 @@ export class CommandClient {
       const text = await response.text();
       return (text === "" ? undefined : JSON.parse(text)) as T;
     }
-    const failure = (await response.json()) as Omit<CommandError, "title">;
+    const body = (await response.json()) as {
+      readonly error?: Omit<CommandError, "title">;
+    } & Omit<CommandError, "title">;
+    // 后端拒绝体形如 { status, error: { code, details } };兼容直接平铺两种结构
+    const failure = body.error ?? body;
     throw new CommandFailure({
       ...failure,
       title: errorTitles[failure.code] ?? "保存失败",

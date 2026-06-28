@@ -1,6 +1,10 @@
-import { useState, type ReactElement } from "react";
+import { useEffect, useState, type ReactElement } from "react";
 
-import type { CommandClient, ViewClient } from "@m-next/views";
+import type {
+  CommandClient,
+  TemplateCatalogItem,
+  ViewClient,
+} from "@m-next/views";
 
 export type WizardStep = "name" | "profile" | "config" | "create";
 
@@ -8,6 +12,8 @@ export interface ProjectDraft {
   readonly name: string;
   readonly profile: string;
   readonly workspaceId?: string;
+  readonly templateId?: string;
+  readonly version?: number;
 }
 
 export const wizardSteps: readonly WizardStep[] = [
@@ -35,20 +41,18 @@ export function canAdvance(step: WizardStep, draft: ProjectDraft): boolean {
   return true;
 }
 
+/** 从模板目录选定版本:优先最新已发布版本,回退到 version。 */
+export function templateVersion(template: TemplateCatalogItem): number {
+  return template.latestPublishedVersion > 0
+    ? template.latestPublishedVersion
+    : template.version;
+}
+
 export interface NewProjectWizardProps {
   readonly commandClient: CommandClient;
   readonly viewClient: ViewClient;
   readonly onCancel: () => void;
   readonly onCreated: (draft: ProjectDraft) => void;
-}
-
-export function capabilityTodo(
-  commandClient: CommandClient,
-  viewClient: ViewClient,
-): string {
-  return commandClient && viewClient
-    ? "TODO(view-API): 模板库与模板实例化命令未提供"
-    : "TODO(view-API): client 未就绪";
 }
 
 export function NewProjectWizard({
@@ -58,22 +62,66 @@ export function NewProjectWizard({
   viewClient,
 }: NewProjectWizardProps): ReactElement {
   const [step, setStep] = useState<WizardStep>("name");
-  const [draft, setDraft] = useState<ProjectDraft>({
-    name: "",
-    profile: placeholderProfiles[0] ?? "",
-  });
-  const todo = capabilityTodo(commandClient, viewClient);
+  const [draft, setDraft] = useState<ProjectDraft>({ name: "", profile: "" });
+  const [templates, setTemplates] = useState<readonly TemplateCatalogItem[]>(
+    [],
+  );
+  const [creating, setCreating] = useState(false);
+  const [error, setError] = useState("");
 
-  function advance(): void {
-    if (!canAdvance(step, draft)) return;
-    if (step === "create") {
+  useEffect(() => {
+    let active = true;
+    void viewClient
+      .templates()
+      .then((items) => {
+        if (!active) return;
+        setTemplates(items);
+        setDraft((current) =>
+          current.profile || items.length === 0
+            ? current
+            : { ...current, profile: items[0]?.name ?? "" },
+        );
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [viewClient]);
+
+  async function create(): Promise<void> {
+    const template =
+      templates.find((item) => item.name === draft.profile) ?? templates[0];
+    if (!template) {
+      setError("暂无可用模板,无法创建项目");
+      return;
+    }
+    setCreating(true);
+    setError("");
+    try {
+      const newWorkspaceId = crypto.randomUUID();
+      await commandClient.instantiateWorkspace(
+        newWorkspaceId,
+        template.templateId,
+        templateVersion(template),
+        draft.name,
+      );
       onCreated({
         ...draft,
-        workspaceId: "11111111-1111-4111-8111-111111111111",
+        templateId: template.templateId,
+        version: templateVersion(template),
+        workspaceId: newWorkspaceId,
       });
-    } else {
-      setStep(nextWizardStep(step));
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : "创建项目失败");
+    } finally {
+      setCreating(false);
     }
+  }
+
+  function advance(): void {
+    if (!canAdvance(step, draft) || creating) return;
+    if (step === "create") void create();
+    else setStep(nextWizardStep(step));
   }
 
   return (
@@ -82,7 +130,7 @@ export function NewProjectWizard({
         <div>
           <strong>新建项目</strong>
           <h1>{stepTitle(step)}</h1>
-          <p>{todo}</p>
+          <p>进项目后能力随用随装。</p>
         </div>
         <button onClick={onCancel} type="button">
           取消
@@ -108,33 +156,42 @@ export function NewProjectWizard({
       ) : null}
       {step === "profile" ? (
         <fieldset className="profile-options">
-          <legend>插件 / 模板</legend>
-          {placeholderProfiles.map((profile) => (
-            <label key={profile}>
-              <input
-                checked={draft.profile === profile}
-                name="profile"
-                onChange={() => setDraft({ ...draft, profile })}
-                type="radio"
-              />
-              {profile}
-            </label>
-          ))}
+          <legend>起步方式 / 模板</legend>
+          {templates.length === 0 ? (
+            <p>暂无已发布模板;请先在模板库发布,或联系管理员。</p>
+          ) : (
+            templates.map((template) => (
+              <label key={template.templateId}>
+                <input
+                  checked={draft.profile === template.name}
+                  name="profile"
+                  onChange={() =>
+                    setDraft({ ...draft, profile: template.name })
+                  }
+                  type="radio"
+                />
+                {template.name}
+                {template.description ? (
+                  <small> · {template.description}</small>
+                ) : null}
+              </label>
+            ))
+          )}
         </fieldset>
       ) : null}
       {step === "config" ? (
         <div className="wizard-config">
           <label>
-            默认对象类型
-            <input readOnly value="demo_object" />
+            模板
+            <input readOnly value={draft.profile} />
           </label>
           <label>
             邀请成员
             <input placeholder="name@example.com" />
           </label>
           <label>
-            RBAC 角色
-            <select defaultValue="Editor">
+            我的角色
+            <select defaultValue="Owner">
               <option>Owner</option>
               <option>Editor</option>
               <option>Viewer</option>
@@ -146,19 +203,28 @@ export function NewProjectWizard({
         <div className="wizard-summary">
           <h2>{draft.name}</h2>
           <p>{draft.profile}</p>
-          <p>TODO(view-API): 创建暂用占位工作空间进入工作台。</p>
+          <p>将以该模板创建并进入新工作空间。</p>
         </div>
       ) : null}
+      {error ? (
+        <p className="wizard-error" role="alert">
+          {error}
+        </p>
+      ) : null}
       <footer className="wizard-actions">
-        <button onClick={() => setStep(previousWizardStep(step))} type="button">
+        <button
+          disabled={creating}
+          onClick={() => setStep(previousWizardStep(step))}
+          type="button"
+        >
           上一步
         </button>
         <button
-          disabled={!canAdvance(step, draft)}
+          disabled={!canAdvance(step, draft) || creating}
           onClick={advance}
           type="button"
         >
-          {step === "create" ? "创建并进入" : "下一步"}
+          {step === "create" ? (creating ? "创建中…" : "创建并进入") : "下一步"}
         </button>
       </footer>
     </section>
