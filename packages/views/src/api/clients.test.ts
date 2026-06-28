@@ -399,6 +399,75 @@ describe("view and command clients", () => {
     });
     expect(sets[0]?.provider).toBe("stub");
   });
+
+  it("posts review annotation commands with the controller payload", async () => {
+    const fetchFn = vi.fn<FetchFn>(
+      async () =>
+        new Response(
+          JSON.stringify({
+            id: "ann-1",
+            workspaceId: "ws",
+            roundId: null,
+            targetType: "field",
+            targetId: "obj-1",
+            fieldCode: "name",
+            anchoredDataVersion: 3,
+            severity: "issue",
+            body: "检查命名",
+            status: "open",
+            createdBy: "actor",
+            createdAt: "2026-06-28T00:00:00Z",
+            resolvedBy: null,
+            resolvedAt: null,
+          }),
+        ),
+    );
+    const client = new CommandClient("/api", fetchFn);
+    client.setActorId("actor");
+
+    await client.createAnnotation("ws", {
+      targetType: "field",
+      targetId: "obj-1",
+      fieldCode: "name",
+      anchoredDataVersion: 3,
+      severity: "issue",
+      body: "检查命名",
+    });
+
+    expect(fetchFn.mock.calls[0]?.[0]).toBe(
+      "/api/workspaces/ws/review/commands",
+    );
+    expect(JSON.parse(String(fetchFn.mock.calls[0]?.[1]?.body))).toMatchObject({
+      commandType: "CreateAnnotation",
+      workspaceId: "ws",
+      payload: {
+        targetType: "field",
+        targetId: "obj-1",
+        fieldCode: "name",
+        anchoredDataVersion: 3,
+        severity: "issue",
+        body: "检查命名",
+        roundId: null,
+      },
+    });
+  });
+
+  it("queries annotations by target and optional field", async () => {
+    const fetchFn = vi.fn<FetchFn>(
+      async () => new Response(JSON.stringify([])),
+    );
+
+    await new ViewClient("/api", fetchFn).annotations(
+      "ws",
+      "field",
+      "obj-1",
+      "name",
+    );
+
+    expect(fetchFn.mock.calls[0]?.[0]).toBe(
+      "/api/workspaces/ws/annotations?targetType=field&targetId=obj-1&fieldCode=name",
+    );
+  });
 });
 
 describe("command errors", () => {

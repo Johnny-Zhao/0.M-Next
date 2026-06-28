@@ -38,6 +38,7 @@ import { DocumentPanel } from "./document-panel";
 import { FloorplanPanel } from "./floorplan-panel";
 import { InspectorPanel } from "./inspector-panel";
 import { MatrixPanel } from "./matrix-panel";
+import { ReviewPanel } from "./review-panel";
 import { WorkbenchShellChrome } from "./shell-chrome";
 import { TablePanel } from "./table-panel";
 import { TreePanel } from "./tree-panel";
@@ -52,7 +53,8 @@ export type WorkbenchPanelId =
   | "tree"
   | "inspector"
   | "validate"
-  | "ai";
+  | "ai"
+  | "review";
 
 export interface WorkbenchPanelDefinition {
   readonly id: WorkbenchPanelId;
@@ -70,6 +72,7 @@ export const workbenchPanelDefinitions: readonly WorkbenchPanelDefinition[] = [
   { id: "inspector", title: "属性/校验", component: "inspector" },
   { id: "validate", title: "校验", component: "validate" },
   { id: "ai", title: "AI 助手", component: "ai" },
+  { id: "review", title: "批注", component: "review" },
 ];
 
 export interface WorkbenchContextValue {
@@ -172,6 +175,7 @@ const dockviewComponents: Record<
   inspector: () => <InspectorPanel />,
   validate: () => <ValidatePanel />,
   ai: () => <AiPanel />,
+  review: () => <ReviewPanel />,
 };
 const defaultObjectType = "room";
 const defaultRelationType = "adjacent";

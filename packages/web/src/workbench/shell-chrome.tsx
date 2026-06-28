@@ -120,6 +120,7 @@ export function WorkbenchShellChrome({
         { separator: true, label: "" },
         { label: "模型树", run: () => onOpenPanel("tree") },
         { label: "属性/校验", run: () => onOpenPanel("inspector") },
+        { label: "评审批注", run: () => onOpenPanel("review") },
         {
           label: advancedOpen ? "收起视图设置" : "高级 / 视图设置",
           run: onToggleAdvanced,
@@ -139,6 +140,7 @@ export function WorkbenchShellChrome({
       label: "校验",
       items: [
         { label: "打开校验面板", run: () => onOpenPanel("validate") },
+        { label: "打开批注面板", run: () => onOpenPanel("review") },
         { label: "重新校验", run: onRevalidate },
       ],
     },
@@ -259,6 +261,14 @@ export function WorkbenchShellChrome({
         <span className="workbench-toolbar-spacer" />
         <button
           className="workbench-action-button"
+          onClick={() => onOpenPanel("review")}
+          type="button"
+        >
+          <Icon name="review" />
+          <span>批注</span>
+        </button>
+        <button
+          className="workbench-action-button"
           onClick={() => onOpenPanel("ai")}
           type="button"
         >
@@ -343,6 +353,14 @@ function Icon({ name }: { readonly name: string }): ReactElement {
         <path d="M8 2.5 9.3 5 12 6.2 9.3 7.4 8 10 6.7 7.4 4 6.2 6.7 5Z" />
         <path d="M4 10.5 4.8 12 6.5 12.8 4.8 13.5 4 15 3.2 13.5 1.5 12.8 3.2 12Z" />
         <path d="M12.2 10.2 13 11.7 14.5 12.5 13 13.2 12.2 14.8 11.5 13.2 10 12.5 11.5 11.7Z" />
+      </svg>
+    );
+  }
+  if (name === "review") {
+    return (
+      <svg aria-hidden="true" viewBox="0 0 16 16">
+        <path d="M3 3h10v7H7l-3 3v-3H3Z" />
+        <path d="M5.5 5.5h5M5.5 7.5h3" />
       </svg>
     );
   }
