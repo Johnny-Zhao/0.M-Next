@@ -45,13 +45,13 @@ class DefineFieldDefHandler {
     var fieldDefId = fieldDefId(command, hash);
     var replay = support.replay(command.workspaceId(), command.idempotencyKey(), hash);
     if (replay.isPresent()) return withDetail(replay.get(), "fieldDefId=" + fieldDefId);
-    validateFresh(command);
     var templateVersion =
         meta.objectTypeTemplateVersion(command.workspaceId(), command.objectTypeId());
     if (templateVersion == null) throw CommandErrors.typeNotFound();
     templateVersion.ifPresent(this::validateMutable);
+    validateFresh(command, templateVersion);
     validateMutableObjectType(command);
-    var resolved = resolveFieldType(command);
+    var resolved = resolveFieldType(command, templateVersion);
     var now = Instant.now();
     var commandId = CommandSupport.commandId();
     meta.insertFieldDef(
@@ -101,12 +101,13 @@ class DefineFieldDefHandler {
     }
   }
 
-  private void validateFresh(DefineFieldDefCommand command) {
+  private void validateFresh(
+      DefineFieldDefCommand command, java.util.Optional<java.util.UUID> templateVersion) {
     if (meta.fieldCodeExists(command.objectTypeId(), command.code())) {
       throw CommandErrors.schema("字段 code 已存在");
     }
     validateExplicitRedefinition(command);
-    var violations = constraintViolations(command);
+    var violations = constraintViolations(command, templateVersion);
     if (!violations.isEmpty()) throw CommandErrors.fieldConstraint(violations);
   }
 
@@ -123,8 +124,9 @@ class DefineFieldDefHandler {
     }
   }
 
-  private List<String> constraintViolations(DefineFieldDefCommand command) {
-    var resolved = resolveFieldType(command);
+  private List<String> constraintViolations(
+      DefineFieldDefCommand command, java.util.Optional<java.util.UUID> templateVersion) {
+    var resolved = resolveFieldType(command, templateVersion);
     var constraints = resolved.constraints();
     var dataType = resolved.dataType();
     var violations = new ArrayList<String>();
@@ -141,8 +143,8 @@ class DefineFieldDefHandler {
     }
     if (dataType == DataType.REF
         && (constraints.refObjectTypeCode() == null
-            || !meta.objectTypeCodeExists(
-                command.workspaceId(), constraints.refObjectTypeCode()))) {
+            || !objectTypeCodeExists(
+                command.workspaceId(), templateVersion, constraints.refObjectTypeCode()))) {
       violations.add("refObjectTypeCode 必须指向存在的对象类型");
     }
     if (constraints.pattern() != null
@@ -170,13 +172,13 @@ class DefineFieldDefHandler {
     return violations;
   }
 
-  private ResolvedFieldType resolveFieldType(DefineFieldDefCommand command) {
+  private ResolvedFieldType resolveFieldType(
+      DefineFieldDefCommand command, java.util.Optional<java.util.UUID> templateVersion) {
     if (command.valueTypeCode() == null) {
       return new ResolvedFieldType(command.dataType(), null, constraints(command));
     }
     var valueType =
-        meta.valueTypeByCode(command.workspaceId(), command.valueTypeCode())
-            .orElseThrow(CommandErrors::metaParentNotFound);
+        valueTypeByCode(command, templateVersion).orElseThrow(CommandErrors::metaParentNotFound);
     var effective = meta.resolveEffectiveValueType(valueType.id());
     var violations =
         meta.narrowingViolations(
@@ -186,6 +188,24 @@ class DefineFieldDefHandler {
         effective.basePrimitive(),
         valueType.id(),
         MetaModelRepository.mergeConstraints(effective.constraints(), constraints(command)));
+  }
+
+  private java.util.Optional<MetaModelRepository.ValueTypeRow> valueTypeByCode(
+      DefineFieldDefCommand command, java.util.Optional<java.util.UUID> templateVersion) {
+    if (templateVersion.isEmpty()) {
+      return meta.valueTypeByCode(command.workspaceId(), command.valueTypeCode());
+    }
+    var scoped =
+        meta.valueTypeByCode(
+            command.workspaceId(), templateVersion.orElse(null), command.valueTypeCode());
+    if (scoped.isPresent()) return scoped;
+    return meta.valueTypeByCode(command.workspaceId(), null, command.valueTypeCode());
+  }
+
+  private boolean objectTypeCodeExists(
+      java.util.UUID workspaceId, java.util.Optional<java.util.UUID> templateVersion, String code) {
+    if (templateVersion.isEmpty()) return meta.objectTypeCodeExists(workspaceId, code);
+    return meta.objectTypeCodeExists(workspaceId, templateVersion.get(), code);
   }
 
   private java.util.UUID redefinedField(DefineFieldDefCommand command, ResolvedFieldType resolved) {
