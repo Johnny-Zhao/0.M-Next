@@ -330,6 +330,75 @@ describe("view and command clients", () => {
       acknowledgeImpact: true,
     });
   });
+
+  it("posts AI proposal commands to the governed AI endpoint", async () => {
+    const fetchFn = vi.fn<FetchFn>(
+      async () => new Response(JSON.stringify({ events: ["set-1"] })),
+    );
+    const client = new CommandClient("/api", fetchFn);
+    client.setActorId("actor-1");
+
+    const result = await client.proposeAiChange("ws", {
+      action: "SUGGEST_FIELDS",
+      selection: { objectIds: ["obj-1"], checkResultIds: [] },
+      instruction: "补齐字段",
+    });
+
+    expect(result.events?.[0]).toBe("set-1");
+    expect(fetchFn.mock.calls[0]?.[0]).toBe("/api/workspaces/ws/ai-commands");
+    expect(fetchFn.mock.calls[0]?.[1]?.headers).toMatchObject({
+      "content-type": "application/json",
+      "X-Actor-Id": "actor-1",
+    });
+    expect(JSON.parse(String(fetchFn.mock.calls[0]?.[1]?.body))).toMatchObject({
+      commandType: "ProposeAiChange",
+      workspaceId: "ws",
+      payload: {
+        action: "SUGGEST_FIELDS",
+        selection: { objectIds: ["obj-1"], checkResultIds: [] },
+        instruction: "补齐字段",
+      },
+    });
+  });
+
+  it("reads AI change sets with actor-scoped view access", async () => {
+    const fetchFn = vi.fn<FetchFn>(
+      async () =>
+        new Response(
+          JSON.stringify([
+            {
+              setId: "set-1",
+              action: "SUGGEST_FIELDS",
+              status: "PROPOSED",
+              provider: "stub",
+              providerVersion: "1a",
+              contextHash: "hash",
+              resultText: null,
+              createdAt: "2026-06-28T00:00:00Z",
+              applied: 0,
+              skipped: 0,
+              items: [],
+            },
+          ]),
+        ),
+    );
+
+    const sets = await new ViewClient("/api", fetchFn).aiChanges(
+      "ws",
+      "actor",
+      {
+        status: "PROPOSED",
+      },
+    );
+
+    expect(fetchFn.mock.calls[0]?.[0]).toBe(
+      "/api/workspaces/ws/views/ai-changes?status=PROPOSED",
+    );
+    expect(fetchFn.mock.calls[0]?.[1]?.headers).toMatchObject({
+      "X-Actor-Id": "actor",
+    });
+    expect(sets[0]?.provider).toBe("stub");
+  });
 });
 
 describe("command errors", () => {

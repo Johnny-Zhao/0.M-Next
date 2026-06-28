@@ -2093,13 +2093,159 @@ main {
 /* 表格 / 矩阵 / 文档视图面板 */
 .table-panel,
 .matrix-panel,
-.document-panel {
+.document-panel,
+.ai-panel {
   background: var(--mn-surface);
   box-sizing: border-box;
   color: var(--mn-ink);
   height: 100%;
   overflow: auto;
   padding: 0.5rem 0.75rem;
+}
+
+.ai-panel {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.ai-panel-controls,
+.ai-change-set {
+  background: var(--mn-surface-2);
+  border: 1px solid var(--mn-border);
+  border-radius: 6px;
+  padding: 0.75rem;
+}
+
+.ai-panel-controls label {
+  color: var(--mn-ink-2);
+  display: grid;
+  font-size: 0.78rem;
+  gap: 0.35rem;
+}
+
+.ai-panel-controls textarea {
+  background: var(--mn-surface);
+  border: 1px solid var(--mn-border-2);
+  border-radius: 5px;
+  color: var(--mn-ink);
+  min-height: 4.5rem;
+  padding: 0.45rem 0.55rem;
+  resize: vertical;
+}
+
+.ai-panel-actions,
+.ai-change-set footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.65rem;
+}
+
+.ai-panel button {
+  background: var(--mn-surface);
+  border: 1px solid var(--mn-border-2);
+  border-radius: 5px;
+  color: var(--mn-ink-2);
+  cursor: pointer;
+  padding: 0.35rem 0.65rem;
+}
+
+.ai-panel button:hover {
+  border-color: var(--mn-accent);
+  color: var(--mn-accent);
+}
+
+.ai-panel button:disabled {
+  color: var(--mn-ink-4);
+  cursor: default;
+}
+
+.ai-panel-controls p {
+  color: var(--mn-ink-3);
+  font-size: 0.76rem;
+  margin: 0.65rem 0 0;
+}
+
+.ai-change-set header {
+  align-items: start;
+  display: flex;
+  gap: 0.75rem;
+  justify-content: space-between;
+}
+
+.ai-change-set header div {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.ai-change-set header strong {
+  color: var(--mn-accent);
+}
+
+.ai-change-set header span,
+.ai-change-set code {
+  color: var(--mn-ink-3);
+  font-size: 0.75rem;
+}
+
+.ai-change-set code {
+  font-family: var(--mn-mono);
+  max-width: 16rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ai-result-text {
+  background: var(--mn-surface);
+  border: 1px solid var(--mn-border);
+  border-radius: 5px;
+  color: var(--mn-ink-2);
+  margin: 0.65rem 0;
+  padding: 0.55rem;
+  white-space: pre-wrap;
+}
+
+.ai-change-list {
+  display: grid;
+  gap: 0.45rem;
+  margin-top: 0.75rem;
+}
+
+.ai-panel .ai-change-item {
+  align-items: center;
+  display: grid;
+  gap: 0.45rem;
+  grid-template-columns:
+    minmax(8rem, 1fr) minmax(6rem, 0.7fr) minmax(10rem, 1.2fr)
+    auto;
+  text-align: left;
+}
+
+.ai-change-item b,
+.ai-change-item small {
+  font-family: var(--mn-mono);
+}
+
+.ai-change-item i {
+  border-radius: 999px;
+  font-style: normal;
+  padding: 0.12rem 0.45rem;
+}
+
+.ai-change-ok i {
+  background: var(--mn-ok-bg);
+  color: var(--mn-ok);
+}
+
+.ai-change-warn i {
+  background: var(--mn-warn-bg);
+  color: var(--mn-warn);
+}
+
+.ai-change-block i {
+  background: var(--mn-bad-bg);
+  color: var(--mn-bad);
 }
 
 .view-empty-state {

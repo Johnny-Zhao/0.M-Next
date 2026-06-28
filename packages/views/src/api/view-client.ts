@@ -203,6 +203,29 @@ export interface WorkspaceSummary {
   readonly updatedAt: string;
 }
 
+export interface AiChangeSet {
+  readonly setId: string;
+  readonly action: string;
+  readonly status: "PROPOSED" | "REJECTED" | "CONFIRMED";
+  readonly provider: string;
+  readonly providerVersion: string;
+  readonly contextHash: string;
+  readonly resultText: string | null;
+  readonly createdAt: string;
+  readonly applied: number;
+  readonly skipped: number;
+  readonly items: readonly AiChangeItem[];
+}
+
+export interface AiChangeItem {
+  readonly itemId: string;
+  readonly seq: number;
+  readonly opType: string;
+  readonly payload: Readonly<Record<string, unknown>>;
+  readonly precheck: Readonly<Record<string, unknown>>;
+  readonly itemStatus: string;
+}
+
 export type FetchFn = (
   input: RequestInfo | URL,
   init?: RequestInit,
@@ -257,6 +280,21 @@ export class ViewClient {
 
   workspaces(): Promise<readonly WorkspaceSummary[]> {
     return this.get("/views/workspaces");
+  }
+
+  aiChanges(
+    workspaceId: string,
+    actorId: string,
+    filters: { readonly status?: string; readonly setId?: string } = {},
+  ): Promise<readonly AiChangeSet[]> {
+    const query = new URLSearchParams();
+    if (filters.status) query.set("status", filters.status);
+    if (filters.setId) query.set("setId", filters.setId);
+    const suffix = query.size > 0 ? `?${query}` : "";
+    return this.getWithActor(
+      `/workspaces/${workspaceId}/views/ai-changes${suffix}`,
+      actorId,
+    );
   }
 
   objects(
@@ -399,6 +437,14 @@ export class ViewClient {
 
   private async get<T>(path: string): Promise<T> {
     const response = await this.fetchFn(`${this.baseUrl}${path}`);
+    if (!response.ok) throw new Error("读取视图数据失败");
+    return response.json() as Promise<T>;
+  }
+
+  private async getWithActor<T>(path: string, actorId: string): Promise<T> {
+    const response = await this.fetchFn(`${this.baseUrl}${path}`, {
+      headers: { "X-Actor-Id": actorId },
+    });
     if (!response.ok) throw new Error("读取视图数据失败");
     return response.json() as Promise<T>;
   }

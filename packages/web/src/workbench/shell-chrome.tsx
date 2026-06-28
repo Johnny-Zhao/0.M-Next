@@ -98,6 +98,7 @@ export function WorkbenchShellChrome({
         { label: "导出 PDF", tag: "PDF", run: () => onGenerateOutput("pdf") },
         { separator: true, label: "" },
         { label: "打开文档面板", run: () => onOpenPanel("document") },
+        { label: "打开 AI 助手", run: () => onOpenPanel("ai") },
       ],
     },
     {
@@ -129,6 +130,7 @@ export function WorkbenchShellChrome({
       label: "模型",
       items: [
         { label: "刷新视图", run: onRefreshViews },
+        { label: "AI 提议", run: () => onOpenPanel("ai") },
         { label: "自动布局", tag: "待接入", disabled: true },
         { label: "新建对象", tag: "待接入", disabled: true },
       ],
@@ -257,6 +259,14 @@ export function WorkbenchShellChrome({
         <span className="workbench-toolbar-spacer" />
         <button
           className="workbench-action-button"
+          onClick={() => onOpenPanel("ai")}
+          type="button"
+        >
+          <Icon name="ai" />
+          <span>AI 助手</span>
+        </button>
+        <button
+          className="workbench-action-button"
           onClick={onRevalidate}
           type="button"
         >
@@ -324,6 +334,15 @@ function Icon({ name }: { readonly name: string }): ReactElement {
       <svg aria-hidden="true" viewBox="0 0 16 16">
         <path d="M13 8a5 5 0 1 1-1.4-3.5" />
         <path d="M13 2v3h-3" />
+      </svg>
+    );
+  }
+  if (name === "ai") {
+    return (
+      <svg aria-hidden="true" viewBox="0 0 16 16">
+        <path d="M8 2.5 9.3 5 12 6.2 9.3 7.4 8 10 6.7 7.4 4 6.2 6.7 5Z" />
+        <path d="M4 10.5 4.8 12 6.5 12.8 4.8 13.5 4 15 3.2 13.5 1.5 12.8 3.2 12Z" />
+        <path d="M12.2 10.2 13 11.7 14.5 12.5 13 13.2 12.2 14.8 11.5 13.2 10 12.5 11.5 11.7Z" />
       </svg>
     );
   }
