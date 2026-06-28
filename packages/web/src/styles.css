@@ -2094,7 +2094,8 @@ main {
 .table-panel,
 .matrix-panel,
 .document-panel,
-.ai-panel {
+.ai-panel,
+.exchange-panel {
   background: var(--mn-surface);
   box-sizing: border-box;
   color: var(--mn-ink);
@@ -2141,7 +2142,8 @@ main {
   margin-top: 0.65rem;
 }
 
-.ai-panel button {
+.ai-panel button,
+.exchange-panel button {
   background: var(--mn-surface);
   border: 1px solid var(--mn-border-2);
   border-radius: 5px;
@@ -2150,12 +2152,14 @@ main {
   padding: 0.35rem 0.65rem;
 }
 
-.ai-panel button:hover {
+.ai-panel button:hover,
+.exchange-panel button:hover {
   border-color: var(--mn-accent);
   color: var(--mn-accent);
 }
 
-.ai-panel button:disabled {
+.ai-panel button:disabled,
+.exchange-panel button:disabled {
   color: var(--mn-ink-4);
   cursor: default;
 }
@@ -2271,6 +2275,148 @@ main {
 .review-card span {
   color: var(--mn-ink-3);
   font-size: 0.75rem;
+}
+
+.exchange-panel {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.exchange-card,
+.exchange-diff {
+  background: var(--mn-surface-2);
+  border: 1px solid var(--mn-border);
+  border-radius: 6px;
+  padding: 0.75rem;
+}
+
+.exchange-card {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.exchange-card header,
+.exchange-card footer,
+.exchange-controls {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  justify-content: space-between;
+}
+
+.exchange-card header div {
+  display: grid;
+  gap: 0.1rem;
+}
+
+.exchange-card header strong {
+  color: var(--mn-accent);
+}
+
+.exchange-card header span,
+.exchange-card footer span {
+  color: var(--mn-ink-3);
+  font-size: 0.75rem;
+}
+
+.exchange-controls label,
+.exchange-payload {
+  color: var(--mn-ink-2);
+  display: grid;
+  font-size: 0.76rem;
+  gap: 0.3rem;
+}
+
+.exchange-controls label {
+  min-width: 12rem;
+}
+
+.exchange-controls select,
+.exchange-controls input,
+.exchange-payload textarea {
+  background: var(--mn-surface);
+  border: 1px solid var(--mn-border-2);
+  border-radius: 5px;
+  color: var(--mn-ink);
+  padding: 0.38rem 0.5rem;
+}
+
+.exchange-payload textarea {
+  font-family: var(--mn-mono);
+  min-height: 10rem;
+  resize: vertical;
+}
+
+.exchange-summary-grid {
+  display: grid;
+  gap: 0.5rem;
+  grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr));
+}
+
+.exchange-summary {
+  background: var(--mn-surface);
+  border: 1px solid var(--mn-border);
+  border-radius: 6px;
+  color: var(--mn-ink-2);
+  display: grid;
+  gap: 0.15rem;
+  padding: 0.55rem;
+}
+
+.exchange-summary b {
+  color: var(--mn-ink);
+  font-size: 1.25rem;
+}
+
+.exchange-add b {
+  color: var(--mn-ok);
+}
+
+.exchange-change b {
+  color: var(--mn-warn);
+}
+
+.exchange-remove b {
+  color: var(--mn-bad);
+}
+
+.exchange-diff-columns {
+  display: grid;
+  gap: 0.65rem;
+  margin-top: 0.75rem;
+}
+
+.exchange-diff-columns section {
+  background: var(--mn-surface);
+  border: 1px solid var(--mn-border);
+  border-radius: 6px;
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.65rem;
+}
+
+.exchange-diff h3 {
+  color: var(--mn-ink);
+  font-size: 0.86rem;
+  margin: 0;
+}
+
+.exchange-diff code {
+  color: var(--mn-ink-2);
+  font-family: var(--mn-mono);
+  overflow-wrap: anywhere;
+}
+
+.exchange-diff article {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.exchange-diff ul {
+  color: var(--mn-ink-2);
+  margin: 0;
+  padding-left: 1.1rem;
 }
 
 .ai-panel-controls p {
