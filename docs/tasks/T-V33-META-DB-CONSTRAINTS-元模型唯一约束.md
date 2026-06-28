@@ -17,7 +17,7 @@
 - **B. 不改**:三表(阶段一已定)、类型身份应用层逻辑、读模型、实例化、其它领域。
 
 ## 封闭文件清单
-**修改/新增**:`packages/server/.../db/migration/V{next}__rule_def_profile_unique.sql`、必要时迁移前置数据校验、相关迁移 E2E。
+**修改/新增**:`packages/server/.../db/migration/V{next}__rule_def_profile_unique.sql`(rule_def 在 server V11,故置 server 目录;**V{next}=全局 max+1**,跨 kernel/engines/server 三目录核,当前 max=V21)、必要时迁移前置数据校验、相关迁移 E2E。rule_def.template_version_id 已确认可空,故用 `NULLS NOT DISTINCT`。
 **零碰**:应用层判定逻辑、读模型、前端、领域种子。
 
 ## 红线 / 门禁

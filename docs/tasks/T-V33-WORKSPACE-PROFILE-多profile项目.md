@@ -18,7 +18,7 @@
 - **E. 不改**:类型身份语义(阶段一已定)、读模型投影语义、其它领域、单 profile 既有流程。
 
 ## 封闭文件清单
-**修改/新增**:`packages/server/.../db/migration/Vxx__workspace_profile.sql`、ApplyProfile 命令 + handler(kernel/server 相应层)、`WorkspaceLifecycle`/instantiate 落 workspace_profile、工作空间视图暴露 profile 列表、相关 E2E/单测。
+**修改/新增**:新迁移 `workspace_profile`——**版本号取全局 max+1**(迁移分散在 kernel/engines/server 三处 db/migration、共享一条全局版本线;当前 max=V21,派发时再核);该表 FK 引用 workspace(kernel)/scene_template_version(kernel),放 server 目录即可(版本高于基表、应用顺序在后)。另:ApplyProfile 命令 + handler(kernel/server 相应层)、`WorkspaceLifecycle`/instantiate 落 workspace_profile、工作空间视图暴露 profile 列表、相关 E2E/单测。
 **零碰**:类型身份判定、读模型投影语义、前端(除非只读暴露需要)、其它领域种子。
 
 ## 红线 / 门禁

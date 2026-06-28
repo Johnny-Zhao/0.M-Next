@@ -60,6 +60,7 @@ class MetaModelIntegrationTest {
   }
 
   @Autowired MetaCommandService meta;
+  @Autowired MetaModelRepository metaModels;
   @Autowired KernelCommandService commands;
   @Autowired JdbcTemplate jdbc;
 
@@ -555,6 +556,52 @@ class MetaModelIntegrationTest {
         1L,
         jdbc.queryForObject(
             "SELECT count(*) FROM data_object WHERE workspace_id = ?", Long.class, newWorkspace));
+  }
+
+  @Test
+  void templateTypeIdentityIsScopedByTemplateVersion() {
+    var actor = Actor.user("profile-author");
+    var draft = draftTemplate("profile_scoped_types");
+    var nextVersion = templateVersion(draft.templateId(), 2, "draft");
+
+    defineScopedValueType(draft.versionId(), "profile_margin", "margin-a", actor);
+    defineScopedValueType(nextVersion, "profile_margin", "margin-b", actor);
+    var firstRequirement =
+        defineScopedObject(draft.versionId(), "requirement", "需求 A", "requirement-a", actor);
+    var secondRequirement =
+        defineScopedObject(nextVersion, "requirement", "需求 B", "requirement-b", actor);
+    defineScopedRelation(
+        draft.versionId(), "satisfies", firstRequirement, firstRequirement, "relation-a", actor);
+    defineScopedRelation(
+        nextVersion, "satisfies", secondRequirement, secondRequirement, "relation-b", actor);
+
+    assertEquals(
+        firstRequirement,
+        metaModels
+            .objectTypeByCode(WORKSPACE, draft.versionId(), "requirement")
+            .orElseThrow()
+            .id());
+    assertEquals(
+        secondRequirement,
+        metaModels.objectTypeByCode(WORKSPACE, nextVersion, "requirement").orElseThrow().id());
+    assertEquals(
+        draft.versionId(),
+        metaModels
+            .valueTypeByCode(WORKSPACE, draft.versionId(), "profile_margin")
+            .orElseThrow()
+            .templateVersionId());
+    assertEquals(
+        nextVersion,
+        metaModels
+            .valueTypeByCode(WORKSPACE, nextVersion, "profile_margin")
+            .orElseThrow()
+            .templateVersionId());
+    assertEquals(
+        true, metaModels.relationTypeCodeExists(WORKSPACE, draft.versionId(), "satisfies"));
+    assertEquals(true, metaModels.relationTypeCodeExists(WORKSPACE, nextVersion, "satisfies"));
+    assertEquals(2L, templateObjectCount("requirement"));
+    assertEquals(2L, templateValueCount("profile_margin"));
+    assertEquals(2L, templateRelationCount("satisfies"));
   }
 
   @Test
@@ -1145,6 +1192,89 @@ class MetaModelIntegrationTest {
     return jdbc.queryForObject(
         "SELECT id FROM object_type WHERE workspace_id = ? AND code = ?",
         UUID.class,
+        WORKSPACE,
+        code);
+  }
+
+  private UUID defineScopedObject(
+      UUID versionId, String code, String name, String idempotencyKey, Actor actor) {
+    var result =
+        meta.defineObjectType(
+            new DefineObjectTypeCommand(
+                WORKSPACE, UUID.randomUUID(), idempotencyKey, versionId, code, name, null),
+            actor);
+    return returnedUuid(result, "objectTypeId");
+  }
+
+  private void defineScopedValueType(
+      UUID versionId, String code, String idempotencyKey, Actor actor) {
+    meta.defineValueType(
+        new DefineValueTypeCommand(
+            WORKSPACE,
+            UUID.randomUUID(),
+            idempotencyKey,
+            versionId,
+            code,
+            code,
+            DataType.NUMBER,
+            "number",
+            FieldConstraints.empty()),
+        actor);
+  }
+
+  private void defineScopedRelation(
+      UUID versionId,
+      String code,
+      UUID sourceType,
+      UUID targetType,
+      String idempotencyKey,
+      Actor actor) {
+    meta.defineRelationType(
+        new DefineRelationTypeCommand(
+            WORKSPACE,
+            UUID.randomUUID(),
+            idempotencyKey,
+            code,
+            code,
+            sourceType,
+            targetType,
+            "directed",
+            "many_to_many",
+            "weak",
+            false,
+            versionId),
+        actor);
+  }
+
+  private long templateObjectCount(String code) {
+    return jdbc.queryForObject(
+        """
+        SELECT count(*) FROM object_type
+        WHERE workspace_id = ? AND template_version_id IS NOT NULL AND code = ?
+        """,
+        Long.class,
+        WORKSPACE,
+        code);
+  }
+
+  private long templateValueCount(String code) {
+    return jdbc.queryForObject(
+        """
+        SELECT count(*) FROM value_type
+        WHERE workspace_id = ? AND template_version_id IS NOT NULL AND code = ?
+        """,
+        Long.class,
+        WORKSPACE,
+        code);
+  }
+
+  private long templateRelationCount(String code) {
+    return jdbc.queryForObject(
+        """
+        SELECT count(*) FROM relation_type
+        WHERE workspace_id = ? AND template_version_id IS NOT NULL AND code = ?
+        """,
+        Long.class,
         WORKSPACE,
         code);
   }

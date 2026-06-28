@@ -18,7 +18,7 @@
 - **E. 不改**:领域内 relation 语义、读模型投影语义、转换执行(异步,沿用 TransformationRunner)、其它领域。
 
 ## 封闭文件清单
-**修改**:profile manifest schema(kind/sourceProfile/targetProfile + 解析)、DefineRelationType 端点校验(映射场景放开同 tv)、relation_type/correspondence 落库与 m2m_transformation 关联、对应关系读端点 + view-client 类型、相关 E2E/单测;**按需**一处加性迁移。
+**修改**:profile manifest schema(kind/sourceProfile/targetProfile + 解析)、DefineRelationType 端点校验(映射场景放开同 tv;注:阶段一后端点按 tv 解析,映射 profile 内允许端点跨已应用 profile)、relation_type/correspondence 落库与 m2m_transformation 关联(优先复用其现列)、对应关系读端点 + view-client 类型、相关 E2E/单测;**按需**一处加性迁移——**若需,版本号取全局 max+1(跨三模块目录核)**,按所改表所属模块放置。
 **零碰**:领域内普通关系语义、读模型投影语义、同步视图路径、其它领域逻辑。
 
 ## 红线 / 门禁

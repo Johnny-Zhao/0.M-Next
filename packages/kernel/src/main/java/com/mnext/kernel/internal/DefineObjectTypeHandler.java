@@ -35,14 +35,12 @@ class DefineObjectTypeHandler {
     var replay = support.replay(command.workspaceId(), command.idempotencyKey(), hash);
     if (replay.isPresent()) {
       var objectTypeId =
-          meta.objectTypeByCode(command.workspaceId(), command.code())
-              .orElseThrow(CommandErrors::typeNotFound)
-              .id();
+          objectTypeByCode(command, command.code()).orElseThrow(CommandErrors::typeNotFound).id();
       return withDetail(replay.get(), "objectTypeId=" + objectTypeId);
     }
     var now = Instant.now();
     var commandId = CommandSupport.commandId();
-    var existing = meta.objectTypeByCode(command.workspaceId(), command.code()).orElse(null);
+    var existing = objectTypeByCode(command, command.code()).orElse(null);
     var parent = parent(command);
     var objectTypeId = existing == null ? java.util.UUID.randomUUID() : existing.id();
     if (existing == null) {
@@ -86,7 +84,7 @@ class DefineObjectTypeHandler {
       if (status.isEmpty()) throw CommandErrors.typeNotFound();
       if ("published".equals(status.get())) throw CommandErrors.templateVersionImmutable();
     }
-    var existing = meta.objectTypeByCode(command.workspaceId(), command.code()).orElse(null);
+    var existing = objectTypeByCode(command, command.code()).orElse(null);
     var parent = parent(command);
     if (existing != null && existing.published()) throw CommandErrors.metaPublishedImmutable();
     if (existing != null && existing.templateVersionId() != null) {
@@ -107,8 +105,25 @@ class DefineObjectTypeHandler {
 
   private MetaModelRepository.ObjectTypeRow parent(DefineObjectTypeCommand command) {
     if (command.parentTypeCode() == null) return null;
-    return meta.objectTypeByCode(command.workspaceId(), command.parentTypeCode())
-        .orElseThrow(CommandErrors::metaParentNotFound);
+    var parent = objectTypeByCode(command, command.parentTypeCode());
+    if (parent.isPresent()) return parent.get();
+    if (command.templateVersionId() != null) {
+      var sameWorkspaceParent =
+          meta.objectTypeByCode(command.workspaceId(), command.parentTypeCode());
+      if (sameWorkspaceParent.isPresent()
+          && !sameTemplate(
+              command.templateVersionId(), sameWorkspaceParent.get().templateVersionId())) {
+        throw CommandErrors.metaParentCrossTemplate();
+      }
+    }
+    throw CommandErrors.metaParentNotFound();
+  }
+
+  private java.util.Optional<MetaModelRepository.ObjectTypeRow> objectTypeByCode(
+      DefineObjectTypeCommand command, String code) {
+    if (command.templateVersionId() == null)
+      return meta.objectTypeByCode(command.workspaceId(), code);
+    return meta.objectTypeByCode(command.workspaceId(), command.templateVersionId(), code);
   }
 
   private boolean sameTemplate(java.util.UUID left, java.util.UUID right) {

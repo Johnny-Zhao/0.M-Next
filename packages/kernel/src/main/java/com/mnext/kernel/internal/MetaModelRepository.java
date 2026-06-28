@@ -267,6 +267,23 @@ class MetaModelRepository {
             code));
   }
 
+  boolean objectTypeCodeExists(UUID workspaceId, UUID templateVersionId, String code) {
+    return Boolean.TRUE.equals(
+        jdbc.queryForObject(
+            """
+            SELECT EXISTS(
+              SELECT 1 FROM object_type
+              WHERE workspace_id = ?
+                AND template_version_id IS NOT DISTINCT FROM ?
+                AND code = ?
+            )
+            """,
+            Boolean.class,
+            workspaceId,
+            templateVersionId,
+            code));
+  }
+
   Optional<ObjectTypeRow> objectTypeByCode(UUID workspaceId, String code) {
     return jdbc.query(
         """
@@ -275,6 +292,21 @@ class MetaModelRepository {
         """,
         result -> result.next() ? Optional.of(objectTypeRow(result)) : Optional.empty(),
         workspaceId,
+        code);
+  }
+
+  Optional<ObjectTypeRow> objectTypeByCode(UUID workspaceId, UUID templateVersionId, String code) {
+    return jdbc.query(
+        """
+        SELECT id, template_version_id, parent_type_id, published
+        FROM object_type
+        WHERE workspace_id = ?
+          AND template_version_id IS NOT DISTINCT FROM ?
+          AND code = ?
+        """,
+        result -> result.next() ? Optional.of(objectTypeRow(result)) : Optional.empty(),
+        workspaceId,
+        templateVersionId,
         code);
   }
 
@@ -359,6 +391,23 @@ class MetaModelRepository {
             "SELECT EXISTS(SELECT 1 FROM relation_type WHERE workspace_id = ? AND code = ?)",
             Boolean.class,
             workspaceId,
+            code));
+  }
+
+  boolean relationTypeCodeExists(UUID workspaceId, UUID templateVersionId, String code) {
+    return Boolean.TRUE.equals(
+        jdbc.queryForObject(
+            """
+            SELECT EXISTS(
+              SELECT 1 FROM relation_type
+              WHERE workspace_id = ?
+                AND template_version_id IS NOT DISTINCT FROM ?
+                AND code = ?
+            )
+            """,
+            Boolean.class,
+            workspaceId,
+            templateVersionId,
             code));
   }
 
@@ -492,6 +541,54 @@ class MetaModelRepository {
         result -> result.next() ? Optional.of(valueTypeRow(result)) : Optional.empty(),
         workspaceId,
         code);
+  }
+
+  Optional<ValueTypeRow> valueTypeByCode(UUID workspaceId, UUID templateVersionId, String code) {
+    return jdbc.query(
+        """
+        SELECT id, template_version_id, code, base_primitive, parent_value_type_id,
+          constraints->>'minLength' AS min_length, constraints->>'maxLength' AS max_length,
+          constraints->>'min' AS min_value, constraints->>'max' AS max_value,
+          constraints->>'pattern' AS pattern, constraints->>'refObjectTypeCode' AS ref_type,
+          constraints->>'multiline' AS multiline,
+          ARRAY(SELECT jsonb_array_elements_text(
+            COALESCE(constraints->'enumValues', '[]'::jsonb))) AS enum_values,
+          published
+        FROM value_type
+        WHERE workspace_id = ?
+          AND template_version_id IS NOT DISTINCT FROM ?
+          AND code = ?
+        """,
+        result -> result.next() ? Optional.of(valueTypeRow(result)) : Optional.empty(),
+        workspaceId,
+        templateVersionId,
+        code);
+  }
+
+  boolean valueTypeCodeExists(UUID workspaceId, String code) {
+    return Boolean.TRUE.equals(
+        jdbc.queryForObject(
+            "SELECT EXISTS(SELECT 1 FROM value_type WHERE workspace_id = ? AND code = ?)",
+            Boolean.class,
+            workspaceId,
+            code));
+  }
+
+  boolean valueTypeCodeExists(UUID workspaceId, UUID templateVersionId, String code) {
+    return Boolean.TRUE.equals(
+        jdbc.queryForObject(
+            """
+            SELECT EXISTS(
+              SELECT 1 FROM value_type
+              WHERE workspace_id = ?
+                AND template_version_id IS NOT DISTINCT FROM ?
+                AND code = ?
+            )
+            """,
+            Boolean.class,
+            workspaceId,
+            templateVersionId,
+            code));
   }
 
   boolean valueTypeDescendsFrom(UUID actualValueTypeId, UUID expectedValueTypeId) {
