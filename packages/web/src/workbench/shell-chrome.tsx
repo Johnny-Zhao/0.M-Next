@@ -98,6 +98,7 @@ export function WorkbenchShellChrome({
         { label: "导出 PDF", tag: "PDF", run: () => onGenerateOutput("pdf") },
         { separator: true, label: "" },
         { label: "交换导入 / 导出", run: () => onOpenPanel("exchange") },
+        { label: "快照与对比", run: () => onOpenPanel("snapshot") },
         { label: "打开文档面板", run: () => onOpenPanel("document") },
         { label: "打开 AI 助手", run: () => onOpenPanel("ai") },
       ],
@@ -123,6 +124,7 @@ export function WorkbenchShellChrome({
         { label: "属性/校验", run: () => onOpenPanel("inspector") },
         { label: "评审批注", run: () => onOpenPanel("review") },
         { label: "交换导入", run: () => onOpenPanel("exchange") },
+        { label: "快照对比", run: () => onOpenPanel("snapshot") },
         {
           label: advancedOpen ? "收起视图设置" : "高级 / 视图设置",
           run: onToggleAdvanced,
@@ -263,6 +265,14 @@ export function WorkbenchShellChrome({
         <span className="workbench-toolbar-spacer" />
         <button
           className="workbench-action-button"
+          onClick={() => onOpenPanel("snapshot")}
+          type="button"
+        >
+          <Icon name="snapshot" />
+          <span>快照</span>
+        </button>
+        <button
+          className="workbench-action-button"
           onClick={() => onOpenPanel("exchange")}
           type="button"
         >
@@ -379,6 +389,15 @@ function Icon({ name }: { readonly name: string }): ReactElement {
       <svg aria-hidden="true" viewBox="0 0 16 16">
         <path d="M3 5h7M7.5 2.5 10 5 7.5 7.5" />
         <path d="M13 11H6M8.5 8.5 6 11l2.5 2.5" />
+      </svg>
+    );
+  }
+  if (name === "snapshot") {
+    return (
+      <svg aria-hidden="true" viewBox="0 0 16 16">
+        <path d="M4 3h8v9H4Z" />
+        <path d="M6 6h4M6 8h4M6 10h2" />
+        <path d="M3 5H2v9h8v-1" />
       </svg>
     );
   }

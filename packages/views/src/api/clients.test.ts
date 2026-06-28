@@ -529,6 +529,95 @@ describe("view and command clients", () => {
     expect(exported.contentType).toBe("application/xml");
   });
 
+  it("lists and reads snapshots with actor-scoped view access", async () => {
+    const fetchFn = vi.fn<FetchFn>(async (input) => {
+      if (String(input).endsWith("/snapshots?page=0&size=25")) {
+        return new Response(
+          JSON.stringify({
+            items: [
+              {
+                snapshotId: "snap-1",
+                createdAt: "2026-06-28T00:00:00Z",
+                createdBy: "actor",
+                dataVersion: 7,
+                contentHash: "hash",
+                scopeObjectType: "room",
+              },
+            ],
+            page: 0,
+            pageSize: 25,
+            total: 1,
+          }),
+        );
+      }
+      return new Response(
+        JSON.stringify({
+          meta: {
+            snapshotId: "snap-1",
+            createdAt: "2026-06-28T00:00:00Z",
+            createdBy: "actor",
+            dataVersion: 7,
+            contentHash: "hash",
+            scopeObjectType: "room",
+          },
+          payload: { objects: [], relations: [] },
+        }),
+      );
+    });
+    const client = new ViewClient("/api", fetchFn);
+
+    const page = await client.listSnapshots("ws", "actor", 0, 25);
+    const detail = await client.getSnapshot("ws", "actor", "snap-1");
+
+    expect(fetchFn.mock.calls[0]?.[0]).toBe(
+      "/api/workspaces/ws/snapshots?page=0&size=25",
+    );
+    expect(fetchFn.mock.calls[0]?.[1]?.headers).toMatchObject({
+      "X-Actor-Id": "actor",
+    });
+    expect(fetchFn.mock.calls[1]?.[0]).toBe(
+      "/api/workspaces/ws/snapshots/snap-1",
+    );
+    expect(page.items[0]?.snapshotId).toBe("snap-1");
+    expect(detail.payload.objects).toEqual([]);
+  });
+
+  it("posts diff requests with controller DataSet payloads", async () => {
+    const fetchFn = vi.fn<FetchFn>(
+      async () =>
+        new Response(
+          JSON.stringify({
+            objects: { added: [], removed: [], changed: [] },
+            relations: { added: [], removed: [], changed: [] },
+            summary: {
+              objectsAdded: 0,
+              objectsRemoved: 0,
+              objectsChanged: 0,
+              relationsAdded: 0,
+              relationsRemoved: 0,
+              relationsChanged: 0,
+            },
+          }),
+        ),
+    );
+    const dataSet = { objects: [], relations: [] };
+
+    await new ViewClient("/api", fetchFn).diff("ws", {
+      base: "current",
+      other: dataSet,
+    });
+
+    expect(fetchFn.mock.calls[0]?.[0]).toBe("/api/workspaces/ws/diff");
+    expect(fetchFn.mock.calls[0]?.[1]).toMatchObject({
+      method: "POST",
+      headers: { "content-type": "application/json" },
+    });
+    expect(JSON.parse(String(fetchFn.mock.calls[0]?.[1]?.body))).toEqual({
+      base: "current",
+      other: dataSet,
+    });
+  });
+
   it("applies JSON exchange artifacts with actor governance", async () => {
     const fetchFn = vi.fn<FetchFn>(
       async () =>

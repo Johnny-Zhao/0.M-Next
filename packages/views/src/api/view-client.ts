@@ -72,6 +72,46 @@ export interface SnapshotMeta {
   readonly scopeObjectType: string | null;
 }
 
+export interface SnapshotPage {
+  readonly items: readonly SnapshotMeta[];
+  readonly page: number;
+  readonly pageSize: number;
+  readonly total: number;
+}
+
+export interface SnapshotDataObject {
+  readonly objectId: string;
+  readonly objectTypeCode: string;
+  readonly fields: Readonly<Record<string, unknown>>;
+  readonly status: string;
+  readonly version: number;
+}
+
+export interface SnapshotDataRelation {
+  readonly relationId: string;
+  readonly relationTypeCode: string;
+  readonly sourceId: string;
+  readonly targetId: string;
+  readonly fields: Readonly<Record<string, unknown>>;
+}
+
+export interface SnapshotDataSet {
+  readonly objects: readonly SnapshotDataObject[];
+  readonly relations: readonly SnapshotDataRelation[];
+}
+
+export interface SnapshotDetail {
+  readonly meta: SnapshotMeta;
+  readonly payload: SnapshotDataSet;
+}
+
+export interface DiffRequest {
+  readonly a?: SnapshotDataSet;
+  readonly b?: SnapshotDataSet;
+  readonly base?: string | null;
+  readonly other?: SnapshotDataSet;
+}
+
 export type OutputFormat =
   | "markdown"
   | "docx"
@@ -321,6 +361,38 @@ export class ViewClient {
     return this.post(`/workspaces/${workspaceId}/snapshots`, actorId, {
       scopeObjectType: scopeObjectType || null,
     });
+  }
+
+  listSnapshots(
+    workspaceId: string,
+    actorId: string,
+    page = 0,
+    size = 50,
+  ): Promise<SnapshotPage> {
+    if (page < 0 || size < 1 || size > 50)
+      throw new Error(
+        "snapshot page must be non-negative and size must be 1..50",
+      );
+    const query = new URLSearchParams({ page: `${page}`, size: `${size}` });
+    return this.getWithActor(
+      `/workspaces/${workspaceId}/snapshots?${query}`,
+      actorId,
+    );
+  }
+
+  getSnapshot(
+    workspaceId: string,
+    actorId: string,
+    snapshotId: string,
+  ): Promise<SnapshotDetail> {
+    return this.getWithActor(
+      `/workspaces/${workspaceId}/snapshots/${snapshotId}`,
+      actorId,
+    );
+  }
+
+  diff(workspaceId: string, request: DiffRequest): Promise<ExchangeDiffResult> {
+    return this.postWithoutActor(`/workspaces/${workspaceId}/diff`, request);
   }
 
   createOutput(
@@ -590,6 +662,16 @@ export class ViewClient {
       body: JSON.stringify(body),
     });
     if (!response.ok) throw new Error("写入视图制品失败");
+    return response.json() as Promise<T>;
+  }
+
+  private async postWithoutActor<T>(path: string, body: unknown): Promise<T> {
+    const response = await this.fetchFn(`${this.baseUrl}${path}`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!response.ok) throw new Error("读取差异数据失败");
     return response.json() as Promise<T>;
   }
 }
