@@ -127,6 +127,27 @@ describe("view and command clients", () => {
     expect(templates[0]?.typeOverview[0]?.code).toBe("room");
   });
 
+  it("reads visible workspaces without workspace scope", async () => {
+    const fetchFn = vi.fn<FetchFn>(
+      async () =>
+        new Response(
+          JSON.stringify([
+            {
+              workspaceId: "workspace-1",
+              name: "技术方案A",
+              templateCode: "interior_design",
+              updatedAt: "2026-06-26T00:00:00Z",
+            },
+          ]),
+        ),
+    );
+
+    const workspaces = await new ViewClient("/api", fetchFn).workspaces();
+
+    expect(fetchFn.mock.calls[0]?.[0]).toBe("/api/views/workspaces");
+    expect(workspaces[0]?.templateCode).toBe("interior_design");
+  });
+
   it("creates outputs with snapshot scope and actor header", async () => {
     const fetchFn = vi.fn<FetchFn>(
       async () =>

@@ -1,6 +1,6 @@
-import { useMemo, useState, type ReactElement } from "react";
+import { useEffect, useMemo, useState, type ReactElement } from "react";
 
-import type { ViewClient } from "@m-next/views";
+import type { ViewClient, WorkspaceSummary } from "@m-next/views";
 
 export interface ProjectSummary {
   readonly workspaceId: string;
@@ -8,6 +8,8 @@ export interface ProjectSummary {
   readonly plugin: string;
   readonly role: string;
   readonly alertCount: number;
+  readonly templateCode?: string | null;
+  readonly updatedAt?: string;
 }
 
 export const placeholderProjects: readonly ProjectSummary[] = [
@@ -17,6 +19,8 @@ export const placeholderProjects: readonly ProjectSummary[] = [
     plugin: "制图工作台",
     role: "Owner",
     alertCount: 0,
+    templateCode: "demo",
+    updatedAt: "2026-06-26T00:00:00Z",
   },
 ];
 
@@ -38,6 +42,27 @@ export function projectHealth(project: ProjectSummary): "ok" | "warn" | "bad" {
   return project.alertCount > 2 ? "bad" : "warn";
 }
 
+export function workspaceToProject(
+  workspace: WorkspaceSummary,
+): ProjectSummary {
+  return {
+    workspaceId: workspace.workspaceId,
+    name: workspace.name,
+    plugin: workspace.templateCode ?? "未绑定模板",
+    role: "工作空间",
+    alertCount: 0,
+    templateCode: workspace.templateCode,
+    updatedAt: workspace.updatedAt,
+  };
+}
+
+export function projectUpdatedLabel(project: ProjectSummary): string {
+  if (!project.updatedAt) return "更新时间未知";
+  const date = new Date(project.updatedAt);
+  if (Number.isNaN(date.getTime())) return "更新时间未知";
+  return `更新 ${date.toLocaleDateString("zh-CN")}`;
+}
+
 export interface ProjectListProps {
   readonly actorId: string | null;
   readonly viewClient: ViewClient;
@@ -49,11 +74,40 @@ export function ProjectList({
   actorId,
   onCreateProject,
   onOpenProject,
+  viewClient,
 }: ProjectListProps): ReactElement {
   const [query, setQuery] = useState("");
+  const [remoteProjects, setRemoteProjects] = useState<
+    readonly ProjectSummary[] | null
+  >(null);
+  const [loading, setLoading] = useState(true);
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    let disposed = false;
+    setLoading(true);
+    void viewClient
+      .workspaces()
+      .then((workspaces) => {
+        if (disposed) return;
+        setRemoteProjects(workspaces.map(workspaceToProject));
+        setFailed(false);
+      })
+      .catch(() => {
+        if (disposed) return;
+        setRemoteProjects(null);
+        setFailed(true);
+      })
+      .finally(() => {
+        if (!disposed) setLoading(false);
+      });
+    return () => {
+      disposed = true;
+    };
+  }, [actorId, viewClient]);
+  const sourceProjects = remoteProjects ?? placeholderProjects;
   const projects = useMemo(
-    () => filterProjects(placeholderProjects, query),
-    [query],
+    () => filterProjects(sourceProjects, query),
+    [query, sourceProjects],
   );
 
   return (
@@ -62,7 +116,11 @@ export function ProjectList({
         <div>
           <strong>M-Next</strong>
           <h1>项目</h1>
-          <p>{actorId} · TODO(view-API): 工作空间列表未提供</p>
+          <p>
+            {actorId} ·{" "}
+            {loading ? "正在读取工作空间" : `${projects.length} 个工作空间`}
+            {failed ? " · 已使用本地占位回退" : ""}
+          </p>
         </div>
         <button onClick={onCreateProject} type="button">
           新建项目
@@ -105,7 +163,7 @@ export function ProjectList({
                 <strong>{project.plugin}</strong>
               </span>
               <span className="project-card-foot">
-                <span>更新 2026-06-26</span>
+                <span>{projectUpdatedLabel(project)}</span>
                 <ProjectHealthDot
                   alertCount={project.alertCount}
                   tone={projectHealth(project)}

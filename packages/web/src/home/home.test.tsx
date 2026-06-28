@@ -2,7 +2,12 @@ import { describe, expect, it } from "vitest";
 
 import { nextHomeRoute } from "./home";
 import { normalizeActorId } from "./login";
-import { filterProjects, placeholderProjects } from "./project-list";
+import {
+  filterProjects,
+  placeholderProjects,
+  projectUpdatedLabel,
+  workspaceToProject,
+} from "./project-list";
 import {
   canAdvance,
   nextWizardStep,
@@ -23,6 +28,19 @@ describe("home shell", () => {
     expect(placeholderProjects[0]?.workspaceId).toBe(
       "11111111-1111-4111-8111-111111111111",
     );
+  });
+
+  it("maps real workspaces to project cards", () => {
+    const project = workspaceToProject({
+      workspaceId: "workspace-1",
+      name: "真实项目",
+      templateCode: "interior_design",
+      updatedAt: "2026-06-26T08:00:00Z",
+    });
+
+    expect(project.workspaceId).toBe("workspace-1");
+    expect(project.plugin).toBe("interior_design");
+    expect(projectUpdatedLabel(project)).toContain("2026");
   });
 
   it("advances the new project wizard state machine", () => {

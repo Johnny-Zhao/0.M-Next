@@ -1,6 +1,8 @@
 package com.mnext.server;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -121,6 +123,25 @@ class RbacE2EIntegrationTest {
     assertEquals(400, grant(A, E, "OWNER", "bad-role").getStatusCode().value());
   }
 
+  @Test
+  void workspaceListIncludesOpenWorkspacesAndFiltersGovernedOnes() {
+    seedGovernedWorkspaceWithoutA();
+
+    var all = http.getForEntity(base() + "/views/workspaces", Map[].class);
+    assertEquals(200, all.getStatusCode().value());
+    assertTrue(hasWorkspace(all.getBody(), WORKSPACE));
+    assertTrue(hasWorkspace(all.getBody(), OTHER_WORKSPACE));
+
+    var visibleToA = get(A, "/views/workspaces", Map[].class);
+    assertEquals(200, visibleToA.getStatusCode().value());
+    assertTrue(hasWorkspace(visibleToA.getBody(), WORKSPACE));
+    assertFalse(hasWorkspace(visibleToA.getBody(), OTHER_WORKSPACE));
+
+    var visibleToE = get(E, "/views/workspaces", Map[].class);
+    assertEquals(200, visibleToE.getStatusCode().value());
+    assertTrue(hasWorkspace(visibleToE.getBody(), OTHER_WORKSPACE));
+  }
+
   private ResponseEntity<Map> grant(UUID actor, UUID userId, String role, String key) {
     return post(
         actor,
@@ -212,6 +233,14 @@ class RbacE2EIntegrationTest {
   private int memberCount(UUID workspaceId) {
     return jdbc.queryForObject(
         "SELECT count(*) FROM workspace_member WHERE workspace_id = ?", Integer.class, workspaceId);
+  }
+
+  private boolean hasWorkspace(Map[] rows, UUID workspaceId) {
+    if (rows == null) return false;
+    for (var row : rows) {
+      if (workspaceId.toString().equals(row.get("workspaceId"))) return true;
+    }
+    return false;
   }
 
   private void seedGovernedWorkspaceWithoutA() {

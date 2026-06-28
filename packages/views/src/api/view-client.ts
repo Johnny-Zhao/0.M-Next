@@ -196,6 +196,13 @@ export interface TemplateCatalogItem {
   readonly typeOverviewTruncated: boolean;
 }
 
+export interface WorkspaceSummary {
+  readonly workspaceId: string;
+  readonly name: string;
+  readonly templateCode: string | null;
+  readonly updatedAt: string;
+}
+
 export type FetchFn = (
   input: RequestInfo | URL,
   init?: RequestInit,
@@ -246,6 +253,10 @@ export class ViewClient {
 
   templates(): Promise<readonly TemplateCatalogItem[]> {
     return this.get("/views/templates");
+  }
+
+  workspaces(): Promise<readonly WorkspaceSummary[]> {
+    return this.get("/views/workspaces");
   }
 
   objects(
