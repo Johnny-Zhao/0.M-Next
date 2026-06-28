@@ -170,6 +170,26 @@ class MetaCommandControllerTest {
   }
 
   @Test
+  void routesApplyProfileOnSeparateEndpointController() throws Exception {
+    var workspace = UUID.randomUUID();
+    var template = UUID.randomUUID();
+    var request =
+        new CommandRequest(
+            "ApplyProfile",
+            workspace,
+            UUID.randomUUID(),
+            "meta-apply-profile",
+            mapper.readTree("{\"templateId\":\"" + template + "\",\"version\":1}"));
+    when(lifecycle.applyProfile(any(), any()))
+        .thenReturn(new CommandResult("command", CommandStatus.COMMITTED, false, List.of(), null));
+
+    var result = controller.execute(workspace, "author", request);
+
+    assertEquals("command", result.commandId());
+    verify(lifecycle).applyProfile(any(), eq(com.mnext.kernel.api.Actor.user("author")));
+  }
+
+  @Test
   void routesDefineDerivedFieldOnSeparateEndpointController() throws Exception {
     var workspace = UUID.randomUUID();
     var type = UUID.randomUUID();

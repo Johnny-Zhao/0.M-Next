@@ -225,6 +225,55 @@ class MetaModelRepository {
         templateVersionId);
   }
 
+  UUID templateVersionSourceWorkspace(UUID templateVersionId) {
+    var rows =
+        jdbc.query(
+            """
+            SELECT workspace_id
+            FROM value_type
+            WHERE template_version_id = ?
+            UNION
+            SELECT workspace_id
+            FROM object_type
+            WHERE template_version_id = ?
+            UNION
+            SELECT workspace_id
+            FROM relation_type
+            WHERE template_version_id = ?
+            LIMIT 1
+            """,
+            (row, ignored) -> row.getObject(1, UUID.class),
+            templateVersionId,
+            templateVersionId,
+            templateVersionId);
+    if (rows.isEmpty()) throw CommandErrors.templateEmpty();
+    return rows.getFirst();
+  }
+
+  boolean runtimeTemplateVersionApplied(UUID workspaceId, UUID templateVersionId) {
+    return Boolean.TRUE.equals(
+        jdbc.queryForObject(
+            """
+            SELECT EXISTS(
+              SELECT 1 FROM value_type
+              WHERE workspace_id = ? AND template_version_id = ?
+              UNION ALL
+              SELECT 1 FROM object_type
+              WHERE workspace_id = ? AND template_version_id = ?
+              UNION ALL
+              SELECT 1 FROM relation_type
+              WHERE workspace_id = ? AND template_version_id = ?
+            )
+            """,
+            Boolean.class,
+            workspaceId,
+            templateVersionId,
+            workspaceId,
+            templateVersionId,
+            workspaceId,
+            templateVersionId));
+  }
+
   void publishTemplateVersion(UUID templateVersionId, String actor, Instant now) {
     jdbc.update(
         """
@@ -798,14 +847,44 @@ class MetaModelRepository {
       UUID targetWorkspaceId,
       String actor,
       Instant now) {
+    copyTemplateVersion(templateVersionId, sourceWorkspaceId, targetWorkspaceId, null, actor, now);
+  }
+
+  void applyProfileTemplateVersion(
+      UUID templateVersionId,
+      UUID sourceWorkspaceId,
+      UUID targetWorkspaceId,
+      String actor,
+      Instant now) {
+    copyTemplateVersion(
+        templateVersionId, sourceWorkspaceId, targetWorkspaceId, templateVersionId, actor, now);
+  }
+
+  private void copyTemplateVersion(
+      UUID templateVersionId,
+      UUID sourceWorkspaceId,
+      UUID targetWorkspaceId,
+      UUID runtimeTemplateVersionId,
+      String actor,
+      Instant now) {
     var valueTypeIds = new HashMap<UUID, UUID>();
     var objectTypeIds = new HashMap<UUID, UUID>();
     var fieldDefIds = new HashMap<UUID, UUID>();
     seedRootValueTypes(sourceWorkspaceId, targetWorkspaceId, actor, now, valueTypeIds);
-    copyValueTypes(templateVersionId, targetWorkspaceId, actor, now, valueTypeIds);
-    copyObjectTypes(templateVersionId, targetWorkspaceId, actor, now, objectTypeIds);
-    copyFieldDefs(templateVersionId, actor, now, valueTypeIds, objectTypeIds, fieldDefIds);
-    copyRelationTypes(templateVersionId, targetWorkspaceId, actor, now, objectTypeIds);
+    copyValueTypes(
+        templateVersionId, targetWorkspaceId, runtimeTemplateVersionId, actor, now, valueTypeIds);
+    copyObjectTypes(
+        templateVersionId, targetWorkspaceId, runtimeTemplateVersionId, actor, now, objectTypeIds);
+    copyFieldDefs(
+        templateVersionId,
+        runtimeTemplateVersionId,
+        actor,
+        now,
+        valueTypeIds,
+        objectTypeIds,
+        fieldDefIds);
+    copyRelationTypes(
+        templateVersionId, targetWorkspaceId, runtimeTemplateVersionId, actor, now, objectTypeIds);
   }
 
   ApplyPlan planTemplateVersionApply(
@@ -1543,15 +1622,21 @@ class MetaModelRepository {
             (result, ignored) -> copyValueTypeRow(result),
             sourceWorkspaceId);
     for (var root : roots) {
-      var newId = UUID.randomUUID();
-      valueTypeIds.put(root.id(), newId);
-      insertCopiedValueType(newId, targetWorkspaceId, root, null, actor, now);
+      var existing = runtimeValueTypeId(targetWorkspaceId, null, root.code());
+      if (existing != null) {
+        valueTypeIds.put(root.id(), existing);
+      } else {
+        var newId = UUID.randomUUID();
+        valueTypeIds.put(root.id(), newId);
+        insertCopiedValueType(newId, targetWorkspaceId, null, root, null, actor, now);
+      }
     }
   }
 
   private void copyValueTypes(
       UUID templateVersionId,
       UUID targetWorkspaceId,
+      UUID runtimeTemplateVersionId,
       String actor,
       Instant now,
       Map<UUID, UUID> valueTypeIds) {
@@ -1569,7 +1654,8 @@ class MetaModelRepository {
     for (var row : rows) {
       var newId = UUID.randomUUID();
       valueTypeIds.put(row.id(), newId);
-      insertCopiedValueType(newId, targetWorkspaceId, row, null, actor, now);
+      insertCopiedValueType(
+          newId, targetWorkspaceId, runtimeTemplateVersionId, row, null, actor, now);
     }
     for (var row : rows) {
       if (row.parentValueTypeId() != null) {
@@ -1582,6 +1668,7 @@ class MetaModelRepository {
   private void insertCopiedValueType(
       UUID id,
       UUID workspaceId,
+      UUID templateVersionId,
       CopyValueTypeRow row,
       UUID parentValueTypeId,
       String actor,
@@ -1591,10 +1678,11 @@ class MetaModelRepository {
         INSERT INTO value_type
           (id, workspace_id, template_version_id, code, name, base_primitive,
            parent_value_type_id, constraints, published, version)
-        VALUES (?, ?, NULL, ?, ?, ?, ?, CAST(? AS jsonb), TRUE, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, CAST(? AS jsonb), TRUE, ?)
         """,
         id,
         workspaceId,
+        templateVersionId,
         row.code(),
         row.name(),
         row.basePrimitive(),
@@ -1608,9 +1696,24 @@ class MetaModelRepository {
         "UPDATE value_type SET parent_value_type_id = ? WHERE id = ?", parentValueTypeId, id);
   }
 
+  private UUID runtimeValueTypeId(UUID workspaceId, UUID templateVersionId, String code) {
+    return jdbc.query(
+        """
+        SELECT id FROM value_type
+        WHERE workspace_id = ?
+          AND template_version_id IS NOT DISTINCT FROM ?
+          AND code = ?
+        """,
+        result -> result.next() ? result.getObject(1, UUID.class) : null,
+        workspaceId,
+        templateVersionId,
+        code);
+  }
+
   private void copyObjectTypes(
       UUID templateVersionId,
       UUID targetWorkspaceId,
+      UUID runtimeTemplateVersionId,
       String actor,
       Instant now,
       Map<UUID, UUID> objectTypeIds) {
@@ -1637,10 +1740,11 @@ class MetaModelRepository {
           INSERT INTO object_type
             (id, workspace_id, template_version_id, code, name, parent_type_id, published,
              created_by, updated_by, created_at, updated_at)
-          VALUES (?, ?, NULL, ?, ?, NULL, TRUE, ?, ?, ?, ?)
+          VALUES (?, ?, ?, ?, ?, NULL, TRUE, ?, ?, ?, ?)
           """,
           newId,
           targetWorkspaceId,
+          runtimeTemplateVersionId,
           row.code(),
           row.name(),
           actor,
@@ -1660,6 +1764,7 @@ class MetaModelRepository {
 
   private void copyFieldDefs(
       UUID templateVersionId,
+      UUID runtimeTemplateVersionId,
       String actor,
       Instant now,
       Map<UUID, UUID> valueTypeIds,
@@ -1685,10 +1790,11 @@ class MetaModelRepository {
             (id, object_type_id, template_version_id, code, name, required, data_type,
              value_type_id, constraints, redefines_field_def_id, created_by, updated_by,
              created_at, updated_at)
-          VALUES (?, ?, NULL, ?, ?, ?, ?, ?, CAST(? AS jsonb), NULL, ?, ?, ?, ?)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, CAST(? AS jsonb), NULL, ?, ?, ?, ?)
           """,
           newId,
           mapped(objectTypeIds, row.objectTypeId()),
+          runtimeTemplateVersionId,
           row.code(),
           row.name(),
           row.required(),
@@ -1713,6 +1819,7 @@ class MetaModelRepository {
   private void copyRelationTypes(
       UUID templateVersionId,
       UUID targetWorkspaceId,
+      UUID runtimeTemplateVersionId,
       String actor,
       Instant now,
       Map<UUID, UUID> objectTypeIds) {
@@ -1733,10 +1840,11 @@ class MetaModelRepository {
           INSERT INTO relation_type
             (id, workspace_id, template_version_id, code, source_type, target_type, direction,
              cardinality, semantics, hierarchical, created_by, updated_by, created_at, updated_at)
-          VALUES (?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           """,
           UUID.randomUUID(),
           targetWorkspaceId,
+          runtimeTemplateVersionId,
           row.code(),
           mapped(objectTypeIds, row.sourceType()),
           mapped(objectTypeIds, row.targetType()),

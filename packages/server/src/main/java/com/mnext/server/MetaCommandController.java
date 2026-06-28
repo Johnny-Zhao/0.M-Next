@@ -7,6 +7,7 @@ import com.mnext.kernel.api.CommandError;
 import com.mnext.kernel.api.CommandRejectedException;
 import com.mnext.kernel.api.CommandResult;
 import com.mnext.kernel.api.MetaCommandService;
+import com.mnext.kernel.api.metamodel.ApplyProfileCommand;
 import com.mnext.kernel.api.metamodel.ApplyTemplateVersionCommand;
 import com.mnext.kernel.api.metamodel.CreateTemplateCommand;
 import com.mnext.kernel.api.metamodel.CreateTemplateVersionCommand;
@@ -93,6 +94,7 @@ public class MetaCommandController {
           commands.restoreTemplateVersion(restoreTemplateVersion(request), Actor.user(actorId));
       case "InstantiateWorkspace" ->
           lifecycle.instantiateWorkspace(instantiateWorkspace(request), Actor.user(actorId));
+      case "ApplyProfile" -> lifecycle.applyProfile(applyProfile(request), Actor.user(actorId));
       case "ApplyTemplateVersion" ->
           lifecycle.applyTemplateVersion(applyTemplateVersion(request), Actor.user(actorId));
       case "DefineDerivedField" -> derivedFields.define(derivedField(request), actorId);
@@ -226,6 +228,16 @@ public class MetaCommandController {
         request.correlationId(),
         request.idempotencyKey(),
         required(payload.get("toVersion"), "toVersion").asInt());
+  }
+
+  private ApplyProfileCommand applyProfile(CommandRequest request) {
+    var payload = required(request.payload(), "payload");
+    return new ApplyProfileCommand(
+        request.workspaceId(),
+        request.correlationId(),
+        request.idempotencyKey(),
+        uuid(payload, "templateId"),
+        required(payload.get("version"), "version").asInt());
   }
 
   private DefineDerivedFieldRequest derivedField(CommandRequest request) {

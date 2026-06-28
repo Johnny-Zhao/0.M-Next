@@ -3,6 +3,7 @@ package com.mnext.kernel.internal;
 import com.mnext.kernel.api.Actor;
 import com.mnext.kernel.api.CommandResult;
 import com.mnext.kernel.api.MetaCommandService;
+import com.mnext.kernel.api.metamodel.ApplyProfileCommand;
 import com.mnext.kernel.api.metamodel.ApplyTemplateVersionCommand;
 import com.mnext.kernel.api.metamodel.CreateTemplateCommand;
 import com.mnext.kernel.api.metamodel.CreateTemplateVersionCommand;
@@ -28,6 +29,7 @@ public class MetaCommandServiceImpl implements MetaCommandService {
   private final WithdrawTemplateVersionHandler withdrawTemplateVersions;
   private final RestoreTemplateVersionHandler restoreTemplateVersions;
   private final InstantiateWorkspaceHandler instantiateWorkspaces;
+  private final ApplyProfileHandler applyProfiles;
   private final ApplyTemplateVersionHandler applyTemplateVersions;
 
   public MetaCommandServiceImpl(
@@ -41,6 +43,7 @@ public class MetaCommandServiceImpl implements MetaCommandService {
       WithdrawTemplateVersionHandler withdrawTemplateVersions,
       RestoreTemplateVersionHandler restoreTemplateVersions,
       InstantiateWorkspaceHandler instantiateWorkspaces,
+      ApplyProfileHandler applyProfiles,
       ApplyTemplateVersionHandler applyTemplateVersions) {
     this.createTemplates = createTemplates;
     this.createTemplateVersions = createTemplateVersions;
@@ -52,6 +55,7 @@ public class MetaCommandServiceImpl implements MetaCommandService {
     this.withdrawTemplateVersions = withdrawTemplateVersions;
     this.restoreTemplateVersions = restoreTemplateVersions;
     this.instantiateWorkspaces = instantiateWorkspaces;
+    this.applyProfiles = applyProfiles;
     this.applyTemplateVersions = applyTemplateVersions;
   }
 
@@ -104,6 +108,11 @@ public class MetaCommandServiceImpl implements MetaCommandService {
   @Override
   public CommandResult instantiateWorkspace(InstantiateWorkspaceCommand command, Actor actor) {
     return instantiateWorkspaces.execute(command, actor);
+  }
+
+  @Override
+  public CommandResult applyProfile(ApplyProfileCommand command, Actor actor) {
+    return applyProfiles.execute(command, actor);
   }
 
   @Override
