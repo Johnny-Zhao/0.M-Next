@@ -2095,7 +2095,8 @@ main {
 .matrix-panel,
 .document-panel,
 .ai-panel,
-.exchange-panel {
+.exchange-panel,
+.snapshot-panel {
   background: var(--mn-surface);
   box-sizing: border-box;
   color: var(--mn-ink);
@@ -2143,7 +2144,8 @@ main {
 }
 
 .ai-panel button,
-.exchange-panel button {
+.exchange-panel button,
+.snapshot-panel button {
   background: var(--mn-surface);
   border: 1px solid var(--mn-border-2);
   border-radius: 5px;
@@ -2153,13 +2155,15 @@ main {
 }
 
 .ai-panel button:hover,
-.exchange-panel button:hover {
+.exchange-panel button:hover,
+.snapshot-panel button:hover {
   border-color: var(--mn-accent);
   color: var(--mn-accent);
 }
 
 .ai-panel button:disabled,
-.exchange-panel button:disabled {
+.exchange-panel button:disabled,
+.snapshot-panel button:disabled {
   color: var(--mn-ink-4);
   cursor: default;
 }
@@ -2414,6 +2418,181 @@ main {
 }
 
 .exchange-diff ul {
+  color: var(--mn-ink-2);
+  margin: 0;
+  padding-left: 1.1rem;
+}
+
+.snapshot-panel {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.snapshot-card,
+.snapshot-list,
+.snapshot-diff {
+  background: var(--mn-surface-2);
+  border: 1px solid var(--mn-border);
+  border-radius: 6px;
+  padding: 0.75rem;
+}
+
+.snapshot-card {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.snapshot-card header,
+.snapshot-card footer,
+.snapshot-controls {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  justify-content: space-between;
+}
+
+.snapshot-card header div {
+  display: grid;
+  gap: 0.1rem;
+}
+
+.snapshot-card header strong {
+  color: var(--mn-accent);
+}
+
+.snapshot-card header span {
+  color: var(--mn-ink-3);
+  font-size: 0.75rem;
+}
+
+.snapshot-controls label {
+  color: var(--mn-ink-2);
+  display: grid;
+  font-size: 0.76rem;
+  gap: 0.3rem;
+  min-width: 12rem;
+}
+
+.snapshot-controls input,
+.snapshot-controls select {
+  background: var(--mn-surface);
+  border: 1px solid var(--mn-border-2);
+  border-radius: 5px;
+  color: var(--mn-ink);
+  padding: 0.38rem 0.5rem;
+}
+
+.snapshot-list {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.snapshot-list article {
+  align-items: center;
+  background: var(--mn-surface);
+  border: 1px solid var(--mn-border);
+  border-radius: 6px;
+  display: grid;
+  gap: 0.35rem;
+  grid-template-columns: minmax(12rem, 1fr) auto minmax(8rem, 0.8fr) auto;
+  padding: 0.55rem;
+}
+
+.snapshot-list code {
+  color: var(--mn-ink-3);
+  font-family: var(--mn-mono);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.snapshot-list span,
+.snapshot-list small {
+  color: var(--mn-ink-3);
+  font-size: 0.75rem;
+}
+
+.snapshot-summary-grid {
+  display: grid;
+  gap: 0.5rem;
+  grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr));
+}
+
+.snapshot-summary {
+  background: var(--mn-surface);
+  border: 1px solid var(--mn-border);
+  border-radius: 6px;
+  color: var(--mn-ink-2);
+  display: grid;
+  gap: 0.15rem;
+  padding: 0.55rem;
+}
+
+.snapshot-summary b {
+  color: var(--mn-ink);
+  font-size: 1.25rem;
+}
+
+.snapshot-add b {
+  color: var(--mn-ok);
+}
+
+.snapshot-change b {
+  color: var(--mn-warn);
+}
+
+.snapshot-remove b {
+  color: var(--mn-bad);
+}
+
+.snapshot-diff-groups {
+  display: grid;
+  gap: 0.65rem;
+  margin-top: 0.75rem;
+}
+
+.snapshot-diff-group {
+  background: var(--mn-surface);
+  border: 1px solid var(--mn-border);
+  border-left-width: 3px;
+  border-radius: 6px;
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.65rem;
+}
+
+.snapshot-group-add {
+  border-left-color: var(--mn-ok);
+}
+
+.snapshot-group-change {
+  border-left-color: var(--mn-warn);
+}
+
+.snapshot-group-remove {
+  border-left-color: var(--mn-bad);
+}
+
+.snapshot-diff h3 {
+  color: var(--mn-ink);
+  font-size: 0.86rem;
+  margin: 0;
+}
+
+.snapshot-diff code,
+.snapshot-diff button,
+.snapshot-diff strong {
+  font-family: var(--mn-mono);
+  overflow-wrap: anywhere;
+}
+
+.snapshot-diff article {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.snapshot-diff ul {
   color: var(--mn-ink-2);
   margin: 0;
   padding-left: 1.1rem;
