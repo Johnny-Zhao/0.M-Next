@@ -481,7 +481,11 @@ export function FloorplanPanel(): ReactElement {
             : "示意平面 · 非真实坐标"}
         </span>
       </div>
-      <div className="floorplan-stage">
+      <div
+        className="floorplan-stage"
+        onClick={() => selection.clear()}
+        role="presentation"
+      >
         <div
           className="floorplan-canvas"
           style={{
@@ -503,12 +507,13 @@ export function FloorplanPanel(): ReactElement {
                   .filter(Boolean)
                   .join(" ")}
                 key={room.id}
-                onClick={() =>
+                onClick={(event) => {
+                  event.stopPropagation();
                   selection.select({
                     entityType: "object",
                     entityId: room.id,
-                  })
-                }
+                  });
+                }}
                 style={
                   {
                     "--floorplan-x": `${room.x}px`,

@@ -17,6 +17,10 @@ export class SelectionCoordinator {
     this.publish(selection);
   }
 
+  clear(): void {
+    this.publish(null);
+  }
+
   current(): SelectionRef | null {
     return this.selection;
   }
