@@ -12,8 +12,10 @@ import {
   canEditMatrixCell,
   matrixAxisClass,
   matrixCellClass,
+  matrixCellTone,
   matrixHeaderClass,
   saveMatrixCell,
+  selectMatrixCell,
   selectMatrixObject,
   selectMatrixRelation,
   type MatrixCommandClient,
@@ -67,6 +69,32 @@ describe("MatrixView", () => {
     );
     expect(matrixHeaderClass("col", selection.current(), matrix.cells[0])).toBe(
       "matrix-header-selected",
+    );
+  });
+
+  it("selects matrix cells and returns the active row-column pair", () => {
+    const selection = new SelectionCoordinator();
+
+    const pair = selectMatrixCell(selection, "row", "col", "relation");
+
+    expect(pair).toEqual({ rowId: "row", colId: "col" });
+    expect(selection.current()).toEqual({
+      entityType: "relation",
+      entityId: "relation",
+    });
+    expect(matrixHeaderClass("col", selection.current(), undefined, pair)).toBe(
+      "matrix-header-selected",
+    );
+  });
+
+  it("maps matrix cell status to semantic tones", () => {
+    expect(matrixCellTone(undefined)).toBe("matrix-cell-missing");
+    expect(matrixCellTone(matrix.cells[0])).toBe("matrix-cell-covered");
+    expect(matrixCellTone({ ...matrix.cells[0], status: "WARN" })).toBe(
+      "matrix-cell-warn",
+    );
+    expect(matrixCellTone({ ...matrix.cells[0], status: "BLOCK" })).toBe(
+      "matrix-cell-block",
     );
   });
 
