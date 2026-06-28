@@ -35,8 +35,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Component
 public class ProfileLoader {
-  private static final UUID AUTHOR_WORKSPACE =
-      UUID.fromString("11111111-1111-4111-8111-111111111111");
+  static final UUID AUTHOR_WORKSPACE = UUID.fromString("a0000000-0000-4000-8000-000000000000");
   private static final Set<String> SEVERITIES = Set.of("BLOCK", "WARN", "INFO");
 
   private final MetaCommandService commands;
@@ -61,6 +60,7 @@ public class ProfileLoader {
   @Transactional
   public void install(ProfileManifest manifest, Actor actor) {
     validate(manifest);
+    ensureAuthorWorkspace();
     var existing = latestTemplateVersion(manifest.templateCode());
     if (existing != null) {
       if ("published".equals(existing.status())) {
@@ -100,6 +100,7 @@ public class ProfileLoader {
 
   @Transactional
   public void uninstall(String templateCode, Actor actor) {
+    ensureAuthorWorkspace();
     var published = publishedTemplateVersion(templateCode);
     if (published == null) {
       return;
@@ -324,6 +325,40 @@ public class ProfileLoader {
         AUTHOR_WORKSPACE,
         templateVersionId,
         code);
+  }
+
+  private void ensureAuthorWorkspace() {
+    jdbc.update(
+        """
+        INSERT INTO workspace (id, name, status)
+        VALUES (?, 'Profile Author Workspace', 'ACTIVE')
+        ON CONFLICT (id) DO NOTHING
+        """,
+        AUTHOR_WORKSPACE);
+    jdbc.update(
+        """
+        INSERT INTO value_type (
+          id, workspace_id, template_version_id, code, name, base_primitive,
+          parent_value_type_id, constraints, published, version
+        )
+        SELECT md5(?::text || ':value_type:' || root.code)::uuid,
+               ?, NULL, root.code, root.name, root.code, NULL, '{}'::jsonb, TRUE, 1
+        FROM (
+          VALUES
+            ('string', 'String'), ('text', 'Text'), ('integer', 'Integer'), ('number', 'Number'),
+            ('boolean', 'Boolean'), ('date', 'Date'), ('datetime', 'Datetime'), ('enum', 'Enum'),
+            ('ref', 'Reference'), ('json', 'Json')
+        ) AS root(code, name)
+        WHERE NOT EXISTS (
+          SELECT 1 FROM value_type existing
+          WHERE existing.workspace_id = ?
+            AND existing.template_version_id IS NULL
+            AND existing.code = root.code
+        )
+        """,
+        AUTHOR_WORKSPACE.toString(),
+        AUTHOR_WORKSPACE,
+        AUTHOR_WORKSPACE);
   }
 
   private TemplateVersion latestTemplateVersion(String templateCode) {

@@ -34,7 +34,7 @@ class DevSeedRunner implements ApplicationRunner {
       UUID.fromString("11111111-1111-4111-8111-111111111111");
   private static final UUID TECHNICAL_WORKSPACE =
       UUID.fromString("22222222-2222-4222-8222-222222222222");
-  private static final String AUTHOR = "11111111-1111-4111-8111-111111111111";
+  private static final String AUTHOR = ProfileLoader.AUTHOR_WORKSPACE.toString();
   private static final String INTERIOR_TEMPLATE_CODE = "interior_design";
   private static final String TECHNICAL_TEMPLATE_CODE = "technical_proposal";
 
@@ -122,11 +122,23 @@ class DevSeedRunner implements ApplicationRunner {
   private void ensureDemoWorkspace(
       ProfileManifest manifest, Actor actor, UUID workspaceId, String workspaceName) {
     if (workspaceExists(workspaceId)) {
-      return;
+      if (workspaceHasRuntimeProfileTypes(workspaceId, manifest)) {
+        return;
+      }
+      if (replaceableLegacyInteriorWorkspace(workspaceId)) {
+        removeLegacyInteriorWorkspace();
+      } else {
+        throw new IllegalStateException(
+            "DEV SEED: workspace "
+                + workspaceId
+                + " exists but is not an instantiated "
+                + manifest.templateCode()
+                + " workspace");
+      }
     }
     lifecycle.instantiateWorkspace(
         new InstantiateWorkspaceCommand(
-            DEMO_WORKSPACE,
+            ProfileLoader.AUTHOR_WORKSPACE,
             UUID.randomUUID(),
             key(manifest.templateCode(), "instantiate"),
             templateId(manifest.templateCode()),
@@ -141,6 +153,74 @@ class DevSeedRunner implements ApplicationRunner {
         jdbc.queryForObject(
             "SELECT count(*) FROM workspace WHERE id = ?", Integer.class, workspaceId);
     return count != null && count > 0;
+  }
+
+  private boolean workspaceHasRuntimeProfileTypes(UUID workspaceId, ProfileManifest manifest) {
+    if (manifest.objectTypesOrEmpty().isEmpty()) {
+      return true;
+    }
+    var firstTypeCode = manifest.objectTypesOrEmpty().getFirst().code();
+    var count =
+        jdbc.queryForObject(
+            """
+            SELECT count(*)
+            FROM object_type
+            WHERE workspace_id = ? AND template_version_id IS NULL AND code = ?
+            """,
+            Integer.class,
+            workspaceId,
+            firstTypeCode);
+    return count != null && count > 0;
+  }
+
+  private boolean replaceableLegacyInteriorWorkspace(UUID workspaceId) {
+    if (!DEMO_WORKSPACE.equals(workspaceId)) {
+      return false;
+    }
+    return countRows("data_object", workspaceId) == 0
+        && countRows("workspace_member", workspaceId) == 0
+        && unexpectedObjectTypes(workspaceId) == 0
+        && unexpectedRelationTypes(workspaceId) == 0;
+  }
+
+  private void removeLegacyInteriorWorkspace() {
+    jdbc.update("DELETE FROM relation_type WHERE workspace_id = ?", DEMO_WORKSPACE);
+    jdbc.update(
+        """
+        DELETE FROM field_def
+        WHERE object_type_id IN (SELECT id FROM object_type WHERE workspace_id = ?)
+        """,
+        DEMO_WORKSPACE);
+    jdbc.update("DELETE FROM object_type WHERE workspace_id = ?", DEMO_WORKSPACE);
+    jdbc.update("DELETE FROM value_type WHERE workspace_id = ?", DEMO_WORKSPACE);
+    jdbc.update("DELETE FROM workspace WHERE id = ?", DEMO_WORKSPACE);
+  }
+
+  private int countRows(String table, UUID workspaceId) {
+    return jdbc.queryForObject(
+        "SELECT count(*) FROM " + table + " WHERE workspace_id = ?", Integer.class, workspaceId);
+  }
+
+  private int unexpectedObjectTypes(UUID workspaceId) {
+    return jdbc.queryForObject(
+        """
+        SELECT count(*)
+        FROM object_type
+        WHERE workspace_id = ? AND code <> 'demo_object'
+        """,
+        Integer.class,
+        workspaceId);
+  }
+
+  private int unexpectedRelationTypes(UUID workspaceId) {
+    return jdbc.queryForObject(
+        """
+        SELECT count(*)
+        FROM relation_type
+        WHERE workspace_id = ? AND code NOT IN ('depends_on', 'decomposes_to')
+        """,
+        Integer.class,
+        workspaceId);
   }
 
   private boolean demoFloorplanExists() {
