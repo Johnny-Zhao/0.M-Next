@@ -3,16 +3,14 @@ import { useEffect, useState, type ReactElement } from "react";
 import {
   CommandFailure,
   type CommandClient,
-  type LineageNode,
-  type LineageView,
   type ObjectDetail,
   type RelationSummary,
-  type ViewClient,
   type ViewObject,
 } from "@m-next/views";
 
 import { useToast } from "../toast";
 import { isDerivedField } from "./diagram-panel";
+import { LineageView } from "./lineage-view";
 import { ProvenancePassport, RuleLamp } from "./widgets";
 import { useWorkbenchContext } from "./workbench";
 
@@ -85,21 +83,6 @@ export function sourceLabel(source: string | null): string {
   }
 }
 
-/** 血缘节点 → 一行可读标签。纯函数。 */
-export function lineageNodeLabel(node: LineageNode): string {
-  const head =
-    node.kind === "derived"
-      ? "派生"
-      : node.kind === "rule"
-        ? "规则"
-        : node.kind === "recommendation"
-          ? "推荐"
-          : "字段";
-  const tail =
-    node.fieldCode ?? node.ref ?? node.objectType ?? node.objectId ?? "";
-  return tail ? `${head} · ${tail}` : head;
-}
-
 /** 新鲜度:把 ISO 时间转成相对描述。无法解析返回 "—"。纯函数,便于测试。 */
 export function relativeTime(iso: string, nowMs: number = Date.now()): string {
   const then = Date.parse(iso);
@@ -145,6 +128,7 @@ export function InspectorPanel(): ReactElement {
   const [relationId, setRelationId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
+  const [lineageFieldCode, setLineageFieldCode] = useState<string | null>(null);
 
   useEffect(
     () =>
@@ -220,7 +204,10 @@ export function InspectorPanel(): ReactElement {
   }
 
   const object = detail.object;
-  const { derived, stored } = partitionFields(object.fields);
+  const { derived, stored } = partitionFields({
+    ...object.fields,
+    ...(object.derived ?? {}),
+  });
   // 保存后刷新:即时刷一次,再过一拍刷一次(等读库经投影追平,画布/派生自动跟上,免手动 F5)
   const refreshSelected = (): void => {
     context.refreshViews();
@@ -311,12 +298,13 @@ export function InspectorPanel(): ReactElement {
                   workspaceId={context.workspaceId}
                   commandClient={context.commandClient}
                 />
-                <FieldLineage
-                  fieldCode={code}
-                  objectId={object.objectId}
-                  viewClient={context.viewClient}
-                  workspaceId={context.workspaceId}
-                />
+                <button
+                  className="field-lineage-toggle"
+                  onClick={() => setLineageFieldCode(code)}
+                  type="button"
+                >
+                  血缘
+                </button>
               </div>
             ))}
           </div>
@@ -341,6 +329,15 @@ export function InspectorPanel(): ReactElement {
         ))}
       </section>
       {message ? <p role="status">{message}</p> : null}
+      {lineageFieldCode ? (
+        <LineageView
+          fieldCode={lineageFieldCode}
+          object={object}
+          onClose={() => setLineageFieldCode(null)}
+          viewClient={context.viewClient}
+          workspaceId={context.workspaceId}
+        />
+      ) : null}
     </aside>
   );
 }
@@ -410,55 +407,6 @@ function FieldEditor({
         保存
       </button>
     </form>
-  );
-}
-
-function FieldLineage({
-  fieldCode,
-  objectId,
-  workspaceId,
-  viewClient,
-}: {
-  readonly fieldCode: string;
-  readonly objectId: string;
-  readonly workspaceId: string;
-  readonly viewClient: Pick<ViewClient, "lineage">;
-}): ReactElement {
-  const [view, setView] = useState<LineageView | null>(null);
-  const [open, setOpen] = useState(false);
-
-  async function toggle(): Promise<void> {
-    if (open) {
-      setOpen(false);
-      return;
-    }
-    setOpen(true);
-    try {
-      setView(await viewClient.lineage(workspaceId, objectId, fieldCode));
-    } catch {
-      setView(null);
-    }
-  }
-
-  return (
-    <div className="field-lineage">
-      <button
-        className="field-lineage-toggle"
-        onClick={() => void toggle()}
-        type="button"
-      >
-        {open ? "隐藏血缘" : "血缘"}
-      </button>
-      {open && view ? (
-        <ul className="lineage-list">
-          {view.upstream.length === 0 ? <li>无上游来源</li> : null}
-          {view.upstream.map((node, index) => (
-            <li key={`${node.kind}-${index}`}>{lineageNodeLabel(node)}</li>
-          ))}
-          {view.truncated ? <li className="lineage-more">…(已截断)</li> : null}
-        </ul>
-      ) : null}
-    </div>
   );
 }
 

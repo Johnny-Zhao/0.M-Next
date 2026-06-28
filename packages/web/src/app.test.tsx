@@ -70,6 +70,7 @@ describe("App", () => {
     expect(flow.edges).toHaveLength(1);
     expect(flow.nodes[1]?.selected).toBe(true);
     expect(flow.nodes[0]?.data.derivedChips).toContainEqual({
+      fieldCode: "area_fx",
       label: "面积",
       value: "12",
       unit: "㎡",

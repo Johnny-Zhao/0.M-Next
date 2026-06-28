@@ -119,8 +119,8 @@ describe("diagram relation edges", () => {
     });
 
     expect(chips).toEqual([
-      { label: "面积", value: "23.5", unit: "㎡" },
-      { label: "窗地比", value: "0.078" },
+      { fieldCode: "area_fx", label: "面积", value: "23.5", unit: "㎡" },
+      { fieldCode: "window_floor_ratio_fx", label: "窗地比", value: "0.078" },
     ]);
   });
 
