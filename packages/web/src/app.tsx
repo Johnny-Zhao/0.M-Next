@@ -120,21 +120,15 @@ function AppContent({
           </select>
         </label>
         <SyncBadge sync={sync} />
-        <button
-          aria-label="切换亮暗主题"
-          className="theme-toggle"
-          onClick={toggleTheme}
-          type="button"
-        >
-          {themeLabel(theme)}
-        </button>
       </header>
       <div className="workbench-body">
         <Workbench
           actorId={actorId ?? "demo-actor"}
           commandClient={commandClient}
           onError={reportError}
+          onToggleTheme={toggleTheme}
           selection={selection}
+          themeLabel={themeLabel(theme)}
           viewClient={viewClient}
           workspaceId={workspaceId}
         />
