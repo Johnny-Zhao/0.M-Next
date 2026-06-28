@@ -97,6 +97,7 @@ export function WorkbenchShellChrome({
         },
         { label: "导出 PDF", tag: "PDF", run: () => onGenerateOutput("pdf") },
         { separator: true, label: "" },
+        { label: "交换导入 / 导出", run: () => onOpenPanel("exchange") },
         { label: "打开文档面板", run: () => onOpenPanel("document") },
         { label: "打开 AI 助手", run: () => onOpenPanel("ai") },
       ],
@@ -121,6 +122,7 @@ export function WorkbenchShellChrome({
         { label: "模型树", run: () => onOpenPanel("tree") },
         { label: "属性/校验", run: () => onOpenPanel("inspector") },
         { label: "评审批注", run: () => onOpenPanel("review") },
+        { label: "交换导入", run: () => onOpenPanel("exchange") },
         {
           label: advancedOpen ? "收起视图设置" : "高级 / 视图设置",
           run: onToggleAdvanced,
@@ -261,6 +263,14 @@ export function WorkbenchShellChrome({
         <span className="workbench-toolbar-spacer" />
         <button
           className="workbench-action-button"
+          onClick={() => onOpenPanel("exchange")}
+          type="button"
+        >
+          <Icon name="exchange" />
+          <span>导入</span>
+        </button>
+        <button
+          className="workbench-action-button"
           onClick={() => onOpenPanel("review")}
           type="button"
         >
@@ -361,6 +371,14 @@ function Icon({ name }: { readonly name: string }): ReactElement {
       <svg aria-hidden="true" viewBox="0 0 16 16">
         <path d="M3 3h10v7H7l-3 3v-3H3Z" />
         <path d="M5.5 5.5h5M5.5 7.5h3" />
+      </svg>
+    );
+  }
+  if (name === "exchange") {
+    return (
+      <svg aria-hidden="true" viewBox="0 0 16 16">
+        <path d="M3 5h7M7.5 2.5 10 5 7.5 7.5" />
+        <path d="M13 11H6M8.5 8.5 6 11l2.5 2.5" />
       </svg>
     );
   }

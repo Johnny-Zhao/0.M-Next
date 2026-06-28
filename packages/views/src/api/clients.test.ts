@@ -468,6 +468,144 @@ describe("view and command clients", () => {
       "/api/workspaces/ws/annotations?targetType=field&targetId=obj-1&fieldCode=name",
     );
   });
+
+  it("previews exchange payloads as raw text", async () => {
+    const fetchFn = vi.fn<FetchFn>(
+      async () =>
+        new Response(
+          JSON.stringify({
+            objects: { added: ["new"], removed: [], changed: [] },
+            relations: { added: [], removed: [], changed: [] },
+            summary: {
+              objectsAdded: 1,
+              objectsRemoved: 0,
+              objectsChanged: 0,
+              relationsAdded: 0,
+              relationsRemoved: 0,
+              relationsChanged: 0,
+            },
+          }),
+        ),
+    );
+
+    const diff = await new ViewClient("/api", fetchFn).exchangePreview(
+      "ws",
+      "json",
+      '{"objects":[]}',
+    );
+
+    expect(fetchFn.mock.calls[0]?.[0]).toBe(
+      "/api/workspaces/ws/exchange/json/preview?base=current",
+    );
+    expect(fetchFn.mock.calls[0]?.[1]).toMatchObject({
+      method: "POST",
+      headers: { "content-type": "text/plain;charset=utf-8" },
+      body: '{"objects":[]}',
+    });
+    expect(diff.summary.objectsAdded).toBe(1);
+  });
+
+  it("exports exchange payloads as downloadable text", async () => {
+    const fetchFn = vi.fn<FetchFn>(
+      async () =>
+        new Response("<REQ-IF />", {
+          headers: { "content-type": "application/xml" },
+        }),
+    );
+
+    const exported = await new ViewClient("/api", fetchFn).exchangeExport(
+      "ws",
+      "reqif",
+      "requirement",
+    );
+
+    expect(fetchFn.mock.calls[0]?.[0]).toBe(
+      "/api/workspaces/ws/exchange/reqif/export?base=current&objectType=requirement",
+    );
+    expect(fetchFn.mock.calls[0]?.[1]?.headers).toMatchObject({
+      accept: "application/xml",
+    });
+    expect(exported.payload).toBe("<REQ-IF />");
+    expect(exported.contentType).toBe("application/xml");
+  });
+
+  it("applies JSON exchange artifacts with actor governance", async () => {
+    const fetchFn = vi.fn<FetchFn>(
+      async () =>
+        new Response(
+          JSON.stringify({
+            diff: {
+              objects: { added: [], removed: [], changed: [] },
+              relations: { added: [], removed: [], changed: [] },
+              summary: {
+                objectsAdded: 0,
+                objectsRemoved: 0,
+                objectsChanged: 0,
+                relationsAdded: 0,
+                relationsRemoved: 0,
+                relationsChanged: 0,
+              },
+            },
+            applied: ["object:new"],
+            unapplied: [],
+          }),
+        ),
+    );
+    const client = new CommandClient("/api", fetchFn);
+    client.setActorId("actor");
+
+    const result = await client.exchangeApply(
+      "ws",
+      "json",
+      '{"version":1,"objects":[]}',
+    );
+
+    expect(fetchFn.mock.calls[0]?.[0]).toBe(
+      "/api/workspaces/ws/exchange/json/apply",
+    );
+    expect(fetchFn.mock.calls[0]?.[1]?.headers).toMatchObject({
+      "content-type": "application/json",
+      "X-Actor-Id": "actor",
+    });
+    expect(JSON.parse(String(fetchFn.mock.calls[0]?.[1]?.body))).toEqual({
+      artifact: { version: 1, objects: [] },
+      confirmRemovals: false,
+    });
+    expect(result.applied).toEqual(["object:new"]);
+  });
+
+  it("applies ReqIF exchange payloads with the controller request shape", async () => {
+    const fetchFn = vi.fn<FetchFn>(
+      async () =>
+        new Response(
+          JSON.stringify({
+            diff: {
+              objects: { added: [], removed: [], changed: [] },
+              relations: { added: [], removed: [], changed: [] },
+              summary: {
+                objectsAdded: 0,
+                objectsRemoved: 0,
+                objectsChanged: 0,
+                relationsAdded: 0,
+                relationsRemoved: 0,
+                relationsChanged: 0,
+              },
+            },
+            applied: [],
+            unapplied: [],
+          }),
+        ),
+    );
+    const client = new CommandClient("/api", fetchFn);
+    client.setActorId("actor");
+
+    await client.exchangeApply("ws", "reqif", "<REQ-IF />");
+
+    expect(JSON.parse(String(fetchFn.mock.calls[0]?.[1]?.body))).toEqual({
+      reqif: "<REQ-IF />",
+      confirmRemovals: false,
+    });
+  });
 });
 
 describe("command errors", () => {

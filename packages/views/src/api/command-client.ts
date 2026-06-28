@@ -1,5 +1,7 @@
 import {
   defaultFetch,
+  type ExchangeDiffResult,
+  type ExchangeFormat,
   type FetchFn,
   type ReviewAnnotation,
 } from "./view-client";
@@ -43,6 +45,15 @@ export interface CreateAnnotationRequest {
   readonly roundId?: string | null;
 }
 
+export interface ExchangeApplyResult {
+  readonly diff: ExchangeDiffResult;
+  readonly applied: readonly string[];
+  readonly unapplied: readonly {
+    readonly item: string;
+    readonly error: CommandError;
+  }[];
+}
+
 export interface ConflictField {
   readonly fieldDefCode: string;
   readonly yourValue: unknown;
@@ -67,6 +78,20 @@ const errorTitles: Readonly<Record<string, string>> = {
   "KERNEL-422-FIELD-VALUE-INVALID": "字段值不符合类型或约束",
   "PERM-403-FIELD-DENIED": "字段级权限拒绝",
 };
+
+async function commandFailure(
+  response: Response,
+  fallbackTitle: string,
+): Promise<CommandFailure> {
+  const body = (await response.json().catch(() => ({}))) as {
+    readonly error?: Omit<CommandError, "title">;
+  } & Omit<CommandError, "title">;
+  const failure = body.error ?? body;
+  return new CommandFailure({
+    ...failure,
+    title: errorTitles[failure.code] ?? fallbackTitle,
+  });
+}
 
 export class CommandFailure extends Error {
   constructor(readonly commandError: CommandError) {
@@ -188,6 +213,43 @@ export class CommandClient {
       annotationId,
       comment: comment ?? null,
     });
+  }
+
+  async exchangeApply(
+    workspaceId: string,
+    format: ExchangeFormat,
+    payload: string,
+  ): Promise<ExchangeApplyResult> {
+    if (!this.actorId) {
+      throw new Error("缺少 X-Actor-Id: 请先登录后再应用导入");
+    }
+    let body: Readonly<Record<string, unknown>>;
+    if (format === "json") {
+      try {
+        body = {
+          artifact: JSON.parse(payload) as unknown,
+          confirmRemovals: false,
+        };
+      } catch {
+        throw new Error("JSON 制品格式不正确,请先修正后再应用");
+      }
+    } else {
+      body = { reqif: payload, confirmRemovals: false };
+    }
+    const response = await this.fetchFn(
+      `${this.baseUrl}/workspaces/${workspaceId}/exchange/${format}/apply`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "X-Actor-Id": this.actorId,
+        },
+        body: JSON.stringify(body),
+      },
+    );
+    if (response.ok) return response.json() as Promise<ExchangeApplyResult>;
+    const failure = await commandFailure(response, "交换导入失败");
+    throw failure;
   }
 
   /** 用模板实例化一个新工作空间(新建项目)。新工作空间无成员=未治理,鉴权放行。 */

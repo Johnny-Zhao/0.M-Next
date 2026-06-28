@@ -243,6 +243,63 @@ export interface ReviewAnnotation {
   readonly resolvedAt: string | null;
 }
 
+export type ExchangeFormat = "json" | "reqif";
+
+export interface ExchangeValueChange {
+  readonly from: unknown;
+  readonly to: unknown;
+}
+
+export interface ExchangeFieldDiff {
+  readonly added: Readonly<Record<string, unknown>>;
+  readonly removed: Readonly<Record<string, unknown>>;
+  readonly changed: Readonly<Record<string, ExchangeValueChange>>;
+}
+
+export interface ExchangeChangedObject {
+  readonly objectId: string;
+  readonly fields: ExchangeFieldDiff;
+  readonly statusChanged: ExchangeValueChange | null;
+}
+
+export interface ExchangeChangedRelation {
+  readonly relationId: string;
+  readonly fields: ExchangeFieldDiff;
+  readonly endpointChanged: {
+    readonly fromSource: string;
+    readonly fromTarget: string;
+    readonly toSource: string;
+    readonly toTarget: string;
+  } | null;
+}
+
+export interface ExchangeDiffResult {
+  readonly objects: {
+    readonly added: readonly string[];
+    readonly removed: readonly string[];
+    readonly changed: readonly ExchangeChangedObject[];
+  };
+  readonly relations: {
+    readonly added: readonly string[];
+    readonly removed: readonly string[];
+    readonly changed: readonly ExchangeChangedRelation[];
+  };
+  readonly summary: {
+    readonly objectsAdded: number;
+    readonly objectsRemoved: number;
+    readonly objectsChanged: number;
+    readonly relationsAdded: number;
+    readonly relationsRemoved: number;
+    readonly relationsChanged: number;
+  };
+}
+
+export interface ExchangeExportResult {
+  readonly format: ExchangeFormat;
+  readonly payload: string;
+  readonly contentType: string;
+}
+
 export type FetchFn = (
   input: RequestInfo | URL,
   init?: RequestInit,
@@ -323,6 +380,51 @@ export class ViewClient {
     const query = new URLSearchParams({ targetType, targetId });
     if (fieldCode) query.set("fieldCode", fieldCode);
     return this.get(`/workspaces/${workspaceId}/annotations?${query}`);
+  }
+
+  async exchangePreview(
+    workspaceId: string,
+    format: ExchangeFormat,
+    payload: string,
+    base = "current",
+  ): Promise<ExchangeDiffResult> {
+    const query = new URLSearchParams({ base });
+    const response = await this.fetchFn(
+      `${this.baseUrl}/workspaces/${workspaceId}/exchange/${format}/preview?${query}`,
+      {
+        method: "POST",
+        headers: { "content-type": "text/plain;charset=utf-8" },
+        body: payload,
+      },
+    );
+    if (!response.ok) throw new Error("交换预览失败");
+    return response.json() as Promise<ExchangeDiffResult>;
+  }
+
+  async exchangeExport(
+    workspaceId: string,
+    format: ExchangeFormat,
+    objectType?: string | null,
+    base = "current",
+  ): Promise<ExchangeExportResult> {
+    const query = new URLSearchParams({ base });
+    if (objectType) query.set("objectType", objectType);
+    const response = await this.fetchFn(
+      `${this.baseUrl}/workspaces/${workspaceId}/exchange/${format}/export?${query}`,
+      {
+        headers: {
+          accept: format === "reqif" ? "application/xml" : "application/json",
+        },
+      },
+    );
+    if (!response.ok) throw new Error("交换导出失败");
+    return {
+      format,
+      payload: await response.text(),
+      contentType:
+        response.headers.get("content-type") ??
+        (format === "reqif" ? "application/xml" : "application/json"),
+    };
   }
 
   objects(
