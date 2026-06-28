@@ -6,6 +6,11 @@
 ## 目标
 设计一套支撑**动态/动画/动态仿真**的数据与视图架构:时变结果序列的存储、查询、与视图的时间维绑定、以及外部仿真适配(FMI)。
 
+## 现有地基(已核实——别从零起)
+- **`simulation_run` 表(server V8)已存在**:run_id、workspace_id、**snapshot_id(锚定模型版本)**、engine_id、status、config JSONB、**result JSONB**、result_hash、queued/started/completed_at、created_by、failure_reason + 按 workspace/status 的索引。即"**异步仿真作业 + 结果**"骨架已在,`result` 现为整块 blob。
+- `SimulationRun*`(server)相关读写;`engines/exchange/sysml/SysmlXmiCodec`(XMI 地基)。
+- **设计要点**:时序脊 = 在 simulation_run 之上加**细粒度结果序列层** `(run_id, object_id/field, t, value)`(blob → 可查序列),而非另起一套 run 模型;run 锚定 snapshot 即"这次仿真对应哪个模型版本",过期判定可由此推。
+
 ## 设计稿须覆盖
 1. **结果时序数据层**:独立于 rm_object 的结果存储模型——按 `(run_id, object_id/field, t)` 索引;数据规模/写入吞吐/保留策略;与版本/快照/血缘的关系(一次 run 锚定哪个模型版本);只读时序查询 API 形态(按对象/字段/时间窗/降采样)。
 2. **计算来源与编排**:transient(Modelica)、状态机/活动 token、优化迭代、离散事件;均经事件/outbox→投影异步产出;**播放只读预算好的序列,不在帧循环现算**。

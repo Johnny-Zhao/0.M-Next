@@ -19,7 +19,8 @@
 
 ## 封闭文件清单
 **修改**:`packages/server/.../plugin/ProfileLoader.java`(AUTHOR_WORKSPACE)、`DevSeedRunner.java`(室内改实例化、幂等)、工作空间列表查询/控制器(过滤作者空间)、相关 E2E。
-**零碰**:Flyway 迁移(本卡尽量零迁移;若需标记列再评估)、类型身份逻辑、读模型投影、前端、manifest。
+**零碰**:类型身份逻辑、读模型投影、前端、manifest。
+**迁移**:本卡尽量零迁移;若必须给 workspace 加"系统/隐藏"标记列,**版本号取全局 max+1**(跨 kernel/engines/server 三目录核,当前 max=V21),workspace 表属 kernel、置 kernel 目录,并在卡内回报后再加。
 
 ## 红线 / 门禁
 - dev 重置后:三领域 demo 照常、作者空间不出现在项目列表;幂等重启不重复种。
