@@ -63,6 +63,8 @@ public final class RuleEvaluator {
     enter(state, depth);
     return switch (expression) {
       case Literal literal -> literal.value();
+      case SelfRef ignored ->
+          throw new RuleSyntaxException("self must be followed by a property", 0);
       case FieldRef fieldRef -> context.fieldValue(fieldRef.code());
       case Comparison comparison -> evalComparison(comparison, context, state, depth);
       case Logical logical -> evalLogical(logical, context, state, depth);
@@ -71,6 +73,7 @@ public final class RuleEvaluator {
       case Traverse traverse -> evalTraverse(context, traverse.relType(), traverse.dir(), state);
       case TraverseFrom traverseFrom -> evalTraverseFrom(traverseFrom, context, state, depth);
       case TraverseDeep traverseDeep -> evalTraverseDeep(traverseDeep, context, state, depth);
+      case OclIteration iteration -> evalOclIteration(iteration, context, state, depth);
       case Aggregate aggregate -> evalAggregate(aggregate, context, state, depth);
       case Arithmetic arithmetic -> evalArithmetic(arithmetic, context, state, depth);
       case Conditional conditional -> evalConditional(conditional, context, state, depth);
@@ -163,6 +166,48 @@ public final class RuleEvaluator {
     };
   }
 
+  private Object evalOclIteration(
+      OclIteration iteration, EvalContext context, State state, int depth) {
+    var source = eval(iteration.source(), context, state, depth + 1);
+    return switch (iteration.operator()) {
+      case SELECT -> filterContexts(contexts(source), iteration.expression(), state, depth, false);
+      case REJECT -> filterContexts(contexts(source), iteration.expression(), state, depth, true);
+      case COLLECT -> collectValues(contexts(source), iteration.expression(), state, depth);
+      case FOR_ALL -> evalAll(contexts(source), iteration.expression(), state, depth);
+      case EXISTS -> evalAny(contexts(source), iteration.expression(), state, depth);
+      case IS_EMPTY -> collectionSize(source) == 0;
+      case SIZE -> collectionSize(source);
+      case SUM -> sumValues(values(source));
+      case INCLUDES ->
+          includes(values(source), eval(iteration.expression(), context, state, depth + 1));
+    };
+  }
+
+  private List<EvalContext> filterContexts(
+      List<EvalContext> contexts,
+      RuleExpression predicate,
+      State state,
+      int depth,
+      boolean reject) {
+    var result = new ArrayList<EvalContext>();
+    for (var item : contexts) {
+      var accepted = asBoolean(eval(predicate, item, state, depth + 1));
+      if (reject ? !accepted : accepted) {
+        result.add(item);
+      }
+    }
+    return result;
+  }
+
+  private List<Object> collectValues(
+      List<EvalContext> contexts, RuleExpression expression, State state, int depth) {
+    var result = new ArrayList<Object>();
+    for (var item : contexts) {
+      result.add(eval(expression, item, state, depth + 1));
+    }
+    return result;
+  }
+
   private BigDecimal evalArithmetic(
       Arithmetic arithmetic, EvalContext context, State state, int depth) {
     var left = number(eval(arithmetic.left(), context, state, depth + 1));
@@ -207,6 +252,20 @@ public final class RuleEvaluator {
     throw new RuleSyntaxException("context set expected", 0);
   }
 
+  private List<Object> values(Object value) {
+    if (value instanceof List<?> list) {
+      return new ArrayList<>(list);
+    }
+    throw new RuleSyntaxException("collection expected", 0);
+  }
+
+  private int collectionSize(Object value) {
+    if (value instanceof List<?> list) {
+      return list.size();
+    }
+    throw new RuleSyntaxException("collection expected", 0);
+  }
+
   private boolean evalAny(
       List<EvalContext> contexts, RuleExpression predicate, State state, int depth) {
     for (var context : contexts) {
@@ -236,6 +295,26 @@ public final class RuleEvaluator {
       }
     }
     return result;
+  }
+
+  private BigDecimal sumValues(List<Object> values) {
+    var result = BigDecimal.ZERO;
+    for (var value : values) {
+      var number = RuleFunctions.toNumber(value);
+      if (number != null) {
+        result = result.add(number);
+      }
+    }
+    return result;
+  }
+
+  private boolean includes(List<Object> values, Object expected) {
+    for (var value : values) {
+      if (RuleFunctions.sameValue(value, expected)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   private Object average(List<EvalContext> contexts, String field) {

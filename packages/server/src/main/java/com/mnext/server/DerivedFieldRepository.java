@@ -10,6 +10,7 @@ import com.mnext.engines.rules.FieldRef;
 import com.mnext.engines.rules.FunctionCall;
 import com.mnext.engines.rules.Logical;
 import com.mnext.engines.rules.Not;
+import com.mnext.engines.rules.OclIteration;
 import com.mnext.engines.rules.RuleExpression;
 import com.mnext.engines.rules.RuleParser;
 import com.mnext.engines.rules.RuleSyntaxException;
@@ -300,6 +301,10 @@ class DerivedFieldRepository {
     } else if (expression instanceof Aggregate aggregate) {
       collectFieldReferences(aggregate.source(), references);
       if (aggregate.predicate() != null) collectFieldReferences(aggregate.predicate(), references);
+    } else if (expression instanceof OclIteration iteration) {
+      collectFieldReferences(iteration.source(), references);
+      if (iteration.expression() != null)
+        collectFieldReferences(iteration.expression(), references);
     } else if (expression instanceof Arithmetic arithmetic) {
       collectFieldReferences(arithmetic.left(), references);
       collectFieldReferences(arithmetic.right(), references);
