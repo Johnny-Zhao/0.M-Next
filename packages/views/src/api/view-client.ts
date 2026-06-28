@@ -219,6 +219,49 @@ export interface CheckResultPage {
   readonly total: number;
 }
 
+export interface MappingFieldMapping {
+  readonly sourceFieldCode: string;
+  readonly targetFieldCode: string;
+  readonly expression: string;
+}
+
+export interface MappingCorrespondence {
+  readonly correspondenceId: string;
+  readonly relationType: string;
+  readonly relationTypeId: string | null;
+  readonly sourceProfile: string;
+  readonly targetProfile: string;
+  readonly sourceTypeCode: string;
+  readonly sourceTypeName: string;
+  readonly targetTypeCode: string;
+  readonly targetTypeName: string;
+  readonly cardinality: string;
+  readonly direction: "source_to_target" | "target_to_source" | "bidirectional";
+  readonly fieldMappings: readonly MappingFieldMapping[];
+}
+
+export type MappingCoverageStatus = "mapped" | "unmapped" | "stale";
+
+export interface MappingCoverageItem {
+  readonly sourceObjectId: string;
+  readonly sourceLabel: string;
+  readonly sourceVersion: number;
+  readonly targetObjectId: string | null;
+  readonly targetLabel: string | null;
+  readonly targetVersion: number | null;
+  readonly relationId: string | null;
+  readonly anchoredSourceVersion: number | null;
+  readonly status: MappingCoverageStatus;
+  readonly updatedAt: string | null;
+}
+
+export interface MappingCoveragePage {
+  readonly items: readonly MappingCoverageItem[];
+  readonly page: number;
+  readonly pageSize: number;
+  readonly total: number;
+}
+
 export interface TemplateTypeOverview {
   readonly code: string;
   readonly name: string;
@@ -635,6 +678,32 @@ export class ViewClient {
       size: `${size}`,
     });
     return this.get(`/workspaces/${workspaceId}/views/check-results?${query}`);
+  }
+
+  mappingCorrespondences(
+    workspaceId: string,
+  ): Promise<readonly MappingCorrespondence[]> {
+    return this.get(`/workspaces/${workspaceId}/views/mapping/correspondences`);
+  }
+
+  mappingCoverage(
+    workspaceId: string,
+    correspondenceId: string,
+    page = 0,
+    size = 30,
+  ): Promise<MappingCoveragePage> {
+    if (page < 0 || size < 1 || size > 50) {
+      throw new Error(
+        "mapping coverage page must be non-negative and size 1..50",
+      );
+    }
+    const query = new URLSearchParams({
+      page: `${page}`,
+      size: `${size}`,
+    });
+    return this.get(
+      `/workspaces/${workspaceId}/views/mapping/correspondences/${correspondenceId}/coverage?${query}`,
+    );
   }
 
   private async get<T>(path: string): Promise<T> {

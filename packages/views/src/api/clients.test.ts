@@ -265,6 +265,27 @@ describe("view and command clients", () => {
     );
   });
 
+  it("reads mapping correspondences and bounded coverage pages", async () => {
+    const fetchFn = vi.fn<FetchFn>(
+      async () =>
+        new Response(
+          JSON.stringify({ items: [], page: 0, pageSize: 30, total: 0 }),
+        ),
+    );
+    const client = new ViewClient("/api", fetchFn);
+
+    await client.mappingCorrespondences("ws");
+    await client.mappingCoverage("ws", "corr-1", 2, 30);
+
+    expect(fetchFn.mock.calls[0]?.[0]).toBe(
+      "/api/workspaces/ws/views/mapping/correspondences",
+    );
+    expect(fetchFn.mock.calls[1]?.[0]).toBe(
+      "/api/workspaces/ws/views/mapping/correspondences/corr-1/coverage?page=2&size=30",
+    );
+    expect(() => client.mappingCoverage("ws", "corr-1", 0, 51)).toThrow();
+  });
+
   it("posts UpdateFields with expectedFieldVersion", async () => {
     const fetchFn = vi.fn<FetchFn>(
       async () => new Response(null, { status: 200 }),

@@ -38,6 +38,7 @@ import { DocumentPanel } from "./document-panel";
 import { ExchangePanel } from "./exchange-panel";
 import { FloorplanPanel } from "./floorplan-panel";
 import { InspectorPanel } from "./inspector-panel";
+import { MappingPanel } from "./mapping-panel";
 import { MatrixPanel } from "./matrix-panel";
 import { ReviewPanel } from "./review-panel";
 import { WorkbenchShellChrome } from "./shell-chrome";
@@ -51,6 +52,7 @@ export type WorkbenchPanelId =
   | "floorplan"
   | "table"
   | "matrix"
+  | "mapping"
   | "document"
   | "tree"
   | "inspector"
@@ -71,6 +73,7 @@ export const workbenchPanelDefinitions: readonly WorkbenchPanelDefinition[] = [
   { id: "floorplan", title: "平面图", component: "floorplan" },
   { id: "table", title: "表格", component: "table" },
   { id: "matrix", title: "矩阵", component: "matrix" },
+  { id: "mapping", title: "映射", component: "mapping" },
   { id: "document", title: "文档", component: "document" },
   { id: "tree", title: "模型树", component: "tree" },
   { id: "inspector", title: "属性/校验", component: "inspector" },
@@ -116,6 +119,7 @@ export function ensureWorkbenchPanels(api: DockviewApi): void {
   api.addPanel({ ...byId("floorplan"), inactive: true });
   api.addPanel({ ...byId("table"), inactive: true });
   api.addPanel({ ...byId("matrix"), inactive: true });
+  api.addPanel({ ...byId("mapping"), inactive: true });
   api.addPanel({ ...byId("document"), inactive: true });
   api.addPanel({
     ...byId("tree"),
@@ -176,6 +180,7 @@ const dockviewComponents: Record<
   floorplan: () => <FloorplanPanel />,
   table: () => <TablePanel />,
   matrix: () => <MatrixPanel />,
+  mapping: () => <MappingPanel />,
   document: () => <DocumentPanel />,
   tree: () => <TreePanel />,
   inspector: () => <InspectorPanel />,

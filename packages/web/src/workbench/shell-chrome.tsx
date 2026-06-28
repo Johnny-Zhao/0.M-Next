@@ -15,6 +15,7 @@ export const shellToolbarViewLabels = [
   "图",
   "表",
   "矩阵",
+  "映射",
   "文档",
   "平面图",
 ] as const;
@@ -61,6 +62,7 @@ const viewEntries: readonly {
   { id: "diagram", label: "图" },
   { id: "table", label: "表" },
   { id: "matrix", label: "矩阵" },
+  { id: "mapping", label: "映射" },
   { id: "document", label: "文档" },
   { id: "floorplan", label: "平面图" },
 ];
