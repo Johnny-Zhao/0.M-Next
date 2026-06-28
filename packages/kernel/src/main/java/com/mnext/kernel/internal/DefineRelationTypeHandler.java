@@ -98,7 +98,7 @@ class DefineRelationTypeHandler {
   }
 
   private void validateFresh(DefineRelationTypeCommand command) {
-    if (meta.relationTypeCodeExists(command.workspaceId(), command.code())) {
+    if (relationTypeCodeExists(command)) {
       throw CommandErrors.schema("关系类型 code 已存在");
     }
     var violations = new ArrayList<String>();
@@ -106,6 +106,14 @@ class DefineRelationTypeHandler {
       violations.add("hierarchical 关系必须使用 one_to_many");
     }
     if (!violations.isEmpty()) throw CommandErrors.fieldConstraint(violations);
+  }
+
+  private boolean relationTypeCodeExists(DefineRelationTypeCommand command) {
+    if (command.templateVersionId() == null) {
+      return meta.relationTypeCodeExists(command.workspaceId(), command.code());
+    }
+    return meta.relationTypeCodeExists(
+        command.workspaceId(), command.templateVersionId(), command.code());
   }
 
   private void validateTemplateVersion(DefineRelationTypeCommand command) {

@@ -36,12 +36,10 @@ class DefineValueTypeHandler {
     var replay = support.replay(command.workspaceId(), command.idempotencyKey(), hash);
     if (replay.isPresent()) {
       var valueTypeId =
-          meta.valueTypeByCode(command.workspaceId(), command.code())
-              .orElseThrow(CommandErrors::typeNotFound)
-              .id();
+          valueTypeByCode(command, command.code()).orElseThrow(CommandErrors::typeNotFound).id();
       return withDetail(replay.get(), "valueTypeId=" + valueTypeId);
     }
-    var existing = meta.valueTypeByCode(command.workspaceId(), command.code()).orElse(null);
+    var existing = valueTypeByCode(command, command.code()).orElse(null);
     var parent = parent(command);
     validate(command, existing, parent);
     var now = Instant.now();
@@ -84,8 +82,27 @@ class DefineValueTypeHandler {
 
   private MetaModelRepository.ValueTypeRow parent(DefineValueTypeCommand command) {
     if (command.parentValueTypeCode() == null) return null;
-    return meta.valueTypeByCode(command.workspaceId(), command.parentValueTypeCode())
-        .orElseThrow(CommandErrors::metaParentNotFound);
+    var parent = valueTypeByCode(command, command.parentValueTypeCode());
+    if (parent.isPresent()) return parent.get();
+    if (command.templateVersionId() != null) {
+      var sameWorkspaceParent =
+          meta.valueTypeByCode(command.workspaceId(), command.parentValueTypeCode());
+      if (sameWorkspaceParent.isPresent()
+          && sameWorkspaceParent.get().templateVersionId() != null
+          && !sameWorkspaceParent.get().templateVersionId().equals(command.templateVersionId())) {
+        throw CommandErrors.metaParentCrossTemplate();
+      }
+    }
+    throw CommandErrors.metaParentNotFound();
+  }
+
+  private java.util.Optional<MetaModelRepository.ValueTypeRow> valueTypeByCode(
+      DefineValueTypeCommand command, String code) {
+    if (command.templateVersionId() == null)
+      return meta.valueTypeByCode(command.workspaceId(), code);
+    var scoped = meta.valueTypeByCode(command.workspaceId(), command.templateVersionId(), code);
+    if (scoped.isPresent()) return scoped;
+    return meta.valueTypeByCode(command.workspaceId(), null, code);
   }
 
   private void validate(
@@ -115,6 +132,11 @@ class DefineValueTypeHandler {
     }
     if (parent != null && parent.basePrimitive() != command.basePrimitive()) {
       throw CommandErrors.metaValueTypeBaseMismatch();
+    }
+    if (parent != null
+        && parent.templateVersionId() != null
+        && !parent.templateVersionId().equals(command.templateVersionId())) {
+      throw CommandErrors.metaParentCrossTemplate();
     }
     if (existing != null
         && parent != null
