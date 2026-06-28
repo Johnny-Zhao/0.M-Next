@@ -21,6 +21,7 @@ import {
   type OutputFormat,
 } from "@m-next/views";
 
+import { AiPanel } from "./ai-panel";
 import { CommandPalette, isCommandPaletteShortcut } from "./command-palette";
 import type {
   CommandContext,
@@ -50,7 +51,8 @@ export type WorkbenchPanelId =
   | "document"
   | "tree"
   | "inspector"
-  | "validate";
+  | "validate"
+  | "ai";
 
 export interface WorkbenchPanelDefinition {
   readonly id: WorkbenchPanelId;
@@ -67,6 +69,7 @@ export const workbenchPanelDefinitions: readonly WorkbenchPanelDefinition[] = [
   { id: "tree", title: "模型树", component: "tree" },
   { id: "inspector", title: "属性/校验", component: "inspector" },
   { id: "validate", title: "校验", component: "validate" },
+  { id: "ai", title: "AI 助手", component: "ai" },
 ];
 
 export interface WorkbenchContextValue {
@@ -168,6 +171,7 @@ const dockviewComponents: Record<
   tree: () => <TreePanel />,
   inspector: () => <InspectorPanel />,
   validate: () => <ValidatePanel />,
+  ai: () => <AiPanel />,
 };
 const defaultObjectType = "room";
 const defaultRelationType = "adjacent";

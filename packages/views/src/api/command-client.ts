@@ -12,6 +12,23 @@ export interface RelationCommandResult {
   readonly version?: number;
 }
 
+export interface AiCommandResult {
+  readonly events?: readonly string[];
+  readonly results?: readonly unknown[];
+  readonly idempotentReplay?: boolean;
+}
+
+export interface AiChangeSelection {
+  readonly objectIds?: readonly string[];
+  readonly checkResultIds?: readonly string[];
+}
+
+export interface ProposeAiChangeRequest {
+  readonly action: "SUGGEST_FIELDS" | "EXPLAIN_CHECK";
+  readonly selection?: AiChangeSelection;
+  readonly instruction?: string | null;
+}
+
 export interface ConflictField {
   readonly fieldDefCode: string;
   readonly yourValue: unknown;
@@ -97,6 +114,31 @@ export class CommandClient {
     });
   }
 
+  async proposeAiChange(
+    workspaceId: string,
+    request: ProposeAiChangeRequest,
+  ): Promise<AiCommandResult> {
+    return this.aiPost("ProposeAiChange", workspaceId, {
+      action: request.action,
+      selection: request.selection ?? { objectIds: [], checkResultIds: [] },
+      instruction: request.instruction ?? null,
+    });
+  }
+
+  async confirmAiChange(
+    workspaceId: string,
+    setId: string,
+  ): Promise<AiCommandResult> {
+    return this.aiPost("ConfirmAiChange", workspaceId, { setId });
+  }
+
+  async rejectAiChange(
+    workspaceId: string,
+    setId: string,
+  ): Promise<AiCommandResult> {
+    return this.aiPost("RejectAiChange", workspaceId, { setId });
+  }
+
   /** 用模板实例化一个新工作空间(新建项目)。新工作空间无成员=未治理,鉴权放行。 */
   async instantiateWorkspace(
     newWorkspaceId: string,
@@ -174,6 +216,42 @@ export class CommandClient {
     throw new CommandFailure({
       ...failure,
       title: errorTitles[failure.code] ?? "保存失败",
+    });
+  }
+
+  private async aiPost(
+    commandType: string,
+    workspaceId: string,
+    payload: Readonly<Record<string, unknown>>,
+  ): Promise<AiCommandResult> {
+    if (!this.actorId) {
+      throw new Error("缺少 X-Actor-Id: 请先登录后再执行 AI 命令");
+    }
+    const response = await this.fetchFn(
+      `${this.baseUrl}/workspaces/${workspaceId}/ai-commands`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "X-Actor-Id": this.actorId,
+        },
+        body: JSON.stringify({
+          commandType,
+          workspaceId,
+          correlationId: crypto.randomUUID(),
+          idempotencyKey: `ai-${crypto.randomUUID()}`,
+          payload,
+        }),
+      },
+    );
+    if (response.ok) return response.json() as Promise<AiCommandResult>;
+    const body = (await response.json()) as {
+      readonly error?: Omit<CommandError, "title">;
+    } & Omit<CommandError, "title">;
+    const failure = body.error ?? body;
+    throw new CommandFailure({
+      ...failure,
+      title: errorTitles[failure.code] ?? "AI 命令失败",
     });
   }
 }
