@@ -65,7 +65,7 @@ public final class ExpressionTypeChecker {
         infer(conditional.ifTrue(), objectType);
         yield infer(conditional.ifFalse(), objectType);
       }
-      case FunctionCall functionCall -> functionType(functionCall);
+      case FunctionCall functionCall -> functionType(functionCall, objectType);
       case Aggregate aggregate -> aggregateType(aggregate, objectType);
       case OclIteration iteration -> iterationType(iteration, objectType);
     };
@@ -108,11 +108,20 @@ public final class ExpressionTypeChecker {
         }
         yield Type.NUMBER;
       }
-      case INCLUDES -> Type.BOOLEAN;
+      case INCLUDES -> {
+        var expected = infer(iteration.expression(), objectType);
+        if (!collectionContains(source, expected)) {
+          throw new RuleSyntaxException("includes argument does not match collection element", 0);
+        }
+        yield Type.BOOLEAN;
+      }
     };
   }
 
-  private Type functionType(FunctionCall functionCall) {
+  private Type functionType(FunctionCall functionCall, String objectType) {
+    for (var argument : functionCall.arguments()) {
+      infer(argument, objectType);
+    }
     return switch (functionCall.name()) {
       case "isBlank", "matches", "inSet", "hasRelation" -> Type.BOOLEAN;
       case "length", "toNumber", "interp", "lookup", "relationCount" -> Type.NUMBER;
@@ -133,6 +142,15 @@ public final class ExpressionTypeChecker {
         || right.kind() == Kind.ANY
         || (left.kind() == Kind.NUMBER && right.kind() == Kind.NUMBER)
         || (left.kind() == Kind.STRING && right.kind() == Kind.STRING);
+  }
+
+  private boolean collectionContains(Type collection, Type expected) {
+    return collection.kind() == Kind.ANY
+        || expected.kind() == Kind.ANY
+        || collection.element() == expected.kind()
+        || (collection.element() == Kind.OBJECT
+            && expected.kind() == Kind.OBJECT
+            && java.util.Objects.equals(collection.elementType(), expected.objectType()));
   }
 
   private void requireBooleanType(Type type, String label) {
@@ -178,6 +196,14 @@ public final class ExpressionTypeChecker {
   public static final class Model {
     private final Map<String, Map<String, Type>> fields = new HashMap<>();
     private final Map<String, Map<String, String>> relations = new HashMap<>();
+    private final Map<String, String> parents = new HashMap<>();
+
+    public Model objectType(String objectType, String parentType) {
+      if (parentType != null && !parentType.isBlank()) {
+        parents.put(objectType, parentType);
+      }
+      return this;
+    }
 
     public Model field(String objectType, String field, String dataType) {
       fields.computeIfAbsent(objectType, ignored -> new HashMap<>()).put(field, scalar(dataType));
@@ -191,6 +217,9 @@ public final class ExpressionTypeChecker {
 
     private Type fieldType(String objectType, String field) {
       var type = fields.getOrDefault(objectType, Map.of()).get(field);
+      if (type == null && parents.containsKey(objectType)) {
+        type = fieldType(parents.get(objectType), field);
+      }
       if (type == null) {
         throw new RuleSyntaxException("unknown field " + objectType + "." + field, 0);
       }
@@ -199,6 +228,9 @@ public final class ExpressionTypeChecker {
 
     private String relationTarget(String objectType, String relation) {
       var target = relations.getOrDefault(objectType, Map.of()).get(relation);
+      if (target == null && parents.containsKey(objectType)) {
+        target = relationTarget(parents.get(objectType), relation);
+      }
       if (target == null) {
         throw new RuleSyntaxException("unknown relation " + objectType + "." + relation, 0);
       }

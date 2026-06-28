@@ -3,7 +3,6 @@ package com.mnext.server;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.mnext.engines.rules.RuleParser;
 import com.mnext.engines.rules.RuleSyntaxException;
 import com.mnext.kernel.api.CommandResult;
 import com.mnext.kernel.api.CommandStatus;
@@ -228,7 +227,7 @@ class RuleDefRepository {
 
   private void validateWhen(String when) {
     try {
-      RuleParser.parse(when);
+      ExpressionLanguageSupport.parse(when);
     } catch (RuleSyntaxException failure) {
       throw rule("RULE-400-DSL-SYNTAX-INVALID", "规则 when 表达式语法无效", "修正 DSL 表达式后重试");
     }

@@ -12,7 +12,6 @@ import com.mnext.engines.rules.Logical;
 import com.mnext.engines.rules.Not;
 import com.mnext.engines.rules.OclIteration;
 import com.mnext.engines.rules.RuleExpression;
-import com.mnext.engines.rules.RuleParser;
 import com.mnext.engines.rules.RuleSyntaxException;
 import com.mnext.engines.rules.TraverseDeep;
 import com.mnext.engines.rules.TraverseFrom;
@@ -129,7 +128,7 @@ class DerivedFieldRepository {
 
   private RuleExpression parse(String derivation) {
     try {
-      return RuleParser.parse(derivation);
+      return ExpressionLanguageSupport.parse(derivation);
     } catch (RuleSyntaxException failure) {
       throw error(
           "DERIVE-400-SYNTAX-INVALID",

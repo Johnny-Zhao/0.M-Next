@@ -123,6 +123,66 @@ class ProfileLoaderIntegrationTest {
     assertEquals(0, templateCount(manifest.templateCode()));
   }
 
+  @Test
+  void oclProfileExpressionsRunEquivalentToMExprAfterInstall() {
+    var manifest = oclFixture("profile_loader_ocl");
+    loader.install(manifest, Actor.user(ACTOR));
+
+    var template = templateId(manifest.templateCode());
+    var workspace = UUID.randomUUID();
+    assertOk(meta(AUTHOR, instantiate(template, workspace, "instantiate-ocl-profile")));
+    var roomType = objectType(workspace, "room");
+    var fixtureType = objectType(workspace, "fixture");
+    var relationType = relationType(workspace, "contains_fixture");
+    var room =
+        createObject(
+            workspace, roomType, "create-ocl-room", Map.of("name", "lab", "base_score", 0));
+    var fixture =
+        createObject(
+            workspace, fixtureType, "create-ocl-fixture", Map.of("name", "lamp", "load", 7));
+    applyEvents(command(workspace, createRelation(workspace, relationType, room, fixture)));
+
+    assertDecimal("7", derivedEvaluator.evaluate(workspace, room, "fixture_load"));
+    var runId = runId(rule(workspace, runRuleCheck(workspace, "room", "run-ocl-rules")));
+    assertEquals(1, countResults(workspace, runId, "fixture_load_high"));
+  }
+
+  @Test
+  void oclTypeMismatchFailsDuringProfileInstall() {
+    var manifest = oclFixture("profile_loader_ocl_bad");
+    var badRule =
+        new ProfileManifest.Rule(
+            "bad_ocl",
+            "room",
+            null,
+            "WARN",
+            "self.contains_fixture->exists(f | f.load and f.name)",
+            "ocl",
+            "bad",
+            null,
+            null,
+            null,
+            false);
+    var badManifest =
+        new ProfileManifest(
+            manifest.id() + "-bad",
+            "Bad OCL Profile",
+            manifest.version(),
+            manifest.templateCode(),
+            manifest.valueTypes(),
+            manifest.objectTypes(),
+            manifest.fields(),
+            manifest.relations(),
+            manifest.derived(),
+            List.of(badRule));
+
+    var failure =
+        assertThrows(
+            CommandRejectedException.class, () -> loader.install(badManifest, Actor.user(ACTOR)));
+    assertEquals("META-400-SCHEMA-INVALID", failure.error().code());
+    assertEquals(0, templateCount(badManifest.templateCode()));
+  }
+
   private ProfileManifest fixture() throws Exception {
     var resource = new ClassPathResource("profile-loader/minimal-profile.json");
     return mapper.readValue(resource.getInputStream(), ProfileManifest.class);
@@ -141,6 +201,69 @@ class ProfileLoaderIntegrationTest {
         manifest.relations(),
         manifest.derived(),
         manifest.rules());
+  }
+
+  private ProfileManifest oclFixture(String templateCode) {
+    var values =
+        List.of(
+            new ProfileManifest.ValueType("score_value", "Score Value", "number", null, null),
+            new ProfileManifest.ValueType("load_value", "Load Value", "number", null, null));
+    var objectTypes =
+        List.of(
+            new ProfileManifest.ObjectType("room", "Room", null),
+            new ProfileManifest.ObjectType("fixture", "Fixture", null));
+    var fields =
+        List.of(
+            new ProfileManifest.Field("room", "name", "Name", "string", null, true, null),
+            new ProfileManifest.Field(
+                "room", "base_score", "Base Score", null, "score_value", true, null),
+            new ProfileManifest.Field("fixture", "name", "Name", "string", null, true, null),
+            new ProfileManifest.Field("fixture", "load", "Load", null, "load_value", true, null));
+    var relations =
+        List.of(
+            new ProfileManifest.Relation(
+                "contains_fixture",
+                "Contains Fixture",
+                "room",
+                "fixture",
+                "directed",
+                "many_to_many",
+                "strong",
+                false));
+    var derived =
+        List.of(
+            new ProfileManifest.DerivedField(
+                "room",
+                "fixture_load",
+                "Fixture Load",
+                "number",
+                "self.contains_fixture->collect(f | f.load)->sum()",
+                "ocl"));
+    var rules =
+        List.of(
+            new ProfileManifest.Rule(
+                "fixture_load_high",
+                "room",
+                null,
+                "WARN",
+                "self.contains_fixture->exists(f | f.load > 5)",
+                "ocl",
+                "fixture load high",
+                null,
+                null,
+                null,
+                false));
+    return new ProfileManifest(
+        templateCode,
+        "OCL Profile",
+        "1.0.0",
+        templateCode,
+        values,
+        objectTypes,
+        fields,
+        relations,
+        derived,
+        rules);
   }
 
   private Map<String, Object> instantiate(UUID template, UUID newWorkspace, String key) {

@@ -221,7 +221,7 @@ public class ProfileLoader {
               derived.code(),
               derived.name(),
               derived.resultType(),
-              derived.derivation()),
+              ExpressionLanguageSupport.encode(derived.derivation(), derived.lang())),
           actor.id());
     }
   }
@@ -237,7 +237,7 @@ public class ProfileLoader {
               rule.code(),
               new RuleScopeRequest(rule.objectType(), rule.field()),
               rule.severity(),
-              rule.when(),
+              ExpressionLanguageSupport.encode(rule.when(), rule.lang()),
               rule.message(),
               rule.impact(),
               rule.suggest(),
@@ -322,8 +322,18 @@ public class ProfileLoader {
 
   private void typeCheckOcl(ProfileManifest manifest) {
     var model = new ExpressionTypeChecker.Model();
+    var valueTypes = new LinkedHashMap<String, String>();
+    for (var valueType : manifest.valueTypesOrEmpty()) {
+      valueTypes.put(valueType.code(), valueType.basePrimitive());
+    }
+    for (var objectType : manifest.objectTypesOrEmpty()) {
+      model.objectType(objectType.code(), objectType.parentTypeCode());
+    }
     for (var field : manifest.fieldsOrEmpty()) {
-      model.field(field.objectType(), field.code(), field.dataType());
+      model.field(
+          field.objectType(),
+          field.code(),
+          blank(field.dataType()) ? valueTypes.get(field.valueTypeCode()) : field.dataType());
     }
     for (var derived : manifest.derivedOrEmpty()) {
       model.field(derived.objectType(), derived.code(), derived.resultType());

@@ -69,15 +69,15 @@ class DerivationEvaluatorTest {
         .connect("children", node("score", 6, "ready", false, "name", "c"));
 
     assertEquals(
-        value("count(traverse('children','out'))", root), value("self.children->size()", root));
+        value("count(traverse('children','out'))", root), valueOcl("self.children->size()", root));
     assertEquals(
         value("sum(traverse('children','out'),'score')", root),
-        value("self.children->collect(c | c.score)->sum()", root));
-    assertTrue(bool("self.children->select(c | c.score >= 6)->size() = 2", root));
-    assertTrue(bool("self.children->reject(c | c.ready)->size() = 1", root));
-    assertTrue(bool("self.children->exists(c | c.ready = false)", root));
-    assertTrue(bool("self.children->forAll(c | c.score >= 4)", root));
-    assertTrue(bool("self.children->collect(c | c.name)->includes('b')", root));
+        valueOcl("self.children->collect(c | c.score)->sum()", root));
+    assertTrue(boolOcl("self.children->select(c | c.score >= 6)->size() = 2", root));
+    assertTrue(boolOcl("self.children->reject(c | c.ready)->size() = 1", root));
+    assertTrue(boolOcl("self.children->exists(c | c.ready = false)", root));
+    assertTrue(boolOcl("self.children->forAll(c | c.score >= 4)", root));
+    assertTrue(boolOcl("self.children->collect(c | c.name)->includes('b')", root));
   }
 
   @Test
@@ -141,6 +141,14 @@ class DerivationEvaluatorTest {
 
   private boolean bool(String source, EvalContext context) {
     return evaluator.evaluate(RuleParser.parse(source), context);
+  }
+
+  private Object valueOcl(String source, EvalContext context) {
+    return evaluator.evaluateValue(OclParser.parse(source), context);
+  }
+
+  private boolean boolOcl(String source, EvalContext context) {
+    return evaluator.evaluate(OclParser.parse(source), context);
   }
 
   private void assertDecimal(String expected, Object actual) {

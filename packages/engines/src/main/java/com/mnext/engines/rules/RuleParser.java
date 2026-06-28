@@ -14,21 +14,6 @@ public final class RuleParser {
   }
 
   public static RuleExpression parse(String source) {
-    try {
-      return parseMExpr(source);
-    } catch (RuleSyntaxException legacyFailure) {
-      try {
-        return OclParser.parse(source);
-      } catch (RuleSyntaxException oclFailure) {
-        if (source != null && (source.contains("->") || source.contains("self."))) {
-          throw oclFailure;
-        }
-        throw legacyFailure;
-      }
-    }
-  }
-
-  static RuleExpression parseMExpr(String source) {
     if (source == null || source.isBlank()) {
       throw new RuleSyntaxException("expression must not be blank", 0);
     }

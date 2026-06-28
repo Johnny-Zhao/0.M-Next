@@ -11,7 +11,6 @@ import com.mnext.engines.rules.Logical;
 import com.mnext.engines.rules.Not;
 import com.mnext.engines.rules.OclIteration;
 import com.mnext.engines.rules.RuleExpression;
-import com.mnext.engines.rules.RuleParser;
 import com.mnext.engines.rules.RuleSyntaxException;
 import com.mnext.engines.rules.Traverse;
 import com.mnext.engines.rules.TraverseDeep;
@@ -347,7 +346,7 @@ class LineageQueryRepository {
 
   private RuleExpression parse(String source, LineageState state) {
     try {
-      return RuleParser.parse(source);
+      return ExpressionLanguageSupport.parse(source);
     } catch (RuleSyntaxException failure) {
       state.markPartial();
       return null;
