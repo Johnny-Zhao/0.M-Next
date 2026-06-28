@@ -226,6 +226,23 @@ export interface AiChangeItem {
   readonly itemStatus: string;
 }
 
+export interface ReviewAnnotation {
+  readonly id: string;
+  readonly workspaceId: string;
+  readonly roundId: string | null;
+  readonly targetType: "object" | "field" | "relation";
+  readonly targetId: string;
+  readonly fieldCode: string | null;
+  readonly anchoredDataVersion: number;
+  readonly severity: string;
+  readonly body: string;
+  readonly status: "open" | "resolved";
+  readonly createdBy: string;
+  readonly createdAt: string;
+  readonly resolvedBy: string | null;
+  readonly resolvedAt: string | null;
+}
+
 export type FetchFn = (
   input: RequestInfo | URL,
   init?: RequestInit,
@@ -295,6 +312,17 @@ export class ViewClient {
       `/workspaces/${workspaceId}/views/ai-changes${suffix}`,
       actorId,
     );
+  }
+
+  annotations(
+    workspaceId: string,
+    targetType: "object" | "field" | "relation",
+    targetId: string,
+    fieldCode?: string | null,
+  ): Promise<readonly ReviewAnnotation[]> {
+    const query = new URLSearchParams({ targetType, targetId });
+    if (fieldCode) query.set("fieldCode", fieldCode);
+    return this.get(`/workspaces/${workspaceId}/annotations?${query}`);
   }
 
   objects(

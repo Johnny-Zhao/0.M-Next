@@ -1,4 +1,8 @@
-import { defaultFetch, type FetchFn } from "./view-client";
+import {
+  defaultFetch,
+  type FetchFn,
+  type ReviewAnnotation,
+} from "./view-client";
 
 export interface FieldUpdate {
   readonly fieldDefCode: string;
@@ -27,6 +31,16 @@ export interface ProposeAiChangeRequest {
   readonly action: "SUGGEST_FIELDS" | "EXPLAIN_CHECK";
   readonly selection?: AiChangeSelection;
   readonly instruction?: string | null;
+}
+
+export interface CreateAnnotationRequest {
+  readonly targetType: "object" | "field" | "relation";
+  readonly targetId: string;
+  readonly fieldCode?: string | null;
+  readonly anchoredDataVersion: number;
+  readonly severity: string;
+  readonly body: string;
+  readonly roundId?: string | null;
 }
 
 export interface ConflictField {
@@ -137,6 +151,43 @@ export class CommandClient {
     setId: string,
   ): Promise<AiCommandResult> {
     return this.aiPost("RejectAiChange", workspaceId, { setId });
+  }
+
+  async createAnnotation(
+    workspaceId: string,
+    request: CreateAnnotationRequest,
+  ): Promise<ReviewAnnotation> {
+    return this.reviewPost("CreateAnnotation", workspaceId, {
+      targetType: request.targetType,
+      targetId: request.targetId,
+      fieldCode: request.fieldCode ?? null,
+      anchoredDataVersion: request.anchoredDataVersion,
+      severity: request.severity,
+      body: request.body,
+      roundId: request.roundId ?? null,
+    });
+  }
+
+  async resolveAnnotation(
+    workspaceId: string,
+    annotationId: string,
+    comment?: string | null,
+  ): Promise<ReviewAnnotation> {
+    return this.reviewPost("ResolveAnnotation", workspaceId, {
+      annotationId,
+      comment: comment ?? null,
+    });
+  }
+
+  async reopenAnnotation(
+    workspaceId: string,
+    annotationId: string,
+    comment?: string | null,
+  ): Promise<ReviewAnnotation> {
+    return this.reviewPost("ReopenAnnotation", workspaceId, {
+      annotationId,
+      comment: comment ?? null,
+    });
   }
 
   /** 用模板实例化一个新工作空间(新建项目)。新工作空间无成员=未治理,鉴权放行。 */
@@ -252,6 +303,42 @@ export class CommandClient {
     throw new CommandFailure({
       ...failure,
       title: errorTitles[failure.code] ?? "AI 命令失败",
+    });
+  }
+
+  private async reviewPost(
+    commandType: string,
+    workspaceId: string,
+    payload: Readonly<Record<string, unknown>>,
+  ): Promise<ReviewAnnotation> {
+    if (!this.actorId) {
+      throw new Error("缺少 X-Actor-Id: 请先登录后再执行评审命令");
+    }
+    const response = await this.fetchFn(
+      `${this.baseUrl}/workspaces/${workspaceId}/review/commands`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "X-Actor-Id": this.actorId,
+        },
+        body: JSON.stringify({
+          commandType,
+          workspaceId,
+          correlationId: crypto.randomUUID(),
+          idempotencyKey: `rv-${crypto.randomUUID()}`,
+          payload,
+        }),
+      },
+    );
+    if (response.ok) return response.json() as Promise<ReviewAnnotation>;
+    const body = (await response.json()) as {
+      readonly error?: Omit<CommandError, "title">;
+    } & Omit<CommandError, "title">;
+    const failure = body.error ?? body;
+    throw new CommandFailure({
+      ...failure,
+      title: errorTitles[failure.code] ?? "评审命令失败",
     });
   }
 }
