@@ -297,11 +297,10 @@ function FieldMappingList({
   return (
     <ul className="mapping-fields" aria-label="字段映射">
       {mapping.fieldMappings.slice(0, 6).map((field) => (
-        <li key={`${field.sourceFieldCode}-${field.targetFieldCode}`}>
-          <code>{field.sourceFieldCode}</code>
+        <li key={`${field.expression}-${field.targetFieldCode}`}>
+          <code>{field.expression}</code>
           <span>{"->"}</span>
           <code>{field.targetFieldCode}</code>
-          <small>{field.expression}</small>
         </li>
       ))}
     </ul>
@@ -324,7 +323,9 @@ function CoverageRow({
         type="button"
       >
         <strong>{item.sourceLabel}</strong>
-        <small>v{item.sourceVersion}</small>
+        <small>
+          v{item.sourceVersion} / 锚 {anchoredSourceVersionLabel(item)}
+        </small>
       </button>
       <span className="mapping-status-chip">
         {coverageStatusLabel(item.status)}
@@ -355,6 +356,12 @@ export function coverageStatusTone(
   if (status === "mapped") return "mapping-coverage-mapped";
   if (status === "stale") return "mapping-coverage-stale";
   return "mapping-coverage-unmapped";
+}
+
+export function anchoredSourceVersionLabel(item: MappingCoverageItem): string {
+  return item.anchoredSourceVersion == null
+    ? "—"
+    : `v${item.anchoredSourceVersion}`;
 }
 
 export function selectMappingCorrespondence(

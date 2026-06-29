@@ -220,7 +220,6 @@ export interface CheckResultPage {
 }
 
 export interface MappingFieldMapping {
-  readonly sourceFieldCode: string;
   readonly targetFieldCode: string;
   readonly expression: string;
 }

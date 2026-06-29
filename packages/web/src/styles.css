@@ -3420,7 +3420,7 @@ main {
   align-items: center;
   display: grid;
   gap: 0.35rem;
-  grid-template-columns: max-content max-content max-content minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) max-content max-content;
 }
 
 .mapping-fields small {

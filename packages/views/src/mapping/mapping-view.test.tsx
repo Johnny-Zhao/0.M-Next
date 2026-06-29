@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { SelectionCoordinator } from "../selection/selection-coordinator";
 import {
+  anchoredSourceVersionLabel,
   coverageStatusLabel,
   coverageStatusTone,
   selectCoverageObject,
@@ -29,6 +30,23 @@ describe("MappingView helpers", () => {
     expect(coverageStatusLabel("unmapped")).toBe("未映射");
     expect(coverageStatusLabel("stale")).toBe("已过期");
     expect(coverageStatusTone("stale")).toBe("mapping-coverage-stale");
+  });
+
+  it("renders unknown anchored source versions as a dash", () => {
+    expect(
+      anchoredSourceVersionLabel({
+        sourceObjectId: "source-1",
+        sourceLabel: "Room 101",
+        sourceVersion: 3,
+        targetObjectId: "target-1",
+        targetLabel: "Zone A",
+        targetVersion: 1,
+        relationId: "rel-1",
+        anchoredSourceVersion: null,
+        status: "mapped",
+        updatedAt: null,
+      }),
+    ).toBe("—");
   });
 
   it("selects correspondence and coverage objects through the coordinator", () => {
