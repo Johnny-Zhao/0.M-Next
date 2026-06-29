@@ -201,6 +201,26 @@ public class ViewQueryController {
     return transformations.mappingProfiles(workspaceId);
   }
 
+  @GetMapping("/workspaces/{workspaceId}/views/mapping/correspondences")
+  public List<MappingCorrespondenceView> mappingCorrespondences(
+      @PathVariable("workspaceId") UUID workspaceId) {
+    authorize(workspaceId);
+    return repository.mappingCorrespondences(workspaceId);
+  }
+
+  @GetMapping("/workspaces/{workspaceId}/views/mapping/correspondences/{correspondenceId}/coverage")
+  public MappingCoveragePageView mappingCoverage(
+      @PathVariable("workspaceId") UUID workspaceId,
+      @PathVariable("correspondenceId") UUID correspondenceId,
+      @RequestParam(value = "page", defaultValue = "0") int page,
+      @RequestParam(value = "size", defaultValue = "30") int size) {
+    authorize(workspaceId);
+    if (page < 0 || size < 1 || size > 50) {
+      throw new IllegalArgumentException("page 必须非负且 size 必须为 1..50");
+    }
+    return repository.mappingCoverage(workspaceId, correspondenceId, page, size);
+  }
+
   @GetMapping("/workspaces/{workspaceId}/views/recommendations")
   public RecommendationView recommendations(
       @PathVariable("workspaceId") UUID workspaceId,

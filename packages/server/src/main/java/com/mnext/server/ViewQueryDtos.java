@@ -68,6 +68,37 @@ record CorrespondenceView(
     Map<String, Object> fields,
     String direction) {}
 
+record MappingFieldMappingView(String targetFieldCode, String expression) {}
+
+record MappingCorrespondenceView(
+    UUID correspondenceId,
+    String relationType,
+    UUID relationTypeId,
+    String sourceProfile,
+    String targetProfile,
+    String sourceTypeCode,
+    String sourceTypeName,
+    String targetTypeCode,
+    String targetTypeName,
+    String cardinality,
+    String direction,
+    List<MappingFieldMappingView> fieldMappings) {}
+
+record MappingCoverageItemView(
+    UUID sourceObjectId,
+    String sourceLabel,
+    long sourceVersion,
+    UUID targetObjectId,
+    String targetLabel,
+    Long targetVersion,
+    UUID relationId,
+    Long anchoredSourceVersion,
+    String status,
+    Instant updatedAt) {}
+
+record MappingCoveragePageView(
+    List<MappingCoverageItemView> items, int page, int pageSize, long total) {}
+
 record MappingProfileView(
     String code,
     String name,

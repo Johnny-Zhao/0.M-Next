@@ -73,6 +73,8 @@ class OpenApiContractTest {
             "rule-status",
             "lineage",
             "mapping-profiles",
+            "mapping~1correspondences",
+            "mapping~1correspondences~1{correspondenceId}~1coverage",
             "check-results")) {
       assertFalse(
           document
