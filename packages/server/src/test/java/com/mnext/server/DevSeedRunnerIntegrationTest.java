@@ -92,6 +92,8 @@ class DevSeedRunnerIntegrationTest {
         objectIdByField(MBSE_WORKSPACE, "requirement", "code", "REQ-MBSE-003");
     var uncoveredRequirement =
         objectIdByField(MBSE_WORKSPACE, "requirement", "code", "REQ-MBSE-004");
+    var marginFailedRequirement =
+        objectIdByField(MBSE_WORKSPACE, "requirement", "code", "REQ-MBSE-006");
     assertEquals(
         "pass", derivedEvaluator.evaluate(MBSE_WORKSPACE, passRequirement, "verify_status_fx"));
     assertEquals(
@@ -102,9 +104,18 @@ class DevSeedRunnerIntegrationTest {
     assertEquals(
         "unverified",
         derivedEvaluator.evaluate(MBSE_WORKSPACE, uncoveredRequirement, "verify_status_fx"));
+    assertDecimal(
+        "1", derivedEvaluator.evaluate(MBSE_WORKSPACE, passRequirement, "verify_result_count_fx"));
+    assertEquals(
+        true, derivedEvaluator.evaluate(MBSE_WORKSPACE, passRequirement, "verify_margin_ok_fx"));
+    assertEquals(
+        false,
+        derivedEvaluator.evaluate(MBSE_WORKSPACE, marginFailedRequirement, "verify_margin_ok_fx"));
 
     assertEquals(3, checkResultCount(MBSE_WORKSPACE, "R-VER-01"));
     assertEquals(4, checkResultCount(MBSE_WORKSPACE, "R-VER-02"));
+    assertEquals(5, checkResultCount(MBSE_WORKSPACE, "R-VER-03"));
+    assertEquals(3, checkResultCount(MBSE_WORKSPACE, "R-VER-04"));
 
     var workspaces =
         Arrays.stream(http.getForEntity(base() + "/views/workspaces", Map[].class).getBody())

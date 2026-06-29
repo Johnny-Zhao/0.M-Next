@@ -520,72 +520,72 @@ class DevSeedRunner implements ApplicationRunner {
         createMbseObject(
             requirementType,
             "requirement-route",
-            requirementFields("REQ-MBSE-001", "系统应按规划航线自主巡检", "航线偏差 <= 2m", 0.2));
+            requirementFields("REQ-MBSE-001", "系统应按规划航线自主巡检", "1.5", 0.2));
     var windRequirement =
         createMbseObject(
             requirementType,
             "requirement-wind",
-            requirementFields("REQ-MBSE-002", "系统应在侧风下保持姿态稳定", "姿态误差 <= 5deg", 0.15));
+            requirementFields("REQ-MBSE-002", "系统应在侧风下保持姿态稳定", "5.0", 0.15));
     var rainRequirement =
         createMbseObject(
             requirementType,
             "requirement-rain",
-            requirementFields("REQ-MBSE-003", "系统应在小雨环境完成巡检", "任务完成率 >= 95%", 0.1));
+            requirementFields("REQ-MBSE-003", "系统应在小雨环境完成巡检", "0.95", 0.1));
     var recoveryRequirement =
         createMbseObject(
             requirementType,
             "requirement-recovery",
-            requirementFields("REQ-MBSE-004", "链路中断后系统应安全返航", "返航触发 <= 3s", 0.25));
+            requirementFields("REQ-MBSE-004", "链路中断后系统应安全返航", "3.0", 0.25));
     var signalRequirement =
         createMbseObject(
             requirementType,
             "requirement-signal",
-            requirementFields("REQ-MBSE-005", "系统应在弱链路下维持航迹上传", "遥测延迟 <= 1s", 0.2));
+            requirementFields("REQ-MBSE-005", "系统应在弱链路下维持航迹上传", "0.8", 0.2));
     var geofenceRequirement =
         createMbseObject(
             requirementType,
             "requirement-geofence",
-            requirementFields("REQ-MBSE-006", "系统不得越过电子围栏", "越界距离 = 0m", 0.0));
+            requirementFields("REQ-MBSE-006", "系统不得越过电子围栏", "0.0", 0.0));
     var batteryRequirement =
         createMbseObject(
             requirementType,
             "requirement-battery",
-            requirementFields("REQ-MBSE-007", "系统应保留返航电量裕度", "剩余电量 >= 25%", 0.1));
+            requirementFields("REQ-MBSE-007", "系统应保留返航电量裕度", "31.0", 0.1));
     var rerouteRequirement =
         createMbseObject(
             requirementType,
             "requirement-reroute",
-            requirementFields("REQ-MBSE-008", "系统应绕开临时禁飞区", "改航时间 <= 5s", 0.2));
+            requirementFields("REQ-MBSE-008", "系统应绕开临时禁飞区", "5.0", 0.2));
     var imageRequirement =
         createMbseObject(
             requirementType,
             "requirement-image",
-            requirementFields("REQ-MBSE-009", "载荷应采集可判读巡检图像", "图像清晰度 >= 0.85", 0.1));
+            requirementFields("REQ-MBSE-009", "载荷应采集可判读巡检图像", "0.9", 0.1));
     var hotspotRequirement =
         createMbseObject(
             requirementType,
             "requirement-hotspot",
-            requirementFields("REQ-MBSE-010", "系统应识别热异常点", "识别召回率 >= 90%", 0.1));
+            requirementFields("REQ-MBSE-010", "系统应识别热异常点", "0.9", 0.1));
     var syncRequirement =
         createMbseObject(
             requirementType,
             "requirement-sync",
-            requirementFields("REQ-MBSE-011", "图像与遥测应时间同步", "时间偏差 <= 200ms", 0.15));
+            requirementFields("REQ-MBSE-011", "图像与遥测应时间同步", "0.2", 0.15));
     var returnRequirement =
         createMbseObject(
             requirementType,
             "requirement-return",
-            requirementFields("REQ-MBSE-012", "失联后应自动进入返航模式", "进入返航 <= 3s", 0.25));
+            requirementFields("REQ-MBSE-012", "失联后应自动进入返航模式", "2.5", 0.25));
     var landingRequirement =
         createMbseObject(
             requirementType,
             "requirement-landing",
-            requirementFields("REQ-MBSE-013", "返航后应安全降落", "落点误差 <= 1.5m", 0.2));
+            requirementFields("REQ-MBSE-013", "返航后应安全降落", "1.5", 0.2));
     var reportRequirement =
         createMbseObject(
             requirementType,
             "requirement-report",
-            requirementFields("REQ-MBSE-014", "任务结束后应生成验证摘要", "报告生成 <= 60s", 0.15));
+            requirementFields("REQ-MBSE-014", "任务结束后应生成验证摘要", "60.0", 0.15));
 
     relateMbse(derivesType, navigation, routeRequirement, "navigation-derives-route");
     relateMbse(derivesType, navigation, windRequirement, "navigation-derives-wind");
@@ -702,12 +702,17 @@ class DevSeedRunner implements ApplicationRunner {
       String templateCode,
       String keySuffix,
       Map<String, Object> fields) {
+    var idempotencyKey = key(templateCode, "create-" + keySuffix);
+    var existingObjectId = createdObjectId(workspaceId, idempotencyKey);
+    if (existingObjectId != null) {
+      return existingObjectId;
+    }
     var result =
         commands.createObject(
             new CreateObjectCommand(
                 workspaceId,
                 UUID.randomUUID(),
-                key(templateCode, "create-" + keySuffix),
+                idempotencyKey,
                 objectTypeId,
                 fields,
                 new SourceInfo("manual", "dev-seed"),
@@ -862,6 +867,30 @@ class DevSeedRunner implements ApplicationRunner {
       }
     }
     throw new IllegalStateException("CreateObject did not emit ObjectCreated");
+  }
+
+  private UUID createdObjectId(UUID workspaceId, String idempotencyKey) {
+    var eventIds =
+        jdbc.query(
+            """
+            SELECT jsonb_array_elements_text(result_snapshot->'events')
+            FROM command_log
+            WHERE workspace_id = ? AND idempotency_key = ? AND command_type = 'CreateObject'
+            """,
+            (rows, ignored) -> rows.getString(1),
+            workspaceId,
+            idempotencyKey);
+    for (var eventId : eventIds) {
+      var objectId =
+          jdbc.query(
+              "SELECT payload->'after'->>'objectId' FROM event_outbox WHERE id = ?",
+              rows -> rows.next() ? rows.getString(1) : null,
+              eventId);
+      if (objectId != null) {
+        return UUID.fromString(objectId);
+      }
+    }
+    return null;
   }
 
   private void applyEvents(CommandResult result) {
