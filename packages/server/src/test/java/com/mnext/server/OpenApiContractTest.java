@@ -37,6 +37,7 @@ class OpenApiContractTest {
   @MockitoBean LineageQueryRepository lineageQueries;
   @MockitoBean TransformationRepository transformations;
   @MockitoBean ReusableAssemblyRepository reusableAssemblies;
+  @MockitoBean VerificationCoverageRepository verificationCoverage;
   @MockitoBean WorkspaceAuthorizer authorizer;
   @MockitoBean WorkspaceQueryRepository workspaces;
   @Autowired MockMvc http;
@@ -78,6 +79,7 @@ class OpenApiContractTest {
             "lineage",
             "mapping-profiles",
             "reusable-assemblies",
+            "verification-coverage",
             "mapping~1correspondences",
             "mapping~1correspondences~1{correspondenceId}~1coverage",
             "check-results")) {

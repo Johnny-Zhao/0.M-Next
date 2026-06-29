@@ -36,6 +36,7 @@ public class ViewQueryController {
   private final WorkspaceQueryRepository workspaces;
   private final TransformationRepository transformations;
   private final ReusableAssemblyRepository reusableAssemblies;
+  private final VerificationCoverageRepository verificationCoverage;
 
   public ViewQueryController(
       ReadModelRepository repository,
@@ -48,7 +49,8 @@ public class ViewQueryController {
       WorkspaceAuthorizer authorizer,
       WorkspaceQueryRepository workspaces,
       TransformationRepository transformations,
-      ReusableAssemblyRepository reusableAssemblies) {
+      ReusableAssemblyRepository reusableAssemblies,
+      VerificationCoverageRepository verificationCoverage) {
     this.repository = repository;
     this.checkResults = checkResults;
     this.derivedEvaluator = derivedEvaluator;
@@ -60,6 +62,7 @@ public class ViewQueryController {
     this.workspaces = workspaces;
     this.transformations = transformations;
     this.reusableAssemblies = reusableAssemblies;
+    this.verificationCoverage = verificationCoverage;
   }
 
   @GetMapping("/views/workspaces")
@@ -266,6 +269,20 @@ public class ViewQueryController {
       throw new IllegalArgumentException("page 必须非负且 size 必须为 1..50");
     }
     return repository.mappingCoverage(workspaceId, correspondenceId, page, size);
+  }
+
+  @GetMapping("/workspaces/{workspaceId}/views/verification-coverage")
+  public VerificationCoverageView verificationCoverage(
+      @PathVariable("workspaceId") UUID workspaceId,
+      @RequestParam(value = "scope", required = false) String scope,
+      @RequestParam(value = "page", defaultValue = "0") int page,
+      @RequestParam(value = "size", defaultValue = "30") int size) {
+    authorize(workspaceId);
+    if (scope != null && scope.isBlank()) throw new IllegalArgumentException("scope 不能为空白");
+    if (page < 0 || size < 1 || size > 100) {
+      throw new IllegalArgumentException("page 必须非负且 size 必须为 1..100");
+    }
+    return verificationCoverage.coverage(workspaceId, page, size);
   }
 
   @GetMapping("/workspaces/{workspaceId}/views/recommendations")

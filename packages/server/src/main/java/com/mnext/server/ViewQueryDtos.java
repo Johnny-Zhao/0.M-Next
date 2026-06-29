@@ -113,6 +113,12 @@ record MappingCoverageItemView(
 record MappingCoveragePageView(
     List<MappingCoverageItemView> items, int page, int pageSize, long total) {}
 
+record VerificationCoverageView(
+    long verified, long unverified, long failed, long total, PageView<VerificationGapView> gaps) {}
+
+record VerificationGapView(
+    UUID requirementId, String code, String text, String status, String reason) {}
+
 record MappingProfileView(
     String code,
     String name,

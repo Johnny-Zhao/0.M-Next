@@ -117,6 +117,21 @@ class DevSeedRunnerIntegrationTest {
     assertEquals(5, checkResultCount(MBSE_WORKSPACE, "R-VER-03"));
     assertEquals(3, checkResultCount(MBSE_WORKSPACE, "R-VER-04"));
 
+    var coverage =
+        http.getForEntity(
+                base()
+                    + "/workspaces/"
+                    + MBSE_WORKSPACE
+                    + "/views/verification-coverage?page=0&size=20",
+                Map.class)
+            .getBody();
+    assertEquals(5, ((Number) coverage.get("verified")).intValue());
+    assertEquals(5, ((Number) coverage.get("unverified")).intValue());
+    assertEquals(4, ((Number) coverage.get("failed")).intValue());
+    assertEquals(14, ((Number) coverage.get("total")).intValue());
+    var gaps = (Map<?, ?>) coverage.get("gaps");
+    assertEquals(9, ((Number) gaps.get("total")).intValue());
+
     var workspaces =
         Arrays.stream(http.getForEntity(base() + "/views/workspaces", Map[].class).getBody())
             .toList();
