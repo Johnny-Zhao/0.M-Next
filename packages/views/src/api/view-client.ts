@@ -305,6 +305,31 @@ export interface MappingCoveragePage {
   readonly total: number;
 }
 
+export type VerificationCoverageStatus = "verified" | "unverified" | "failed";
+
+export interface VerificationGap {
+  readonly requirementId: string;
+  readonly code: string;
+  readonly text: string;
+  readonly status: VerificationCoverageStatus;
+  readonly reason: string;
+}
+
+export interface VerificationGapPage {
+  readonly items: readonly VerificationGap[];
+  readonly page: number;
+  readonly pageSize: number;
+  readonly total: number;
+}
+
+export interface VerificationCoverage {
+  readonly verified: number;
+  readonly unverified: number;
+  readonly failed: number;
+  readonly total: number;
+  readonly gaps: VerificationGapPage;
+}
+
 export interface TemplateTypeOverview {
   readonly code: string;
   readonly name: string;
@@ -861,6 +886,22 @@ export class ViewClient {
     });
     return this.get(
       `/workspaces/${workspaceId}/views/mapping/correspondences/${correspondenceId}/coverage?${query}`,
+    );
+  }
+
+  verificationCoverage(
+    workspaceId: string,
+    page = 0,
+    size = 30,
+  ): Promise<VerificationCoverage> {
+    if (page < 0 || size < 1 || size > 100) {
+      throw new Error(
+        "verification coverage page must be non-negative and size 1..100",
+      );
+    }
+    const query = new URLSearchParams({ page: `${page}`, size: `${size}` });
+    return this.get(
+      `/workspaces/${workspaceId}/views/verification-coverage?${query}`,
     );
   }
 

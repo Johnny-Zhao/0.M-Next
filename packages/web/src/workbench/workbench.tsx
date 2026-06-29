@@ -47,6 +47,7 @@ import { SnapshotPanel } from "./snapshot-panel";
 import { TablePanel } from "./table-panel";
 import { TreePanel } from "./tree-panel";
 import { ValidatePanel } from "./validate-panel";
+import { VerificationDashboardPanel } from "./verification-dashboard-panel";
 
 export type WorkbenchPanelId =
   | "diagram"
@@ -58,6 +59,7 @@ export type WorkbenchPanelId =
   | "tree"
   | "inspector"
   | "validate"
+  | "verification"
   | "ai"
   | "review"
   | "assembly"
@@ -80,6 +82,7 @@ export const workbenchPanelDefinitions: readonly WorkbenchPanelDefinition[] = [
   { id: "tree", title: "模型树", component: "tree" },
   { id: "inspector", title: "属性/校验", component: "inspector" },
   { id: "validate", title: "校验", component: "validate" },
+  { id: "verification", title: "验证仪表", component: "verification" },
   { id: "ai", title: "AI 助手", component: "ai" },
   { id: "review", title: "批注", component: "review" },
   { id: "assembly", title: "装配目录", component: "assembly" },
@@ -188,6 +191,7 @@ const dockviewComponents: Record<
   tree: () => <TreePanel />,
   inspector: () => <InspectorPanel />,
   validate: () => <ValidatePanel />,
+  verification: () => <VerificationDashboardPanel />,
   ai: () => <AiPanel />,
   review: () => <ReviewPanel />,
   assembly: () => <AssemblyCatalogPanel />,
