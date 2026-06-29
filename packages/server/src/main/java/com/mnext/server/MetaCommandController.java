@@ -35,6 +35,7 @@ public class MetaCommandController {
   private final MetaCommandService commands;
   private final TemplateLifecycleService lifecycle;
   private final DerivedFieldRepository derivedFields;
+  private final ReusableAssemblyRepository reusableAssemblies;
   private final TransformationRepository transformations;
   private final TransformationRunner transformationRunner;
   private final ObjectMapper mapper;
@@ -45,6 +46,7 @@ public class MetaCommandController {
       MetaCommandService commands,
       TemplateLifecycleService lifecycle,
       DerivedFieldRepository derivedFields,
+      ReusableAssemblyRepository reusableAssemblies,
       TransformationRepository transformations,
       TransformationRunner transformationRunner,
       ObjectMapper mapper,
@@ -52,6 +54,7 @@ public class MetaCommandController {
     this.commands = commands;
     this.lifecycle = lifecycle;
     this.derivedFields = derivedFields;
+    this.reusableAssemblies = reusableAssemblies;
     this.transformations = transformations;
     this.transformationRunner = transformationRunner;
     this.mapper = mapper;
@@ -63,7 +66,7 @@ public class MetaCommandController {
       TemplateLifecycleService lifecycle,
       DerivedFieldRepository derivedFields,
       ObjectMapper mapper) {
-    this(commands, lifecycle, derivedFields, null, null, mapper, null);
+    this(commands, lifecycle, derivedFields, null, null, null, mapper, null);
   }
 
   @PostMapping("/workspaces/{workspaceId}/meta-commands")
@@ -98,6 +101,8 @@ public class MetaCommandController {
       case "ApplyTemplateVersion" ->
           lifecycle.applyTemplateVersion(applyTemplateVersion(request), Actor.user(actorId));
       case "DefineDerivedField" -> derivedFields.define(derivedField(request), actorId);
+      case "DefineReusableAssembly" ->
+          reusableAssemblies.define(reusableAssembly(request), actorId);
       case "DefineTransformation" -> transformations.define(transformation(request), actorId);
       case "RunTransformation" ->
           transformationRunner.run(runTransformation(request), Actor.user(actorId));
@@ -277,6 +282,23 @@ public class MetaCommandController {
                     .getTypeFactory()
                     .constructCollectionType(java.util.List.class, RelationMapping.class))
             : java.util.List.of());
+  }
+
+  private DefineReusableAssemblyRequest reusableAssembly(CommandRequest request) {
+    var payload = required(request.payload(), "payload");
+    return new DefineReusableAssemblyRequest(
+        request.workspaceId(),
+        request.correlationId(),
+        request.idempotencyKey(),
+        uuid(payload, "templateVersionId"),
+        text(payload, "name"),
+        payload.has("params")
+            ? mapper.convertValue(
+                payload.get("params"), new com.fasterxml.jackson.core.type.TypeReference<>() {})
+            : Map.of(),
+        mapper.convertValue(
+            required(payload.get("content"), "content"),
+            new com.fasterxml.jackson.core.type.TypeReference<>() {}));
   }
 
   private RunTransformationRequest runTransformation(CommandRequest request) {
