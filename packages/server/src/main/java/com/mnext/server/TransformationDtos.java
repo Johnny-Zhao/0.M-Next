@@ -18,7 +18,11 @@ record RunTransformationRequest(
     UUID workspaceId, UUID correlationId, String idempotencyKey, String transformationCode) {}
 
 record ObjectMapping(
-    String sourceTypeCode, String targetTypeCode, List<FieldMapping> fieldMappings) {}
+    String sourceTypeCode,
+    String targetTypeCode,
+    String cardinality,
+    String direction,
+    List<FieldMapping> fieldMappings) {}
 
 record FieldMapping(String targetFieldCode, String expression) {}
 

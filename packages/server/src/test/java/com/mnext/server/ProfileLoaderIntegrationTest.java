@@ -123,6 +123,108 @@ class ProfileLoaderIntegrationTest {
     assertEquals(0, templateCount(manifest.templateCode()));
   }
 
+  @Test
+  void applyProfileAddsSecondProfileToExistingWorkspace() throws Exception {
+    var first = fixture();
+    var second = profileVariant(first, "profile-loader-second", "profile_loader_second");
+    loader.install(first, Actor.user(ACTOR));
+    loader.install(second, Actor.user(ACTOR));
+
+    var workspace = UUID.randomUUID();
+    assertOk(
+        meta(
+            AUTHOR,
+            instantiate(templateId(first.templateCode()), workspace, "instantiate-base-profile")));
+    var secondTemplate = templateId(second.templateCode());
+    assertOk(meta(workspace, applyProfile(workspace, secondTemplate, 1, "apply-second-profile")));
+    assertOk(
+        meta(workspace, applyProfile(workspace, secondTemplate, 1, "apply-second-profile-again")));
+
+    var secondVersion = templateVersionId(second.templateCode(), 1);
+    assertEquals(2, workspaceProfileCount(workspace));
+    assertEquals(2, objectTypeCount(workspace, "room"));
+    var firstRoomType = objectType(workspace, null, "room");
+    var secondRoomType = objectType(workspace, secondVersion, "room");
+    var firstRoom =
+        createObject(
+            workspace,
+            firstRoomType,
+            "create-first-profile-room",
+            Map.of("name", "base", "base_score", 2));
+    var secondRoom =
+        createObject(
+            workspace,
+            secondRoomType,
+            "create-second-profile-room",
+            Map.of("name", "addon", "base_score", 3));
+
+    assertObjectType(firstRoom, firstRoomType);
+    assertObjectType(secondRoom, secondRoomType);
+    var profiles = workspaceProfiles(workspace);
+    assertEquals(2, profiles.size(), profiles.toString());
+    assertTrue(
+        profiles.stream()
+            .anyMatch(profile -> first.templateCode().equals(profile.get("templateCode"))));
+    assertTrue(
+        profiles.stream()
+            .anyMatch(profile -> second.templateCode().equals(profile.get("templateCode"))));
+  }
+
+  @Test
+  void mappingProfileAddsCrossProfileCorrespondenceAndReadEndpoint() throws Exception {
+    var source = fixture();
+    var target = profileVariant(source, "profile-loader-target", "profile_loader_target");
+    var mapping = mappingProfile(source, target);
+    loader.install(source, Actor.user(ACTOR));
+    loader.install(target, Actor.user(ACTOR));
+    loader.install(mapping, Actor.user(ACTOR));
+
+    var workspace = UUID.randomUUID();
+    assertOk(
+        meta(
+            AUTHOR,
+            instantiate(templateId(source.templateCode()), workspace, "instantiate-source")));
+    assertOk(
+        meta(
+            workspace,
+            applyProfile(workspace, templateId(target.templateCode()), 1, "apply-target")));
+    assertOk(
+        meta(
+            workspace,
+            applyProfile(workspace, templateId(mapping.templateCode()), 1, "apply-mapping")));
+
+    var targetVersion = templateVersionId(target.templateCode(), 1);
+    var sourceRoom = objectType(workspace, null, "room");
+    var targetFixture = objectType(workspace, targetVersion, "fixture");
+    assertEquals("correspondence", relationKind(workspace, "maps_fixture"));
+    assertEndpoints(workspace, "maps_fixture", sourceRoom, targetFixture);
+    assertRejectsDomainCrossProfileRelation(workspace, sourceRoom, targetFixture);
+
+    var room =
+        createObject(
+            workspace,
+            sourceRoom,
+            "create-mapping-room",
+            Map.of("name", "source", "base_score", 3));
+    var fixture =
+        createObject(
+            workspace,
+            targetFixture,
+            "create-mapping-fixture",
+            Map.of("name", "target", "load", 9));
+    applyEvents(
+        command(
+            workspace,
+            createRelation(workspace, relationType(workspace, "maps_fixture"), room, fixture)));
+    assertOk(meta(workspace, defineMapping(workspace, mapping.templateCode())));
+
+    var definitions = mappingDefinitions(workspace);
+    assertEquals(1, definitions.size(), definitions.toString());
+    assertEquals("maps_fixture", definitions.getFirst().get("correspondenceRelationCode"));
+    assertEquals("one_to_one", firstObjectMapping(definitions).get("cardinality"));
+    assertEquals("source_to_target", firstObjectMapping(definitions).get("direction"));
+  }
+
   private ProfileManifest fixture() throws Exception {
     var resource = new ClassPathResource("profile-loader/minimal-profile.json");
     return mapper.readValue(resource.getInputStream(), ProfileManifest.class);
@@ -135,12 +237,156 @@ class ProfileLoaderIntegrationTest {
         "Bad Profile",
         manifest.version(),
         manifest.templateCode() + "_bad",
+        "domain",
+        null,
+        null,
         manifest.valueTypes(),
         manifest.objectTypes(),
         List.of(new ProfileManifest.Field("missing", "oops", "Oops", "string", null, true, null)),
         manifest.relations(),
         manifest.derived(),
         manifest.rules());
+  }
+
+  private ProfileManifest profileVariant(ProfileManifest manifest, String id, String templateCode) {
+    return new ProfileManifest(
+        id,
+        "Profile Loader Second",
+        manifest.version(),
+        templateCode,
+        "domain",
+        null,
+        null,
+        manifest.valueTypes(),
+        manifest.objectTypes(),
+        manifest.fields(),
+        manifest.relations(),
+        manifest.derived(),
+        manifest.rulesOrEmpty().stream()
+            .map(
+                rule ->
+                    new ProfileManifest.Rule(
+                        templateCode + "_" + rule.code(),
+                        rule.objectType(),
+                        rule.field(),
+                        rule.severity(),
+                        rule.when(),
+                        rule.message(),
+                        rule.impact(),
+                        rule.suggest(),
+                        rule.fix(),
+                        rule.lightweight()))
+            .toList());
+  }
+
+  private ProfileManifest mappingProfile(ProfileManifest source, ProfileManifest target) {
+    return new ProfileManifest(
+        "profile-loader-mapping",
+        "Profile Loader Mapping",
+        "1.0.0",
+        "profile_loader_mapping",
+        "mapping",
+        source.templateCode(),
+        target.templateCode(),
+        List.of(),
+        List.of(),
+        List.of(),
+        List.of(
+            new ProfileManifest.Relation(
+                "maps_fixture",
+                "Maps Fixture",
+                "room",
+                "fixture",
+                "directed",
+                "one_to_one",
+                "weak",
+                false,
+                "correspondence")),
+        List.of(),
+        List.of());
+  }
+
+  private Map<String, Object> defineMapping(UUID workspace, String mappingTemplateCode) {
+    return metaCommand(
+        "DefineTransformation",
+        workspace,
+        "define-cross-profile-mapping",
+        Map.of(
+            "templateVersionId",
+            templateVersionId(mappingTemplateCode, 1),
+            "code",
+            "room_to_fixture",
+            "name",
+            "Room to Fixture",
+            "correspondenceRelationCode",
+            "maps_fixture",
+            "objectMappings",
+            List.of(mappingObject()),
+            "relationMappings",
+            List.of()));
+  }
+
+  private Map<String, Object> mappingObject() {
+    return Map.of(
+        "sourceTypeCode",
+        "room",
+        "targetTypeCode",
+        "fixture",
+        "cardinality",
+        "one_to_one",
+        "direction",
+        "source_to_target",
+        "fieldMappings",
+        List.of(Map.of("targetFieldCode", "name", "expression", "field('name')")));
+  }
+
+  private void assertRejectsDomainCrossProfileRelation(
+      UUID workspace, UUID sourceType, UUID targetType) {
+    var templateVersionId = draftTemplateVersion(workspace, "cross_check_" + shortId(workspace));
+    var response =
+        meta(
+            workspace,
+            metaCommand(
+                "DefineRelationType",
+                workspace,
+                "define-bad-domain-cross-profile",
+                relationPayload(templateVersionId, sourceType, targetType)));
+    assertEquals(400, response.getStatusCode().value(), String.valueOf(response.getBody()));
+    assertEquals("KERNEL-400-SCHEMA-INVALID", errorCode(response));
+  }
+
+  private UUID draftTemplateVersion(UUID workspace, String code) {
+    var response =
+        meta(
+            workspace,
+            metaCommand(
+                "CreateTemplate",
+                workspace,
+                "create-" + code,
+                Map.of("code", code, "name", "Cross Check")));
+    assertOk(response);
+    return detailUuid(response.getBody(), "templateVersionId");
+  }
+
+  private Map<String, Object> relationPayload(
+      UUID templateVersionId, UUID sourceType, UUID targetType) {
+    return Map.of(
+        "templateVersionId",
+        templateVersionId,
+        "code",
+        "bad_cross",
+        "name",
+        "Bad Cross",
+        "sourceTypeId",
+        sourceType,
+        "targetTypeId",
+        targetType,
+        "direction",
+        "directed",
+        "cardinality",
+        "one_to_one",
+        "semantics",
+        "weak");
   }
 
   private Map<String, Object> instantiate(UUID template, UUID newWorkspace, String key) {
@@ -157,6 +403,11 @@ class ProfileLoaderIntegrationTest {
             newWorkspace,
             "workspaceName",
             "Profile Loader Project"));
+  }
+
+  private Map<String, Object> applyProfile(UUID workspace, UUID template, int version, String key) {
+    return metaCommand(
+        "ApplyProfile", workspace, key, Map.of("templateId", template, "version", version));
   }
 
   private Map<String, Object> createObjectCommand(
@@ -259,6 +510,20 @@ class ProfileLoaderIntegrationTest {
     throw new IllegalStateException("CreateObject did not emit ObjectCreated");
   }
 
+  private UUID detailUuid(Map<?, ?> body, String key) {
+    var prefix = key + "=";
+    for (var event : (List<?>) body.get("events")) {
+      if (event instanceof String text && text.startsWith(prefix)) {
+        return UUID.fromString(text.substring(prefix.length()));
+      }
+    }
+    throw new IllegalStateException("命令结果缺少 " + key);
+  }
+
+  private String shortId(UUID value) {
+    return value.toString().substring(0, 8);
+  }
+
   private void applyEvents(ResponseEntity<Map> response) {
     assertOk(response);
     for (var eventId : (List<?>) response.getBody().get("events")) {
@@ -335,6 +600,100 @@ class ProfileLoaderIntegrationTest {
         UUID.class,
         workspace,
         code);
+  }
+
+  private UUID objectType(UUID workspace, UUID templateVersionId, String code) {
+    return jdbc.queryForObject(
+        """
+        SELECT id FROM object_type
+        WHERE workspace_id = ?
+          AND template_version_id IS NOT DISTINCT FROM ?
+          AND code = ?
+        """,
+        UUID.class,
+        workspace,
+        templateVersionId,
+        code);
+  }
+
+  private int objectTypeCount(UUID workspace, String code) {
+    return jdbc.queryForObject(
+        "SELECT count(*) FROM object_type WHERE workspace_id = ? AND code = ?",
+        Integer.class,
+        workspace,
+        code);
+  }
+
+  private int workspaceProfileCount(UUID workspace) {
+    return jdbc.queryForObject(
+        "SELECT count(*) FROM workspace_profile WHERE workspace_id = ?", Integer.class, workspace);
+  }
+
+  private UUID templateVersionId(String templateCode, int version) {
+    return jdbc.queryForObject(
+        """
+        SELECT version.id
+        FROM scene_template template
+        JOIN scene_template_version version ON version.template_id = template.id
+        WHERE template.code = ? AND version.version = ?
+        """,
+        UUID.class,
+        templateCode,
+        version);
+  }
+
+  private void assertObjectType(UUID objectId, UUID objectTypeId) {
+    assertEquals(
+        objectTypeId,
+        jdbc.queryForObject(
+            "SELECT object_type_id FROM data_object WHERE id = ?", UUID.class, objectId));
+  }
+
+  private String relationKind(UUID workspace, String code) {
+    return jdbc.queryForObject(
+        "SELECT kind FROM relation_type WHERE workspace_id = ? AND code = ?",
+        String.class,
+        workspace,
+        code);
+  }
+
+  private void assertEndpoints(UUID workspace, String code, UUID sourceType, UUID targetType) {
+    var endpoints =
+        jdbc.queryForMap(
+            """
+            SELECT source_type, target_type FROM relation_type
+            WHERE workspace_id = ? AND code = ?
+            """,
+            workspace,
+            code);
+    assertEquals(sourceType, endpoints.get("source_type"));
+    assertEquals(targetType, endpoints.get("target_type"));
+  }
+
+  @SuppressWarnings("unchecked")
+  private Map<String, Object> firstObjectMapping(List<Map<String, Object>> definitions) {
+    return (Map<String, Object>)
+        ((List<?>) definitions.getFirst().get("objectMappings")).getFirst();
+  }
+
+  @SuppressWarnings("unchecked")
+  private List<Map<String, Object>> workspaceProfiles(UUID workspace) {
+    var rows =
+        http.getForEntity("http://localhost:" + port + "/views/workspaces", Map[].class).getBody();
+    for (var row : rows) {
+      if (workspace.toString().equals(String.valueOf(row.get("workspaceId")))) {
+        return (List<Map<String, Object>>) row.get("profiles");
+      }
+    }
+    return List.of();
+  }
+
+  @SuppressWarnings("unchecked")
+  private List<Map<String, Object>> mappingDefinitions(UUID workspace) {
+    return http.getForEntity(
+            "http://localhost:" + port + "/workspaces/" + workspace + "/views/mapping-profiles",
+            List.class)
+        .getBody();
   }
 
   private UUID relationType(UUID workspace, String code) {

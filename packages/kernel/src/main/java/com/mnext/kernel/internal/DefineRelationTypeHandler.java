@@ -53,6 +53,7 @@ class DefineRelationTypeHandler {
         command.cardinality(),
         command.semantics(),
         command.hierarchical(),
+        relationKind(command),
         actor.id(),
         now);
     return support.commit(
@@ -87,7 +88,8 @@ class DefineRelationTypeHandler {
         || command.targetTypeId() == null
         || !Set.of("directed", "undirected").contains(command.direction())
         || !Set.of("one_to_one", "one_to_many", "many_to_many").contains(command.cardinality())
-        || !Set.of("weak", "strong").contains(command.semantics())) {
+        || !Set.of("weak", "strong").contains(command.semantics())
+        || !Set.of("domain", "correspondence").contains(relationKind(command))) {
       throw CommandErrors.schema("关系类型载荷不符合约束");
     }
     if (!meta.objectTypeExists(command.workspaceId(), command.sourceTypeId())
@@ -117,7 +119,12 @@ class DefineRelationTypeHandler {
   }
 
   private void validateTemplateVersion(DefineRelationTypeCommand command) {
-    if (command.templateVersionId() == null) return;
+    if (command.templateVersionId() == null) {
+      if ("correspondence".equals(relationKind(command))) {
+        throw CommandErrors.schema("correspondence 关系必须属于 mapping profile 模板版本");
+      }
+      return;
+    }
     var status = meta.templateVersionStatus(command.templateVersionId());
     if (status.isEmpty()) throw templateNotFound();
     if ("published".equals(status.get())) throw CommandErrors.templateVersionImmutable();
@@ -125,6 +132,16 @@ class DefineRelationTypeHandler {
         meta.objectTypeTemplateVersion(command.workspaceId(), command.sourceTypeId());
     var targetVersion =
         meta.objectTypeTemplateVersion(command.workspaceId(), command.targetTypeId());
+    if ("correspondence".equals(relationKind(command))) {
+      if (sourceVersion.isEmpty()
+          || targetVersion.isEmpty()
+          || !meta.mappingProfileAllowsEndpoints(
+              command.templateVersionId(), sourceVersion.get(), targetVersion.get())) {
+        throw CommandErrors.schema(
+            "correspondence 关系端点必须来自 mapping profile 声明的 source/target profile");
+      }
+      return;
+    }
     if (sourceVersion.isEmpty()
         || targetVersion.isEmpty()
         || !command.templateVersionId().equals(sourceVersion.get())
@@ -146,7 +163,14 @@ class DefineRelationTypeHandler {
     payload.put("cardinality", command.cardinality());
     payload.put("semantics", command.semantics());
     payload.put("hierarchical", command.hierarchical());
+    payload.put("relationKind", relationKind(command));
     return payload;
+  }
+
+  private String relationKind(DefineRelationTypeCommand command) {
+    return command.relationKind() == null || command.relationKind().isBlank()
+        ? "domain"
+        : command.relationKind();
   }
 
   private boolean validCode(String code) {

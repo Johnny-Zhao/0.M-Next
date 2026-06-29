@@ -35,8 +35,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Component
 public class ProfileLoader {
-  private static final UUID AUTHOR_WORKSPACE =
-      UUID.fromString("11111111-1111-4111-8111-111111111111");
+  static final UUID AUTHOR_WORKSPACE = UUID.fromString("a0000000-0000-4000-8000-000000000000");
   private static final Set<String> SEVERITIES = Set.of("BLOCK", "WARN", "INFO");
 
   private final MetaCommandService commands;
@@ -61,6 +60,7 @@ public class ProfileLoader {
   @Transactional
   public void install(ProfileManifest manifest, Actor actor) {
     validate(manifest);
+    ensureAuthorWorkspace();
     var existing = latestTemplateVersion(manifest.templateCode());
     if (existing != null) {
       if ("published".equals(existing.status())) {
@@ -86,6 +86,7 @@ public class ProfileLoader {
                 manifest.name()),
             actor);
     var versionId = detailUuid(created, "templateVersionId");
+    updateTemplateMetadata(manifest);
     defineValueTypes(manifest, versionId, actor);
     var objectTypeIds = defineObjectTypes(manifest, versionId, actor);
     defineFields(manifest, objectTypeIds, actor);
@@ -100,6 +101,7 @@ public class ProfileLoader {
 
   @Transactional
   public void uninstall(String templateCode, Actor actor) {
+    ensureAuthorWorkspace();
     var published = publishedTemplateVersion(templateCode);
     if (published == null) {
       return;
@@ -186,6 +188,11 @@ public class ProfileLoader {
 
   private void defineRelations(
       ProfileManifest manifest, UUID versionId, Map<String, UUID> objectTypeIds, Actor actor) {
+    var mapping = "mapping".equals(profileKind(manifest));
+    var sourceObjectTypeIds =
+        mapping ? objectTypeIds(publishedTemplateVersion(manifest.sourceProfile())) : objectTypeIds;
+    var targetObjectTypeIds =
+        mapping ? objectTypeIds(publishedTemplateVersion(manifest.targetProfile())) : objectTypeIds;
     for (var relation : manifest.relationsOrEmpty()) {
       commands.defineRelationType(
           new DefineRelationTypeCommand(
@@ -194,13 +201,14 @@ public class ProfileLoader {
               key(manifest, "relation", relation.code()),
               relation.code(),
               relation.name(),
-              objectTypeIds.get(relation.source()),
-              objectTypeIds.get(relation.target()),
+              sourceObjectTypeIds.get(relation.source()),
+              targetObjectTypeIds.get(relation.target()),
               relation.direction(),
               relation.cardinality(),
               relation.semantics(),
               Boolean.TRUE.equals(relation.hierarchical()),
-              versionId),
+              versionId,
+              relationKind(manifest, relation)),
           actor);
     }
   }
@@ -259,6 +267,13 @@ public class ProfileLoader {
         || blank(manifest.templateCode())) {
       throw schema("profile manifest 的 id/name/version/templateCode 必填");
     }
+    if (!Set.of("domain", "mapping").contains(profileKind(manifest))) {
+      throw schema("profile kind 只能为 domain 或 mapping");
+    }
+    if ("mapping".equals(profileKind(manifest))
+        && (blank(manifest.sourceProfile()) || blank(manifest.targetProfile()))) {
+      throw schema("mapping profile 必须声明 sourceProfile 与 targetProfile");
+    }
     unique(
         manifest.valueTypesOrEmpty().stream().map(ProfileManifest.ValueType::code).toList(),
         "valueTypes.code");
@@ -297,8 +312,24 @@ public class ProfileLoader {
       }
     }
     for (var relation : manifest.relationsOrEmpty()) {
-      requireObjectType(objectTypeCodes, relation.source(), "relations.source");
-      requireObjectType(objectTypeCodes, relation.target(), "relations.target");
+      if ("mapping".equals(profileKind(manifest))) {
+        if (!"correspondence".equals(relationKind(manifest, relation))) {
+          throw schema("mapping profile 的 relations.kind 必须为 correspondence: " + relation.code());
+        }
+        requirePublishedProfile(manifest.sourceProfile());
+        requirePublishedProfile(manifest.targetProfile());
+        requireObjectType(
+            objectTypeCodes(publishedTemplateVersion(manifest.sourceProfile())),
+            relation.source(),
+            "relations.source");
+        requireObjectType(
+            objectTypeCodes(publishedTemplateVersion(manifest.targetProfile())),
+            relation.target(),
+            "relations.target");
+      } else {
+        requireObjectType(objectTypeCodes, relation.source(), "relations.source");
+        requireObjectType(objectTypeCodes, relation.target(), "relations.target");
+      }
     }
     for (var derived : manifest.derivedOrEmpty()) {
       requireObjectType(objectTypeCodes, derived.objectType(), "derived.objectType");
@@ -324,6 +355,89 @@ public class ProfileLoader {
         AUTHOR_WORKSPACE,
         templateVersionId,
         code);
+  }
+
+  private Map<String, UUID> objectTypeIds(TemplateVersion version) {
+    if (version == null) throw schema("依赖 profile 尚未发布");
+    var rows =
+        jdbc.query(
+            """
+            SELECT code, id FROM object_type
+            WHERE workspace_id = ? AND template_version_id = ?
+            ORDER BY code
+            """,
+            (row, index) -> Map.entry(row.getString("code"), row.getObject("id", UUID.class)),
+            AUTHOR_WORKSPACE,
+            version.versionId());
+    var values = new LinkedHashMap<String, UUID>();
+    rows.forEach(entry -> values.put(entry.getKey(), entry.getValue()));
+    return values;
+  }
+
+  private Set<String> objectTypeCodes(TemplateVersion version) {
+    return objectTypeIds(version).keySet();
+  }
+
+  private void requirePublishedProfile(String templateCode) {
+    if (publishedTemplateVersion(templateCode) == null) {
+      throw schema("mapping profile 依赖尚未发布: " + templateCode);
+    }
+  }
+
+  private void updateTemplateMetadata(ProfileManifest manifest) {
+    jdbc.update(
+        """
+        UPDATE scene_template
+        SET profile_kind = ?, source_profile_code = ?, target_profile_code = ?
+        WHERE code = ?
+        """,
+        profileKind(manifest),
+        blank(manifest.sourceProfile()) ? null : manifest.sourceProfile(),
+        blank(manifest.targetProfile()) ? null : manifest.targetProfile(),
+        manifest.templateCode());
+  }
+
+  private String relationKind(ProfileManifest manifest, ProfileManifest.Relation relation) {
+    if (!blank(relation.kind())) return relation.kind();
+    return "mapping".equals(profileKind(manifest)) ? "correspondence" : "domain";
+  }
+
+  private String profileKind(ProfileManifest manifest) {
+    return blank(manifest.kind()) ? "domain" : manifest.kind();
+  }
+
+  private void ensureAuthorWorkspace() {
+    jdbc.update(
+        """
+        INSERT INTO workspace (id, name, status)
+        VALUES (?, 'Profile Author Workspace', 'ACTIVE')
+        ON CONFLICT (id) DO NOTHING
+        """,
+        AUTHOR_WORKSPACE);
+    jdbc.update(
+        """
+        INSERT INTO value_type (
+          id, workspace_id, template_version_id, code, name, base_primitive,
+          parent_value_type_id, constraints, published, version
+        )
+        SELECT md5(?::text || ':value_type:' || root.code)::uuid,
+               ?, NULL, root.code, root.name, root.code, NULL, '{}'::jsonb, TRUE, 1
+        FROM (
+          VALUES
+            ('string', 'String'), ('text', 'Text'), ('integer', 'Integer'), ('number', 'Number'),
+            ('boolean', 'Boolean'), ('date', 'Date'), ('datetime', 'Datetime'), ('enum', 'Enum'),
+            ('ref', 'Reference'), ('json', 'Json')
+        ) AS root(code, name)
+        WHERE NOT EXISTS (
+          SELECT 1 FROM value_type existing
+          WHERE existing.workspace_id = ?
+            AND existing.template_version_id IS NULL
+            AND existing.code = root.code
+        )
+        """,
+        AUTHOR_WORKSPACE.toString(),
+        AUTHOR_WORKSPACE,
+        AUTHOR_WORKSPACE);
   }
 
   private TemplateVersion latestTemplateVersion(String templateCode) {

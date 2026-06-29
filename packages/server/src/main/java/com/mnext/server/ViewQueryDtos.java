@@ -10,8 +10,15 @@ record FieldDefinitionView(
 
 record ObjectTypeView(UUID id, String code, String name, List<FieldDefinitionView> fields) {}
 
+record WorkspaceProfileView(
+    UUID templateVersionId, String templateCode, String name, int version, Instant appliedAt) {}
+
 record WorkspaceSummaryView(
-    UUID workspaceId, String name, String templateCode, Instant updatedAt) {}
+    UUID workspaceId,
+    String name,
+    String templateCode,
+    Instant updatedAt,
+    List<WorkspaceProfileView> profiles) {}
 
 record ObjectView(
     UUID objectId,
@@ -60,6 +67,17 @@ record CorrespondenceView(
     String objectType,
     Map<String, Object> fields,
     String direction) {}
+
+record MappingProfileView(
+    String code,
+    String name,
+    String correspondenceRelationCode,
+    String sourceProfile,
+    String targetProfile,
+    String sourceTypeCode,
+    String targetTypeCode,
+    List<ObjectMapping> objectMappings,
+    List<RelationMapping> relationMappings) {}
 
 record RankedCandidate(
     UUID candidateId,

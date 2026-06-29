@@ -279,6 +279,36 @@ export interface TemplateCatalogItem {
   readonly typeOverviewTruncated: boolean;
 }
 
+export interface MappingField {
+  readonly targetFieldCode: string;
+  readonly expression: string;
+}
+
+export interface MappingObject {
+  readonly sourceTypeCode: string;
+  readonly targetTypeCode: string;
+  readonly cardinality: string | null;
+  readonly direction: string | null;
+  readonly fieldMappings: readonly MappingField[];
+}
+
+export interface MappingRelation {
+  readonly sourceRelationCode: string;
+  readonly targetRelationCode: string;
+}
+
+export interface MappingProfile {
+  readonly code: string;
+  readonly name: string;
+  readonly correspondenceRelationCode: string;
+  readonly sourceProfile: string | null;
+  readonly targetProfile: string | null;
+  readonly sourceTypeCode: string;
+  readonly targetTypeCode: string;
+  readonly objectMappings: readonly MappingObject[];
+  readonly relationMappings: readonly MappingRelation[];
+}
+
 export interface WorkspaceSummary {
   readonly workspaceId: string;
   readonly name: string;
@@ -469,6 +499,10 @@ export class ViewClient {
 
   workspaces(): Promise<readonly WorkspaceSummary[]> {
     return this.get("/views/workspaces");
+  }
+
+  mappingProfiles(workspaceId: string): Promise<readonly MappingProfile[]> {
+    return this.get(`/workspaces/${workspaceId}/views/mapping-profiles`);
   }
 
   aiChanges(

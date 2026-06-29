@@ -33,8 +33,21 @@ class TemplateRuleCopier {
     }
   }
 
+  void copyForApplyProfile(UUID templateVersionId, UUID workspaceId) {
+    for (var rule : templateRules(templateVersionId)) {
+      if (!ruleExists(workspaceId, rule.ruleCode())) {
+        copyRule(rule, workspaceId, templateVersionId);
+      }
+    }
+  }
+
   private void copyRule(TemplateRule rule, UUID workspaceId) {
-    var scope = resolveScope(workspaceId, rule.objectTypeCode(), rule.fieldCode());
+    copyRule(rule, workspaceId, null);
+  }
+
+  private void copyRule(TemplateRule rule, UUID workspaceId, UUID templateVersionId) {
+    var scope =
+        resolveScope(workspaceId, templateVersionId, rule.objectTypeCode(), rule.fieldCode());
     var now = Timestamp.from(Instant.now());
     jdbc.update(
         """
@@ -83,14 +96,22 @@ class TemplateRuleCopier {
   }
 
   private ScopeIds resolveScope(UUID workspaceId, String objectTypeCode, String fieldCode) {
+    return resolveScope(workspaceId, null, objectTypeCode, fieldCode);
+  }
+
+  private ScopeIds resolveScope(
+      UUID workspaceId, UUID templateVersionId, String objectTypeCode, String fieldCode) {
     var objectTypeId =
         jdbc.query(
             """
             SELECT id FROM object_type
-            WHERE workspace_id = ? AND code = ?
+            WHERE workspace_id = ?
+              AND template_version_id IS NOT DISTINCT FROM ?
+              AND code = ?
             """,
             (row, ignored) -> row.getObject("id", UUID.class),
             workspaceId,
+            templateVersionId,
             objectTypeCode);
     if (objectTypeId.isEmpty()) {
       throw new IllegalStateException("模板规则 scope 对象类型无法在目标空间解析");
