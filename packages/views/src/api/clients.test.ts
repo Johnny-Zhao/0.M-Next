@@ -188,6 +188,45 @@ describe("view and command clients", () => {
     expect(mappings[0]?.objectMappings[0]?.cardinality).toBe("one_to_one");
   });
 
+  it("reads reusable assemblies with optional profile scope", async () => {
+    const fetchFn = vi.fn<FetchFn>(
+      async () =>
+        new Response(
+          JSON.stringify({
+            items: [
+              {
+                assemblyId: "assembly-1",
+                name: "Battery Pack",
+                templateVersionId: "template-version-1",
+                templateCode: "reuse_profile",
+                templateVersion: 1,
+                version: 2,
+                params: { name: "Battery Pack" },
+                objectTypes: ["component"],
+                createdAt: "2026-06-29T00:00:00Z",
+              },
+            ],
+            page: 0,
+            pageSize: 100,
+            total: 1,
+          }),
+        ),
+    );
+
+    const page = await new ViewClient("/api", fetchFn).reusableAssemblies(
+      "ws",
+      "reuse_profile",
+    );
+
+    expect(fetchFn.mock.calls[0]?.[0]).toBe(
+      "/api/workspaces/ws/views/reusable-assemblies?page=0&size=100&profile=reuse_profile",
+    );
+    expect(page.items[0]?.objectTypes).toEqual(["component"]);
+    expect(() =>
+      new ViewClient("/api", fetchFn).reusableAssemblies("ws", null, 0, 101),
+    ).toThrow();
+  });
+
   it("creates outputs with snapshot scope and actor header", async () => {
     const fetchFn = vi.fn<FetchFn>(
       async () =>
@@ -379,6 +418,42 @@ describe("view and command clients", () => {
     });
     expect(request.commandType).toBe("UpdateFields");
     expect(request.payload.fields[0].expectedFieldVersion).toBe(4);
+  });
+
+  it("places reusable assemblies through the assembly command endpoint", async () => {
+    const fetchFn = vi.fn<FetchFn>(
+      async () =>
+        new Response(
+          JSON.stringify({
+            commandId: "cmd-1",
+            status: "COMMITTED",
+            events: [],
+          }),
+        ),
+    );
+    const client = new CommandClient("/api", fetchFn);
+    client.setActorId("alice");
+
+    await client.placeAssembly("ws", "assembly-1", 2, {
+      placementKey: "slot-a",
+      params: { name: "Battery A" },
+    });
+
+    expect(fetchFn.mock.calls[0]?.[0]).toBe(
+      "/api/workspaces/ws/assembly-commands",
+    );
+    expect(fetchFn.mock.calls[0]?.[1]?.headers).toMatchObject({
+      "content-type": "application/json",
+      "X-Actor-Id": "alice",
+    });
+    const request = JSON.parse(String(fetchFn.mock.calls[0]?.[1]?.body));
+    expect(request.commandType).toBe("PlaceAssembly");
+    expect(request.payload).toMatchObject({
+      assemblyId: "assembly-1",
+      version: 2,
+      placementKey: "slot-a",
+      params: { name: "Battery A" },
+    });
   });
 
   it("does not post commands until an actor id is set", async () => {

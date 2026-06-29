@@ -137,6 +137,7 @@ export function WorkbenchShellChrome({
       label: "模型",
       items: [
         { label: "刷新视图", run: onRefreshViews },
+        { label: "装配目录", run: () => onOpenPanel("assembly") },
         { label: "AI 提议", run: () => onOpenPanel("ai") },
         { label: "自动布局", tag: "待接入", disabled: true },
         { label: "新建对象", tag: "待接入", disabled: true },

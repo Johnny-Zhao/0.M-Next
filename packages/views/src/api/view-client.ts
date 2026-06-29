@@ -322,6 +322,25 @@ export interface TemplateCatalogItem {
   readonly typeOverviewTruncated: boolean;
 }
 
+export interface ReusableAssembly {
+  readonly assemblyId: string;
+  readonly name: string;
+  readonly templateVersionId: string;
+  readonly templateCode: string;
+  readonly templateVersion: number;
+  readonly version: number;
+  readonly params: Readonly<Record<string, unknown>>;
+  readonly objectTypes: readonly string[];
+  readonly createdAt: string;
+}
+
+export interface ReusableAssemblyPage {
+  readonly items: readonly ReusableAssembly[];
+  readonly page: number;
+  readonly pageSize: number;
+  readonly total: number;
+}
+
 export interface MappingField {
   readonly targetFieldCode: string;
   readonly expression: string;
@@ -546,6 +565,24 @@ export class ViewClient {
 
   mappingProfiles(workspaceId: string): Promise<readonly MappingProfile[]> {
     return this.get(`/workspaces/${workspaceId}/views/mapping-profiles`);
+  }
+
+  reusableAssemblies(
+    workspaceId: string,
+    profile?: string | null,
+    page = 0,
+    size = 100,
+  ): Promise<ReusableAssemblyPage> {
+    if (page < 0 || size < 1 || size > 100) {
+      throw new Error(
+        "assembly page must be non-negative and size must be 1..100",
+      );
+    }
+    const query = new URLSearchParams({ page: `${page}`, size: `${size}` });
+    if (profile) query.set("profile", profile);
+    return this.get(
+      `/workspaces/${workspaceId}/views/reusable-assemblies?${query}`,
+    );
   }
 
   aiChanges(
