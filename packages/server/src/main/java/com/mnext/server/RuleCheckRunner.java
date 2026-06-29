@@ -5,7 +5,6 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mnext.engines.rules.EvalContext;
 import com.mnext.engines.rules.RuleEvaluator;
-import com.mnext.engines.rules.RuleParser;
 import com.mnext.kernel.api.CommandResult;
 import com.mnext.kernel.api.CommandStatus;
 import java.nio.charset.StandardCharsets;
@@ -27,6 +26,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Component
 class RuleCheckRunner {
+  private static final int MAX_RELATION_PAGE = 200;
   private static final Pattern FIELD_PLACEHOLDER =
       Pattern.compile("\\$\\{field\\('([a-z][a-z0-9_]{0,127})'\\)\\}");
   private final JdbcTemplate jdbc;
@@ -61,7 +61,7 @@ class RuleCheckRunner {
       var values = new LinkedHashMap<String, Object>(object.fields());
       values.put("$objectId", object.objectId());
       for (var rule : applicableRules(request.workspaceId(), object.objectTypeId())) {
-        var expression = RuleParser.parse(rule.whenSrc());
+        var expression = ExpressionLanguageSupport.parse(rule.whenSrc());
         var context = context(request.workspaceId(), object.objectTypeId(), values);
         if (evaluator.evaluate(expression, context)) {
           results.insert(
@@ -273,7 +273,51 @@ class RuleCheckRunner {
       public boolean hasRelation(String type) {
         return relationCount(type) > 0;
       }
+
+      @Override
+      public Iterable<EvalContext> traverse(String relType, String dir) {
+        if (!(objectId instanceof UUID currentObjectId)) return List.of();
+        var contexts = new ArrayList<EvalContext>();
+        for (var object : relatedObjects(workspaceId, currentObjectId, relType, dir)) {
+          var fields = new LinkedHashMap<String, Object>(object.fields());
+          fields.put("$objectId", object.objectId());
+          contexts.add(context(workspaceId, object.objectTypeId(), fields));
+        }
+        return contexts;
+      }
     };
+  }
+
+  private List<ObjectRow> relatedObjects(
+      UUID workspaceId, UUID objectId, String relType, String dir) {
+    var sourceSide = "out".equals(dir);
+    return jdbc.query(
+        """
+        SELECT related.object_id, type.id, related.fields::text
+        FROM rm_relation relation
+        JOIN rm_object related
+          ON related.workspace_id = relation.workspace_id
+         AND related.object_id = CASE WHEN ? THEN relation.target_id ELSE relation.source_id END
+        JOIN object_type type
+          ON type.workspace_id = related.workspace_id
+         AND type.code = related.object_type_code
+        WHERE relation.workspace_id = ?
+          AND relation.relation_type_code = ?
+          AND relation.status = 'ACTIVE'
+          AND CASE WHEN ? THEN relation.source_id = ? ELSE relation.target_id = ? END
+        ORDER BY related.object_id
+        LIMIT ?
+        """,
+        (row, ignored) ->
+            new ObjectRow(
+                row.getObject(1, UUID.class), row.getObject(2, UUID.class), map(row.getString(3))),
+        sourceSide,
+        workspaceId,
+        relType,
+        sourceSide,
+        objectId,
+        objectId,
+        MAX_RELATION_PAGE);
   }
 
   private int directRelationCount(UUID workspaceId, UUID objectId, String relationTypeCode) {

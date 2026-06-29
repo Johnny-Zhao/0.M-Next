@@ -2,6 +2,9 @@ package com.mnext.server;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.mnext.engines.rules.ExpressionTypeChecker;
+import com.mnext.engines.rules.OclParser;
+import com.mnext.engines.rules.RuleSyntaxException;
 import com.mnext.kernel.api.Actor;
 import com.mnext.kernel.api.CommandError;
 import com.mnext.kernel.api.CommandRejectedException;
@@ -226,7 +229,7 @@ public class ProfileLoader {
               derived.code(),
               derived.name(),
               derived.resultType(),
-              derived.derivation()),
+              ExpressionLanguageSupport.encode(derived.derivation(), derived.lang())),
           actor.id());
     }
   }
@@ -242,7 +245,7 @@ public class ProfileLoader {
               rule.code(),
               new RuleScopeRequest(rule.objectType(), rule.field()),
               rule.severity(),
-              rule.when(),
+              ExpressionLanguageSupport.encode(rule.when(), rule.lang()),
               rule.message(),
               rule.impact(),
               rule.suggest(),
@@ -333,9 +336,11 @@ public class ProfileLoader {
     }
     for (var derived : manifest.derivedOrEmpty()) {
       requireObjectType(objectTypeCodes, derived.objectType(), "derived.objectType");
+      validateLanguage(derived.lang(), "derived.lang");
     }
     for (var rule : manifest.rulesOrEmpty()) {
       requireObjectType(objectTypeCodes, rule.objectType(), "rules.objectType");
+      validateLanguage(rule.lang(), "rules.lang");
       if (!SEVERITIES.contains(rule.severity())) {
         throw schema("rules.severity 只能为 BLOCK、WARN 或 INFO: " + rule.code());
       }
@@ -343,6 +348,58 @@ public class ProfileLoader {
         throw schema("rules.field 引用不存在: " + rule.objectType() + "." + rule.field());
       }
     }
+    typeCheckOcl(manifest);
+  }
+
+  private void typeCheckOcl(ProfileManifest manifest) {
+    var model = new ExpressionTypeChecker.Model();
+    var valueTypes = new LinkedHashMap<String, String>();
+    for (var valueType : manifest.valueTypesOrEmpty()) {
+      valueTypes.put(valueType.code(), valueType.basePrimitive());
+    }
+    for (var objectType : manifest.objectTypesOrEmpty()) {
+      model.objectType(objectType.code(), objectType.parentTypeCode());
+    }
+    for (var field : manifest.fieldsOrEmpty()) {
+      model.field(
+          field.objectType(),
+          field.code(),
+          blank(field.dataType()) ? valueTypes.get(field.valueTypeCode()) : field.dataType());
+    }
+    for (var derived : manifest.derivedOrEmpty()) {
+      model.field(derived.objectType(), derived.code(), derived.resultType());
+    }
+    for (var relation : manifest.relationsOrEmpty()) {
+      model.relation(relation.source(), relation.code(), relation.target());
+    }
+    var checker = new ExpressionTypeChecker(model);
+    for (var derived : manifest.derivedOrEmpty()) {
+      if (!"ocl".equals(language(derived.lang()))) continue;
+      try {
+        checker.check(OclParser.parse(derived.derivation()), derived.objectType());
+      } catch (RuleSyntaxException failure) {
+        throw schema("derived OCL 类型校验失败 " + derived.code() + ": " + failure.getMessage());
+      }
+    }
+    for (var rule : manifest.rulesOrEmpty()) {
+      if (!"ocl".equals(language(rule.lang()))) continue;
+      try {
+        checker.requireBoolean(OclParser.parse(rule.when()), rule.objectType());
+      } catch (RuleSyntaxException failure) {
+        throw schema("rules OCL 类型校验失败 " + rule.code() + ": " + failure.getMessage());
+      }
+    }
+  }
+
+  private static void validateLanguage(String lang, String field) {
+    var language = language(lang);
+    if (!"m-expr".equals(language) && !"ocl".equals(language)) {
+      throw schema(field + " 只能为 m-expr 或 ocl");
+    }
+  }
+
+  private static String language(String lang) {
+    return blank(lang) ? "m-expr" : lang;
   }
 
   private UUID objectTypeId(UUID templateVersionId, String code) {

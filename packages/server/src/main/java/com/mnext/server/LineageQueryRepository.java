@@ -9,8 +9,8 @@ import com.mnext.engines.rules.FunctionCall;
 import com.mnext.engines.rules.Literal;
 import com.mnext.engines.rules.Logical;
 import com.mnext.engines.rules.Not;
+import com.mnext.engines.rules.OclIteration;
 import com.mnext.engines.rules.RuleExpression;
-import com.mnext.engines.rules.RuleParser;
 import com.mnext.engines.rules.RuleSyntaxException;
 import com.mnext.engines.rules.Traverse;
 import com.mnext.engines.rules.TraverseDeep;
@@ -346,7 +346,7 @@ class LineageQueryRepository {
 
   private RuleExpression parse(String source, LineageState state) {
     try {
-      return RuleParser.parse(source);
+      return ExpressionLanguageSupport.parse(source);
     } catch (RuleSyntaxException failure) {
       state.markPartial();
       return null;
@@ -387,7 +387,18 @@ class LineageQueryRepository {
       case Traverse traverse -> {}
       case TraverseFrom traverseFrom -> collectReferences(traverseFrom.source(), path, result);
       case TraverseDeep traverseDeep -> collectReferences(traverseDeep.maxDepth(), path, result);
+      case OclIteration iteration -> collectOclIterationReferences(iteration, path, result);
       case Literal literal -> {}
+      default -> {}
+    }
+  }
+
+  private void collectOclIterationReferences(
+      OclIteration iteration, List<RelationStep> path, Set<FieldReference> result) {
+    var iterationPath = pathFor(iteration.source(), path);
+    collectReferences(iteration.source(), path, result);
+    if (iteration.expression() != null) {
+      collectReferences(iteration.expression(), iterationPath, result);
     }
   }
 

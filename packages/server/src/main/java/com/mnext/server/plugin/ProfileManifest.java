@@ -72,7 +72,12 @@ public record ProfileManifest(
       String kind) {}
 
   public record DerivedField(
-      String objectType, String code, String name, String resultType, String derivation) {}
+      String objectType,
+      String code,
+      String name,
+      String resultType,
+      String derivation,
+      String lang) {}
 
   public record Rule(
       String code,
@@ -80,6 +85,7 @@ public record ProfileManifest(
       String field,
       String severity,
       String when,
+      String lang,
       String message,
       JsonNode impact,
       String suggest,

@@ -62,6 +62,25 @@ class DerivationEvaluatorTest {
   }
 
   @Test
+  void evaluatesOclCollectionSubsetEquivalentToMExprAggregates() {
+    var root = node();
+    root.connect("children", node("score", 8, "ready", true, "name", "a"))
+        .connect("children", node("score", 4, "ready", true, "name", "b"))
+        .connect("children", node("score", 6, "ready", false, "name", "c"));
+
+    assertEquals(
+        value("count(traverse('children','out'))", root), valueOcl("self.children->size()", root));
+    assertEquals(
+        value("sum(traverse('children','out'),'score')", root),
+        valueOcl("self.children->collect(c | c.score)->sum()", root));
+    assertTrue(boolOcl("self.children->select(c | c.score >= 6)->size() = 2", root));
+    assertTrue(boolOcl("self.children->reject(c | c.ready)->size() = 1", root));
+    assertTrue(boolOcl("self.children->exists(c | c.ready = false)", root));
+    assertTrue(boolOcl("self.children->forAll(c | c.score >= 4)", root));
+    assertTrue(boolOcl("self.children->collect(c | c.name)->includes('b')", root));
+  }
+
+  @Test
   void evaluatesArithmeticConditionalsAndNestedAggregates() {
     var link = node("bandwidth", 20);
     link.connect("carries", node("load", 9)).connect("carries", node("load", 15));
@@ -122,6 +141,14 @@ class DerivationEvaluatorTest {
 
   private boolean bool(String source, EvalContext context) {
     return evaluator.evaluate(RuleParser.parse(source), context);
+  }
+
+  private Object valueOcl(String source, EvalContext context) {
+    return evaluator.evaluateValue(OclParser.parse(source), context);
+  }
+
+  private boolean boolOcl(String source, EvalContext context) {
+    return evaluator.evaluate(OclParser.parse(source), context);
   }
 
   private void assertDecimal(String expected, Object actual) {

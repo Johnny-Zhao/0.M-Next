@@ -6,7 +6,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mnext.engines.rules.EvalContext;
 import com.mnext.engines.rules.RuleEvalLimitException;
 import com.mnext.engines.rules.RuleEvaluator;
-import com.mnext.engines.rules.RuleParser;
 import com.mnext.engines.rules.RuleSyntaxException;
 import com.mnext.kernel.api.CommandError;
 import com.mnext.kernel.api.CommandRejectedException;
@@ -67,7 +66,7 @@ public class DerivedEvaluator {
       return null;
     }
     try {
-      var expression = RuleParser.parse(definition.derivation());
+      var expression = ExpressionLanguageSupport.parse(definition.derivation());
       var value =
           evaluator.evaluateValue(
               expression,
