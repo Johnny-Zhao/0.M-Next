@@ -2,10 +2,12 @@ package com.mnext.server;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -81,13 +83,15 @@ class SimulationIntegrationTest {
 
     assertEquals("QUEUED", first.get("status"));
     assertEquals(1, runner.drain());
-    var completed = get(WORKSPACE, UUID.fromString((String) first.get("runId")));
+    var runId = UUID.fromString((String) first.get("runId"));
+    var completed = get(WORKSPACE, runId);
     assertEquals("COMPLETED", completed.get("status"));
     assertEquals(64, ((String) completed.get("resultHash")).length());
     assertEquals("sim-user", completed.get("createdBy"));
     assertNotNull(completed.get("startedAt"));
     assertNotNull(completed.get("completedAt"));
     assertEquals(1, ((Map<?, ?>) completed.get("result")).get("objectCount"));
+    assertEquals(0, countSeries(runId));
 
     var second =
         create(
@@ -105,6 +109,52 @@ class SimulationIntegrationTest {
     assertEquals(completed.get("resultHash"), secondCompleted.get("resultHash"));
     assertEquals(completed.get("configHash"), secondCompleted.get("configHash"));
     assertEquals(2, list(WORKSPACE));
+  }
+
+  @Test
+  void completedRunPersistsSeriesAndViewEndpointsPageDownsampledPoints() {
+    var snapshot = snapshots.capture(WORKSPACE, null, "author");
+    var run = create(WORKSPACE, Map.of("snapshotId", snapshot.snapshotId(), "engineId", "echo"));
+    var runId = UUID.fromString((String) run.get("runId"));
+
+    runs.start(runId);
+    runs.complete(
+        runId,
+        Map.of(
+            "series",
+            List.of(
+                point(OBJECT, "temperature", 0, 20.0d),
+                point(OBJECT, "temperature", 10, 21.0d),
+                point(OBJECT, "temperature", 20, 22.0d),
+                point(OBJECT, "temperature", 30, 23.0d),
+                point(OBJECT, "state", 30, Map.of("mode", "safe")))));
+
+    assertEquals(5, countSeries(runId));
+    var runsPage = getView("/views/sim-runs?size=10");
+    assertEquals(1, ((List<?>) runsPage.get("items")).size());
+    var summary = (Map<?, ?>) ((List<?>) runsPage.get("items")).getFirst();
+    assertEquals(runId.toString(), summary.get("runId"));
+    assertNull(summary.get("result"));
+
+    var series =
+        getView(
+            "/views/sim-runs/"
+                + runId
+                + "/series?object="
+                + OBJECT
+                + "&field=temperature&from=0&to=30&downsample=2&page=0&size=2");
+    assertEquals(2, series.get("total"));
+    var items = (List<?>) series.get("items");
+    assertEquals(2, items.size());
+    assertEquals(0.0d, ((Number) ((Map<?, ?>) items.get(0)).get("t")).doubleValue());
+    assertEquals(20.0d, ((Number) ((Map<?, ?>) items.get(0)).get("value")).doubleValue());
+    assertEquals(20.0d, ((Number) ((Map<?, ?>) items.get(1)).get("t")).doubleValue());
+    assertEquals(22.0d, ((Number) ((Map<?, ?>) items.get(1)).get("value")).doubleValue());
+
+    var state = getView("/views/sim-runs/" + runId + "/series?field=state");
+    var statePoint = (Map<?, ?>) ((List<?>) state.get("items")).getFirst();
+    assertNull(statePoint.get("value"));
+    assertEquals("safe", ((Map<?, ?>) statePoint.get("valueJson")).get("mode"));
   }
 
   @Test
@@ -188,6 +238,30 @@ class SimulationIntegrationTest {
     var response = http.getForEntity(base(workspace) + "/simulations?size=50", Map.class);
     assertEquals(200, response.getStatusCode().value(), String.valueOf(response.getBody()));
     return ((java.util.List<?>) response.getBody().get("items")).size();
+  }
+
+  private int countSeries(UUID runId) {
+    return jdbc.queryForObject(
+        "SELECT count(*) FROM sim_result_series WHERE run_id = ?", Integer.class, runId);
+  }
+
+  @SuppressWarnings("unchecked")
+  private Map<String, Object> getView(String path) {
+    var headers = new HttpHeaders();
+    headers.set("X-Actor-Id", "sim-user");
+    var response =
+        http.exchange(
+            base(WORKSPACE) + path,
+            org.springframework.http.HttpMethod.GET,
+            new HttpEntity<>(headers),
+            Map.class);
+    assertEquals(200, response.getStatusCode().value(), String.valueOf(response.getBody()));
+    return response.getBody();
+  }
+
+  private Map<String, Object> point(UUID objectId, String fieldCode, double time, Object value) {
+    return Map.of(
+        "objectId", objectId.toString(), "fieldCode", fieldCode, "t", time, "value", value);
   }
 
   private String errorCode(org.springframework.http.ResponseEntity<Map> response) {
