@@ -375,7 +375,20 @@ class RelationCommandIntegrationTest {
             null),
         Actor.user("creator"));
     return jdbc.queryForObject(
-        "SELECT id FROM data_object ORDER BY created_at DESC LIMIT 1", UUID.class);
+        """
+        SELECT obj.id
+        FROM data_object obj
+        JOIN data_field_value field_value ON field_value.object_id = obj.id
+        JOIN field_def field ON field.id = field_value.field_def_id
+        WHERE obj.workspace_id = ?
+          AND obj.object_type_id = ?
+          AND field.code = 'name'
+          AND field_value.value #>> '{}' = ?
+        """,
+        UUID.class,
+        WORKSPACE,
+        OBJECT_TYPE,
+        key);
   }
 
   private int count(String table) {

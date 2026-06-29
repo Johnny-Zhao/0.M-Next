@@ -72,7 +72,8 @@ class RuleDefProfileUniqueMigrationIntegrationTest {
     var workspace = UUID.randomUUID();
     var version = UUID.randomUUID();
     var objectType = UUID.randomUUID();
-    insertProfileSkeleton(jdbc, workspace, version, UUID.randomUUID(), objectType, UUID.randomUUID());
+    insertProfileSkeleton(
+        jdbc, workspace, version, UUID.randomUUID(), objectType, UUID.randomUUID());
     insertRule(jdbc, workspace, version, objectType, "profile_rule", UUID.randomUUID());
     jdbc.update("ALTER TABLE rule_def DROP CONSTRAINT rule_def_workspace_id_rule_code_key");
     insertRule(jdbc, workspace, version, objectType, "profile_rule", UUID.randomUUID());

@@ -34,9 +34,12 @@ class DevSeedRunner implements ApplicationRunner {
       UUID.fromString("11111111-1111-4111-8111-111111111111");
   private static final UUID TECHNICAL_WORKSPACE =
       UUID.fromString("22222222-2222-4222-8222-222222222222");
+  private static final UUID MBSE_WORKSPACE =
+      UUID.fromString("33333333-3333-4333-8333-333333333333");
   private static final String AUTHOR = ProfileLoader.AUTHOR_WORKSPACE.toString();
   private static final String INTERIOR_TEMPLATE_CODE = "interior_design";
   private static final String TECHNICAL_TEMPLATE_CODE = "technical_proposal";
+  private static final String MBSE_TEMPLATE_CODE = "mbse_verification";
 
   private final ProfileLoader profileLoader;
   private final TemplateLifecycleService lifecycle;
@@ -78,17 +81,26 @@ class DevSeedRunner implements ApplicationRunner {
     if (!technicalProposalExists()) {
       seedTechnicalProposalObjects();
     }
+    var mbseManifest = mbseManifest();
+    profileLoader.install(mbseManifest, actor);
+    ensureDemoWorkspace(mbseManifest, actor, MBSE_WORKSPACE, "MBSE Demo");
+    if (!mbseMissionExists()) {
+      seedMbseObjects();
+    }
   }
 
   @EventListener(ApplicationReadyEvent.class)
   void runChecksAfterReadModelReady() throws InterruptedException {
     waitForReadModelRooms();
     waitForReadModelTechnicalModules();
+    waitForReadModelMbseRequirements();
     runRoomRuleChecks();
     runTechnicalRuleChecks();
+    runMbseRuleChecks();
     LOG.info("DEV SEED: interior-design installed, demo workspace {} ready", DEMO_WORKSPACE);
     LOG.info(
         "DEV SEED: technical-proposal installed, demo workspace {} ready", TECHNICAL_WORKSPACE);
+    LOG.info("DEV SEED: mbse installed, demo workspace {} ready", MBSE_WORKSPACE);
   }
 
   private ProfileManifest interiorManifest() throws Exception {
@@ -97,6 +109,10 @@ class DevSeedRunner implements ApplicationRunner {
 
   private ProfileManifest technicalManifest() throws Exception {
     return manifest("technical-proposal", "technical proposal");
+  }
+
+  private ProfileManifest mbseManifest() throws Exception {
+    return manifest("mbse", "mbse");
   }
 
   private ProfileManifest manifest(String domain, String label) throws Exception {
@@ -248,6 +264,20 @@ class DevSeedRunner implements ApplicationRunner {
             """,
             Integer.class,
             TECHNICAL_WORKSPACE);
+    return count != null && count > 0;
+  }
+
+  private boolean mbseMissionExists() {
+    var count =
+        jdbc.queryForObject(
+            """
+            SELECT count(*)
+            FROM data_object object
+            JOIN object_type type ON type.id = object.object_type_id
+            WHERE object.workspace_id = ? AND type.code = 'mission'
+            """,
+            Integer.class,
+            MBSE_WORKSPACE);
     return count != null && count > 0;
   }
 
@@ -438,10 +468,102 @@ class DevSeedRunner implements ApplicationRunner {
     return fields;
   }
 
+  private void seedMbseObjects() {
+    var missionType = objectType(MBSE_WORKSPACE, "mission");
+    var contextType = objectType(MBSE_WORKSPACE, "mission_context");
+    var phaseType = objectType(MBSE_WORKSPACE, "phase");
+    var conditionType = objectType(MBSE_WORKSPACE, "env_condition");
+    var capabilityType = objectType(MBSE_WORKSPACE, "capability");
+    var requirementType = objectType(MBSE_WORKSPACE, "requirement");
+    var testCaseType = objectType(MBSE_WORKSPACE, "test_case");
+    var testResultType = objectType(MBSE_WORKSPACE, "test_result");
+    var occursInType = relationType(MBSE_WORKSPACE, "occurs_in");
+    var imposesType = relationType(MBSE_WORKSPACE, "imposes");
+    var requiresType = relationType(MBSE_WORKSPACE, "requires");
+    var derivesType = relationType(MBSE_WORKSPACE, "derives");
+    var verifiedByType = relationType(MBSE_WORKSPACE, "verified_by");
+    var producesType = relationType(MBSE_WORKSPACE, "produces");
+
+    var mission = createMbseObject(missionType, "mission", Map.of("name", "低空巡检任务"));
+    var context = createMbseObject(contextType, "context", Map.of("name", "城市低空巡检场景"));
+    var launchPhase = createMbseObject(phaseType, "phase-launch", Map.of("name", "起飞准备"));
+    var patrolPhase = createMbseObject(phaseType, "phase-patrol", Map.of("name", "巡检执行"));
+    var wind =
+        createMbseObject(
+            conditionType, "condition-wind", Map.of("name", "侧风工况", "value", "侧风 <= 10m/s"));
+    var rain =
+        createMbseObject(conditionType, "condition-rain", Map.of("name", "降雨工况", "value", "小雨可运行"));
+    var navigation =
+        createMbseObject(capabilityType, "capability-navigation", Map.of("name", "自主导航"));
+    var resilience =
+        createMbseObject(capabilityType, "capability-resilience", Map.of("name", "环境适应"));
+
+    relateMbse(occursInType, launchPhase, mission, "launch-occurs-in");
+    relateMbse(occursInType, patrolPhase, mission, "patrol-occurs-in");
+    relateMbse(imposesType, launchPhase, wind, "launch-imposes-wind");
+    relateMbse(imposesType, patrolPhase, rain, "patrol-imposes-rain");
+    relateMbse(requiresType, context, navigation, "context-requires-navigation");
+    relateMbse(requiresType, context, resilience, "context-requires-resilience");
+
+    var routeRequirement =
+        createMbseObject(
+            requirementType,
+            "requirement-route",
+            requirementFields("REQ-MBSE-001", "系统应按规划航线自主巡检", "航线偏差 <= 2m", 0.2));
+    var windRequirement =
+        createMbseObject(
+            requirementType,
+            "requirement-wind",
+            requirementFields("REQ-MBSE-002", "系统应在侧风下保持姿态稳定", "姿态误差 <= 5deg", 0.15));
+    var rainRequirement =
+        createMbseObject(
+            requirementType,
+            "requirement-rain",
+            requirementFields("REQ-MBSE-003", "系统应在小雨环境完成巡检", "任务完成率 >= 95%", 0.1));
+    var recoveryRequirement =
+        createMbseObject(
+            requirementType,
+            "requirement-recovery",
+            requirementFields("REQ-MBSE-004", "链路中断后系统应安全返航", "返航触发 <= 3s", 0.25));
+
+    relateMbse(derivesType, navigation, routeRequirement, "navigation-derives-route");
+    relateMbse(derivesType, navigation, windRequirement, "navigation-derives-wind");
+    relateMbse(derivesType, resilience, rainRequirement, "resilience-derives-rain");
+    relateMbse(derivesType, resilience, recoveryRequirement, "resilience-derives-recovery");
+
+    var routeTest = createMbseObject(testCaseType, "test-route", Map.of("name", "航线跟踪仿真"));
+    var windTest = createMbseObject(testCaseType, "test-wind", Map.of("name", "侧风稳定性试验"));
+    var rainTest = createMbseObject(testCaseType, "test-rain", Map.of("name", "小雨巡检试验"));
+    relateMbse(verifiedByType, routeRequirement, routeTest, "route-verified-by");
+    relateMbse(verifiedByType, windRequirement, windTest, "wind-verified-by");
+    relateMbse(verifiedByType, rainRequirement, rainTest, "rain-verified-by");
+
+    var routeResult =
+        createMbseObject(testResultType, "result-route", Map.of("value", 1.4, "verdict", "pass"));
+    var windResult =
+        createMbseObject(testResultType, "result-wind", Map.of("value", 6.1, "verdict", "fail"));
+    relateMbse(producesType, routeTest, routeResult, "route-produces-pass");
+    relateMbse(producesType, windTest, windResult, "wind-produces-fail");
+  }
+
+  private Map<String, Object> requirementFields(
+      String code, String text, String target, Number marginThreshold) {
+    var fields = new LinkedHashMap<String, Object>();
+    fields.put("code", code);
+    fields.put("text", text);
+    fields.put("target", target);
+    fields.put("margin_threshold", marginThreshold);
+    return fields;
+  }
+
   private UUID createTechnicalObject(
       UUID objectTypeId, String keySuffix, Map<String, Object> fields) {
     return createObject(
         TECHNICAL_WORKSPACE, objectTypeId, TECHNICAL_TEMPLATE_CODE, keySuffix, fields);
+  }
+
+  private UUID createMbseObject(UUID objectTypeId, String keySuffix, Map<String, Object> fields) {
+    return createObject(MBSE_WORKSPACE, objectTypeId, MBSE_TEMPLATE_CODE, keySuffix, fields);
   }
 
   private void relateTechnical(
@@ -453,6 +575,10 @@ class DevSeedRunner implements ApplicationRunner {
         targetId,
         TECHNICAL_TEMPLATE_CODE,
         keySuffix);
+  }
+
+  private void relateMbse(UUID relationTypeId, UUID sourceId, UUID targetId, String keySuffix) {
+    relate(MBSE_WORKSPACE, relationTypeId, sourceId, targetId, MBSE_TEMPLATE_CODE, keySuffix);
   }
 
   private UUID createObject(UUID objectTypeId, String keySuffix, Map<String, Object> fields) {
@@ -521,12 +647,26 @@ class DevSeedRunner implements ApplicationRunner {
     runTechnicalRuleCheck("requirement");
   }
 
+  private void runMbseRuleChecks() {
+    runMbseRuleCheck("env_condition");
+    runMbseRuleCheck("requirement");
+  }
+
   private void runTechnicalRuleCheck(String objectTypeCode) {
     ruleChecks.run(
         new RunRuleCheckRequest(
             TECHNICAL_WORKSPACE,
             UUID.randomUUID(),
             key(TECHNICAL_TEMPLATE_CODE, "run-" + objectTypeCode + "-rules-" + UUID.randomUUID()),
+            new RuleScopeRequest(objectTypeCode, null)));
+  }
+
+  private void runMbseRuleCheck(String objectTypeCode) {
+    ruleChecks.run(
+        new RunRuleCheckRequest(
+            MBSE_WORKSPACE,
+            UUID.randomUUID(),
+            key(MBSE_TEMPLATE_CODE, "run-" + objectTypeCode + "-rules-" + UUID.randomUUID()),
             new RuleScopeRequest(objectTypeCode, null)));
   }
 
@@ -547,6 +687,16 @@ class DevSeedRunner implements ApplicationRunner {
     }
     if (readModelTechnicalModuleCount() < 4) {
       LOG.warn("DEV SEED: technical read model did not catch up before rule check");
+    }
+  }
+
+  private void waitForReadModelMbseRequirements() throws InterruptedException {
+    var deadline = System.nanoTime() + Duration.ofSeconds(30).toNanos();
+    while (readModelMbseRequirementCount() < 4 && System.nanoTime() < deadline) {
+      Thread.sleep(500);
+    }
+    if (readModelMbseRequirementCount() < 4) {
+      LOG.warn("DEV SEED: MBSE read model did not catch up before rule check");
     }
   }
 
@@ -573,6 +723,19 @@ class DevSeedRunner implements ApplicationRunner {
             """,
             Integer.class,
             TECHNICAL_WORKSPACE);
+    return count == null ? 0 : count;
+  }
+
+  private int readModelMbseRequirementCount() {
+    var count =
+        jdbc.queryForObject(
+            """
+            SELECT count(*)
+            FROM rm_object
+            WHERE workspace_id = ? AND object_type_code = 'requirement'
+            """,
+            Integer.class,
+            MBSE_WORKSPACE);
     return count == null ? 0 : count;
   }
 

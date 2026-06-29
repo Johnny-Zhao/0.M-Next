@@ -32,6 +32,8 @@ class DevSeedRunnerIntegrationTest {
       UUID.fromString("11111111-1111-4111-8111-111111111111");
   private static final UUID TECHNICAL_WORKSPACE =
       UUID.fromString("22222222-2222-4222-8222-222222222222");
+  private static final UUID MBSE_WORKSPACE =
+      UUID.fromString("33333333-3333-4333-8333-333333333333");
 
   @Container
   static final PostgreSQLContainer<?> POSTGRES =
@@ -52,7 +54,7 @@ class DevSeedRunnerIntegrationTest {
   @LocalServerPort int port;
 
   @Test
-  void devSeedInstallsInteriorAndTechnicalProposalDemos() {
+  void devSeedInstallsInteriorTechnicalProposalAndMbseDemos() {
     assertEquals(1, objectCount(INTERIOR_WORKSPACE, "floorplan"));
     assertEquals(6, objectCount(INTERIOR_WORKSPACE, "room"));
 
@@ -71,6 +73,34 @@ class DevSeedRunnerIntegrationTest {
     assertEquals(1, checkResultCount(TECHNICAL_WORKSPACE, "R-TD-IF"));
     assertEquals(1, checkResultCount(TECHNICAL_WORKSPACE, "R-TD-COV"));
 
+    assertEquals(1, objectCount(MBSE_WORKSPACE, "mission"));
+    assertEquals(1, objectCount(MBSE_WORKSPACE, "mission_context"));
+    assertEquals(2, objectCount(MBSE_WORKSPACE, "phase"));
+    assertEquals(2, objectCount(MBSE_WORKSPACE, "env_condition"));
+    assertEquals(2, objectCount(MBSE_WORKSPACE, "capability"));
+    assertEquals(4, objectCount(MBSE_WORKSPACE, "requirement"));
+    assertEquals(3, objectCount(MBSE_WORKSPACE, "test_case"));
+    assertEquals(2, objectCount(MBSE_WORKSPACE, "test_result"));
+    assertEquals(4, readModelCount(MBSE_WORKSPACE, "requirement"));
+
+    var navigation = objectIdByField(MBSE_WORKSPACE, "capability", "name", "自主导航");
+    assertDecimal(
+        "2", derivedEvaluator.evaluate(MBSE_WORKSPACE, navigation, "requirement_count_fx"));
+    var passRequirement = objectIdByField(MBSE_WORKSPACE, "requirement", "code", "REQ-MBSE-001");
+    var failedRequirement = objectIdByField(MBSE_WORKSPACE, "requirement", "code", "REQ-MBSE-002");
+    var unverifiedRequirement =
+        objectIdByField(MBSE_WORKSPACE, "requirement", "code", "REQ-MBSE-003");
+    assertEquals(
+        "pass", derivedEvaluator.evaluate(MBSE_WORKSPACE, passRequirement, "verify_status_fx"));
+    assertEquals(
+        "fail", derivedEvaluator.evaluate(MBSE_WORKSPACE, failedRequirement, "verify_status_fx"));
+    assertEquals(
+        "unverified",
+        derivedEvaluator.evaluate(MBSE_WORKSPACE, unverifiedRequirement, "verify_status_fx"));
+
+    assertEquals(1, checkResultCount(MBSE_WORKSPACE, "R-VER-01"));
+    assertEquals(1, checkResultCount(MBSE_WORKSPACE, "R-VER-02"));
+
     var workspaces =
         Arrays.stream(http.getForEntity(base() + "/views/workspaces", Map[].class).getBody())
             .toList();
@@ -81,8 +111,10 @@ class DevSeedRunnerIntegrationTest {
         workspaceIds.contains(ProfileLoader.AUTHOR_WORKSPACE.toString()), workspaces.toString());
     assertTrue(workspaceIds.contains(INTERIOR_WORKSPACE.toString()), workspaces.toString());
     assertTrue(workspaceIds.contains(TECHNICAL_WORKSPACE.toString()), workspaces.toString());
+    assertTrue(workspaceIds.contains(MBSE_WORKSPACE.toString()), workspaces.toString());
     assertTrue(names.contains("室内设计 Demo"), names.toString());
     assertTrue(names.contains("技术方案 Demo"), names.toString());
+    assertTrue(names.contains("MBSE Demo"), names.toString());
 
     assertEquals(1, templateObjectTypeCount(ProfileLoader.AUTHOR_WORKSPACE, "room"));
     assertEquals(1, runtimeObjectTypeCount(INTERIOR_WORKSPACE, "room"));
