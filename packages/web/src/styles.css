@@ -2095,6 +2095,7 @@ main {
 .matrix-panel,
 .document-panel,
 .ai-panel,
+.assembly-catalog-panel,
 .exchange-panel,
 .snapshot-panel {
   background: var(--mn-surface);
@@ -2144,6 +2145,7 @@ main {
 }
 
 .ai-panel button,
+.assembly-catalog-panel button,
 .exchange-panel button,
 .snapshot-panel button {
   background: var(--mn-surface);
@@ -2155,6 +2157,7 @@ main {
 }
 
 .ai-panel button:hover,
+.assembly-catalog-panel button:hover,
 .exchange-panel button:hover,
 .snapshot-panel button:hover {
   border-color: var(--mn-accent);
@@ -2162,6 +2165,7 @@ main {
 }
 
 .ai-panel button:disabled,
+.assembly-catalog-panel button:disabled,
 .exchange-panel button:disabled,
 .snapshot-panel button:disabled {
   color: var(--mn-ink-4);
@@ -3529,6 +3533,177 @@ main {
   height: 5.6rem;
 }
 
+.assembly-catalog-panel {
+  display: grid;
+  gap: 0.65rem;
+  grid-template-rows: auto auto auto 1fr;
+}
+
+.assembly-catalog-header,
+.assembly-catalog-filters,
+.assembly-card,
+.assembly-empty {
+  background: var(--mn-panel);
+  border: 1px solid var(--mn-border);
+  border-radius: 7px;
+}
+
+.assembly-catalog-header {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  padding: 0.7rem 0.8rem;
+}
+
+.assembly-catalog-header div,
+.assembly-card header div {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.assembly-catalog-header strong,
+.assembly-card strong {
+  color: var(--mn-ink);
+  font-size: 0.92rem;
+}
+
+.assembly-catalog-header span,
+.assembly-card span,
+.assembly-card small,
+.assembly-empty {
+  color: var(--mn-ink-3);
+}
+
+.assembly-catalog-header > span {
+  background: var(--mn-accent-bg);
+  border: 1px solid var(--mn-accent-bd);
+  border-radius: 999px;
+  color: var(--mn-accent);
+  font-family: var(--mn-mono);
+  padding: 0.1rem 0.5rem;
+}
+
+.assembly-catalog-filters {
+  display: grid;
+  gap: 0.55rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  padding: 0.65rem 0.75rem;
+}
+
+.assembly-catalog-filters label,
+.assembly-place-form label {
+  color: var(--mn-ink-2);
+  display: grid;
+  gap: 0.25rem;
+  font-size: 0.72rem;
+}
+
+.assembly-catalog-filters input,
+.assembly-place-form input,
+.assembly-place-form textarea {
+  background: var(--mn-surface);
+  border: 1px solid var(--mn-border-2);
+  border-radius: 5px;
+  color: var(--mn-ink);
+  font: inherit;
+  min-width: 0;
+  padding: 0.38rem 0.45rem;
+}
+
+.assembly-place-form textarea {
+  min-height: 4.4rem;
+  resize: vertical;
+}
+
+.assembly-card-grid {
+  display: grid;
+  gap: 0.65rem;
+  grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+  overflow: auto;
+}
+
+.assembly-card {
+  display: grid;
+  gap: 0.65rem;
+  padding: 0.75rem;
+}
+
+.assembly-card header,
+.assembly-card footer {
+  align-items: start;
+  display: flex;
+  gap: 0.55rem;
+  justify-content: space-between;
+}
+
+.assembly-card footer small {
+  font-family: var(--mn-mono);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.assembly-type-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.assembly-type-chips span {
+  background: var(--mn-surface-2);
+  border: 1px solid var(--mn-border);
+  border-radius: 999px;
+  color: var(--mn-ink-2);
+  font-family: var(--mn-mono);
+  padding: 0.12rem 0.45rem;
+}
+
+.assembly-place-form {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.assembly-usage-list {
+  border-top: 1px solid var(--mn-border);
+  display: grid;
+  gap: 0.35rem;
+  list-style: none;
+  margin: 0;
+  padding: 0.55rem 0 0;
+}
+
+.assembly-usage-list li {
+  align-items: center;
+  background: var(--mn-ok-bg);
+  border: 1px solid var(--mn-ok-bd);
+  border-radius: 6px;
+  display: flex;
+  gap: 0.45rem;
+  justify-content: space-between;
+  padding: 0.35rem 0.45rem;
+}
+
+.assembly-usage-list span {
+  color: var(--mn-ok);
+}
+
+.assembly-empty {
+  padding: 0.85rem;
+}
+
+.assembly-skeleton {
+  display: grid;
+  gap: 0.5rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.assembly-skeleton span {
+  background: linear-gradient(90deg, var(--mn-surface-2), var(--mn-panel));
+  border-radius: 7px;
+  min-height: 7rem;
+}
+
 @media (max-width: 900px) {
   .mapping-layout {
     grid-template-columns: 1fr;
@@ -3541,6 +3716,11 @@ main {
   }
 
   .mapping-row {
+    grid-template-columns: 1fr;
+  }
+
+  .assembly-catalog-filters,
+  .assembly-skeleton {
     grid-template-columns: 1fr;
   }
 }

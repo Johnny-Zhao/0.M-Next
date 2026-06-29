@@ -22,6 +22,7 @@ import {
 } from "@m-next/views";
 
 import { AiPanel } from "./ai-panel";
+import { AssemblyCatalogPanel } from "./assembly-catalog-panel";
 import { CommandPalette, isCommandPaletteShortcut } from "./command-palette";
 import type {
   CommandContext,
@@ -59,6 +60,7 @@ export type WorkbenchPanelId =
   | "validate"
   | "ai"
   | "review"
+  | "assembly"
   | "exchange"
   | "snapshot";
 
@@ -80,6 +82,7 @@ export const workbenchPanelDefinitions: readonly WorkbenchPanelDefinition[] = [
   { id: "validate", title: "校验", component: "validate" },
   { id: "ai", title: "AI 助手", component: "ai" },
   { id: "review", title: "批注", component: "review" },
+  { id: "assembly", title: "装配目录", component: "assembly" },
   { id: "exchange", title: "交换", component: "exchange" },
   { id: "snapshot", title: "快照", component: "snapshot" },
 ];
@@ -187,6 +190,7 @@ const dockviewComponents: Record<
   validate: () => <ValidatePanel />,
   ai: () => <AiPanel />,
   review: () => <ReviewPanel />,
+  assembly: () => <AssemblyCatalogPanel />,
   exchange: () => <ExchangePanel />,
   snapshot: () => <SnapshotPanel />,
 };

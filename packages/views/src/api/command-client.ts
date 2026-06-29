@@ -54,6 +54,11 @@ export interface ExchangeApplyResult {
   }[];
 }
 
+export interface PlaceAssemblyParams {
+  readonly placementKey: string;
+  readonly params?: Readonly<Record<string, unknown>>;
+}
+
 export interface ConflictField {
   readonly fieldDefCode: string;
   readonly yourValue: unknown;
@@ -249,6 +254,42 @@ export class CommandClient {
     );
     if (response.ok) return response.json() as Promise<ExchangeApplyResult>;
     const failure = await commandFailure(response, "交换导入失败");
+    throw failure;
+  }
+
+  async placeAssembly(
+    workspaceId: string,
+    assemblyId: string,
+    version: number,
+    request: PlaceAssemblyParams,
+  ): Promise<AiCommandResult> {
+    if (!this.actorId) {
+      throw new Error("缺少 X-Actor-Id: 请先登录后再放置装配");
+    }
+    const response = await this.fetchFn(
+      `${this.baseUrl}/workspaces/${workspaceId}/assembly-commands`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "X-Actor-Id": this.actorId,
+        },
+        body: JSON.stringify({
+          commandType: "PlaceAssembly",
+          workspaceId,
+          correlationId: crypto.randomUUID(),
+          idempotencyKey: `pa-${crypto.randomUUID()}`,
+          payload: {
+            assemblyId,
+            version,
+            placementKey: request.placementKey,
+            params: request.params ?? {},
+          },
+        }),
+      },
+    );
+    if (response.ok) return response.json() as Promise<AiCommandResult>;
+    const failure = await commandFailure(response, "放置装配失败");
     throw failure;
   }
 
