@@ -35,6 +35,7 @@ public class ViewQueryController {
   private final WorkspaceAuthorizer authorizer;
   private final WorkspaceQueryRepository workspaces;
   private final TransformationRepository transformations;
+  private final ReusableAssemblyRepository reusableAssemblies;
 
   public ViewQueryController(
       ReadModelRepository repository,
@@ -46,7 +47,8 @@ public class ViewQueryController {
       LineageQueryRepository lineageQueries,
       WorkspaceAuthorizer authorizer,
       WorkspaceQueryRepository workspaces,
-      TransformationRepository transformations) {
+      TransformationRepository transformations,
+      ReusableAssemblyRepository reusableAssemblies) {
     this.repository = repository;
     this.checkResults = checkResults;
     this.derivedEvaluator = derivedEvaluator;
@@ -57,6 +59,7 @@ public class ViewQueryController {
     this.authorizer = authorizer;
     this.workspaces = workspaces;
     this.transformations = transformations;
+    this.reusableAssemblies = reusableAssemblies;
   }
 
   @GetMapping("/views/workspaces")
@@ -233,6 +236,16 @@ public class ViewQueryController {
   public List<MappingProfileView> mappingProfiles(@PathVariable("workspaceId") UUID workspaceId) {
     authorize(workspaceId);
     return transformations.mappingProfiles(workspaceId);
+  }
+
+  @GetMapping("/workspaces/{workspaceId}/views/reusable-assemblies")
+  public PageView<ReusableAssemblyView> reusableAssemblies(
+      @PathVariable("workspaceId") UUID workspaceId,
+      @RequestParam(value = "profile", required = false) String profile,
+      @RequestParam(value = "page", defaultValue = "0") int page,
+      @RequestParam(value = "size", defaultValue = "50") int size) {
+    authorize(workspaceId);
+    return reusableAssemblies.list(workspaceId, profile, page, size);
   }
 
   @GetMapping("/workspaces/{workspaceId}/views/mapping/correspondences")
