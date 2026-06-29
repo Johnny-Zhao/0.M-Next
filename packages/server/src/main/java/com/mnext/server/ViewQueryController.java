@@ -30,6 +30,7 @@ public class ViewQueryController {
   private final ObjectProvider<DerivedEvaluator> derivedEvaluator;
   private final DerivedFieldRepository derivedFields;
   private final SimulationRunRepository simulationRuns;
+  private final SimResultSeriesRepository simResultSeries;
   private final LineageQueryRepository lineageQueries;
   private final WorkspaceAuthorizer authorizer;
   private final WorkspaceQueryRepository workspaces;
@@ -41,6 +42,7 @@ public class ViewQueryController {
       ObjectProvider<DerivedEvaluator> derivedEvaluator,
       DerivedFieldRepository derivedFields,
       @Nullable SimulationRunRepository simulationRuns,
+      SimResultSeriesRepository simResultSeries,
       LineageQueryRepository lineageQueries,
       WorkspaceAuthorizer authorizer,
       WorkspaceQueryRepository workspaces,
@@ -50,6 +52,7 @@ public class ViewQueryController {
     this.derivedEvaluator = derivedEvaluator;
     this.derivedFields = derivedFields;
     this.simulationRuns = simulationRuns;
+    this.simResultSeries = simResultSeries;
     this.lineageQueries = lineageQueries;
     this.authorizer = authorizer;
     this.workspaces = workspaces;
@@ -178,6 +181,37 @@ public class ViewQueryController {
   public SyncStatusView syncStatus(@PathVariable("workspaceId") UUID workspaceId) {
     authorize(workspaceId);
     return repository.syncStatus(workspaceId);
+  }
+
+  @GetMapping("/workspaces/{workspaceId}/views/sim-runs")
+  public PageView<SimRunSummaryView> simRuns(
+      @PathVariable("workspaceId") UUID workspaceId,
+      @RequestParam(value = "page", defaultValue = "0") int page,
+      @RequestParam(value = "size", defaultValue = "50") int size) {
+    authorize(workspaceId);
+    if (page < 0 || size < 1 || size > 50) {
+      throw new IllegalArgumentException("page 必须非负且 size 必须为 1..50");
+    }
+    return simulationRuns.listSummaries(workspaceId, page, size);
+  }
+
+  @GetMapping("/workspaces/{workspaceId}/views/sim-runs/{runId}/series")
+  public PageView<SimResultSeriesPointView> simRunSeries(
+      @PathVariable("workspaceId") UUID workspaceId,
+      @PathVariable("runId") UUID runId,
+      @RequestParam(value = "object", required = false) UUID objectId,
+      @RequestParam(value = "field", required = false) String fieldCode,
+      @RequestParam(value = "from", required = false) Double from,
+      @RequestParam(value = "to", required = false) Double to,
+      @RequestParam(value = "downsample", defaultValue = "1") int downsample,
+      @RequestParam(value = "page", defaultValue = "0") int page,
+      @RequestParam(value = "size", defaultValue = "200") int size) {
+    authorize(workspaceId);
+    if (from != null && to != null && from > to) {
+      throw new IllegalArgumentException("from 必须小于等于 to");
+    }
+    return simResultSeries.find(
+        workspaceId, runId, objectId, fieldCode, from, to, downsample, page, size);
   }
 
   @GetMapping("/workspaces/{workspaceId}/views/correspondences")

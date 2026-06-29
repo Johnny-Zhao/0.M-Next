@@ -45,6 +45,20 @@ record RelationView(
 
 record PageView<T>(List<T> items, int page, int pageSize, long total) {}
 
+record SimRunSummaryView(
+    UUID runId,
+    UUID snapshotId,
+    String engineId,
+    String status,
+    Instant queuedAt,
+    Instant startedAt,
+    Instant completedAt,
+    String resultHash,
+    String createdBy) {}
+
+record SimResultSeriesPointView(
+    UUID objectId, String fieldCode, double t, Double value, Object valueJson) {}
+
 record ObjectDetailView(ObjectView object, List<RelationView> relations) {}
 
 record TreeNodeView(UUID sourceId, UUID targetId, int depth) {}

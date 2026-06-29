@@ -25,16 +25,19 @@ class SimulationRunRepository {
   private final ObjectMapper mapper;
   private final SnapshotRepository snapshots;
   private final SimulationEngineBridge engines;
+  private final SimResultSeriesRepository series;
 
   SimulationRunRepository(
       JdbcTemplate jdbc,
       ObjectMapper mapper,
       SnapshotRepository snapshots,
-      SimulationEngineBridge engines) {
+      SimulationEngineBridge engines,
+      SimResultSeriesRepository series) {
     this.jdbc = jdbc;
     this.mapper = mapper;
     this.snapshots = snapshots;
     this.engines = engines;
+    this.series = series;
   }
 
   SimulationRunView create(UUID workspaceId, SimulationCreateRequest request, String actor) {
@@ -116,6 +119,35 @@ class SimulationRunRepository {
     return new PageView<>(items, page, size, total);
   }
 
+  PageView<SimRunSummaryView> listSummaries(UUID workspaceId, int page, int size) {
+    var total =
+        jdbc.queryForObject(
+            "SELECT count(*) FROM simulation_run WHERE workspace_id = ?", Long.class, workspaceId);
+    var items =
+        jdbc.query(
+            """
+            SELECT run_id, snapshot_id, engine_id, status, queued_at, started_at,
+                   completed_at, result_hash, created_by
+            FROM simulation_run WHERE workspace_id = ?
+            ORDER BY queued_at DESC, run_id LIMIT ? OFFSET ?
+            """,
+            (row, index) ->
+                new SimRunSummaryView(
+                    row.getObject(1, UUID.class),
+                    row.getObject(2, UUID.class),
+                    row.getString(3),
+                    row.getString(4),
+                    row.getTimestamp(5).toInstant(),
+                    row.getTimestamp(6) == null ? null : row.getTimestamp(6).toInstant(),
+                    row.getTimestamp(7) == null ? null : row.getTimestamp(7).toInstant(),
+                    row.getString(8),
+                    row.getString(9)),
+            workspaceId,
+            size,
+            page * size);
+    return new PageView<>(items, page, size, total);
+  }
+
   Optional<Map<String, Object>> latestCompletedResult(UUID workspaceId, String engineId) {
     var result =
         jdbc.query(
@@ -175,6 +207,8 @@ class SimulationRunRepository {
             hash(resultJson),
             runId);
     if (count != 1) invalidTransition(runId);
+    var workspaceId = workspaceId(runId);
+    series.replace(workspaceId, runId, result);
   }
 
   void fail(UUID runId, String reason) {

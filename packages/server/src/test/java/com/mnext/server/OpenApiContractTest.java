@@ -33,6 +33,7 @@ class OpenApiContractTest {
   @MockitoBean ReadModelRepository readModel;
   @MockitoBean CheckResultRepository checkResults;
   @MockitoBean DerivedFieldRepository derivedFields;
+  @MockitoBean SimResultSeriesRepository simResultSeries;
   @MockitoBean LineageQueryRepository lineageQueries;
   @MockitoBean TransformationRepository transformations;
   @MockitoBean WorkspaceAuthorizer authorizer;
@@ -70,6 +71,8 @@ class OpenApiContractTest {
             "relations",
             "tree",
             "sync-status",
+            "sim-runs",
+            "sim-runs~1{runId}~1series",
             "rule-status",
             "lineage",
             "mapping-profiles",
