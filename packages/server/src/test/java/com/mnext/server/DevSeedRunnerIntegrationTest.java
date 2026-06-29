@@ -75,21 +75,23 @@ class DevSeedRunnerIntegrationTest {
 
     assertEquals(1, objectCount(MBSE_WORKSPACE, "mission"));
     assertEquals(1, objectCount(MBSE_WORKSPACE, "mission_context"));
-    assertEquals(2, objectCount(MBSE_WORKSPACE, "phase"));
-    assertEquals(2, objectCount(MBSE_WORKSPACE, "env_condition"));
-    assertEquals(2, objectCount(MBSE_WORKSPACE, "capability"));
-    assertEquals(4, objectCount(MBSE_WORKSPACE, "requirement"));
-    assertEquals(3, objectCount(MBSE_WORKSPACE, "test_case"));
-    assertEquals(2, objectCount(MBSE_WORKSPACE, "test_result"));
-    assertEquals(4, readModelCount(MBSE_WORKSPACE, "requirement"));
+    assertEquals(3, objectCount(MBSE_WORKSPACE, "phase"));
+    assertEquals(3, objectCount(MBSE_WORKSPACE, "env_condition"));
+    assertEquals(4, objectCount(MBSE_WORKSPACE, "capability"));
+    assertEquals(14, objectCount(MBSE_WORKSPACE, "requirement"));
+    assertEquals(11, objectCount(MBSE_WORKSPACE, "test_case"));
+    assertEquals(9, objectCount(MBSE_WORKSPACE, "test_result"));
+    assertEquals(14, readModelCount(MBSE_WORKSPACE, "requirement"));
 
     var navigation = objectIdByField(MBSE_WORKSPACE, "capability", "name", "自主导航");
     assertDecimal(
-        "2", derivedEvaluator.evaluate(MBSE_WORKSPACE, navigation, "requirement_count_fx"));
+        "4", derivedEvaluator.evaluate(MBSE_WORKSPACE, navigation, "requirement_count_fx"));
     var passRequirement = objectIdByField(MBSE_WORKSPACE, "requirement", "code", "REQ-MBSE-001");
     var failedRequirement = objectIdByField(MBSE_WORKSPACE, "requirement", "code", "REQ-MBSE-002");
     var unverifiedRequirement =
         objectIdByField(MBSE_WORKSPACE, "requirement", "code", "REQ-MBSE-003");
+    var uncoveredRequirement =
+        objectIdByField(MBSE_WORKSPACE, "requirement", "code", "REQ-MBSE-004");
     assertEquals(
         "pass", derivedEvaluator.evaluate(MBSE_WORKSPACE, passRequirement, "verify_status_fx"));
     assertEquals(
@@ -97,9 +99,12 @@ class DevSeedRunnerIntegrationTest {
     assertEquals(
         "unverified",
         derivedEvaluator.evaluate(MBSE_WORKSPACE, unverifiedRequirement, "verify_status_fx"));
+    assertEquals(
+        "unverified",
+        derivedEvaluator.evaluate(MBSE_WORKSPACE, uncoveredRequirement, "verify_status_fx"));
 
-    assertEquals(1, checkResultCount(MBSE_WORKSPACE, "R-VER-01"));
-    assertEquals(1, checkResultCount(MBSE_WORKSPACE, "R-VER-02"));
+    assertEquals(3, checkResultCount(MBSE_WORKSPACE, "R-VER-01"));
+    assertEquals(4, checkResultCount(MBSE_WORKSPACE, "R-VER-02"));
 
     var workspaces =
         Arrays.stream(http.getForEntity(base() + "/views/workspaces", Map[].class).getBody())
