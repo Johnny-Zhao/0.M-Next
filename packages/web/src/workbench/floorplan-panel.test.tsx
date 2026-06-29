@@ -4,6 +4,7 @@ import type { RelationSummary, ViewObject } from "@m-next/views";
 
 import {
   buildFloorplanRooms,
+  floorplanHeatTone,
   floorplanDimensionOptions,
 } from "./floorplan-panel";
 
@@ -133,6 +134,14 @@ describe("floorplan panel layout", () => {
     expect(
       floorplanDimensionOptions().map((dimension) => dimension.label),
     ).toEqual(["全部", "光", "热", "风"]);
+  });
+
+  it("maps loaded time-series values to semantic heat tones", () => {
+    expect(floorplanHeatTone(18, 18, 30)).toBe("low");
+    expect(floorplanHeatTone(24, 18, 30)).toBe("mid");
+    expect(floorplanHeatTone(30, 18, 30)).toBe("high");
+    expect(floorplanHeatTone(22, 22, 22)).toBe("flat");
+    expect(floorplanHeatTone(null, 18, 30)).toBeNull();
   });
 });
 

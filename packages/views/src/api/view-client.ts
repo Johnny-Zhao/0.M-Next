@@ -219,6 +219,50 @@ export interface CheckResultPage {
   readonly total: number;
 }
 
+export interface SimRunSummary {
+  readonly runId: string;
+  readonly snapshotId: string;
+  readonly engineId: string;
+  readonly status: string;
+  readonly queuedAt: string;
+  readonly startedAt: string | null;
+  readonly completedAt: string | null;
+  readonly resultHash: string | null;
+  readonly createdBy: string;
+}
+
+export interface SimRunPage {
+  readonly items: readonly SimRunSummary[];
+  readonly page: number;
+  readonly pageSize: number;
+  readonly total: number;
+}
+
+export interface SimResultSeriesPoint {
+  readonly objectId: string;
+  readonly fieldCode: string;
+  readonly t: number;
+  readonly value: number | null;
+  readonly valueJson: unknown;
+}
+
+export interface SimResultSeriesPage {
+  readonly items: readonly SimResultSeriesPoint[];
+  readonly page: number;
+  readonly pageSize: number;
+  readonly total: number;
+}
+
+export interface SimSeriesQuery {
+  readonly object?: string | null;
+  readonly field?: string | null;
+  readonly from?: number | null;
+  readonly to?: number | null;
+  readonly downsample?: number;
+  readonly page?: number;
+  readonly size?: number;
+}
+
 export interface MappingFieldMapping {
   readonly targetFieldCode: string;
   readonly expression: string;
@@ -748,6 +792,50 @@ export class ViewClient {
       size: `${size}`,
     });
     return this.get(`/workspaces/${workspaceId}/views/check-results?${query}`);
+  }
+
+  simRuns(workspaceId: string, page = 0, size = 20): Promise<SimRunPage> {
+    if (page < 0 || size < 1 || size > 50) {
+      throw new Error(
+        "simulation run page must be non-negative and size 1..50",
+      );
+    }
+    const query = new URLSearchParams({ page: `${page}`, size: `${size}` });
+    return this.get(`/workspaces/${workspaceId}/views/sim-runs?${query}`);
+  }
+
+  simSeries(
+    workspaceId: string,
+    runId: string,
+    options: SimSeriesQuery = {},
+  ): Promise<SimResultSeriesPage> {
+    const page = options.page ?? 0;
+    const size = options.size ?? 240;
+    const downsample = options.downsample ?? 4;
+    if (page < 0 || size < 1 || size > 500) {
+      throw new Error(
+        "simulation series page must be non-negative and size 1..500",
+      );
+    }
+    if (downsample < 1 || downsample > 1000) {
+      throw new Error("simulation series downsample must be 1..1000");
+    }
+    const query = new URLSearchParams({
+      downsample: `${downsample}`,
+      page: `${page}`,
+      size: `${size}`,
+    });
+    if (options.object) query.set("object", options.object);
+    if (options.field) query.set("field", options.field);
+    if (options.from !== undefined && options.from !== null) {
+      query.set("from", `${options.from}`);
+    }
+    if (options.to !== undefined && options.to !== null) {
+      query.set("to", `${options.to}`);
+    }
+    return this.get(
+      `/workspaces/${workspaceId}/views/sim-runs/${runId}/series?${query}`,
+    );
   }
 
   mappingCorrespondences(

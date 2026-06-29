@@ -344,6 +344,41 @@ describe("view and command clients", () => {
     );
   });
 
+  it("reads simulation runs and bounded downsampled series", async () => {
+    const fetchFn = vi.fn<FetchFn>(
+      async () =>
+        new Response(
+          JSON.stringify({ items: [], page: 0, pageSize: 20, total: 0 }),
+        ),
+    );
+    const client = new ViewClient("/api", fetchFn);
+
+    await client.simRuns("ws");
+    await client.simSeries("ws", "run-1", {
+      object: "object-1",
+      field: "temperature",
+      from: 0,
+      to: 120,
+      downsample: 8,
+      page: 1,
+      size: 100,
+    });
+
+    expect(fetchFn.mock.calls[0]?.[0]).toBe(
+      "/api/workspaces/ws/views/sim-runs?page=0&size=20",
+    );
+    expect(fetchFn.mock.calls[1]?.[0]).toBe(
+      "/api/workspaces/ws/views/sim-runs/run-1/series?downsample=8&page=1&size=100&object=object-1&field=temperature&from=0&to=120",
+    );
+    expect(() => client.simRuns("ws", 0, 51)).toThrow();
+    expect(() =>
+      client.simSeries("ws", "run-1", { size: 501, downsample: 1 }),
+    ).toThrow();
+    expect(() =>
+      client.simSeries("ws", "run-1", { size: 1, downsample: 1001 }),
+    ).toThrow();
+  });
+
   it("reads mapping correspondences and bounded coverage pages", async () => {
     const fetchFn = vi.fn<FetchFn>(
       async () =>

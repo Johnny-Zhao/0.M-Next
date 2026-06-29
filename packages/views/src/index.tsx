@@ -19,4 +19,5 @@ export * from "./matrix/matrix-view";
 export * from "./selection/selection-coordinator";
 export * from "./selection/selection-ref";
 export * from "./table/table-view";
+export * from "./timeline/time-playhead";
 export * from "./tree/tree-view";
