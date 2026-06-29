@@ -523,6 +523,134 @@ class ReadModelRepository {
     return new PageView<>(items, page, size, total);
   }
 
+  List<MappingCorrespondenceView> mappingCorrespondences(UUID workspaceId) {
+    return jdbc.query(
+        """
+        SELECT relation.id, relation.code, relation.direction, relation.cardinality,
+               source_type.code AS source_type_code, source_type.name AS source_type_name,
+               target_type.code AS target_type_code, target_type.name AS target_type_name,
+               template.source_profile_code, template.target_profile_code,
+               transform.object_mappings
+        FROM relation_type relation
+        JOIN workspace_profile profile
+          ON profile.workspace_id = relation.workspace_id
+         AND profile.template_version_id = relation.template_version_id
+        JOIN scene_template_version version ON version.id = relation.template_version_id
+        JOIN scene_template template ON template.id = version.template_id
+        JOIN object_type source_type ON source_type.id = relation.source_type
+        JOIN object_type target_type ON target_type.id = relation.target_type
+        LEFT JOIN LATERAL (
+          SELECT object_mappings::text AS object_mappings
+          FROM m2m_transformation transform
+          WHERE transform.workspace_id = relation.workspace_id
+            AND transform.template_version_id IS NOT DISTINCT FROM relation.template_version_id
+            AND transform.correspondence_relation_code = relation.code
+          ORDER BY transform.code
+          LIMIT 1
+        ) transform ON TRUE
+        WHERE relation.workspace_id = ?
+          AND relation.kind = 'correspondence'
+          AND template.profile_kind = 'mapping'
+        ORDER BY template.code, relation.code
+        """,
+        (row, index) -> {
+          var descriptor =
+              mappingDescriptor(
+                  row.getString("object_mappings"),
+                  row.getString("source_type_code"),
+                  row.getString("target_type_code"),
+                  row.getString("cardinality"),
+                  row.getString("direction"));
+          return new MappingCorrespondenceView(
+              row.getObject("id", UUID.class),
+              row.getString("code"),
+              row.getObject("id", UUID.class),
+              row.getString("source_profile_code"),
+              row.getString("target_profile_code"),
+              row.getString("source_type_code"),
+              row.getString("source_type_name"),
+              row.getString("target_type_code"),
+              row.getString("target_type_name"),
+              descriptor.cardinality(),
+              descriptor.direction(),
+              descriptor.fieldMappings());
+        },
+        workspaceId);
+  }
+
+  MappingCoveragePageView mappingCoverage(
+      UUID workspaceId, UUID correspondenceId, int page, int size) {
+    var type = mappingCorrespondenceType(workspaceId, correspondenceId);
+    var total =
+        jdbc.queryForObject(
+            """
+            SELECT count(*)
+            FROM rm_object
+            WHERE workspace_id = ? AND object_type_code = ?
+            """,
+            Long.class,
+            workspaceId,
+            type.sourceTypeCode());
+    var items =
+        jdbc.query(
+            """
+            WITH source_page AS (
+              SELECT object_id, object_type_code, status, version, fields::text, updated_at
+              FROM rm_object
+              WHERE workspace_id = ? AND object_type_code = ?
+              ORDER BY object_id
+              LIMIT ? OFFSET ?
+            )
+            SELECT source.object_id AS source_id, source.object_type_code AS source_type,
+                   source.version AS source_version, source.fields AS source_fields,
+                   relation.relation_id, relation.updated_at AS relation_updated_at,
+                   target.object_id AS target_id, target.object_type_code AS target_type,
+                   target.version AS target_version, target.fields::text AS target_fields
+            FROM source_page source
+            LEFT JOIN rm_relation relation
+              ON relation.workspace_id = ?
+             AND relation.relation_type_code = ?
+             AND relation.source_id = source.object_id
+             AND relation.status = 'ACTIVE'
+            LEFT JOIN rm_object target
+              ON target.workspace_id = ?
+             AND target.object_id = relation.target_id
+             AND target.object_type_code = ?
+            ORDER BY source.object_id, target.object_id NULLS LAST
+            """,
+            (row, index) -> {
+              var sourceFields = map(row.getString("source_fields"));
+              var targetFields = optionalMap(row.getString("target_fields"));
+              var targetId = row.getObject("target_id", UUID.class);
+              var updatedAt = row.getTimestamp("relation_updated_at");
+              return new MappingCoverageItemView(
+                  row.getObject("source_id", UUID.class),
+                  objectLabel(
+                      row.getString("source_type"),
+                      row.getObject("source_id", UUID.class),
+                      sourceFields),
+                  row.getLong("source_version"),
+                  targetId,
+                  targetId == null
+                      ? null
+                      : objectLabel(row.getString("target_type"), targetId, targetFields),
+                  targetId == null ? null : row.getLong("target_version"),
+                  row.getObject("relation_id", UUID.class),
+                  null,
+                  targetId == null ? "unmapped" : "mapped",
+                  updatedAt == null ? null : updatedAt.toInstant());
+            },
+            workspaceId,
+            type.sourceTypeCode(),
+            size,
+            page * size,
+            workspaceId,
+            type.relationTypeCode(),
+            workspaceId,
+            type.targetTypeCode());
+    return new MappingCoveragePageView(items, page, size, total);
+  }
+
   List<ObjectView> recommendationCandidates(
       UUID workspaceId, UUID projectId, String relationTypeCode, int limit) {
     return jdbc.query(
@@ -701,6 +829,80 @@ class ReadModelRepository {
         object.status());
   }
 
+  private MappingCorrespondenceType mappingCorrespondenceType(
+      UUID workspaceId, UUID correspondenceId) {
+    var matches =
+        jdbc.query(
+            """
+            SELECT relation.code, source_type.code AS source_type_code,
+                   target_type.code AS target_type_code
+            FROM relation_type relation
+            JOIN workspace_profile profile
+              ON profile.workspace_id = relation.workspace_id
+             AND profile.template_version_id = relation.template_version_id
+            JOIN scene_template_version version ON version.id = relation.template_version_id
+            JOIN scene_template template ON template.id = version.template_id
+            JOIN object_type source_type ON source_type.id = relation.source_type
+            JOIN object_type target_type ON target_type.id = relation.target_type
+            WHERE relation.workspace_id = ?
+              AND relation.id = ?
+              AND relation.kind = 'correspondence'
+              AND template.profile_kind = 'mapping'
+            """,
+            (row, index) ->
+                new MappingCorrespondenceType(
+                    row.getString("code"),
+                    row.getString("source_type_code"),
+                    row.getString("target_type_code")),
+            workspaceId,
+            correspondenceId);
+    if (matches.isEmpty()) throw new IllegalArgumentException("mapping correspondence 不存在或未应用");
+    return matches.getFirst();
+  }
+
+  private MappingDescriptor mappingDescriptor(
+      String objectMappings,
+      String sourceTypeCode,
+      String targetTypeCode,
+      String fallbackCardinality,
+      String fallbackDirection) {
+    for (var mapping : objectMappings(objectMappings)) {
+      if (sourceTypeCode.equals(mapping.sourceTypeCode())
+          && targetTypeCode.equals(mapping.targetTypeCode())) {
+        var fields =
+            mapping.fieldMappings() == null
+                ? List.<MappingFieldMappingView>of()
+                : mapping.fieldMappings().stream()
+                    .map(
+                        field ->
+                            new MappingFieldMappingView(
+                                field.targetFieldCode(), field.expression()))
+                    .toList();
+        return new MappingDescriptor(
+            mapping.cardinality() == null ? fallbackCardinality : mapping.cardinality(),
+            mapping.direction() == null ? fallbackDirection : mapping.direction(),
+            fields);
+      }
+    }
+    return new MappingDescriptor(fallbackCardinality, fallbackDirection, List.of());
+  }
+
+  private List<ObjectMapping> objectMappings(String value) {
+    if (value == null || value.isBlank()) return List.of();
+    try {
+      return mapper.readValue(value, new TypeReference<>() {});
+    } catch (com.fasterxml.jackson.core.JsonProcessingException failure) {
+      throw new IllegalArgumentException("映射定义无法解析", failure);
+    }
+  }
+
+  private String objectLabel(String objectTypeCode, UUID objectId, Map<String, Object> fields) {
+    var label = fields.getOrDefault("name", fields.getOrDefault("title", fields.get("code")));
+    return label == null
+        ? objectTypeCode + " " + objectId.toString().substring(0, 8)
+        : label.toString();
+  }
+
   private String json(Object value) {
     try {
       return mapper.writeValueAsString(value);
@@ -717,6 +919,11 @@ class ReadModelRepository {
     }
   }
 
+  private Map<String, Object> optionalMap(String value) {
+    if (value == null) return Map.of();
+    return map(value);
+  }
+
   private static String resultString(java.sql.ResultSet result, int index) {
     try {
       return result.getString(index);
@@ -726,4 +933,10 @@ class ReadModelRepository {
   }
 
   record RelationTypeProjection(String code, boolean hierarchical) {}
+
+  record MappingCorrespondenceType(
+      String relationTypeCode, String sourceTypeCode, String targetTypeCode) {}
+
+  record MappingDescriptor(
+      String cardinality, String direction, List<MappingFieldMappingView> fieldMappings) {}
 }

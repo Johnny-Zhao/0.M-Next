@@ -148,6 +148,46 @@ describe("view and command clients", () => {
     expect(workspaces[0]?.templateCode).toBe("interior_design");
   });
 
+  it("reads mapping profile definitions for a workspace", async () => {
+    const fetchFn = vi.fn<FetchFn>(
+      async () =>
+        new Response(
+          JSON.stringify([
+            {
+              code: "req_to_case",
+              name: "Requirement to Case",
+              correspondenceRelationCode: "verifies",
+              sourceProfile: "source_profile",
+              targetProfile: "target_profile",
+              sourceTypeCode: "requirement",
+              targetTypeCode: "test_case",
+              objectMappings: [
+                {
+                  sourceTypeCode: "requirement",
+                  targetTypeCode: "test_case",
+                  cardinality: "one_to_one",
+                  direction: "source_to_target",
+                  fieldMappings: [
+                    { targetFieldCode: "name", expression: "field('text')" },
+                  ],
+                },
+              ],
+              relationMappings: [],
+            },
+          ]),
+        ),
+    );
+
+    const mappings = await new ViewClient("/api", fetchFn).mappingProfiles(
+      "ws",
+    );
+
+    expect(fetchFn.mock.calls[0]?.[0]).toBe(
+      "/api/workspaces/ws/views/mapping-profiles",
+    );
+    expect(mappings[0]?.objectMappings[0]?.cardinality).toBe("one_to_one");
+  });
+
   it("creates outputs with snapshot scope and actor header", async () => {
     const fetchFn = vi.fn<FetchFn>(
       async () =>
@@ -263,6 +303,27 @@ describe("view and command clients", () => {
     expect(fetchFn.mock.calls[0]?.[0]).toBe(
       "/api/workspaces/ws/views/check-results?runId=run-1&page=0&size=50",
     );
+  });
+
+  it("reads mapping correspondences and bounded coverage pages", async () => {
+    const fetchFn = vi.fn<FetchFn>(
+      async () =>
+        new Response(
+          JSON.stringify({ items: [], page: 0, pageSize: 30, total: 0 }),
+        ),
+    );
+    const client = new ViewClient("/api", fetchFn);
+
+    await client.mappingCorrespondences("ws");
+    await client.mappingCoverage("ws", "corr-1", 2, 30);
+
+    expect(fetchFn.mock.calls[0]?.[0]).toBe(
+      "/api/workspaces/ws/views/mapping/correspondences",
+    );
+    expect(fetchFn.mock.calls[1]?.[0]).toBe(
+      "/api/workspaces/ws/views/mapping/correspondences/corr-1/coverage?page=2&size=30",
+    );
+    expect(() => client.mappingCoverage("ws", "corr-1", 0, 51)).toThrow();
   });
 
   it("posts UpdateFields with expectedFieldVersion", async () => {

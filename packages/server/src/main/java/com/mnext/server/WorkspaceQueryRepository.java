@@ -47,7 +47,7 @@ class WorkspaceQueryRepository {
         ORDER BY updated_at DESC, w.name ASC
         """,
         (row, index) ->
-            new WorkspaceSummaryView(
+            workspace(
                 row.getObject("id", UUID.class),
                 row.getString("name"),
                 row.getString("template_code"),
@@ -69,12 +69,39 @@ class WorkspaceQueryRepository {
         ORDER BY updated_at DESC, w.name ASC
         """,
         (row, index) ->
-            new WorkspaceSummaryView(
+            workspace(
                 row.getObject("id", UUID.class),
                 row.getString("name"),
                 row.getString("template_code"),
                 instant(row.getTimestamp("updated_at"))),
         ProfileLoader.AUTHOR_WORKSPACE);
+  }
+
+  private WorkspaceSummaryView workspace(
+      UUID workspaceId, String name, String templateCode, Instant updatedAt) {
+    return new WorkspaceSummaryView(
+        workspaceId, name, templateCode, updatedAt, profiles(workspaceId));
+  }
+
+  private List<WorkspaceProfileView> profiles(UUID workspaceId) {
+    return jdbc.query(
+        """
+        SELECT version.id AS template_version_id, template.code AS template_code,
+               template.name, version.version, profile.applied_at
+        FROM workspace_profile profile
+        JOIN scene_template_version version ON version.id = profile.template_version_id
+        JOIN scene_template template ON template.id = version.template_id
+        WHERE profile.workspace_id = ?
+        ORDER BY profile.applied_at, template.code
+        """,
+        (row, index) ->
+            new WorkspaceProfileView(
+                row.getObject("template_version_id", UUID.class),
+                row.getString("template_code"),
+                row.getString("name"),
+                row.getInt("version"),
+                instant(row.getTimestamp("applied_at"))),
+        workspaceId);
   }
 
   private static Instant instant(Timestamp timestamp) {
