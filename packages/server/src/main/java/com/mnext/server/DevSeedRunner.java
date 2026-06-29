@@ -492,8 +492,7 @@ class DevSeedRunner implements ApplicationRunner {
         createMbseObject(
             conditionType, "condition-wind", Map.of("name", "侧风工况", "value", "侧风 <= 10m/s"));
     var rain =
-        createMbseObject(
-            conditionType, "condition-rain", Map.of("name", "降雨工况", "value", "小雨可运行"));
+        createMbseObject(conditionType, "condition-rain", Map.of("name", "降雨工况", "value", "小雨可运行"));
     var navigation =
         createMbseObject(capabilityType, "capability-navigation", Map.of("name", "自主导航"));
     var resilience =
