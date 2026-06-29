@@ -212,6 +212,12 @@ class ProfileLoaderIntegrationTest {
             targetFixture,
             "create-mapping-fixture",
             Map.of("name", "target", "load", 9));
+    var unmappedRoom =
+        createObject(
+            workspace,
+            sourceRoom,
+            "create-unmapped-mapping-room",
+            Map.of("name", "unmapped", "base_score", 1));
     applyEvents(
         command(
             workspace,
@@ -223,6 +229,36 @@ class ProfileLoaderIntegrationTest {
     assertEquals("maps_fixture", definitions.getFirst().get("correspondenceRelationCode"));
     assertEquals("one_to_one", firstObjectMapping(definitions).get("cardinality"));
     assertEquals("source_to_target", firstObjectMapping(definitions).get("direction"));
+
+    var correspondences = mappingCorrespondences(workspace);
+    assertEquals(1, correspondences.size(), correspondences.toString());
+    var correspondence = correspondences.getFirst();
+    assertEquals("maps_fixture", correspondence.get("relationType"));
+    assertEquals("room", correspondence.get("sourceTypeCode"));
+    assertEquals("fixture", correspondence.get("targetTypeCode"));
+    assertEquals("one_to_one", correspondence.get("cardinality"));
+    assertEquals("source_to_target", correspondence.get("direction"));
+
+    var coverage =
+        mappingCoverage(
+            workspace,
+            UUID.fromString(String.valueOf(correspondence.get("correspondenceId"))),
+            0,
+            10);
+    assertEquals(2L, ((Number) coverage.get("total")).longValue());
+    var items = coverageItems(coverage);
+    assertEquals(2, items.size(), items.toString());
+    assertTrue(items.stream().anyMatch(item -> "mapped".equals(item.get("status"))));
+    assertTrue(
+        items.stream()
+            .anyMatch(
+                item ->
+                    "unmapped".equals(item.get("status"))
+                        && unmappedRoom.toString().equals(item.get("sourceObjectId"))));
+    assertTrue(
+        items.stream()
+            .filter(item -> "mapped".equals(item.get("status")))
+            .allMatch(item -> item.get("anchoredSourceVersion") == null));
   }
 
   private ProfileManifest fixture() throws Exception {
@@ -694,6 +730,40 @@ class ProfileLoaderIntegrationTest {
             "http://localhost:" + port + "/workspaces/" + workspace + "/views/mapping-profiles",
             List.class)
         .getBody();
+  }
+
+  @SuppressWarnings("unchecked")
+  private List<Map<String, Object>> mappingCorrespondences(UUID workspace) {
+    return http.getForEntity(
+            "http://localhost:"
+                + port
+                + "/workspaces/"
+                + workspace
+                + "/views/mapping/correspondences",
+            List.class)
+        .getBody();
+  }
+
+  private Map<String, Object> mappingCoverage(
+      UUID workspace, UUID correspondenceId, int page, int size) {
+    return http.getForEntity(
+            "http://localhost:"
+                + port
+                + "/workspaces/"
+                + workspace
+                + "/views/mapping/correspondences/"
+                + correspondenceId
+                + "/coverage?page="
+                + page
+                + "&size="
+                + size,
+            Map.class)
+        .getBody();
+  }
+
+  @SuppressWarnings("unchecked")
+  private List<Map<String, Object>> coverageItems(Map<String, Object> coverage) {
+    return (List<Map<String, Object>>) coverage.get("items");
   }
 
   private UUID relationType(UUID workspace, String code) {
