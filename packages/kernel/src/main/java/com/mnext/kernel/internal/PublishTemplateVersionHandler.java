@@ -54,7 +54,7 @@ class PublishTemplateVersionHandler {
         meta.templateVersionStatus(command.templateVersionId())
             .orElseThrow(CommandErrors::typeNotFound);
     if ("published".equals(status)) throw CommandErrors.templateVersionImmutable();
-    if (meta.countObjectTypes(command.templateVersionId()) == 0) {
+    if (meta.templateTypeCount(command.templateVersionId()) == 0) {
       throw CommandErrors.templateEmpty();
     }
   }

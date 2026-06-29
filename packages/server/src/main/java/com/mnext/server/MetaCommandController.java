@@ -179,7 +179,8 @@ public class MetaCommandController {
         text(payload, "cardinality"),
         text(payload, "semantics"),
         payload.has("hierarchical") && payload.get("hierarchical").asBoolean(),
-        optionalUuid(payload, "templateVersionId"));
+        optionalUuid(payload, "templateVersionId"),
+        optionalText(payload, "kind"));
   }
 
   private PublishTemplateVersionCommand publishTemplateVersion(CommandRequest request) {

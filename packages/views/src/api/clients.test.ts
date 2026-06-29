@@ -148,6 +148,46 @@ describe("view and command clients", () => {
     expect(workspaces[0]?.templateCode).toBe("interior_design");
   });
 
+  it("reads mapping profile definitions for a workspace", async () => {
+    const fetchFn = vi.fn<FetchFn>(
+      async () =>
+        new Response(
+          JSON.stringify([
+            {
+              code: "req_to_case",
+              name: "Requirement to Case",
+              correspondenceRelationCode: "verifies",
+              sourceProfile: "source_profile",
+              targetProfile: "target_profile",
+              sourceTypeCode: "requirement",
+              targetTypeCode: "test_case",
+              objectMappings: [
+                {
+                  sourceTypeCode: "requirement",
+                  targetTypeCode: "test_case",
+                  cardinality: "one_to_one",
+                  direction: "source_to_target",
+                  fieldMappings: [
+                    { targetFieldCode: "name", expression: "field('text')" },
+                  ],
+                },
+              ],
+              relationMappings: [],
+            },
+          ]),
+        ),
+    );
+
+    const mappings = await new ViewClient("/api", fetchFn).mappingProfiles(
+      "ws",
+    );
+
+    expect(fetchFn.mock.calls[0]?.[0]).toBe(
+      "/api/workspaces/ws/views/mapping-profiles",
+    );
+    expect(mappings[0]?.objectMappings[0]?.cardinality).toBe("one_to_one");
+  });
+
   it("creates outputs with snapshot scope and actor header", async () => {
     const fetchFn = vi.fn<FetchFn>(
       async () =>

@@ -33,6 +33,7 @@ public class ViewQueryController {
   private final LineageQueryRepository lineageQueries;
   private final WorkspaceAuthorizer authorizer;
   private final WorkspaceQueryRepository workspaces;
+  private final TransformationRepository transformations;
 
   public ViewQueryController(
       ReadModelRepository repository,
@@ -42,7 +43,8 @@ public class ViewQueryController {
       @Nullable SimulationRunRepository simulationRuns,
       LineageQueryRepository lineageQueries,
       WorkspaceAuthorizer authorizer,
-      WorkspaceQueryRepository workspaces) {
+      WorkspaceQueryRepository workspaces,
+      TransformationRepository transformations) {
     this.repository = repository;
     this.checkResults = checkResults;
     this.derivedEvaluator = derivedEvaluator;
@@ -51,6 +53,7 @@ public class ViewQueryController {
     this.lineageQueries = lineageQueries;
     this.authorizer = authorizer;
     this.workspaces = workspaces;
+    this.transformations = transformations;
   }
 
   @GetMapping("/views/workspaces")
@@ -190,6 +193,12 @@ public class ViewQueryController {
       throw new IllegalArgumentException("page 必须非负且 size 必须为 1..200");
     }
     return repository.correspondences(workspaceId, objectId, relationType, page, size);
+  }
+
+  @GetMapping("/workspaces/{workspaceId}/views/mapping-profiles")
+  public List<MappingProfileView> mappingProfiles(@PathVariable("workspaceId") UUID workspaceId) {
+    authorize(workspaceId);
+    return transformations.mappingProfiles(workspaceId);
   }
 
   @GetMapping("/workspaces/{workspaceId}/views/recommendations")

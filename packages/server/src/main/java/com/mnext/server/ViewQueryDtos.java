@@ -68,6 +68,17 @@ record CorrespondenceView(
     Map<String, Object> fields,
     String direction) {}
 
+record MappingProfileView(
+    String code,
+    String name,
+    String correspondenceRelationCode,
+    String sourceProfile,
+    String targetProfile,
+    String sourceTypeCode,
+    String targetTypeCode,
+    List<ObjectMapping> objectMappings,
+    List<RelationMapping> relationMappings) {}
+
 record RankedCandidate(
     UUID candidateId,
     String objectTypeCode,
