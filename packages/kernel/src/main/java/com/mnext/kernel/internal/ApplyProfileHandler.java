@@ -3,7 +3,7 @@ package com.mnext.kernel.internal;
 import com.mnext.kernel.api.Actor;
 import com.mnext.kernel.api.CommandResult;
 import com.mnext.kernel.api.PermissionChecker;
-import com.mnext.kernel.api.metamodel.PublishTemplateVersionCommand;
+import com.mnext.kernel.api.metamodel.ApplyProfileCommand;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -12,12 +12,13 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 @Component
-class PublishTemplateVersionHandler {
+class ApplyProfileHandler {
+  private static final int TYPE_LIMIT = 500;
   private final MetaModelRepository meta;
   private final PermissionChecker permissions;
   private final CommandSupport support;
 
-  PublishTemplateVersionHandler(
+  ApplyProfileHandler(
       MetaModelRepository meta, KernelRepository repository, PermissionChecker permissions) {
     this.meta = meta;
     this.permissions = permissions;
@@ -25,43 +26,48 @@ class PublishTemplateVersionHandler {
   }
 
   @Transactional
-  CommandResult execute(PublishTemplateVersionCommand command, Actor actor) {
+  CommandResult execute(ApplyProfileCommand command, Actor actor) {
     support.validateEnvelope(
         command.workspaceId(), command.correlationId(), command.idempotencyKey());
     permissions.check(
-        "metamodel.publish", command.workspaceId(), command.templateVersionId(), Set.of(), actor);
-    if (command.templateVersionId() == null) throw CommandErrors.schema("templateVersionId 必填");
+        "metamodel.applyProfile", command.workspaceId(), command.templateId(), Set.of(), actor);
+    validatePayload(command);
     var hash = CommandSupport.payloadHash(payload(command));
     var replay = support.replay(command.workspaceId(), command.idempotencyKey(), hash);
     if (replay.isPresent()) return replay.get();
-    validate(command);
+    var version = meta.templateVersion(command.templateId(), command.version());
+    if (version == null || !"published".equals(version.status())) {
+      throw CommandErrors.templateNotPublished();
+    }
+    var typeCount = meta.templateTypeCount(version.id());
+    if (typeCount > TYPE_LIMIT) throw CommandErrors.batchTooLarge(1, typeCount);
     var now = Instant.now();
     var commandId = CommandSupport.commandId();
-    meta.publishTemplateVersion(command.templateVersionId(), actor.id(), now);
-    meta.markTemplateTypesPublished(command.templateVersionId());
+    if (!meta.runtimeTemplateVersionApplied(command.workspaceId(), version.id())) {
+      var sourceWorkspaceId = meta.templateVersionSourceWorkspace(version.id());
+      meta.applyProfileTemplateVersion(
+          version.id(), sourceWorkspaceId, command.workspaceId(), actor.id(), now);
+    }
     return support.commit(
         command.workspaceId(),
         command.idempotencyKey(),
         commandId,
-        "PublishTemplateVersion",
+        "ApplyProfile",
         hash,
         List.of(),
         now);
   }
 
-  private void validate(PublishTemplateVersionCommand command) {
-    var status =
-        meta.templateVersionStatus(command.templateVersionId())
-            .orElseThrow(CommandErrors::typeNotFound);
-    if ("published".equals(status)) throw CommandErrors.templateVersionImmutable();
-    if (meta.templateTypeCount(command.templateVersionId()) == 0) {
-      throw CommandErrors.templateEmpty();
+  private void validatePayload(ApplyProfileCommand command) {
+    if (command.templateId() == null || command.version() < 1) {
+      throw CommandErrors.schema("templateId、version 不符合约束");
     }
   }
 
-  private LinkedHashMap<String, Object> payload(PublishTemplateVersionCommand command) {
+  private LinkedHashMap<String, Object> payload(ApplyProfileCommand command) {
     var payload = new LinkedHashMap<String, Object>();
-    payload.put("templateVersionId", command.templateVersionId().toString());
+    payload.put("templateId", command.templateId().toString());
+    payload.put("version", command.version());
     return payload;
   }
 }

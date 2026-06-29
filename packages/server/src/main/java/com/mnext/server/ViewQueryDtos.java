@@ -10,8 +10,15 @@ record FieldDefinitionView(
 
 record ObjectTypeView(UUID id, String code, String name, List<FieldDefinitionView> fields) {}
 
+record WorkspaceProfileView(
+    UUID templateVersionId, String templateCode, String name, int version, Instant appliedAt) {}
+
 record WorkspaceSummaryView(
-    UUID workspaceId, String name, String templateCode, Instant updatedAt) {}
+    UUID workspaceId,
+    String name,
+    String templateCode,
+    Instant updatedAt,
+    List<WorkspaceProfileView> profiles) {}
 
 record ObjectView(
     UUID objectId,
@@ -60,6 +67,48 @@ record CorrespondenceView(
     String objectType,
     Map<String, Object> fields,
     String direction) {}
+
+record MappingFieldMappingView(String targetFieldCode, String expression) {}
+
+record MappingCorrespondenceView(
+    UUID correspondenceId,
+    String relationType,
+    UUID relationTypeId,
+    String sourceProfile,
+    String targetProfile,
+    String sourceTypeCode,
+    String sourceTypeName,
+    String targetTypeCode,
+    String targetTypeName,
+    String cardinality,
+    String direction,
+    List<MappingFieldMappingView> fieldMappings) {}
+
+record MappingCoverageItemView(
+    UUID sourceObjectId,
+    String sourceLabel,
+    long sourceVersion,
+    UUID targetObjectId,
+    String targetLabel,
+    Long targetVersion,
+    UUID relationId,
+    Long anchoredSourceVersion,
+    String status,
+    Instant updatedAt) {}
+
+record MappingCoveragePageView(
+    List<MappingCoverageItemView> items, int page, int pageSize, long total) {}
+
+record MappingProfileView(
+    String code,
+    String name,
+    String correspondenceRelationCode,
+    String sourceProfile,
+    String targetProfile,
+    String sourceTypeCode,
+    String targetTypeCode,
+    List<ObjectMapping> objectMappings,
+    List<RelationMapping> relationMappings) {}
 
 record RankedCandidate(
     UUID candidateId,

@@ -35,6 +35,15 @@ class DerivedFieldCopier {
     }
   }
 
+  void copyForApplyProfile(UUID templateVersionId, UUID workspaceId) {
+    for (var field : templateFields(templateVersionId)) {
+      var objectTypeId = resolveObjectType(workspaceId, templateVersionId, field.objectTypeCode());
+      if (!fieldExists(objectTypeId, field.code())) {
+        copyField(field, workspaceId, objectTypeId);
+      }
+    }
+  }
+
   private void copyField(TemplateDerivedField field, UUID workspaceId, UUID objectTypeId) {
     var now = Timestamp.from(Instant.now());
     jdbc.update(
@@ -72,14 +81,21 @@ class DerivedFieldCopier {
   }
 
   private UUID resolveObjectType(UUID workspaceId, String objectTypeCode) {
+    return resolveObjectType(workspaceId, null, objectTypeCode);
+  }
+
+  private UUID resolveObjectType(UUID workspaceId, UUID templateVersionId, String objectTypeCode) {
     var ids =
         jdbc.query(
             """
             SELECT id FROM object_type
-            WHERE workspace_id = ? AND code = ?
+            WHERE workspace_id = ?
+              AND template_version_id IS NOT DISTINCT FROM ?
+              AND code = ?
             """,
             (row, ignored) -> row.getObject(1, UUID.class),
             workspaceId,
+            templateVersionId,
             objectTypeCode);
     if (ids.isEmpty()) {
       throw new IllegalStateException("模板派生字段对象类型无法在目标空间解析");

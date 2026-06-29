@@ -16,6 +16,7 @@ describe("WorkbenchShellChrome", () => {
       "图",
       "表",
       "矩阵",
+      "映射",
       "文档",
       "平面图",
     ]);

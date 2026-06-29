@@ -9,6 +9,9 @@ public record ProfileManifest(
     String name,
     String version,
     String templateCode,
+    String kind,
+    String sourceProfile,
+    String targetProfile,
     List<ValueType> valueTypes,
     List<ObjectType> objectTypes,
     List<Field> fields,
@@ -65,7 +68,8 @@ public record ProfileManifest(
       String direction,
       String cardinality,
       String semantics,
-      Boolean hierarchical) {}
+      Boolean hierarchical,
+      String kind) {}
 
   public record DerivedField(
       String objectType,

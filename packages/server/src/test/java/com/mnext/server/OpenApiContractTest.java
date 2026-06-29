@@ -34,6 +34,7 @@ class OpenApiContractTest {
   @MockitoBean CheckResultRepository checkResults;
   @MockitoBean DerivedFieldRepository derivedFields;
   @MockitoBean LineageQueryRepository lineageQueries;
+  @MockitoBean TransformationRepository transformations;
   @MockitoBean WorkspaceAuthorizer authorizer;
   @MockitoBean WorkspaceQueryRepository workspaces;
   @Autowired MockMvc http;
@@ -71,6 +72,9 @@ class OpenApiContractTest {
             "sync-status",
             "rule-status",
             "lineage",
+            "mapping-profiles",
+            "mapping~1correspondences",
+            "mapping~1correspondences~1{correspondenceId}~1coverage",
             "check-results")) {
       assertFalse(
           document

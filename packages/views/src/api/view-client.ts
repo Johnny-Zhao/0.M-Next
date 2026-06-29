@@ -219,6 +219,48 @@ export interface CheckResultPage {
   readonly total: number;
 }
 
+export interface MappingFieldMapping {
+  readonly targetFieldCode: string;
+  readonly expression: string;
+}
+
+export interface MappingCorrespondence {
+  readonly correspondenceId: string;
+  readonly relationType: string;
+  readonly relationTypeId: string | null;
+  readonly sourceProfile: string;
+  readonly targetProfile: string;
+  readonly sourceTypeCode: string;
+  readonly sourceTypeName: string;
+  readonly targetTypeCode: string;
+  readonly targetTypeName: string;
+  readonly cardinality: string;
+  readonly direction: "source_to_target" | "target_to_source" | "bidirectional";
+  readonly fieldMappings: readonly MappingFieldMapping[];
+}
+
+export type MappingCoverageStatus = "mapped" | "unmapped" | "stale";
+
+export interface MappingCoverageItem {
+  readonly sourceObjectId: string;
+  readonly sourceLabel: string;
+  readonly sourceVersion: number;
+  readonly targetObjectId: string | null;
+  readonly targetLabel: string | null;
+  readonly targetVersion: number | null;
+  readonly relationId: string | null;
+  readonly anchoredSourceVersion: number | null;
+  readonly status: MappingCoverageStatus;
+  readonly updatedAt: string | null;
+}
+
+export interface MappingCoveragePage {
+  readonly items: readonly MappingCoverageItem[];
+  readonly page: number;
+  readonly pageSize: number;
+  readonly total: number;
+}
+
 export interface TemplateTypeOverview {
   readonly code: string;
   readonly name: string;
@@ -234,6 +276,36 @@ export interface TemplateCatalogItem {
   readonly description: string | null;
   readonly typeOverview: readonly TemplateTypeOverview[];
   readonly typeOverviewTruncated: boolean;
+}
+
+export interface MappingField {
+  readonly targetFieldCode: string;
+  readonly expression: string;
+}
+
+export interface MappingObject {
+  readonly sourceTypeCode: string;
+  readonly targetTypeCode: string;
+  readonly cardinality: string | null;
+  readonly direction: string | null;
+  readonly fieldMappings: readonly MappingField[];
+}
+
+export interface MappingRelation {
+  readonly sourceRelationCode: string;
+  readonly targetRelationCode: string;
+}
+
+export interface MappingProfile {
+  readonly code: string;
+  readonly name: string;
+  readonly correspondenceRelationCode: string;
+  readonly sourceProfile: string | null;
+  readonly targetProfile: string | null;
+  readonly sourceTypeCode: string;
+  readonly targetTypeCode: string;
+  readonly objectMappings: readonly MappingObject[];
+  readonly relationMappings: readonly MappingRelation[];
 }
 
 export interface WorkspaceSummary {
@@ -426,6 +498,10 @@ export class ViewClient {
 
   workspaces(): Promise<readonly WorkspaceSummary[]> {
     return this.get("/views/workspaces");
+  }
+
+  mappingProfiles(workspaceId: string): Promise<readonly MappingProfile[]> {
+    return this.get(`/workspaces/${workspaceId}/views/mapping-profiles`);
   }
 
   aiChanges(
@@ -635,6 +711,32 @@ export class ViewClient {
       size: `${size}`,
     });
     return this.get(`/workspaces/${workspaceId}/views/check-results?${query}`);
+  }
+
+  mappingCorrespondences(
+    workspaceId: string,
+  ): Promise<readonly MappingCorrespondence[]> {
+    return this.get(`/workspaces/${workspaceId}/views/mapping/correspondences`);
+  }
+
+  mappingCoverage(
+    workspaceId: string,
+    correspondenceId: string,
+    page = 0,
+    size = 30,
+  ): Promise<MappingCoveragePage> {
+    if (page < 0 || size < 1 || size > 50) {
+      throw new Error(
+        "mapping coverage page must be non-negative and size 1..50",
+      );
+    }
+    const query = new URLSearchParams({
+      page: `${page}`,
+      size: `${size}`,
+    });
+    return this.get(
+      `/workspaces/${workspaceId}/views/mapping/correspondences/${correspondenceId}/coverage?${query}`,
+    );
   }
 
   private async get<T>(path: string): Promise<T> {
