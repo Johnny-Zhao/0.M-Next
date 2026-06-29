@@ -7,7 +7,17 @@ import {
   type ReactElement,
 } from "react";
 
-import type { RelationSummary, RuleStatus, ViewObject } from "@m-next/views";
+import {
+  TimePlayhead,
+  nearestSeriesPoint,
+  seriesDomain,
+  type RelationSummary,
+  type RuleStatus,
+  type SimResultSeriesPoint,
+  type SimRunSummary,
+  type TimeOption,
+  type ViewObject,
+} from "@m-next/views";
 
 import { listDimensions, type DimensionDefinition } from "./dimensions";
 import { objectDerivedChips, objectTitle } from "./diagram-panel";
@@ -17,6 +27,7 @@ import { useWorkbenchContext } from "./workbench";
 
 export type FloorplanDimensionId = "all" | "light" | "thermal" | "wind";
 export type FloorplanTone = "ok" | "warn" | "block" | "normal" | "empty";
+export type FloorplanHeatTone = "low" | "mid" | "high" | "flat";
 
 export interface FloorplanDimensionOption {
   readonly id: FloorplanDimensionId;
@@ -72,6 +83,9 @@ const roomMinWidth = 108;
 const roomMinHeight = 78;
 const roomMaxWidth = 230;
 const roomMaxHeight = 172;
+const timeSeriesPageSize = 240;
+const timeSeriesDownsample = 4;
+const playbackTickMs = 280;
 
 const fallbackDimensions: readonly FloorplanDimensionOption[] = [
   {
@@ -400,6 +414,53 @@ function ruleTone(status: RuleStatus): FloorplanTone {
   return "normal";
 }
 
+export function floorplanHeatTone(
+  value: number | null | undefined,
+  min: number,
+  max: number,
+): FloorplanHeatTone | null {
+  if (value === null || value === undefined || !Number.isFinite(value)) {
+    return null;
+  }
+  if (!Number.isFinite(min) || !Number.isFinite(max) || min === max) {
+    return "flat";
+  }
+  const ratio = (value - min) / (max - min);
+  if (ratio < 0.34) return "low";
+  if (ratio < 0.67) return "mid";
+  return "high";
+}
+
+function numericFieldOptions(
+  object: ViewObject | undefined,
+): readonly TimeOption[] {
+  if (!object) return [];
+  const values = { ...object.fields, ...(object.derived ?? {}) };
+  return Object.entries(values)
+    .filter(([, value]) => positiveOrZeroNumber(value) !== undefined)
+    .map(([code]) => ({ id: code, label: code }))
+    .sort((left, right) => left.label.localeCompare(right.label));
+}
+
+function valueDomain(
+  points: readonly SimResultSeriesPoint[],
+): { readonly min: number; readonly max: number } | null {
+  const values = points
+    .map((point) => point.value)
+    .filter(
+      (value): value is number => value !== null && Number.isFinite(value),
+    );
+  if (values.length === 0) return null;
+  return { min: Math.min(...values), max: Math.max(...values) };
+}
+
+function formatSeriesValue(value: number | null | undefined): string {
+  if (value === null || value === undefined || !Number.isFinite(value)) {
+    return "无值";
+  }
+  return formatNumber(value, 2);
+}
+
 export function FloorplanPanel(): ReactElement {
   const context = useWorkbenchContext();
   const {
@@ -420,6 +481,17 @@ export function FloorplanPanel(): ReactElement {
   const [lineageTarget, setLineageTarget] = useState<LineageTarget | null>(
     null,
   );
+  const [simRuns, setSimRuns] = useState<readonly SimRunSummary[]>([]);
+  const [simRunsLoading, setSimRunsLoading] = useState(false);
+  const [selectedRunId, setSelectedRunId] = useState("");
+  const [timeObjectId, setTimeObjectId] = useState("");
+  const [timeFieldCode, setTimeFieldCode] = useState("");
+  const [seriesPoints, setSeriesPoints] = useState<
+    readonly SimResultSeriesPoint[]
+  >([]);
+  const [seriesLoading, setSeriesLoading] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [playing, setPlaying] = useState(false);
 
   useEffect(
     () =>
@@ -462,6 +534,133 @@ export function FloorplanPanel(): ReactElement {
     };
   }, [refreshVersion, reportError, rootId, viewClient, workspaceId]);
 
+  useEffect(() => {
+    let disposed = false;
+    setSimRunsLoading(true);
+    void viewClient
+      .simRuns(workspaceId, 0, 20)
+      .then((page) => {
+        if (disposed) return;
+        setSimRuns(page.items);
+        setSelectedRunId((current) =>
+          current && page.items.some((run) => run.runId === current)
+            ? current
+            : (page.items[0]?.runId ?? ""),
+        );
+      })
+      .catch((error) => {
+        if (disposed) return;
+        reportError(
+          error instanceof Error ? error.message : "读取仿真运行失败",
+        );
+        setSimRuns([]);
+        setSelectedRunId("");
+      })
+      .finally(() => {
+        if (!disposed) setSimRunsLoading(false);
+      });
+    return () => {
+      disposed = true;
+    };
+  }, [refreshVersion, reportError, viewClient, workspaceId]);
+
+  const objectOptions = useMemo<readonly TimeOption[]>(
+    () =>
+      data.objects.map((object) => ({
+        id: object.objectId,
+        label: objectTitle(object),
+      })),
+    [data.objects],
+  );
+  const selectedTimeObject = useMemo(
+    () => data.objects.find((object) => object.objectId === timeObjectId),
+    [data.objects, timeObjectId],
+  );
+  const fieldOptions = useMemo(
+    () => numericFieldOptions(selectedTimeObject),
+    [selectedTimeObject],
+  );
+
+  useEffect(() => {
+    if (data.objects.length === 0) {
+      setTimeObjectId("");
+      return;
+    }
+    setTimeObjectId((current) =>
+      current && data.objects.some((object) => object.objectId === current)
+        ? current
+        : data.objects[0]!.objectId,
+    );
+  }, [data.objects]);
+
+  useEffect(() => {
+    if (fieldOptions.length === 0) {
+      setTimeFieldCode("");
+      return;
+    }
+    setTimeFieldCode((current) =>
+      current && fieldOptions.some((field) => field.id === current)
+        ? current
+        : fieldOptions[0]!.id,
+    );
+  }, [fieldOptions]);
+
+  useEffect(() => {
+    if (!selectedRunId || !timeObjectId || !timeFieldCode) {
+      setSeriesPoints([]);
+      setPlaying(false);
+      return;
+    }
+    let disposed = false;
+    setSeriesLoading(true);
+    setPlaying(false);
+    void viewClient
+      .simSeries(workspaceId, selectedRunId, {
+        object: timeObjectId,
+        field: timeFieldCode,
+        downsample: timeSeriesDownsample,
+        page: 0,
+        size: timeSeriesPageSize,
+      })
+      .then((page) => {
+        if (disposed) return;
+        setSeriesPoints(page.items);
+        setCurrentTime(seriesDomain(page.items)?.min ?? 0);
+      })
+      .catch((error) => {
+        if (disposed) return;
+        reportError(
+          error instanceof Error ? error.message : "读取时间序列失败",
+        );
+        setSeriesPoints([]);
+      })
+      .finally(() => {
+        if (!disposed) setSeriesLoading(false);
+      });
+    return () => {
+      disposed = true;
+    };
+  }, [
+    reportError,
+    selectedRunId,
+    timeFieldCode,
+    timeObjectId,
+    viewClient,
+    workspaceId,
+  ]);
+
+  useEffect(() => {
+    const domain = seriesDomain(seriesPoints);
+    if (!playing || !domain || domain.max <= domain.min) return undefined;
+    const step = Math.max((domain.max - domain.min) / 90, 0.01);
+    const timer = window.setInterval(() => {
+      setCurrentTime((time) =>
+        time + step > domain.max ? domain.min : time + step,
+      );
+    }, playbackTickMs);
+    return () => window.clearInterval(timer);
+  }, [playing, seriesPoints]);
+
   const layout = useMemo(
     () =>
       buildFloorplanRooms(
@@ -473,6 +672,32 @@ export function FloorplanPanel(): ReactElement {
     [activeDimension, data.objects, data.relations, selectedObjectId],
   );
   const dimensions = floorplanDimensionOptions();
+  const timeDomain = useMemo(() => seriesDomain(seriesPoints), [seriesPoints]);
+  const seriesValueDomain = useMemo(
+    () => valueDomain(seriesPoints),
+    [seriesPoints],
+  );
+  const currentSeriesPoint = useMemo(
+    () => nearestSeriesPoint(seriesPoints, currentTime),
+    [currentTime, seriesPoints],
+  );
+  const currentHeatTone =
+    seriesValueDomain && currentSeriesPoint
+      ? floorplanHeatTone(
+          currentSeriesPoint.value,
+          seriesValueDomain.min,
+          seriesValueDomain.max,
+        )
+      : null;
+  const timeStatusText = seriesLoading
+    ? "加载中"
+    : seriesPoints.length === 0
+      ? "暂无序列"
+      : `t=${formatNumber(currentTime, 2)} · ${formatSeriesValue(
+          currentSeriesPoint?.value,
+        )} / ${formatNumber(timeDomain?.max ?? currentTime, 2)} · ${
+          seriesPoints.length
+        }/${timeSeriesPageSize} @${timeSeriesDownsample}x`;
 
   function openLineage(object: ViewObject, fieldCode: string): void {
     setLineageTarget({ object, fieldCode });
@@ -525,6 +750,24 @@ export function FloorplanPanel(): ReactElement {
             : "示意平面 · 非真实坐标"}
         </span>
       </div>
+      <TimePlayhead
+        currentTime={currentTime}
+        fieldOptions={fieldOptions}
+        loading={simRunsLoading || seriesLoading}
+        objectOptions={objectOptions}
+        onFieldChange={setTimeFieldCode}
+        onObjectChange={setTimeObjectId}
+        onPlayingChange={setPlaying}
+        onRunChange={setSelectedRunId}
+        onTimeChange={setCurrentTime}
+        playing={playing}
+        points={seriesPoints}
+        runs={simRuns}
+        selectedFieldCode={timeFieldCode}
+        selectedObjectId={timeObjectId}
+        selectedRunId={selectedRunId}
+        statusText={timeStatusText}
+      />
       <div
         className="floorplan-stage"
         onClick={() => selection.clear()}
@@ -546,6 +789,9 @@ export function FloorplanPanel(): ReactElement {
                 className={[
                   "floorplan-room",
                   `floorplan-room-tone-${room.tone}`,
+                  currentHeatTone && room.id === timeObjectId
+                    ? `floorplan-room-time floorplan-heat-${currentHeatTone}`
+                    : "",
                   room.selected ? "floorplan-room-selected" : "",
                 ]
                   .filter(Boolean)
@@ -596,6 +842,12 @@ export function FloorplanPanel(): ReactElement {
                       unit={room.areaChip.unit}
                       value={room.areaChip.value}
                     />
+                  </span>
+                ) : null}
+                {currentSeriesPoint && room.id === timeObjectId ? (
+                  <span className="floorplan-time-chip">
+                    {timeFieldCode}:{" "}
+                    {formatSeriesValue(currentSeriesPoint.value)}
                   </span>
                 ) : null}
               </div>
