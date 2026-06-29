@@ -33,12 +33,15 @@ class WorkspaceQueryRepository {
         FROM workspace w
         LEFT JOIN scene_template template ON template.id = w.template_id
         LEFT JOIN rm_object rm ON rm.workspace_id = w.id
-        WHERE NOT EXISTS (
-          SELECT 1 FROM workspace_member member WHERE member.workspace_id = w.id
-        )
-        OR EXISTS (
-          SELECT 1 FROM workspace_member member
-          WHERE member.workspace_id = w.id AND member.user_id = ?
+        WHERE w.id <> ?
+          AND (
+            NOT EXISTS (
+              SELECT 1 FROM workspace_member member WHERE member.workspace_id = w.id
+            )
+            OR EXISTS (
+              SELECT 1 FROM workspace_member member
+              WHERE member.workspace_id = w.id AND member.user_id = ?
+            )
         )
         GROUP BY w.id, w.name, template.code, w.created_at
         ORDER BY updated_at DESC, w.name ASC
@@ -49,6 +52,7 @@ class WorkspaceQueryRepository {
                 row.getString("name"),
                 row.getString("template_code"),
                 instant(row.getTimestamp("updated_at"))),
+        ProfileLoader.AUTHOR_WORKSPACE,
         actor);
   }
 
@@ -60,6 +64,7 @@ class WorkspaceQueryRepository {
         FROM workspace w
         LEFT JOIN scene_template template ON template.id = w.template_id
         LEFT JOIN rm_object rm ON rm.workspace_id = w.id
+        WHERE w.id <> ?
         GROUP BY w.id, w.name, template.code, w.created_at
         ORDER BY updated_at DESC, w.name ASC
         """,
@@ -68,7 +73,8 @@ class WorkspaceQueryRepository {
                 row.getObject("id", UUID.class),
                 row.getString("name"),
                 row.getString("template_code"),
-                instant(row.getTimestamp("updated_at"))));
+                instant(row.getTimestamp("updated_at"))),
+        ProfileLoader.AUTHOR_WORKSPACE);
   }
 
   private WorkspaceSummaryView workspace(
