@@ -1,5 +1,6 @@
 package com.mnext.kernel.api;
 
+import com.mnext.kernel.api.metamodel.ApplyProfileCommand;
 import com.mnext.kernel.api.metamodel.ApplyTemplateVersionCommand;
 import com.mnext.kernel.api.metamodel.CreateTemplateCommand;
 import com.mnext.kernel.api.metamodel.CreateTemplateVersionCommand;
@@ -32,6 +33,8 @@ public interface MetaCommandService {
   CommandResult restoreTemplateVersion(RestoreTemplateVersionCommand command, Actor actor);
 
   CommandResult instantiateWorkspace(InstantiateWorkspaceCommand command, Actor actor);
+
+  CommandResult applyProfile(ApplyProfileCommand command, Actor actor);
 
   CommandResult applyTemplateVersion(ApplyTemplateVersionCommand command, Actor actor);
 }

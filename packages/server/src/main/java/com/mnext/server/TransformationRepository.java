@@ -78,6 +78,38 @@ class TransformationRepository {
     return definitions.getFirst();
   }
 
+  List<MappingProfileView> mappingProfiles(UUID workspaceId) {
+    return jdbc.query(
+        """
+        SELECT transform.code, transform.name, transform.correspondence_relation_code,
+               transform.object_mappings::text, transform.relation_mappings::text,
+               source_type.code AS source_type_code, target_type.code AS target_type_code,
+               template.source_profile_code, template.target_profile_code
+        FROM m2m_transformation transform
+        JOIN relation_type relation
+          ON relation.workspace_id = transform.workspace_id
+         AND relation.code = transform.correspondence_relation_code
+        JOIN object_type source_type ON source_type.id = relation.source_type
+        JOIN object_type target_type ON target_type.id = relation.target_type
+        LEFT JOIN scene_template_version version ON version.id = transform.template_version_id
+        LEFT JOIN scene_template template ON template.id = version.template_id
+        WHERE transform.workspace_id = ? AND relation.kind = 'correspondence'
+        ORDER BY transform.code
+        """,
+        (row, index) ->
+            new MappingProfileView(
+                row.getString("code"),
+                row.getString("name"),
+                row.getString("correspondence_relation_code"),
+                row.getString("source_profile_code"),
+                row.getString("target_profile_code"),
+                row.getString("source_type_code"),
+                row.getString("target_type_code"),
+                objectMappings(row.getString("object_mappings")),
+                relationMappings(row.getString("relation_mappings"))),
+        workspaceId);
+  }
+
   private void insert(DefineTransformationRequest request, String actor) {
     var now = Timestamp.from(Instant.now());
     jdbc.update(
@@ -116,6 +148,16 @@ class TransformationRepository {
           || blank(mapping.targetTypeCode())
           || mapping.fieldMappings() == null) {
         throw invalid("对象映射载荷不完整", Map.of());
+      }
+      if (!blank(mapping.cardinality())
+          && !List.of("one_to_one", "many_to_one", "many_to_many")
+              .contains(mapping.cardinality())) {
+        throw invalid("对象映射基数无效", Map.of("cardinality", mapping.cardinality()));
+      }
+      if (!blank(mapping.direction())
+          && !List.of("source_to_target", "target_to_source", "bidirectional")
+              .contains(mapping.direction())) {
+        throw invalid("对象映射方向无效", Map.of("direction", mapping.direction()));
       }
       for (var field : mapping.fieldMappings()) {
         if (field == null || blank(field.targetFieldCode()) || blank(field.expression())) {

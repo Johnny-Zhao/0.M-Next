@@ -1,6 +1,7 @@
 package com.mnext.server;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.math.BigDecimal;
@@ -76,9 +77,15 @@ class DevSeedRunnerIntegrationTest {
     var workspaceIds =
         workspaces.stream().map(row -> String.valueOf(row.get("workspaceId"))).toList();
     var names = workspaces.stream().map(row -> String.valueOf(row.get("name"))).toList();
+    assertFalse(
+        workspaceIds.contains(ProfileLoader.AUTHOR_WORKSPACE.toString()), workspaces.toString());
     assertTrue(workspaceIds.contains(INTERIOR_WORKSPACE.toString()), workspaces.toString());
     assertTrue(workspaceIds.contains(TECHNICAL_WORKSPACE.toString()), workspaces.toString());
+    assertTrue(names.contains("室内设计 Demo"), names.toString());
     assertTrue(names.contains("技术方案 Demo"), names.toString());
+
+    assertEquals(1, templateObjectTypeCount(ProfileLoader.AUTHOR_WORKSPACE, "room"));
+    assertEquals(1, runtimeObjectTypeCount(INTERIOR_WORKSPACE, "room"));
   }
 
   private int objectCount(UUID workspaceId, String objectTypeCode) {
@@ -100,6 +107,30 @@ class DevSeedRunnerIntegrationTest {
         SELECT count(*)
         FROM rm_object
         WHERE workspace_id = ? AND object_type_code = ?
+        """,
+        Integer.class,
+        workspaceId,
+        objectTypeCode);
+  }
+
+  private int templateObjectTypeCount(UUID workspaceId, String objectTypeCode) {
+    return jdbc.queryForObject(
+        """
+        SELECT count(*)
+        FROM object_type
+        WHERE workspace_id = ? AND template_version_id IS NOT NULL AND code = ?
+        """,
+        Integer.class,
+        workspaceId,
+        objectTypeCode);
+  }
+
+  private int runtimeObjectTypeCount(UUID workspaceId, String objectTypeCode) {
+    return jdbc.queryForObject(
+        """
+        SELECT count(*)
+        FROM object_type
+        WHERE workspace_id = ? AND template_version_id IS NULL AND code = ?
         """,
         Integer.class,
         workspaceId,
