@@ -41,7 +41,7 @@ class RuleDefProfileUniqueMigrationIntegrationTest {
   void existingSchemaKeepsRulesAndAllowsSameCodeAcrossTemplateVersions() {
     var schema = "rule_def_existing_" + suffix();
 
-    migrate(schema, MigrationVersion.fromVersion("23"));
+    migrate(schema, MigrationVersion.fromVersion("25"));
     var jdbc = jdbc(schema);
     var workspace = UUID.randomUUID();
     var firstVersion = UUID.randomUUID();
@@ -61,6 +61,25 @@ class RuleDefProfileUniqueMigrationIntegrationTest {
         () ->
             insertRule(
                 jdbc, workspace, secondVersion, secondType, "profile_rule", UUID.randomUUID()));
+  }
+
+  @Test
+  void existingDuplicatesStopMigrationBeforeReplacingConstraint() {
+    var schema = "rule_def_duplicate_" + suffix();
+
+    migrate(schema, MigrationVersion.fromVersion("25"));
+    var jdbc = jdbc(schema);
+    var workspace = UUID.randomUUID();
+    var version = UUID.randomUUID();
+    var objectType = UUID.randomUUID();
+    insertProfileSkeleton(jdbc, workspace, version, UUID.randomUUID(), objectType, UUID.randomUUID());
+    insertRule(jdbc, workspace, version, objectType, "profile_rule", UUID.randomUUID());
+    jdbc.update("ALTER TABLE rule_def DROP CONSTRAINT rule_def_workspace_id_rule_code_key");
+    insertRule(jdbc, workspace, version, objectType, "profile_rule", UUID.randomUUID());
+
+    assertThrows(RuntimeException.class, () -> migrateLatest(schema));
+    assertEquals(2, countRules(jdbc, workspace, "profile_rule"));
+    assertEquals(0, countConstraint(jdbc, "rule_def_ws_tv_rule_code_key"));
   }
 
   private static void migrateLatest(String schema) {
