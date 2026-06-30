@@ -147,6 +147,7 @@ export function WorkbenchShellChrome({
       label: "校验",
       items: [
         { label: "打开校验面板", run: () => onOpenPanel("validate") },
+        { label: "验证仪表", run: () => onOpenPanel("verification") },
         { label: "打开批注面板", run: () => onOpenPanel("review") },
         { label: "重新校验", run: onRevalidate },
       ],

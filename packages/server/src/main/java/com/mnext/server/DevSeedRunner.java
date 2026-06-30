@@ -84,7 +84,7 @@ class DevSeedRunner implements ApplicationRunner {
     var mbseManifest = mbseManifest();
     profileLoader.install(mbseManifest, actor);
     ensureDemoWorkspace(mbseManifest, actor, MBSE_WORKSPACE, "MBSE Demo");
-    if (!mbseMissionExists()) {
+    if (!mbseSeedRichEnough()) {
       seedMbseObjects();
     }
   }
@@ -100,7 +100,7 @@ class DevSeedRunner implements ApplicationRunner {
     LOG.info("DEV SEED: interior-design installed, demo workspace {} ready", DEMO_WORKSPACE);
     LOG.info(
         "DEV SEED: technical-proposal installed, demo workspace {} ready", TECHNICAL_WORKSPACE);
-    LOG.info("DEV SEED: mbse installed, demo workspace {} ready", MBSE_WORKSPACE);
+    LOG.info("DEV SEED: mbse installed, rich verification demo workspace {} ready", MBSE_WORKSPACE);
   }
 
   private ProfileManifest interiorManifest() throws Exception {
@@ -267,18 +267,18 @@ class DevSeedRunner implements ApplicationRunner {
     return count != null && count > 0;
   }
 
-  private boolean mbseMissionExists() {
+  private boolean mbseSeedRichEnough() {
     var count =
         jdbc.queryForObject(
             """
             SELECT count(*)
             FROM data_object object
             JOIN object_type type ON type.id = object.object_type_id
-            WHERE object.workspace_id = ? AND type.code = 'mission'
+            WHERE object.workspace_id = ? AND type.code = 'requirement'
             """,
             Integer.class,
             MBSE_WORKSPACE);
-    return count != null && count > 0;
+    return count != null && count >= 12;
   }
 
   private void seedDemoObjects() {
@@ -488,62 +488,173 @@ class DevSeedRunner implements ApplicationRunner {
     var context = createMbseObject(contextType, "context", Map.of("name", "城市低空巡检场景"));
     var launchPhase = createMbseObject(phaseType, "phase-launch", Map.of("name", "起飞准备"));
     var patrolPhase = createMbseObject(phaseType, "phase-patrol", Map.of("name", "巡检执行"));
+    var analysisPhase = createMbseObject(phaseType, "phase-analysis", Map.of("name", "结果回传"));
     var wind =
         createMbseObject(
             conditionType, "condition-wind", Map.of("name", "侧风工况", "value", "侧风 <= 10m/s"));
     var rain =
         createMbseObject(conditionType, "condition-rain", Map.of("name", "降雨工况", "value", "小雨可运行"));
+    var linkLoss =
+        createMbseObject(
+            conditionType, "condition-link-loss", Map.of("name", "链路退化", "value", "丢包率 <= 8%"));
     var navigation =
         createMbseObject(capabilityType, "capability-navigation", Map.of("name", "自主导航"));
     var resilience =
         createMbseObject(capabilityType, "capability-resilience", Map.of("name", "环境适应"));
+    var sensing = createMbseObject(capabilityType, "capability-sensing", Map.of("name", "载荷感知"));
+    var safetyReturn =
+        createMbseObject(capabilityType, "capability-safety-return", Map.of("name", "安全返航"));
 
     relateMbse(occursInType, launchPhase, mission, "launch-occurs-in");
     relateMbse(occursInType, patrolPhase, mission, "patrol-occurs-in");
+    relateMbse(occursInType, analysisPhase, mission, "analysis-occurs-in");
     relateMbse(imposesType, launchPhase, wind, "launch-imposes-wind");
     relateMbse(imposesType, patrolPhase, rain, "patrol-imposes-rain");
+    relateMbse(imposesType, analysisPhase, linkLoss, "analysis-imposes-link-loss");
     relateMbse(requiresType, context, navigation, "context-requires-navigation");
     relateMbse(requiresType, context, resilience, "context-requires-resilience");
+    relateMbse(requiresType, context, sensing, "context-requires-sensing");
+    relateMbse(requiresType, context, safetyReturn, "context-requires-safety-return");
 
     var routeRequirement =
         createMbseObject(
             requirementType,
             "requirement-route",
-            requirementFields("REQ-MBSE-001", "系统应按规划航线自主巡检", "航线偏差 <= 2m", 0.2));
+            requirementFields("REQ-MBSE-001", "系统应按规划航线自主巡检", "1.5", 0.2));
     var windRequirement =
         createMbseObject(
             requirementType,
             "requirement-wind",
-            requirementFields("REQ-MBSE-002", "系统应在侧风下保持姿态稳定", "姿态误差 <= 5deg", 0.15));
+            requirementFields("REQ-MBSE-002", "系统应在侧风下保持姿态稳定", "5.0", 0.15));
     var rainRequirement =
         createMbseObject(
             requirementType,
             "requirement-rain",
-            requirementFields("REQ-MBSE-003", "系统应在小雨环境完成巡检", "任务完成率 >= 95%", 0.1));
+            requirementFields("REQ-MBSE-003", "系统应在小雨环境完成巡检", "0.95", 0.1));
     var recoveryRequirement =
         createMbseObject(
             requirementType,
             "requirement-recovery",
-            requirementFields("REQ-MBSE-004", "链路中断后系统应安全返航", "返航触发 <= 3s", 0.25));
+            requirementFields("REQ-MBSE-004", "链路中断后系统应安全返航", "3.0", 0.25));
+    var signalRequirement =
+        createMbseObject(
+            requirementType,
+            "requirement-signal",
+            requirementFields("REQ-MBSE-005", "系统应在弱链路下维持航迹上传", "0.8", 0.2));
+    var geofenceRequirement =
+        createMbseObject(
+            requirementType,
+            "requirement-geofence",
+            requirementFields("REQ-MBSE-006", "系统不得越过电子围栏", "0.0", 0.0));
+    var batteryRequirement =
+        createMbseObject(
+            requirementType,
+            "requirement-battery",
+            requirementFields("REQ-MBSE-007", "系统应保留返航电量裕度", "31.0", 0.1));
+    var rerouteRequirement =
+        createMbseObject(
+            requirementType,
+            "requirement-reroute",
+            requirementFields("REQ-MBSE-008", "系统应绕开临时禁飞区", "5.0", 0.2));
+    var imageRequirement =
+        createMbseObject(
+            requirementType,
+            "requirement-image",
+            requirementFields("REQ-MBSE-009", "载荷应采集可判读巡检图像", "0.9", 0.1));
+    var hotspotRequirement =
+        createMbseObject(
+            requirementType,
+            "requirement-hotspot",
+            requirementFields("REQ-MBSE-010", "系统应识别热异常点", "0.9", 0.1));
+    var syncRequirement =
+        createMbseObject(
+            requirementType,
+            "requirement-sync",
+            requirementFields("REQ-MBSE-011", "图像与遥测应时间同步", "0.2", 0.15));
+    var returnRequirement =
+        createMbseObject(
+            requirementType,
+            "requirement-return",
+            requirementFields("REQ-MBSE-012", "失联后应自动进入返航模式", "2.5", 0.25));
+    var landingRequirement =
+        createMbseObject(
+            requirementType,
+            "requirement-landing",
+            requirementFields("REQ-MBSE-013", "返航后应安全降落", "1.5", 0.2));
+    var reportRequirement =
+        createMbseObject(
+            requirementType,
+            "requirement-report",
+            requirementFields("REQ-MBSE-014", "任务结束后应生成验证摘要", "60.0", 0.15));
 
     relateMbse(derivesType, navigation, routeRequirement, "navigation-derives-route");
     relateMbse(derivesType, navigation, windRequirement, "navigation-derives-wind");
+    relateMbse(derivesType, navigation, signalRequirement, "navigation-derives-signal");
+    relateMbse(derivesType, navigation, geofenceRequirement, "navigation-derives-geofence");
     relateMbse(derivesType, resilience, rainRequirement, "resilience-derives-rain");
     relateMbse(derivesType, resilience, recoveryRequirement, "resilience-derives-recovery");
+    relateMbse(derivesType, resilience, batteryRequirement, "resilience-derives-battery");
+    relateMbse(derivesType, resilience, rerouteRequirement, "resilience-derives-reroute");
+    relateMbse(derivesType, sensing, imageRequirement, "sensing-derives-image");
+    relateMbse(derivesType, sensing, hotspotRequirement, "sensing-derives-hotspot");
+    relateMbse(derivesType, sensing, syncRequirement, "sensing-derives-sync");
+    relateMbse(derivesType, safetyReturn, returnRequirement, "safety-return-derives-return");
+    relateMbse(derivesType, safetyReturn, landingRequirement, "safety-return-derives-landing");
+    relateMbse(derivesType, safetyReturn, reportRequirement, "safety-return-derives-report");
 
     var routeTest = createMbseObject(testCaseType, "test-route", Map.of("name", "航线跟踪仿真"));
     var windTest = createMbseObject(testCaseType, "test-wind", Map.of("name", "侧风稳定性试验"));
     var rainTest = createMbseObject(testCaseType, "test-rain", Map.of("name", "小雨巡检试验"));
+    var signalTest = createMbseObject(testCaseType, "test-signal", Map.of("name", "弱链路遥测试验"));
+    var geofenceTest = createMbseObject(testCaseType, "test-geofence", Map.of("name", "电子围栏越界试验"));
+    var batteryTest = createMbseObject(testCaseType, "test-battery", Map.of("name", "返航电量裕度试验"));
+    var imageTest = createMbseObject(testCaseType, "test-image", Map.of("name", "巡检图像判读试验"));
+    var hotspotTest = createMbseObject(testCaseType, "test-hotspot", Map.of("name", "热异常识别试验"));
+    var syncTest = createMbseObject(testCaseType, "test-sync", Map.of("name", "图像遥测同步试验"));
+    var returnTest = createMbseObject(testCaseType, "test-return", Map.of("name", "失联返航触发试验"));
+    var landingTest = createMbseObject(testCaseType, "test-landing", Map.of("name", "返航降落试验"));
     relateMbse(verifiedByType, routeRequirement, routeTest, "route-verified-by");
     relateMbse(verifiedByType, windRequirement, windTest, "wind-verified-by");
     relateMbse(verifiedByType, rainRequirement, rainTest, "rain-verified-by");
+    relateMbse(verifiedByType, signalRequirement, signalTest, "signal-verified-by");
+    relateMbse(verifiedByType, geofenceRequirement, geofenceTest, "geofence-verified-by");
+    relateMbse(verifiedByType, batteryRequirement, batteryTest, "battery-verified-by");
+    relateMbse(verifiedByType, imageRequirement, imageTest, "image-verified-by");
+    relateMbse(verifiedByType, hotspotRequirement, hotspotTest, "hotspot-verified-by");
+    relateMbse(verifiedByType, syncRequirement, syncTest, "sync-verified-by");
+    relateMbse(verifiedByType, returnRequirement, returnTest, "return-verified-by");
+    relateMbse(verifiedByType, landingRequirement, landingTest, "landing-verified-by");
 
     var routeResult =
         createMbseObject(testResultType, "result-route", Map.of("value", 1.4, "verdict", "pass"));
     var windResult =
         createMbseObject(testResultType, "result-wind", Map.of("value", 6.1, "verdict", "fail"));
+    var signalResult =
+        createMbseObject(testResultType, "result-signal", Map.of("value", 0.7, "verdict", "pass"));
+    var geofenceResult =
+        createMbseObject(
+            testResultType, "result-geofence", Map.of("value", 0.4, "verdict", "fail"));
+    var batteryResult =
+        createMbseObject(
+            testResultType, "result-battery", Map.of("value", 31.0, "verdict", "pass"));
+    var imageResult =
+        createMbseObject(testResultType, "result-image", Map.of("value", 0.91, "verdict", "pass"));
+    var hotspotResult =
+        createMbseObject(
+            testResultType, "result-hotspot", Map.of("value", 0.84, "verdict", "fail"));
+    var returnResult =
+        createMbseObject(testResultType, "result-return", Map.of("value", 2.4, "verdict", "pass"));
+    var landingResult =
+        createMbseObject(testResultType, "result-landing", Map.of("value", 2.1, "verdict", "fail"));
     relateMbse(producesType, routeTest, routeResult, "route-produces-pass");
     relateMbse(producesType, windTest, windResult, "wind-produces-fail");
+    relateMbse(producesType, signalTest, signalResult, "signal-produces-pass");
+    relateMbse(producesType, geofenceTest, geofenceResult, "geofence-produces-fail");
+    relateMbse(producesType, batteryTest, batteryResult, "battery-produces-pass");
+    relateMbse(producesType, imageTest, imageResult, "image-produces-pass");
+    relateMbse(producesType, hotspotTest, hotspotResult, "hotspot-produces-fail");
+    relateMbse(producesType, returnTest, returnResult, "return-produces-pass");
+    relateMbse(producesType, landingTest, landingResult, "landing-produces-fail");
   }
 
   private Map<String, Object> requirementFields(
@@ -591,12 +702,17 @@ class DevSeedRunner implements ApplicationRunner {
       String templateCode,
       String keySuffix,
       Map<String, Object> fields) {
+    var idempotencyKey = key(templateCode, "create-" + keySuffix);
+    var existingObjectId = createdObjectId(workspaceId, idempotencyKey);
+    if (existingObjectId != null) {
+      return existingObjectId;
+    }
     var result =
         commands.createObject(
             new CreateObjectCommand(
                 workspaceId,
                 UUID.randomUUID(),
-                key(templateCode, "create-" + keySuffix),
+                idempotencyKey,
                 objectTypeId,
                 fields,
                 new SourceInfo("manual", "dev-seed"),
@@ -692,10 +808,10 @@ class DevSeedRunner implements ApplicationRunner {
 
   private void waitForReadModelMbseRequirements() throws InterruptedException {
     var deadline = System.nanoTime() + Duration.ofSeconds(30).toNanos();
-    while (readModelMbseRequirementCount() < 4 && System.nanoTime() < deadline) {
+    while (readModelMbseRequirementCount() < 12 && System.nanoTime() < deadline) {
       Thread.sleep(500);
     }
-    if (readModelMbseRequirementCount() < 4) {
+    if (readModelMbseRequirementCount() < 12) {
       LOG.warn("DEV SEED: MBSE read model did not catch up before rule check");
     }
   }
@@ -751,6 +867,30 @@ class DevSeedRunner implements ApplicationRunner {
       }
     }
     throw new IllegalStateException("CreateObject did not emit ObjectCreated");
+  }
+
+  private UUID createdObjectId(UUID workspaceId, String idempotencyKey) {
+    var eventIds =
+        jdbc.query(
+            """
+            SELECT jsonb_array_elements_text(result_snapshot->'events')
+            FROM command_log
+            WHERE workspace_id = ? AND idempotency_key = ? AND command_type = 'CreateObject'
+            """,
+            (rows, ignored) -> rows.getString(1),
+            workspaceId,
+            idempotencyKey);
+    for (var eventId : eventIds) {
+      var objectId =
+          jdbc.query(
+              "SELECT payload->'after'->>'objectId' FROM event_outbox WHERE id = ?",
+              rows -> rows.next() ? rows.getString(1) : null,
+              eventId);
+      if (objectId != null) {
+        return UUID.fromString(objectId);
+      }
+    }
+    return null;
   }
 
   private void applyEvents(CommandResult result) {

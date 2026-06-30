@@ -400,6 +400,30 @@ describe("view and command clients", () => {
     expect(() => client.mappingCoverage("ws", "corr-1", 0, 51)).toThrow();
   });
 
+  it("reads bounded verification coverage pages", async () => {
+    const fetchFn = vi.fn<FetchFn>(
+      async () =>
+        new Response(
+          JSON.stringify({
+            verified: 1,
+            unverified: 2,
+            failed: 3,
+            total: 6,
+            gaps: { items: [], page: 1, pageSize: 20, total: 5 },
+          }),
+        ),
+    );
+    const client = new ViewClient("/api", fetchFn);
+
+    const coverage = await client.verificationCoverage("ws", 1, 20);
+
+    expect(coverage.failed).toBe(3);
+    expect(fetchFn.mock.calls[0]?.[0]).toBe(
+      "/api/workspaces/ws/views/verification-coverage?page=1&size=20",
+    );
+    expect(() => client.verificationCoverage("ws", 0, 101)).toThrow();
+  });
+
   it("posts UpdateFields with expectedFieldVersion", async () => {
     const fetchFn = vi.fn<FetchFn>(
       async () => new Response(null, { status: 200 }),

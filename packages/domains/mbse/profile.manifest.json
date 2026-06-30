@@ -208,6 +208,20 @@
       "name": "Verify Status",
       "resultType": "string",
       "derivation": "if(any(traverseFrom(traverse('verified_by','out'),'produces','out'), field('verdict') == 'fail'), 'fail', if(count(traverseFrom(traverse('verified_by','out'),'produces','out')) == 0, 'unverified', 'pass'))"
+    },
+    {
+      "objectType": "requirement",
+      "code": "verify_result_count_fx",
+      "name": "Verification Result Count",
+      "resultType": "number",
+      "derivation": "count(traverseFrom(traverse('verified_by','out'),'produces','out'))"
+    },
+    {
+      "objectType": "requirement",
+      "code": "verify_margin_ok_fx",
+      "name": "Verification Margin OK",
+      "resultType": "boolean",
+      "derivation": "if(count(traverseFrom(traverse('verified_by','out'),'produces','out')) == 0, false, if(toNumber(field('target')) == null, true, min(traverseFrom(traverse('verified_by','out'),'produces','out'),'value') >= toNumber(field('target')) - field('margin_threshold') && max(traverseFrom(traverse('verified_by','out'),'produces','out'),'value') <= toNumber(field('target')) + field('margin_threshold')))"
     }
   ],
   "rules": [
@@ -233,6 +247,22 @@
       "severity": "BLOCK",
       "when": "field('verify_status_fx') == 'fail'",
       "message": "需求关联的测试结果失败",
+      "lightweight": false
+    },
+    {
+      "code": "R-VER-03",
+      "objectType": "requirement",
+      "severity": "WARN",
+      "when": "field('verify_result_count_fx') == 0",
+      "message": "需求缺少验证结果",
+      "lightweight": false
+    },
+    {
+      "code": "R-VER-04",
+      "objectType": "requirement",
+      "severity": "BLOCK",
+      "when": "field('verify_result_count_fx') > 0 && field('verify_margin_ok_fx') == false",
+      "message": "需求验证结果超出裕度",
       "lightweight": false
     }
   ]
