@@ -71,10 +71,22 @@ class SysmlProfileE2EIntegrationTest {
     assertEquals(200, imported.getStatusCode().value(), String.valueOf(imported.getBody()));
     assertTrue(list(imported.getBody(), "unapplied").isEmpty(), String.valueOf(imported.getBody()));
     assertEquals(3, list(imported.getBody(), "applied").size());
+    assertXmiIdentityBaseline(workspace, sampleXmi(), 1);
     projectOutbox();
 
     assertImportedObjectsAndAssociation(workspace);
     assertObjectTypesViewExposesInheritedName(workspace);
+    var refreshed = sampleXmi().replace("Engine shall be safe", "Engine shall remain safe");
+    var reimported =
+        post(
+            workspace,
+            "/exchange/sysml-xmi/apply",
+            Map.of("payload", refreshed, "confirmRemovals", false));
+    assertEquals(200, reimported.getStatusCode().value(), String.valueOf(reimported.getBody()));
+    assertTrue(
+        list(reimported.getBody(), "unapplied").isEmpty(), String.valueOf(reimported.getBody()));
+    assertXmiIdentityBaseline(workspace, refreshed, 2);
+
     var rejected =
         post(
             workspace,
@@ -273,6 +285,43 @@ class SysmlProfileE2EIntegrationTest {
     assertTrue(requirement.containsKey("name"));
     assertTrue(requirement.containsKey("req_id"));
     assertTrue(requirement.containsKey("text"));
+  }
+
+  private void assertXmiIdentityBaseline(UUID workspace, String content, int version) {
+    assertEquals(
+        3,
+        count(
+            """
+            xmi_identity
+            WHERE workspace_id = '%s'
+              AND project_ref = 'default'
+              AND xmi_id IN ('A1', 'B1', 'R1')
+            """
+                .formatted(workspace)));
+    assertEquals(
+        3,
+        count(
+            """
+            (SELECT DISTINCT xmi_id FROM xmi_identity
+             WHERE workspace_id = '%s' AND project_ref = 'default') identities
+            """
+                .formatted(workspace)));
+    assertEquals(
+        version,
+        value(
+            """
+            SELECT version FROM xmi_baseline_document
+            WHERE workspace_id = ? AND project_ref = 'default'
+            """,
+            workspace));
+    assertEquals(
+        content,
+        value(
+            """
+            SELECT content FROM xmi_baseline_document
+            WHERE workspace_id = ? AND project_ref = 'default'
+            """,
+            workspace));
   }
 
   private UUID template(String code) {

@@ -42,12 +42,16 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 @RestController
 public class ExchangeController {
   private static final SourceInfo IMPORT_SOURCE = new SourceInfo("artifact_sync", "import");
+  private static final String SYSML_XMI = "sysml-xmi";
+  private static final String DEFAULT_XMI_PROJECT_REF = "default";
   private final ReadModelRepository readModel;
   private final SnapshotRepository snapshots;
   private final KernelCommandService commands;
   private final JsonCodec codec;
   private final AdapterRegistry adapters;
   private final WorkspaceAuthorizer authorizer;
+  private final XmiIdentityRepository xmiIdentities;
+  private final XmiBaselineRepository xmiBaselines;
 
   public ExchangeController(
       ReadModelRepository readModel, KernelCommandService commands, ObjectMapper mapper) {
@@ -68,8 +72,17 @@ public class ExchangeController {
       KernelCommandService commands,
       ObjectMapper mapper,
       ObjectProvider<SnapshotRepository> snapshotProvider,
+      ObjectProvider<XmiIdentityRepository> xmiIdentityProvider,
+      ObjectProvider<XmiBaselineRepository> xmiBaselineProvider,
       WorkspaceAuthorizer authorizer) {
-    this(readModel, commands, mapper, snapshotProvider.getIfAvailable(), authorizer);
+    this(
+        readModel,
+        commands,
+        mapper,
+        snapshotProvider.getIfAvailable(),
+        authorizer,
+        xmiIdentityProvider.getIfAvailable(),
+        xmiBaselineProvider.getIfAvailable());
   }
 
   private ExchangeController(
@@ -78,12 +91,25 @@ public class ExchangeController {
       ObjectMapper mapper,
       SnapshotRepository snapshots,
       WorkspaceAuthorizer authorizer) {
+    this(readModel, commands, mapper, snapshots, authorizer, null, null);
+  }
+
+  private ExchangeController(
+      ReadModelRepository readModel,
+      KernelCommandService commands,
+      ObjectMapper mapper,
+      SnapshotRepository snapshots,
+      WorkspaceAuthorizer authorizer,
+      XmiIdentityRepository xmiIdentities,
+      XmiBaselineRepository xmiBaselines) {
     this.readModel = readModel;
     this.commands = commands;
     this.codec = new JsonCodec(mapper);
     this.snapshots = snapshots;
     this.adapters = new AdapterRegistry();
     this.authorizer = authorizer;
+    this.xmiIdentities = xmiIdentities;
+    this.xmiBaselines = xmiBaselines;
   }
 
   @GetMapping("/workspaces/{workspaceId}/exchange/json/export")
@@ -242,22 +268,33 @@ public class ExchangeController {
     }
     var current = readModel.dataSet(workspaceId);
     var target = ArtifactMapper.toDataSet(artifact, current);
-    return applyDataSet(workspaceId, actor, current, target);
+    return applyDataSet(workspaceId, actor, current, target, false).result();
   }
 
   private ExchangeApplyResult applyPayload(
       UUID workspaceId, Actor actor, String format, String payload) {
     var current = readModel.dataSet(workspaceId);
-    return applyDataSet(
-        workspaceId, actor, current, adapters.require(format).importToDataSet(payload, current));
+    var collectXmiIdentity = SYSML_XMI.equals(format);
+    var outcome =
+        applyDataSet(
+            workspaceId,
+            actor,
+            current,
+            adapters.require(format).importToDataSet(payload, current),
+            collectXmiIdentity);
+    if (collectXmiIdentity && outcome.result().unapplied().isEmpty()) {
+      recordXmiIdentityBaseline(workspaceId, DEFAULT_XMI_PROJECT_REF, payload, outcome);
+    }
+    return outcome.result();
   }
 
-  private ExchangeApplyResult applyDataSet(
-      UUID workspaceId, Actor actor, DataSet current, DataSet target) {
+  private ApplyOutcome applyDataSet(
+      UUID workspaceId, Actor actor, DataSet current, DataSet target, boolean collectMappings) {
     var diff = StructuredDiff.diff(current, target);
     var applied = new ArrayList<String>();
     var unapplied = new ArrayList<ExchangeApplyFailure>();
     var objectIds = objectIds(current);
+    var relationIds = collectMappings ? relationIds(current) : null;
     var targetObjects = byObjectId(target);
     var correlationId = UUID.randomUUID();
 
@@ -284,10 +321,14 @@ public class ExchangeController {
           key,
           targetRelations.get(key),
           objectIds,
+          relationIds,
           applied,
           unapplied);
     }
-    return new ExchangeApplyResult(diff, List.copyOf(applied), List.copyOf(unapplied));
+    return new ApplyOutcome(
+        new ExchangeApplyResult(diff, List.copyOf(applied), List.copyOf(unapplied)),
+        collectMappings ? xmiObjectIdentities(target, objectIds) : Map.of(),
+        collectMappings ? xmiRelationIdentities(target, relationIds) : Map.of());
   }
 
   private void applyObject(
@@ -367,21 +408,26 @@ public class ExchangeController {
       String key,
       DataRelation relation,
       Map<String, UUID> objectIds,
+      Map<String, UUID> relationIds,
       List<String> applied,
       List<ExchangeApplyFailure> unapplied) {
     var item = "relation:" + key;
     try {
-      commands.createRelation(
-          new CreateRelationCommand(
-              workspaceId,
-              correlationId,
-              idempotency(correlationId, "relation", key),
-              readModel.relationTypeId(workspaceId, relation.relationTypeCode()),
-              requiredId(objectIds, relation.sourceId()),
-              requiredId(objectIds, relation.targetId()),
-              relation.fields(),
-              IMPORT_SOURCE),
-          actor);
+      var result =
+          commands.createRelation(
+              new CreateRelationCommand(
+                  workspaceId,
+                  correlationId,
+                  idempotency(correlationId, "relation", key),
+                  readModel.relationTypeId(workspaceId, relation.relationTypeCode()),
+                  requiredId(objectIds, relation.sourceId()),
+                  requiredId(objectIds, relation.targetId()),
+                  relation.fields(),
+                  IMPORT_SOURCE),
+              actor);
+      if (relationIds != null && xmiIdentities != null) {
+        relationIds.put(key, xmiIdentities.createdRelationId(result.events()));
+      }
       applied.add(item);
     } catch (CommandRejectedException failure) {
       unapplied.add(new ExchangeApplyFailure(item, failure.error()));
@@ -410,6 +456,43 @@ public class ExchangeController {
     return values;
   }
 
+  private void recordXmiIdentityBaseline(
+      UUID workspaceId, String projectRef, String payload, ApplyOutcome outcome) {
+    if (xmiIdentities == null || xmiBaselines == null) return;
+    xmiIdentities.upsert(
+        workspaceId, projectRef, outcome.objectIdentities(), outcome.relationIdentities());
+    xmiBaselines.refresh(workspaceId, projectRef, payload);
+  }
+
+  private static Map<String, UUID> relationIds(DataSet dataSet) {
+    var ids = new HashMap<String, UUID>();
+    for (var relation : dataSet.relations()) {
+      ids.put(relation.relationId(), UUID.fromString(relation.relationId()));
+    }
+    return ids;
+  }
+
+  private static Map<String, UUID> xmiObjectIdentities(
+      DataSet target, Map<String, UUID> objectIds) {
+    var values = new LinkedHashMap<String, UUID>();
+    for (var object : target.objects()) {
+      var platformId = objectIds.get(object.objectId());
+      if (platformId != null) values.put(object.objectId(), platformId);
+    }
+    return values;
+  }
+
+  private static Map<String, UUID> xmiRelationIdentities(
+      DataSet target, Map<String, UUID> relationIds) {
+    var values = new LinkedHashMap<String, UUID>();
+    if (relationIds == null) return values;
+    for (var relation : target.relations()) {
+      var platformId = relationIds.get(relation.relationId());
+      if (platformId != null) values.put(relation.relationId(), platformId);
+    }
+    return values;
+  }
+
   private static UUID requiredId(Map<String, UUID> ids, String key) {
     var value = ids.get(key);
     if (value == null) throw new IllegalArgumentException("未解析对象 key: " + key);
@@ -423,4 +506,9 @@ public class ExchangeController {
   static CommandError schemaError(String message) {
     return new CommandError("KERNEL-400-SCHEMA-INVALID", message, Map.of(), "修正 JSON 制品或类型映射后重试");
   }
+
+  private record ApplyOutcome(
+      ExchangeApplyResult result,
+      Map<String, UUID> objectIdentities,
+      Map<String, UUID> relationIdentities) {}
 }
