@@ -1,0 +1,22 @@
+{
+  "id": "sysml-mbse-mapping",
+  "name": "SysML to MBSE Mapping",
+  "version": "1.0.0",
+  "templateCode": "sysml_mbse_mapping",
+  "kind": "mapping",
+  "sourceProfile": "sysml",
+  "targetProfile": "mbse_verification",
+  "relations": [
+    {
+      "code": "sysml_requirement_to_mbse_requirement",
+      "name": "SysML Requirement to MBSE Requirement",
+      "source": "sysml_requirement",
+      "target": "requirement",
+      "direction": "directed",
+      "cardinality": "many_to_many",
+      "semantics": "weak",
+      "hierarchical": false,
+      "kind": "correspondence"
+    }
+  ]
+}

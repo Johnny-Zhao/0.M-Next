@@ -1,0 +1,6 @@
+{
+  "id": "sysml",
+  "name": "SysML",
+  "version": "1.0.0",
+  "profileManifest": "./profile.manifest.json"
+}

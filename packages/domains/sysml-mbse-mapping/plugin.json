@@ -1,0 +1,6 @@
+{
+  "id": "sysml-mbse-mapping",
+  "name": "SysML to MBSE Mapping",
+  "version": "1.0.0",
+  "profileManifest": "./profile.manifest.json"
+}

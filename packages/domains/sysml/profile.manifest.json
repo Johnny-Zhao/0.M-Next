@@ -1,0 +1,75 @@
+{
+  "id": "sysml",
+  "name": "SysML",
+  "version": "1.0.0",
+  "templateCode": "sysml",
+  "valueTypes": [
+    {
+      "code": "sysml_id",
+      "name": "SysML ID",
+      "basePrimitive": "text"
+    }
+  ],
+  "objectTypes": [
+    {
+      "code": "uml_class",
+      "name": "UML Class"
+    },
+    {
+      "code": "sysml_block",
+      "name": "SysML Block",
+      "parent": "uml_class"
+    },
+    {
+      "code": "sysml_requirement",
+      "name": "SysML Requirement",
+      "parent": "uml_class"
+    }
+  ],
+  "fields": [
+    {
+      "objectType": "uml_class",
+      "code": "name",
+      "name": "Name",
+      "dataType": "string",
+      "required": true
+    },
+    {
+      "objectType": "sysml_requirement",
+      "code": "req_id",
+      "name": "Requirement ID",
+      "valueType": "sysml_id",
+      "required": true
+    },
+    {
+      "objectType": "sysml_requirement",
+      "code": "text",
+      "name": "Text",
+      "dataType": "text",
+      "required": true
+    }
+  ],
+  "relations": [
+    {
+      "code": "uml_association",
+      "name": "UML Association",
+      "source": "uml_class",
+      "target": "uml_class",
+      "direction": "directed",
+      "cardinality": "many_to_many",
+      "semantics": "weak",
+      "hierarchical": false
+    }
+  ],
+  "rules": [
+    {
+      "code": "SYSML-REQ-TEXT",
+      "objectType": "sysml_requirement",
+      "field": "text",
+      "severity": "BLOCK",
+      "when": "isBlank(field('text'))",
+      "message": "SysML requirement text is required",
+      "lightweight": true
+    }
+  ]
+}
