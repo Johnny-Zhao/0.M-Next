@@ -195,6 +195,39 @@
   padding: 0.35rem 0.55rem;
 }
 
+.capability-facets {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.capability-facet {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.capability-facet > span {
+  color: var(--mn-ink-2);
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.capability-facet > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.capability-facet button {
+  min-height: 2rem;
+  padding: 0 0.7rem;
+}
+
+.capability-facet button.is-selected {
+  background: var(--mn-accent-bg);
+  border-color: var(--mn-accent-bd);
+  color: var(--mn-accent-d);
+}
+
 .home-error {
   background: var(--mn-bad-bg);
   border: 1px solid var(--mn-bad-bd);

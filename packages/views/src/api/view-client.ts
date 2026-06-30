@@ -335,6 +335,12 @@ export interface TemplateTypeOverview {
   readonly name: string;
 }
 
+export interface TemplateTags {
+  readonly industry: readonly string[];
+  readonly profession: readonly string[];
+  readonly scenario: readonly string[];
+}
+
 export interface TemplateCatalogItem {
   readonly templateId: string;
   readonly code: string;
@@ -343,6 +349,7 @@ export interface TemplateCatalogItem {
   readonly latestPublishedVersion: number;
   readonly publishedAt: string | null;
   readonly description: string | null;
+  readonly tags: TemplateTags;
   readonly typeOverview: readonly TemplateTypeOverview[];
   readonly typeOverviewTruncated: boolean;
 }

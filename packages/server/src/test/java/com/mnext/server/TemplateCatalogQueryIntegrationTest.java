@@ -54,6 +54,11 @@ class TemplateCatalogQueryIntegrationTest {
     var version2 = templateVersion(publishedTemplate, 2, "published");
     templateObject(version2, "room", "Room");
     templateObject(version2, "zone", "Zone");
+    tagVersion(
+        version2,
+        """
+        {"industry":["工程"],"profession":["系统设计"],"scenario":["方案评审"]}
+        """);
     var draftOnly = template("catalog_draft");
     templateVersion(draftOnly, 1, "draft");
     var empty = template("catalog_empty");
@@ -72,12 +77,16 @@ class TemplateCatalogQueryIntegrationTest {
     assertEquals(2, published.get("latestPublishedVersion"));
     assertNotNull(published.get("publishedAt"));
     assertNull(published.get("description"));
+    assertEquals(List.of("工程"), tags(published, "industry"));
+    assertEquals(List.of("系统设计"), tags(published, "profession"));
+    assertEquals(List.of("方案评审"), tags(published, "scenario"));
     assertFalse((Boolean) published.get("typeOverviewTruncated"));
     var overview = overview(published);
     assertEquals(List.of("room", "zone"), overview.stream().map(type -> type.get("code")).toList());
     assertEquals(List.of("Room", "Zone"), overview.stream().map(type -> type.get("name")).toList());
     var emptyItem = item(items, code(empty));
     assertTrue(overview(emptyItem).isEmpty());
+    assertEquals(List.of("未分类"), tags(emptyItem, "industry"));
     var manyItem = item(items, code(many));
     assertEquals(20, overview(manyItem).size());
     assertTrue((Boolean) manyItem.get("typeOverviewTruncated"));
@@ -127,6 +136,10 @@ class TemplateCatalogQueryIntegrationTest {
         name);
   }
 
+  private void tagVersion(UUID version, String tags) {
+    jdbc.update("UPDATE scene_template_version SET tags = ?::jsonb WHERE id = ?", tags, version);
+  }
+
   private List<Map<String, Object>> templates() {
     return http.getForEntity("http://localhost:" + port + "/views/templates", List.class).getBody();
   }
@@ -137,6 +150,10 @@ class TemplateCatalogQueryIntegrationTest {
 
   private List<Map<String, Object>> overview(Map<String, Object> item) {
     return (List<Map<String, Object>>) item.get("typeOverview");
+  }
+
+  private List<String> tags(Map<String, Object> item, String facet) {
+    return (List<String>) ((Map<String, Object>) item.get("tags")).get(facet);
   }
 
   private String code(UUID template) {

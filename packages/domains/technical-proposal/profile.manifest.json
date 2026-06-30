@@ -3,6 +3,11 @@
   "name": "技术方案",
   "version": "1.0.0",
   "templateCode": "technical_proposal",
+  "tags": {
+    "industry": ["工程"],
+    "profession": ["系统设计"],
+    "scenario": ["方案评审"]
+  },
   "valueTypes": [
     {
       "code": "coverage_ratio",

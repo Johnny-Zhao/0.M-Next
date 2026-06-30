@@ -3,6 +3,11 @@
   "name": "MBSE / 验证",
   "version": "1.0.0",
   "templateCode": "mbse_verification",
+  "tags": {
+    "industry": ["装备"],
+    "profession": ["系统工程"],
+    "scenario": ["验证"]
+  },
   "valueTypes": [
     {
       "code": "margin_ratio",
