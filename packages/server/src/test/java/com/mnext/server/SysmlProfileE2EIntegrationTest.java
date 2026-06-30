@@ -33,7 +33,9 @@ import org.testcontainers.utility.DockerImageName;
     webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
     properties = {"mnext.outbox.enabled=false", "mnext.readmodel.enabled=false"})
 class SysmlProfileE2EIntegrationTest {
-  private static final UUID AUTHOR = UUID.fromString("11111111-1111-4111-8111-111111111111");
+  private static final String XMI_NS = "http" + "://www.omg.org/XMI";
+  private static final String UML_NS = "http" + "://www.eclipse.org/uml2/5.0.0/UML";
+  private static final String SYSML_NS = "http" + "://www.omg.org/spec/SysML/20100301/SysML";
 
   @Container
   static final PostgreSQLContainer<?> POSTGRES =
@@ -56,12 +58,14 @@ class SysmlProfileE2EIntegrationTest {
 
   @Test
   void sysmlProfileImportsXmiAndEnforcesRules() throws Exception {
+    var author = UUID.randomUUID();
+    workspace(author, "SysML Author");
     var template = template("sysml_profile");
     var version = templateVersion(template);
-    defineProfile(version);
-    assertOk(meta(AUTHOR, publishTemplate(version, "publish-sysml-profile")));
+    defineProfile(version, author);
+    assertOk(meta(author, publishTemplate(version, "publish-sysml-profile", author)));
     var workspace = UUID.randomUUID();
-    assertOk(meta(AUTHOR, instantiate(template, workspace, "instantiate-sysml-profile")));
+    assertOk(meta(author, instantiate(template, workspace, "instantiate-sysml-profile", author)));
 
     var imported =
         post(
@@ -100,14 +104,47 @@ class SysmlProfileE2EIntegrationTest {
     assertEquals("RULE-422-RULE-VIOLATION", errorCode(rejected));
   }
 
-  private void defineProfile(UUID version) {
+  @Test
+  void sysmlProjectSetResolvesInternalHrefsAndKeepsExternalPayloads() throws Exception {
+    var author = UUID.randomUUID();
+    workspace(author, "SysML Project Set Author");
+    var template = template("sysml_project_set");
+    var version = templateVersion(template);
+    defineProfile(version, author);
+    assertOk(meta(author, publishTemplate(version, "publish-sysml-project-set", author)));
+    var workspace = UUID.randomUUID();
+    assertOk(
+        meta(author, instantiate(template, workspace, "instantiate-sysml-project-set", author)));
+
+    var imported =
+        post(
+            workspace,
+            "/exchange/sysml-xmi/project-set/apply",
+            Map.of(
+                "confirmRemovals",
+                false,
+                "documents",
+                List.of(
+                    Map.of("projectRef", "main.xmi", "payload", projectSetMainXmi()),
+                    Map.of("projectRef", "lib.xmi", "payload", projectSetLibraryXmi()))));
+
+    assertEquals(200, imported.getStatusCode().value(), String.valueOf(imported.getBody()));
+    assertEquals(1, list(imported.getBody(), "resolvedReferences").size());
+    assertEquals(1, list(imported.getBody(), "unresolvedReferences").size());
+    assertProjectSetIdentityBaseline(workspace);
+    assertProjectSetRelation(workspace);
+    assertCustomStereotypePreserved(workspace);
+  }
+
+  private void defineProfile(UUID version, UUID author) {
+    var suffix = "-" + version.toString().substring(0, 8);
     assertOk(
         meta(
-            AUTHOR,
+            author,
             command(
                 "DefineValueType",
-                AUTHOR,
-                "define-sysml-id",
+                author,
+                "define-sysml-id" + suffix,
                 Map.of(
                     "templateVersionId", version,
                     "code", "sysml_id",
@@ -116,22 +153,22 @@ class SysmlProfileE2EIntegrationTest {
                     "parentValueTypeCode", "text"))));
     assertOk(
         meta(
-            AUTHOR,
+            author,
             command(
                 "DefineObjectType",
-                AUTHOR,
-                "define-uml-class",
+                author,
+                "define-uml-class" + suffix,
                 Map.of(
                     "templateVersionId", version,
                     "code", "uml_class",
                     "name", "UML Class"))));
     assertOk(
         meta(
-            AUTHOR,
+            author,
             command(
                 "DefineObjectType",
-                AUTHOR,
-                "define-sysml-block",
+                author,
+                "define-sysml-block" + suffix,
                 Map.of(
                     "templateVersionId", version,
                     "code", "sysml_block",
@@ -139,28 +176,46 @@ class SysmlProfileE2EIntegrationTest {
                     "parentTypeCode", "uml_class"))));
     assertOk(
         meta(
-            AUTHOR,
+            author,
             command(
                 "DefineObjectType",
-                AUTHOR,
-                "define-sysml-requirement",
+                author,
+                "define-sysml-requirement" + suffix,
                 Map.of(
                     "templateVersionId", version,
                     "code", "sysml_requirement",
                     "name", "SysML Requirement",
                     "parentTypeCode", "uml_class"))));
-    var umlClass = objectType(AUTHOR, "uml_class");
-    var requirement = objectType(AUTHOR, "sysml_requirement");
-    defineField(umlClass, "name", "Name", "string", null, true, "define-uml-name");
-    defineField(requirement, "req_id", "Requirement ID", null, "sysml_id", false, "define-req-id");
-    defineField(requirement, "text", "Text", "text", null, true, "define-req-text");
+    var umlClass = objectType(author, "uml_class", version);
+    var requirement = objectType(author, "sysml_requirement", version);
+    defineField(author, umlClass, "name", "Name", "string", null, true, "define-uml-name" + suffix);
+    defineField(
+        author,
+        umlClass,
+        "uml_stereotype",
+        "UML Stereotype",
+        "string",
+        null,
+        false,
+        "define-uml-stereotype" + suffix);
+    defineField(
+        author,
+        requirement,
+        "req_id",
+        "Requirement ID",
+        null,
+        "sysml_id",
+        false,
+        "define-req-id" + suffix);
+    defineField(
+        author, requirement, "text", "Text", "text", null, true, "define-req-text" + suffix);
     assertOk(
         meta(
-            AUTHOR,
+            author,
             command(
                 "DefineRelationType",
-                AUTHOR,
-                "define-uml-association",
+                author,
+                "define-uml-association" + suffix,
                 Map.of(
                     "code", "uml_association",
                     "name", "UML Association",
@@ -170,8 +225,8 @@ class SysmlProfileE2EIntegrationTest {
                     "cardinality", "many_to_many",
                     "semantics", "weak",
                     "hierarchical", false))));
-    attachRelationTypeToTemplateVersion(AUTHOR, version, "uml_association");
-    defineRequirementRule(version);
+    attachRelationTypeToTemplateVersion(author, version, "uml_association");
+    defineRequirementRule(version, suffix, author);
   }
 
   private void attachRelationTypeToTemplateVersion(UUID workspace, UUID version, String code) {
@@ -180,6 +235,7 @@ class SysmlProfileE2EIntegrationTest {
         UPDATE relation_type
         SET template_version_id = ?
         WHERE workspace_id = ? AND code = ?
+          AND template_version_id IS NULL
         """,
         version,
         workspace,
@@ -187,6 +243,7 @@ class SysmlProfileE2EIntegrationTest {
   }
 
   private void defineField(
+      UUID author,
       UUID objectType,
       String code,
       String name,
@@ -201,27 +258,31 @@ class SysmlProfileE2EIntegrationTest {
     if (dataType != null) payload.put("dataType", dataType);
     if (valueTypeCode != null) payload.put("valueTypeCode", valueTypeCode);
     payload.put("required", required);
-    assertOk(meta(AUTHOR, command("DefineFieldDef", AUTHOR, key, payload)));
+    assertOk(meta(author, command("DefineFieldDef", author, key, payload)));
   }
 
-  private void defineRequirementRule(UUID version) {
+  private void defineRequirementRule(UUID version, String suffix, UUID author) {
+    var ruleCode = "requirement_text_required_" + version.toString().substring(0, 8);
     var payload = new LinkedHashMap<String, Object>();
     payload.put("templateVersionId", version);
-    payload.put("ruleCode", "requirement_text_required");
+    payload.put("ruleCode", ruleCode);
     payload.put("scope", Map.of("objectTypeCode", "sysml_requirement", "fieldCode", "text"));
     payload.put("severity", "BLOCK");
     payload.put("when", "isBlank(field('text'))");
     payload.put("message", "Requirement text is required");
     payload.put("lightweight", true);
-    assertOk(rule(AUTHOR, command("DefineRule", AUTHOR, "define-requirement-text-rule", payload)));
     assertOk(
         rule(
-            AUTHOR,
+            author,
+            command("DefineRule", author, "define-requirement-text-rule" + suffix, payload)));
+    assertOk(
+        rule(
+            author,
             command(
                 "PublishRule",
-                AUTHOR,
-                "publish-requirement-text-rule",
-                Map.of("ruleCode", "requirement_text_required"))));
+                author,
+                "publish-requirement-text-rule" + suffix,
+                Map.of("ruleCode", ruleCode))));
   }
 
   private void assertImportedObjectsAndAssociation(UUID workspace) {
@@ -324,6 +385,98 @@ class SysmlProfileE2EIntegrationTest {
             workspace));
   }
 
+  private void assertProjectSetIdentityBaseline(UUID workspace) {
+    assertEquals(
+        2,
+        count(
+            """
+            xmi_baseline_document
+            WHERE workspace_id = '%s'
+              AND project_ref IN ('main.xmi', 'lib.xmi')
+            """
+                .formatted(workspace)));
+    assertTrue(
+        String.valueOf(
+                value(
+                    """
+                    SELECT content FROM xmi_baseline_document
+                    WHERE workspace_id = ? AND project_ref = 'main.xmi'
+                    """,
+                    workspace))
+            .contains("outside.xmi#EXT"));
+    assertTrue(
+        String.valueOf(
+                value(
+                    """
+                    SELECT content FROM xmi_baseline_document
+                    WHERE workspace_id = ? AND project_ref = 'lib.xmi'
+                    """,
+                    workspace))
+            .contains("custom:SpecialThing"));
+    assertEquals(
+        1,
+        count(
+            """
+            xmi_identity
+            WHERE workspace_id = '%s'
+              AND project_ref = 'main.xmi'
+              AND xmi_id = 'A-lib'
+              AND platform_kind = 'relation'
+            """
+                .formatted(workspace)));
+    assertEquals(
+        1,
+        count(
+            """
+            xmi_identity
+            WHERE workspace_id = '%s'
+              AND project_ref = 'lib.xmi'
+              AND xmi_id = 'C1'
+              AND platform_kind = 'object'
+            """
+                .formatted(workspace)));
+  }
+
+  private void assertProjectSetRelation(UUID workspace) {
+    assertEquals(
+        1,
+        count(
+            """
+            data_relation relation
+            JOIN relation_type relation_type ON relation_type.id = relation.relation_type_id
+            JOIN xmi_identity source_identity
+              ON source_identity.platform_id = relation.source_id
+             AND source_identity.workspace_id = relation.workspace_id
+             AND source_identity.project_ref = 'main.xmi'
+             AND source_identity.xmi_id = 'B1'
+            JOIN xmi_identity target_identity
+              ON target_identity.platform_id = relation.target_id
+             AND target_identity.workspace_id = relation.workspace_id
+             AND target_identity.project_ref = 'lib.xmi'
+             AND target_identity.xmi_id = 'L1'
+            WHERE relation.workspace_id = '%s'
+              AND relation_type.code = 'uml_association'
+            """
+                .formatted(workspace)));
+  }
+
+  private void assertCustomStereotypePreserved(UUID workspace) {
+    assertEquals(
+        "SpecialThing",
+        value(
+            """
+            SELECT value.value #>> '{}'
+            FROM data_field_value value
+            JOIN field_def field ON field.id = value.field_def_id
+            JOIN xmi_identity identity ON identity.platform_id = value.object_id
+            WHERE identity.workspace_id = ?
+              AND identity.project_ref = 'lib.xmi'
+              AND identity.xmi_id = 'C1'
+              AND field.code = 'uml_stereotype'
+            """,
+            workspace));
+  }
+
   private UUID template(String code) {
     var template = UUID.randomUUID();
     jdbc.update(
@@ -349,14 +502,37 @@ class SysmlProfileE2EIntegrationTest {
     return version;
   }
 
-  private Map<String, Object> publishTemplate(UUID version, String key) {
-    return command("PublishTemplateVersion", AUTHOR, key, Map.of("templateVersionId", version));
+  private void workspace(UUID workspace, String name) {
+    jdbc.update(
+        "INSERT INTO workspace (id, name, status) VALUES (?, ?, 'ACTIVE')", workspace, name);
+    jdbc.update(
+        """
+        INSERT INTO value_type (id, workspace_id, code, name, base_primitive, published)
+        SELECT gen_random_uuid(), ?, code, name, code, TRUE
+        FROM (VALUES
+          ('string', 'String'),
+          ('text', 'Text'),
+          ('integer', 'Integer'),
+          ('number', 'Number'),
+          ('boolean', 'Boolean'),
+          ('date', 'Date'),
+          ('datetime', 'Datetime'),
+          ('enum', 'Enum'),
+          ('ref', 'Reference'),
+          ('json', 'Json')
+        ) root(code, name)
+        """,
+        workspace);
   }
 
-  private Map<String, Object> instantiate(UUID template, UUID workspace, String key) {
+  private Map<String, Object> publishTemplate(UUID version, String key, UUID author) {
+    return command("PublishTemplateVersion", author, key, Map.of("templateVersionId", version));
+  }
+
+  private Map<String, Object> instantiate(UUID template, UUID workspace, String key, UUID author) {
     return command(
         "InstantiateWorkspace",
-        AUTHOR,
+        author,
         key,
         Map.of(
             "templateId",
@@ -436,6 +612,15 @@ class SysmlProfileE2EIntegrationTest {
         code);
   }
 
+  private UUID objectType(UUID workspace, String code, UUID version) {
+    return jdbc.queryForObject(
+        "SELECT id FROM object_type WHERE workspace_id = ? AND code = ? AND template_version_id = ?",
+        UUID.class,
+        workspace,
+        code,
+        version);
+  }
+
   private int count(String tableAndWhere) {
     return jdbc.queryForObject("SELECT count(*) FROM " + tableAndWhere, Integer.class);
   }
@@ -455,6 +640,46 @@ class SysmlProfileE2EIntegrationTest {
   private String sampleXmi() throws Exception {
     return new ClassPathResource("sysml-profile-sample.xmi")
         .getContentAsString(StandardCharsets.UTF_8);
+  }
+
+  private String projectSetMainXmi() {
+    return """
+        <xmi:XMI xmlns:xmi="%s"
+                 xmlns:uml="%s"
+                 xmlns:sysml="%s">
+          <uml:Model xmi:id="main-model">
+            <packagedElement xmi:type="uml:Class" xmi:id="B1" name="Vehicle"/>
+            <packagedElement xmi:type="uml:Association" xmi:id="A-lib" memberEnd="A-lib-source A-lib-target">
+              <ownedEnd xmi:type="uml:Property" xmi:id="A-lib-source" type="B1"/>
+              <ownedEnd xmi:type="uml:Property" xmi:id="A-lib-target" type="lib.xmi#L1"/>
+            </packagedElement>
+            <packagedElement xmi:type="uml:Dependency" xmi:id="D-external" client="B1" supplier="outside.xmi#EXT" appliedStereotype="trace"/>
+          </uml:Model>
+          <sysml:Block base_Class="B1"/>
+        </xmi:XMI>
+        """
+        .formatted(XMI_NS, UML_NS, SYSML_NS);
+  }
+
+  private String projectSetLibraryXmi() {
+    return """
+        <xmi:XMI xmlns:xmi="%s"
+                 xmlns:uml="%s"
+                 xmlns:sysml="%s"
+                 xmlns:mnext="urn:m-next:exchange:sysml"
+                 xmlns:custom="urn:custom-profile">
+          <uml:Model xmi:id="lib-model">
+            <packagedElement xmi:type="uml:Class" xmi:id="L1" name="Library requirement">
+              <ownedAttribute xmi:type="uml:Property" xmi:id="L1-req-id" name="req_id" type="String" mnext:value="REQ-LIB"/>
+              <ownedAttribute xmi:type="uml:Property" xmi:id="L1-text" name="text" type="String" mnext:value="Library requirement"/>
+            </packagedElement>
+            <packagedElement xmi:type="uml:Class" xmi:id="C1" name="Opaque element"/>
+          </uml:Model>
+          <sysml:Requirement base_Class="L1"/>
+          <custom:SpecialThing base_Class="C1"/>
+        </xmi:XMI>
+        """
+        .formatted(XMI_NS, UML_NS, SYSML_NS);
   }
 
   private void projectOutbox() throws Exception {

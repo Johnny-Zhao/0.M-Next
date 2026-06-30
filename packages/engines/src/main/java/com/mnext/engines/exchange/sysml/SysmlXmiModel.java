@@ -8,17 +8,28 @@ public record SysmlXmiModel(
     List<SysmlPackage> packages,
     List<SysmlClass> classes,
     List<SysmlAssociation> associations,
-    List<SysmlDependency> dependencies) {
+    List<SysmlDependency> dependencies,
+    List<SysmlExternalReference> externalReferences) {
   public SysmlXmiModel {
     appliedProfiles = appliedProfiles == null ? List.of() : List.copyOf(appliedProfiles);
     packages = packages == null ? List.of() : List.copyOf(packages);
     classes = classes == null ? List.of() : List.copyOf(classes);
     associations = associations == null ? List.of() : List.copyOf(associations);
     dependencies = dependencies == null ? List.of() : List.copyOf(dependencies);
+    externalReferences = externalReferences == null ? List.of() : List.copyOf(externalReferences);
+  }
+
+  public SysmlXmiModel(
+      List<String> appliedProfiles,
+      List<SysmlPackage> packages,
+      List<SysmlClass> classes,
+      List<SysmlAssociation> associations,
+      List<SysmlDependency> dependencies) {
+    this(appliedProfiles, packages, classes, associations, dependencies, List.of());
   }
 
   public SysmlXmiModel(List<SysmlClass> classes, List<SysmlAssociation> associations) {
-    this(List.of(), List.of(), classes, associations, List.of());
+    this(List.of(), List.of(), classes, associations, List.of(), List.of());
   }
 
   public record SysmlClass(
@@ -64,4 +75,7 @@ public record SysmlXmiModel(
 
   public record SysmlDependency(
       String id, String stereotype, String sourceId, String targetId, String kind) {}
+
+  public record SysmlExternalReference(
+      String id, String sourceId, String href, String stereotype, String kind) {}
 }

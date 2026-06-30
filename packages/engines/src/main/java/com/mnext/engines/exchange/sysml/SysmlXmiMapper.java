@@ -34,7 +34,12 @@ public final class SysmlXmiMapper {
                     objectIds.contains(value.sourceId()) && objectIds.contains(value.targetId()))
             .toList();
     return new SysmlXmiModel(
-        List.of(), List.of(), classes(objects), associations(relations), dependencies(relations));
+        List.of(),
+        List.of(),
+        classes(objects),
+        associations(relations),
+        dependencies(relations),
+        List.of());
   }
 
   public static DataSet toDataSet(SysmlXmiModel model, DataSet current) {

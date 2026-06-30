@@ -10,6 +10,10 @@ import com.mnext.engines.exchange.DiffResult;
 import com.mnext.engines.exchange.JsonArtifact;
 import com.mnext.engines.exchange.JsonCodec;
 import com.mnext.engines.exchange.StructuredDiff;
+import com.mnext.engines.exchange.sysml.SysmlXmiCodec;
+import com.mnext.engines.exchange.sysml.SysmlXmiMapper;
+import com.mnext.engines.exchange.sysml.SysmlXmiModel;
+import com.mnext.engines.exchange.sysml.SysmlXmiModel.SysmlExternalReference;
 import com.mnext.kernel.api.Actor;
 import com.mnext.kernel.api.CommandError;
 import com.mnext.kernel.api.CommandRejectedException;
@@ -48,6 +52,7 @@ public class ExchangeController {
   private final SnapshotRepository snapshots;
   private final KernelCommandService commands;
   private final JsonCodec codec;
+  private final SysmlXmiCodec sysmlCodec = new SysmlXmiCodec();
   private final AdapterRegistry adapters;
   private final WorkspaceAuthorizer authorizer;
   private final XmiIdentityRepository xmiIdentities;
@@ -212,6 +217,42 @@ public class ExchangeController {
       throw new IllegalArgumentException("本批次不支持 removed 自动删除");
     }
     return applyPayload(workspaceId, Actor.user(actorId), format, request.payload());
+  }
+
+  @PostMapping("/workspaces/{workspaceId}/exchange/sysml-xmi/project-set/apply")
+  public XmiProjectSetApplyResult applySysmlXmiProjectSet(
+      @PathVariable("workspaceId") UUID workspaceId,
+      @RequestHeader("X-Actor-Id") String actorId,
+      @RequestBody XmiProjectSetApplyRequest request) {
+    authorize(workspaceId, WorkspaceAuthorizer.Action.WRITE_DATA, actorId);
+    if (request == null || request.documents() == null || request.documents().isEmpty()) {
+      throw new IllegalArgumentException("documents 必填");
+    }
+    if (request.confirmRemovals()) {
+      throw new IllegalArgumentException("本批次不支持 removed 自动删除");
+    }
+    var actor = Actor.user(actorId);
+    var projects = new ArrayList<ProjectImport>();
+    var results = new ArrayList<XmiProjectApplyResult>();
+    for (var document : request.documents()) {
+      validateProjectDocument(document);
+      var model = sysmlCodec.parse(document.payload());
+      var current = readModel.dataSet(workspaceId);
+      var target = SysmlXmiMapper.toDataSet(model, current);
+      var outcome = applyDataSet(workspaceId, actor, current, target, true);
+      if (outcome.result().unapplied().isEmpty()) {
+        recordXmiIdentityBaseline(workspaceId, document.projectRef(), document.payload(), outcome);
+      }
+      results.add(new XmiProjectApplyResult(document.projectRef(), outcome.result()));
+      projects.add(new ProjectImport(document.projectRef(), model, outcome.result()));
+    }
+    var resolved = new ArrayList<XmiReferenceResolution>();
+    var unresolved = new ArrayList<XmiReferenceResolution>();
+    if (results.stream().allMatch(value -> value.result().unapplied().isEmpty())) {
+      resolveProjectSetReferences(workspaceId, actor, projects, resolved, unresolved);
+    }
+    return new XmiProjectSetApplyResult(
+        List.copyOf(results), List.copyOf(resolved), List.copyOf(unresolved));
   }
 
   @PostMapping("/workspaces/{workspaceId}/exchange/reqif/apply")
@@ -464,6 +505,152 @@ public class ExchangeController {
     xmiBaselines.refresh(workspaceId, projectRef, payload);
   }
 
+  private static void validateProjectDocument(XmiProjectDocument document) {
+    if (document == null
+        || document.projectRef() == null
+        || document.projectRef().isBlank()
+        || document.payload() == null
+        || document.payload().isBlank()) {
+      throw new IllegalArgumentException("projectRef 与 payload 必填");
+    }
+  }
+
+  private void resolveProjectSetReferences(
+      UUID workspaceId,
+      Actor actor,
+      List<ProjectImport> projects,
+      List<XmiReferenceResolution> resolved,
+      List<XmiReferenceResolution> unresolved) {
+    if (xmiIdentities == null) return;
+    var projectRefs = new java.util.HashSet<String>();
+    var identities =
+        new LinkedHashMap<String, Map<String, XmiIdentityRepository.XmiIdentityRecord>>();
+    for (var project : projects) {
+      projectRefs.add(project.projectRef());
+      identities.put(
+          project.projectRef(), xmiIdentities.identities(workspaceId, project.projectRef()));
+    }
+    for (var project : projects) {
+      for (var reference : project.model().externalReferences()) {
+        var target = parseHref(project.projectRef(), reference.href());
+        if (!projectRefs.contains(target.projectRef())) {
+          unresolved.add(resolution(project, reference, target, null, null, "external"));
+          continue;
+        }
+        var source =
+            identities.getOrDefault(project.projectRef(), Map.of()).get(reference.sourceId());
+        var targetIdentity =
+            identities.getOrDefault(target.projectRef(), Map.of()).get(target.xmiId());
+        if (source == null || targetIdentity == null) {
+          unresolved.add(resolution(project, reference, target, null, null, "missing"));
+          continue;
+        }
+        var relationTypeCode = referenceRelationTypeCode(workspaceId, reference);
+        if (relationTypeCode == null) {
+          unresolved.add(
+              resolution(project, reference, target, null, null, "missing-relation-type"));
+          continue;
+        }
+        try {
+          var relationId =
+              createResolvedReference(
+                  workspaceId, actor, project, reference, source, targetIdentity, relationTypeCode);
+          xmiIdentities.upsert(
+              workspaceId, project.projectRef(), Map.of(), Map.of(reference.id(), relationId));
+          resolved.add(
+              resolution(project, reference, target, relationTypeCode, relationId, "resolved"));
+        } catch (CommandRejectedException failure) {
+          unresolved.add(
+              resolution(
+                  project, reference, target, relationTypeCode, null, failure.error().code()));
+        } catch (RuntimeException failure) {
+          unresolved.add(resolution(project, reference, target, relationTypeCode, null, "failed"));
+        }
+      }
+    }
+  }
+
+  private UUID createResolvedReference(
+      UUID workspaceId,
+      Actor actor,
+      ProjectImport project,
+      SysmlExternalReference reference,
+      XmiIdentityRepository.XmiIdentityRecord source,
+      XmiIdentityRepository.XmiIdentityRecord target,
+      String relationTypeCode) {
+    var key =
+        project.projectRef()
+            + ":"
+            + reference.id()
+            + ":"
+            + reference.sourceId()
+            + ":"
+            + reference.href();
+    var result =
+        commands.createRelation(
+            new CreateRelationCommand(
+                workspaceId,
+                UUID.randomUUID(),
+                "xmi-ref:" + Integer.toHexString(key.hashCode()),
+                readModel.relationTypeId(workspaceId, relationTypeCode),
+                source.platformId(),
+                target.platformId(),
+                referenceFields(reference),
+                new SourceInfo("artifact_sync", "xmi-project-set")),
+            actor);
+    return xmiIdentities.createdRelationId(result.events());
+  }
+
+  private String referenceRelationTypeCode(UUID workspaceId, SysmlExternalReference reference) {
+    var candidates = new ArrayList<String>();
+    if (!reference.stereotype().isBlank()) candidates.add(reference.stereotype());
+    if (!reference.kind().isBlank() && !"association".equals(reference.kind())) {
+      candidates.add(reference.kind());
+    }
+    candidates.add("uml_association");
+    for (var candidate : candidates) {
+      try {
+        readModel.relationTypeId(workspaceId, candidate);
+        return candidate;
+      } catch (RuntimeException ignored) {
+        // Try the next existing profile-defined relation type; this stays read-only.
+      }
+    }
+    return null;
+  }
+
+  private static Map<String, Object> referenceFields(SysmlExternalReference reference) {
+    var values = new LinkedHashMap<String, Object>();
+    if (!reference.kind().isBlank()) values.put("uml_kind", reference.kind());
+    if (!reference.stereotype().isBlank()) values.put("uml_stereotype", reference.stereotype());
+    return values;
+  }
+
+  private static ParsedHref parseHref(String sourceProjectRef, String href) {
+    var hash = href.indexOf('#');
+    if (hash < 0) return new ParsedHref("", href);
+    var projectRef = hash == 0 ? sourceProjectRef : href.substring(0, hash);
+    return new ParsedHref(projectRef, href.substring(hash + 1));
+  }
+
+  private static XmiReferenceResolution resolution(
+      ProjectImport project,
+      SysmlExternalReference reference,
+      ParsedHref target,
+      String relationTypeCode,
+      UUID relationId,
+      String status) {
+    return new XmiReferenceResolution(
+        project.projectRef(),
+        reference.sourceId(),
+        reference.href(),
+        target.projectRef(),
+        target.xmiId(),
+        relationTypeCode,
+        relationId,
+        status);
+  }
+
   private static Map<String, UUID> relationIds(DataSet dataSet) {
     var ids = new HashMap<String, UUID>();
     for (var relation : dataSet.relations()) {
@@ -511,4 +698,9 @@ public class ExchangeController {
       ExchangeApplyResult result,
       Map<String, UUID> objectIdentities,
       Map<String, UUID> relationIdentities) {}
+
+  private record ProjectImport(
+      String projectRef, SysmlXmiModel model, ExchangeApplyResult result) {}
+
+  private record ParsedHref(String projectRef, String xmiId) {}
 }

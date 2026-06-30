@@ -76,6 +76,20 @@ class SysmlXmiExchangeTest {
   }
 
   @Test
+  void preservesExternalHrefReferencesForProjectSetResolution() {
+    var model = codec.parse(externalHrefXmi());
+    var dataSet = SysmlXmiMapper.toDataSet(model, new DataSet(null, null));
+
+    assertEquals(1, dataSet.objects().size());
+    assertEquals(0, dataSet.relations().size());
+    assertEquals(1, model.externalReferences().size());
+    var reference = model.externalReferences().getFirst();
+    assertEquals("A1", reference.id());
+    assertEquals("B1", reference.sourceId());
+    assertEquals("lib.xmi#R1", reference.href());
+  }
+
+  @Test
   void rejectsInvalidXmlMissingIdsMissingEndpointsAndUnknownTypes() {
     assertThrows(IllegalArgumentException.class, () -> codec.parse("<xmi:XMI>"));
     assertThrows(
@@ -172,6 +186,24 @@ class SysmlXmiExchangeTest {
           <sysml:Requirement base_Class="R1"/>
           <sysml:ConstraintBlock base_Class="CB1"/>
           <sysml:CustomThing base_Class="U1"/>
+        </xmi:XMI>
+        """
+        .formatted(XMI_NS, UML_NS, SYSML_NS);
+  }
+
+  private static String externalHrefXmi() {
+    return """
+        <xmi:XMI xmlns:xmi="%s"
+                 xmlns:uml="%s"
+                 xmlns:sysml="%s">
+          <uml:Model xmi:id="model">
+            <packagedElement xmi:type="uml:Class" xmi:id="B1" name="Vehicle"/>
+            <packagedElement xmi:type="uml:Association" xmi:id="A1" memberEnd="A1-source A1-target">
+              <ownedEnd xmi:type="uml:Property" xmi:id="A1-source" type="B1"/>
+              <ownedEnd xmi:type="uml:Property" xmi:id="A1-target" type="lib.xmi#R1"/>
+            </packagedElement>
+          </uml:Model>
+          <sysml:Block base_Class="B1"/>
         </xmi:XMI>
         """
         .formatted(XMI_NS, UML_NS, SYSML_NS);

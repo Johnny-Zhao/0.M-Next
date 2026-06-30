@@ -3,6 +3,7 @@ package com.mnext.engines.exchange.sysml;
 import com.mnext.engines.exchange.sysml.SysmlXmiModel.SysmlAssociation;
 import com.mnext.engines.exchange.sysml.SysmlXmiModel.SysmlClass;
 import com.mnext.engines.exchange.sysml.SysmlXmiModel.SysmlDependency;
+import com.mnext.engines.exchange.sysml.SysmlXmiModel.SysmlExternalReference;
 import com.mnext.engines.exchange.sysml.SysmlXmiModel.SysmlPackage;
 import com.mnext.engines.exchange.sysml.SysmlXmiModel.SysmlProperty;
 import java.io.StringReader;
@@ -81,14 +82,16 @@ public final class SysmlXmiCodec {
     var classIds = new java.util.HashSet<String>();
     classes.forEach(value -> classIds.add(value.id()));
     var relations = new ArrayList<SysmlAssociation>();
+    var externalReferences = new ArrayList<SysmlExternalReference>();
     for (var association : associations) {
-      relations.add(parseAssociation(association, classIds));
+      parseAssociation(association, classIds, relations, externalReferences);
     }
     var dependencyRelations = new ArrayList<SysmlDependency>();
     for (var dependency : dependencies) {
-      dependencyRelations.add(parseDependency(dependency, classIds));
+      parseDependency(dependency, classIds, dependencyRelations, externalReferences);
     }
-    return new SysmlXmiModel(appliedProfiles, packages, classes, relations, dependencyRelations);
+    return new SysmlXmiModel(
+        appliedProfiles, packages, classes, relations, dependencyRelations, externalReferences);
   }
 
   private void collectPackagedElements(
@@ -184,34 +187,50 @@ public final class SysmlXmiCodec {
                 "")));
   }
 
-  private SysmlDependency parseDependency(Element node, java.util.Set<String> classIds) {
+  private void parseDependency(
+      Element node,
+      java.util.Set<String> classIds,
+      List<SysmlDependency> dependencies,
+      List<SysmlExternalReference> references) {
     var id = requiredId(node, "uml:Dependency");
-    var source = dependencyEndpoint(node, "client", classIds);
-    var target = dependencyEndpoint(node, "supplier", classIds);
-    return new SysmlDependency(
-        id,
-        normalizeStereotype(optional(node, "appliedStereotype")),
-        source,
-        target,
-        dependencyKind(node));
+    var source = dependencyEndpoint(node, "client");
+    var target = dependencyEndpoint(node, "supplier");
+    var stereotype = normalizeStereotype(optional(node, "appliedStereotype"));
+    var kind = dependencyKind(node);
+    if (classIds.contains(source) && classIds.contains(target)) {
+      dependencies.add(new SysmlDependency(id, stereotype, source, target, kind));
+      return;
+    }
+    if (classIds.contains(source) && externalReference(target)) {
+      references.add(new SysmlExternalReference(id, source, target, stereotype, kind));
+      return;
+    }
+    throw new IllegalArgumentException("SysML Dependency 端点不存在");
   }
 
-  private SysmlAssociation parseAssociation(Element node, java.util.Set<String> classIds) {
+  private void parseAssociation(
+      Element node,
+      java.util.Set<String> classIds,
+      List<SysmlAssociation> associations,
+      List<SysmlExternalReference> references) {
     var id = requiredId(node, "uml:Association");
     var endpoints = associationEndpoints(node);
     if (endpoints.size() != 2) {
       throw new IllegalArgumentException("SysML Association 端点缺失");
     }
-    if (!classIds.contains(endpoints.get(0)) || !classIds.contains(endpoints.get(1))) {
-      throw new IllegalArgumentException("SysML Association 端点不存在");
+    var source = endpoints.get(0);
+    var target = endpoints.get(1);
+    var stereotype = normalizeStereotype(optional(node, "appliedStereotype"));
+    var kind = associationKind(node);
+    if (classIds.contains(source) && classIds.contains(target)) {
+      associations.add(new SysmlAssociation(id, stereotype, source, target, kind, Map.of()));
+      return;
     }
-    return new SysmlAssociation(
-        id,
-        normalizeStereotype(optional(node, "appliedStereotype")),
-        endpoints.get(0),
-        endpoints.get(1),
-        associationKind(node),
-        Map.of());
+    if (classIds.contains(source) && externalReference(target)) {
+      references.add(new SysmlExternalReference(id, source, target, stereotype, kind));
+      return;
+    }
+    throw new IllegalArgumentException("SysML Association 端点不存在");
   }
 
   private static List<String> associationEndpoints(Element node) {
@@ -247,12 +266,9 @@ public final class SysmlXmiCodec {
     return "association";
   }
 
-  private static String dependencyEndpoint(
-      Element node, String attribute, java.util.Set<String> classIds) {
+  private static String dependencyEndpoint(Element node, String attribute) {
     var value = required(node, attribute, "uml:Dependency");
-    var endpoint = value.trim().split("\\s+")[0];
-    if (!classIds.contains(endpoint)) throw new IllegalArgumentException("SysML Dependency 端点不存在");
-    return endpoint;
+    return value.trim().split("\\s+")[0];
   }
 
   private static String dependencyKind(Element node) {
@@ -268,6 +284,10 @@ public final class SysmlXmiCodec {
     if ("composite".equals(aggregation)) return "part";
     if (!aggregation.isBlank()) return aggregation;
     return "property";
+  }
+
+  private static boolean externalReference(String value) {
+    return value != null && value.contains("#");
   }
 
   private static void appendClass(Document document, Element parent, SysmlClass value) {
