@@ -2,6 +2,8 @@ package com.mnext.engines.exchange.sysml;
 
 import com.mnext.engines.exchange.sysml.SysmlXmiModel.SysmlAssociation;
 import com.mnext.engines.exchange.sysml.SysmlXmiModel.SysmlClass;
+import com.mnext.engines.exchange.sysml.SysmlXmiModel.SysmlDependency;
+import com.mnext.engines.exchange.sysml.SysmlXmiModel.SysmlPackage;
 import com.mnext.engines.exchange.sysml.SysmlXmiModel.SysmlProperty;
 import java.io.StringReader;
 import java.io.StringWriter;
@@ -59,6 +61,7 @@ public final class SysmlXmiCodec {
       uml.setAttribute("name", "M-Next SysML");
       model.classes().forEach(value -> appendClass(document, uml, value));
       model.associations().forEach(value -> appendAssociation(document, uml, value));
+      model.dependencies().forEach(value -> appendDependency(document, uml, value));
       appendStereotypes(document, root, model);
       return xml(document);
     } catch (Exception failure) {
@@ -68,24 +71,70 @@ public final class SysmlXmiCodec {
 
   private SysmlXmiModel parseDocument(Document document) {
     var stereotypes = stereotypes(document);
+    var appliedProfiles = appliedProfiles(document);
+    var packages = new ArrayList<SysmlPackage>();
     var classes = new ArrayList<SysmlClass>();
     var associations = new ArrayList<Element>();
-    var nodes = document.getElementsByTagName("packagedElement");
-    for (int i = 0; i < nodes.getLength(); i++) {
-      var node = (Element) nodes.item(i);
-      switch (requiredType(node, "packagedElement")) {
-        case "uml:Class" -> classes.add(parseClass(node, stereotypes));
-        case "uml:Association" -> associations.add(node);
-        default -> throw new IllegalArgumentException("未知 SysML XMI xmi:type");
-      }
-    }
+    var dependencies = new ArrayList<Element>();
+    collectPackagedElements(
+        document.getDocumentElement(), stereotypes, packages, classes, associations, dependencies);
     var classIds = new java.util.HashSet<String>();
     classes.forEach(value -> classIds.add(value.id()));
     var relations = new ArrayList<SysmlAssociation>();
     for (var association : associations) {
       relations.add(parseAssociation(association, classIds));
     }
-    return new SysmlXmiModel(classes, relations);
+    var dependencyRelations = new ArrayList<SysmlDependency>();
+    for (var dependency : dependencies) {
+      dependencyRelations.add(parseDependency(dependency, classIds));
+    }
+    return new SysmlXmiModel(appliedProfiles, packages, classes, relations, dependencyRelations);
+  }
+
+  private void collectPackagedElements(
+      Element parent,
+      Map<String, String> stereotypes,
+      List<SysmlPackage> packages,
+      List<SysmlClass> classes,
+      List<Element> associations,
+      List<Element> dependencies) {
+    var children = parent.getChildNodes();
+    for (int i = 0; i < children.getLength(); i++) {
+      if (!(children.item(i) instanceof Element node)) {
+        continue;
+      }
+      if (!"packagedElement".equals(localName(node))) {
+        collectPackagedElements(node, stereotypes, packages, classes, associations, dependencies);
+        continue;
+      }
+      switch (requiredType(node, "packagedElement")) {
+        case "uml:Package" -> {
+          packages.add(new SysmlPackage(requiredId(node, "uml:Package"), optional(node, "name")));
+          collectPackagedElements(node, stereotypes, packages, classes, associations, dependencies);
+        }
+        case "uml:Class" -> classes.add(parseClass(node, stereotypes));
+        case "uml:DataType", "uml:PrimitiveType", "uml:Enumeration", "uml:Port" ->
+            classes.add(parseClassLike(node, stereotypes));
+        case "uml:Association" -> associations.add(node);
+        case "uml:Dependency", "uml:Abstraction", "uml:Realization", "uml:Usage" ->
+            dependencies.add(node);
+        case "uml:Comment" -> classes.add(parseComment(node));
+        default -> throw new IllegalArgumentException("未知 SysML XMI xmi:type");
+      }
+    }
+  }
+
+  private static List<String> appliedProfiles(Document document) {
+    var values = new ArrayList<String>();
+    var nodes = document.getElementsByTagName("appliedProfile");
+    for (int i = 0; i < nodes.getLength(); i++) {
+      var node = (Element) nodes.item(i);
+      var href = optional(node, "href");
+      if (href.contains("SysML/1.6") || href.contains("SysML.profile.uml")) {
+        values.add("SysML 1.6");
+      }
+    }
+    return values;
   }
 
   private SysmlClass parseClass(Element node, Map<String, String> stereotypes) {
@@ -102,10 +151,49 @@ public final class SysmlXmiCodec {
               requiredId(property, "ownedAttribute"),
               required(property, "name", "ownedAttribute"),
               optional(property, "type"),
-              emptyToNull(optionalNs(property, MNEXT_NS, "value"))));
+              emptyToNull(optionalNs(property, MNEXT_NS, "value")),
+              propertyKind(property),
+              optional(property, "aggregation")));
     }
     return new SysmlClass(
         id, optional(node, "name"), classStereotype(node, stereotypes), properties);
+  }
+
+  private SysmlClass parseClassLike(Element node, Map<String, String> stereotypes) {
+    return new SysmlClass(
+        requiredId(node, "packagedElement"),
+        optional(node, "name"),
+        classStereotype(node, stereotypes),
+        requiredType(node, "packagedElement"),
+        List.of());
+  }
+
+  private SysmlClass parseComment(Element node) {
+    return new SysmlClass(
+        requiredId(node, "uml:Comment"),
+        optional(node, "name"),
+        "Comment",
+        "uml:Comment",
+        List.of(
+            new SysmlProperty(
+                requiredId(node, "uml:Comment") + "-body",
+                "body",
+                "String",
+                optional(node, "body"),
+                "comment",
+                "")));
+  }
+
+  private SysmlDependency parseDependency(Element node, java.util.Set<String> classIds) {
+    var id = requiredId(node, "uml:Dependency");
+    var source = dependencyEndpoint(node, "client", classIds);
+    var target = dependencyEndpoint(node, "supplier", classIds);
+    return new SysmlDependency(
+        id,
+        normalizeStereotype(optional(node, "appliedStereotype")),
+        source,
+        target,
+        dependencyKind(node));
   }
 
   private SysmlAssociation parseAssociation(Element node, java.util.Set<String> classIds) {
@@ -122,6 +210,7 @@ public final class SysmlXmiCodec {
         normalizeStereotype(optional(node, "appliedStereotype")),
         endpoints.get(0),
         endpoints.get(1),
+        associationKind(node),
         Map.of());
   }
 
@@ -146,6 +235,41 @@ public final class SysmlXmiCodec {
     return endpoints;
   }
 
+  private static String associationKind(Element node) {
+    var children = node.getElementsByTagName("ownedEnd");
+    for (int i = 0; i < children.getLength(); i++) {
+      var aggregation = optional((Element) children.item(i), "aggregation");
+      if ("composite".equals(aggregation)) return "composition";
+      if ("shared".equals(aggregation)) return "aggregation";
+    }
+    var stereotype = normalizeStereotype(optional(node, "appliedStereotype"));
+    if (!stereotype.isBlank()) return stereotype;
+    return "association";
+  }
+
+  private static String dependencyEndpoint(
+      Element node, String attribute, java.util.Set<String> classIds) {
+    var value = required(node, attribute, "uml:Dependency");
+    var endpoint = value.trim().split("\\s+")[0];
+    if (!classIds.contains(endpoint)) throw new IllegalArgumentException("SysML Dependency 端点不存在");
+    return endpoint;
+  }
+
+  private static String dependencyKind(Element node) {
+    var type = requiredType(node, "uml:Dependency");
+    var suffix = type.contains(":") ? type.substring(type.indexOf(':') + 1) : type;
+    return suffix.isBlank() ? "dependency" : suffix.toLowerCase(java.util.Locale.ROOT);
+  }
+
+  private static String propertyKind(Element property) {
+    var stereotype = normalizeStereotype(optional(property, "appliedStereotype"));
+    if (!stereotype.isBlank()) return stereotype;
+    var aggregation = optional(property, "aggregation");
+    if ("composite".equals(aggregation)) return "part";
+    if (!aggregation.isBlank()) return aggregation;
+    return "property";
+  }
+
   private static void appendClass(Document document, Element parent, SysmlClass value) {
     var node = child(document, parent, "packagedElement");
     node.setAttributeNS(XMI_NS, "xmi:type", "uml:Class");
@@ -164,6 +288,9 @@ public final class SysmlXmiCodec {
     node.setAttribute("name", value.name());
     if (value.type() != null && !value.type().isBlank()) node.setAttribute("type", value.type());
     if (value.value() != null) node.setAttributeNS(MNEXT_NS, "mnext:value", value.value());
+    if (value.aggregation() != null && !value.aggregation().isBlank()) {
+      node.setAttribute("aggregation", value.aggregation());
+    }
   }
 
   private static void appendAssociation(Document document, Element parent, SysmlAssociation value) {
@@ -173,8 +300,22 @@ public final class SysmlXmiCodec {
     node.setAttributeNS(XMI_NS, "xmi:type", "uml:Association");
     node.setAttributeNS(XMI_NS, "xmi:id", value.id());
     node.setAttribute("memberEnd", sourceEnd + " " + targetEnd);
+    if (value.stereotype() != null && !value.stereotype().isBlank()) {
+      node.setAttribute("appliedStereotype", value.stereotype());
+    }
     appendOwnedEnd(document, node, sourceEnd, value.sourceId());
     appendOwnedEnd(document, node, targetEnd, value.targetId());
+  }
+
+  private static void appendDependency(Document document, Element parent, SysmlDependency value) {
+    var node = child(document, parent, "packagedElement");
+    node.setAttributeNS(XMI_NS, "xmi:type", "uml:Dependency");
+    node.setAttributeNS(XMI_NS, "xmi:id", value.id());
+    node.setAttribute("client", value.sourceId());
+    node.setAttribute("supplier", value.targetId());
+    if (value.stereotype() != null && !value.stereotype().isBlank()) {
+      node.setAttribute("appliedStereotype", value.stereotype());
+    }
   }
 
   private static void appendOwnedEnd(Document document, Element parent, String id, String type) {
@@ -187,9 +328,16 @@ public final class SysmlXmiCodec {
   private static void appendStereotypes(Document document, Element root, SysmlXmiModel model) {
     for (var value : model.classes()) {
       if (value.stereotype() == null || value.stereotype().isBlank()) continue;
-      var tag = "requirement".equals(value.stereotype()) ? "sysml:Requirement" : "sysml:Block";
+      var tag =
+          switch (SysmlManifestMapping.normalize(value.stereotype())) {
+            case "requirement" -> "sysml:Requirement";
+            case "block" -> "sysml:Block";
+            case "constraintblock" -> "sysml:ConstraintBlock";
+            default -> "mnext:Stereotype";
+          };
       var node = child(document, root, tag);
       node.setAttribute("base_Class", value.id());
+      if ("mnext:Stereotype".equals(tag)) node.setAttribute("name", value.stereotype());
     }
   }
 
@@ -198,7 +346,11 @@ public final class SysmlXmiCodec {
     var nodes = document.getElementsByTagName("*");
     for (int i = 0; i < nodes.getLength(); i++) {
       var node = (Element) nodes.item(i);
-      var stereotype = normalizeStereotype(node.getLocalName());
+      var localName = node.getLocalName() == null ? node.getNodeName() : node.getLocalName();
+      var stereotype =
+          "Stereotype".equals(localName)
+              ? normalizeStereotype(optional(node, "name"))
+              : normalizeStereotype(localName);
       if (stereotype.isBlank()) continue;
       var base = optional(node, "base_Class");
       if (!base.isBlank()) values.put(base, stereotype);
@@ -213,11 +365,11 @@ public final class SysmlXmiCodec {
 
   private static String normalizeStereotype(String value) {
     if (value == null) return "";
-    var normalized =
-        value.replace("«", "").replace("»", "").replace("SysML::", "").trim().toLowerCase();
+    var cleaned = value.replace("«", "").replace("»", "").replace("SysML::", "").trim();
+    var normalized = cleaned.toLowerCase(java.util.Locale.ROOT);
     if ("block".equals(normalized)) return "Block";
     if ("requirement".equals(normalized)) return "requirement";
-    return "";
+    return cleaned;
   }
 
   private static String requiredType(Element node, String owner) {
@@ -248,6 +400,10 @@ public final class SysmlXmiCodec {
   private static String optionalNs(Element node, String namespace, String attribute) {
     var value = node.getAttributeNS(namespace, attribute);
     return value == null ? "" : value.trim();
+  }
+
+  private static String localName(Element node) {
+    return node.getLocalName() == null ? node.getNodeName() : node.getLocalName();
   }
 
   private static String emptyToNull(String value) {

@@ -5,15 +5,19 @@ import com.mnext.engines.exchange.DataSet.DataObject;
 import com.mnext.engines.exchange.DataSet.DataRelation;
 import com.mnext.engines.exchange.sysml.SysmlXmiModel.SysmlAssociation;
 import com.mnext.engines.exchange.sysml.SysmlXmiModel.SysmlClass;
+import com.mnext.engines.exchange.sysml.SysmlXmiModel.SysmlDependency;
 import com.mnext.engines.exchange.sysml.SysmlXmiModel.SysmlProperty;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
 
 public final class SysmlXmiMapper {
+  private static final SysmlManifestMapping MAPPING = SysmlManifestMapping.get();
+
   private SysmlXmiMapper() {}
 
   public static SysmlXmiModel toXmi(String objectType, DataSet dataSet) {
@@ -29,7 +33,8 @@ public final class SysmlXmiMapper {
                 value ->
                     objectIds.contains(value.sourceId()) && objectIds.contains(value.targetId()))
             .toList();
-    return new SysmlXmiModel(classes(objects), associations(relations));
+    return new SysmlXmiModel(
+        List.of(), List.of(), classes(objects), associations(relations), dependencies(relations));
   }
 
   public static DataSet toDataSet(SysmlXmiModel model, DataSet current) {
@@ -44,7 +49,7 @@ public final class SysmlXmiMapper {
       objects.add(
           new DataObject(
               value.id(),
-              objectType(value.stereotype()),
+              MAPPING.objectType(value.stereotype()),
               fields(value),
               existing == null ? "DRAFT" : existing.status(),
               existing == null ? 1 : existing.version()));
@@ -59,7 +64,7 @@ public final class SysmlXmiMapper {
           new SysmlClass(
               object.objectId(),
               name(object),
-              stereotype(object.objectTypeCode()),
+              MAPPING.stereotype(object.objectTypeCode(), object.fields()),
               properties(object)));
     }
     return values;
@@ -69,36 +74,70 @@ public final class SysmlXmiMapper {
     var values = new ArrayList<SysmlProperty>();
     new TreeMap<>(object.fields())
         .forEach(
-            (code, value) ->
-                values.add(
-                    new SysmlProperty(
-                        propertyId(object.objectId(), code),
-                        code,
-                        value == null ? "String" : value.getClass().getSimpleName(),
-                        value == null ? null : String.valueOf(value))));
+            (code, value) -> {
+              if (code.startsWith("uml_")
+                  || code.endsWith("_kind")
+                  || code.endsWith("_aggregation")) {
+                return;
+              }
+              values.add(
+                  new SysmlProperty(
+                      propertyId(object.objectId(), code),
+                      code,
+                      value == null ? "String" : value.getClass().getSimpleName(),
+                      value == null ? null : String.valueOf(value)));
+            });
     return values;
   }
 
   private static ArrayList<SysmlAssociation> associations(java.util.List<DataRelation> relations) {
     return relations.stream()
+        .filter(value -> !isDependency(value))
         .map(
             value ->
                 new SysmlAssociation(
                     value.relationId(),
-                    "",
+                    stringField(value.fields(), "uml_stereotype"),
                     value.sourceId(),
                     value.targetId(),
+                    stringField(value.fields(), "uml_kind", "association"),
                     stringFields(value.fields())))
+        .collect(Collectors.toCollection(ArrayList::new));
+  }
+
+  private static ArrayList<SysmlDependency> dependencies(java.util.List<DataRelation> relations) {
+    return relations.stream()
+        .filter(SysmlXmiMapper::isDependency)
+        .map(
+            value ->
+                new SysmlDependency(
+                    value.relationId(),
+                    stringField(value.fields(), "uml_stereotype"),
+                    value.sourceId(),
+                    value.targetId(),
+                    stringField(value.fields(), "uml_kind", "dependency")))
         .collect(Collectors.toCollection(ArrayList::new));
   }
 
   private static Map<String, Object> fields(SysmlClass value) {
     var fields = new LinkedHashMap<String, Object>();
     if (value.name() != null && !value.name().isBlank()) fields.put("name", value.name());
+    if (!MAPPING.knownStereotype(value.stereotype()) && !blank(value.stereotype())) {
+      fields.put("uml_stereotype", value.stereotype());
+    }
+    if (!blank(value.umlType()) && !"uml:Class".equals(value.umlType())) {
+      fields.put("uml_type", value.umlType());
+    }
     for (var property : value.properties()) {
       required(property.id(), "ownedAttribute xmi:id");
       required(property.name(), "ownedAttribute name");
       fields.put(property.name(), property.value() == null ? property.type() : property.value());
+      if (!blank(property.kind()) && !"property".equals(property.kind())) {
+        fields.put(property.name() + "_kind", property.kind());
+      }
+      if (!blank(property.aggregation())) {
+        fields.put(property.name() + "_aggregation", property.aggregation());
+      }
     }
     return fields;
   }
@@ -113,15 +152,42 @@ public final class SysmlXmiMapper {
       if (!objectIds.contains(value.sourceId()) || !objectIds.contains(value.targetId())) {
         throw new IllegalArgumentException("SysML Association 端点不存在");
       }
-      var key = relationKey("uml_association", value.sourceId(), value.targetId());
+      var relationType = MAPPING.relationType(value.kind(), value.stereotype());
+      var key = relationKey(relationType, value.sourceId(), value.targetId());
       values.add(
           new DataRelation(
               existing.getOrDefault(key, value.id()),
-              "uml_association",
+              relationType,
               value.sourceId(),
               value.targetId(),
-              new LinkedHashMap<>(value.fields())));
+              relationFields(value.kind(), value.stereotype(), value.fields())));
     }
+    for (var value : model.dependencies()) {
+      values.add(dependencyRelation(value, objectIds, existing));
+    }
+    return values;
+  }
+
+  private static DataRelation dependencyRelation(
+      SysmlDependency value, java.util.Set<String> objectIds, Map<String, String> existing) {
+    if (!objectIds.contains(value.sourceId()) || !objectIds.contains(value.targetId())) {
+      throw new IllegalArgumentException("SysML Dependency 端点不存在");
+    }
+    var relationType = MAPPING.relationType(value.kind(), value.stereotype());
+    var key = relationKey(relationType, value.sourceId(), value.targetId());
+    return new DataRelation(
+        existing.getOrDefault(key, value.id()),
+        relationType,
+        value.sourceId(),
+        value.targetId(),
+        relationFields(value.kind(), value.stereotype(), Map.of()));
+  }
+
+  private static Map<String, Object> relationFields(
+      String kind, String stereotype, Map<String, String> fields) {
+    var values = new LinkedHashMap<String, Object>(fields);
+    if (!blank(kind) && !"association".equals(kind)) values.put("uml_kind", kind);
+    if (!blank(stereotype)) values.put("uml_stereotype", stereotype);
     return values;
   }
 
@@ -132,16 +198,25 @@ public final class SysmlXmiMapper {
     return values;
   }
 
-  private static String objectType(String stereotype) {
-    if ("Block".equals(stereotype)) return "sysml_block";
-    if ("requirement".equals(stereotype)) return "sysml_requirement";
-    return "uml_class";
-  }
-
-  private static String stereotype(String objectTypeCode) {
-    if ("sysml_block".equals(objectTypeCode)) return "Block";
-    if ("sysml_requirement".equals(objectTypeCode)) return "requirement";
-    return "";
+  private static boolean isDependency(DataRelation value) {
+    var kind = stringField(value.fields(), "uml_kind");
+    var stereotype = stringField(value.fields(), "uml_stereotype");
+    return switch (SysmlManifestMapping.normalize(kind).isBlank()
+        ? SysmlManifestMapping.normalize(stereotype)
+        : SysmlManifestMapping.normalize(kind)) {
+      case "dependency",
+          "abstraction",
+          "realization",
+          "usage",
+          "satisfy",
+          "derive",
+          "verify",
+          "refine",
+          "allocate",
+          "trace" ->
+          true;
+      default -> false;
+    };
   }
 
   private static String name(DataObject object) {
@@ -165,8 +240,21 @@ public final class SysmlXmiMapper {
     return required(value, "SysML identifier part").replaceAll("[^A-Za-z0-9_.-]", "_");
   }
 
+  private static String stringField(Map<String, Object> fields, String code) {
+    return stringField(fields, code, "");
+  }
+
+  private static String stringField(Map<String, Object> fields, String code, String fallback) {
+    var value = fields.get(code);
+    return value == null ? fallback : String.valueOf(value);
+  }
+
   private static String required(String value, String name) {
     if (value == null || value.isBlank()) throw new IllegalArgumentException(name + " 必填");
     return value;
+  }
+
+  private static boolean blank(String value) {
+    return value == null || value.isBlank();
   }
 }
