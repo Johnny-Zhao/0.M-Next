@@ -8,6 +8,7 @@ import com.mnext.kernel.api.SourceInfo;
 import com.mnext.kernel.api.commands.CreateObjectCommand;
 import com.mnext.kernel.api.commands.CreateRelationCommand;
 import com.mnext.kernel.api.events.EventEnvelope;
+import com.mnext.kernel.api.metamodel.ApplyProfileCommand;
 import com.mnext.kernel.api.metamodel.InstantiateWorkspaceCommand;
 import com.mnext.server.plugin.ProfileManifest;
 import java.nio.file.Files;
@@ -40,6 +41,8 @@ class DevSeedRunner implements ApplicationRunner {
   private static final String INTERIOR_TEMPLATE_CODE = "interior_design";
   private static final String TECHNICAL_TEMPLATE_CODE = "technical_proposal";
   private static final String MBSE_TEMPLATE_CODE = "mbse_verification";
+  private static final String SYSML_TEMPLATE_CODE = "sysml";
+  private static final String SYSML_MBSE_MAPPING_TEMPLATE_CODE = "sysml_mbse_mapping";
 
   private final ProfileLoader profileLoader;
   private final TemplateLifecycleService lifecycle;
@@ -87,6 +90,15 @@ class DevSeedRunner implements ApplicationRunner {
     if (!mbseSeedRichEnough()) {
       seedMbseObjects();
     }
+    var sysmlManifest = sysmlManifest();
+    profileLoader.install(sysmlManifest, actor);
+    applyProfile(sysmlManifest, actor, MBSE_WORKSPACE);
+    var mappingManifest = sysmlMbseMappingManifest();
+    profileLoader.install(mappingManifest, actor);
+    applyProfile(mappingManifest, actor, MBSE_WORKSPACE);
+    if (!sysmlMbseMappingSeedExists()) {
+      seedSysmlMbseMappingObjects();
+    }
   }
 
   @EventListener(ApplicationReadyEvent.class)
@@ -101,6 +113,7 @@ class DevSeedRunner implements ApplicationRunner {
     LOG.info(
         "DEV SEED: technical-proposal installed, demo workspace {} ready", TECHNICAL_WORKSPACE);
     LOG.info("DEV SEED: mbse installed, rich verification demo workspace {} ready", MBSE_WORKSPACE);
+    LOG.info("DEV SEED: sysml-mbse mapping applied to workspace {} ready", MBSE_WORKSPACE);
   }
 
   private ProfileManifest interiorManifest() throws Exception {
@@ -113,6 +126,14 @@ class DevSeedRunner implements ApplicationRunner {
 
   private ProfileManifest mbseManifest() throws Exception {
     return manifest("mbse", "mbse");
+  }
+
+  private ProfileManifest sysmlManifest() throws Exception {
+    return manifest("sysml", "sysml");
+  }
+
+  private ProfileManifest sysmlMbseMappingManifest() throws Exception {
+    return manifest("sysml-mbse-mapping", "sysml mbse mapping");
   }
 
   private ProfileManifest manifest(String domain, String label) throws Exception {
@@ -161,6 +182,17 @@ class DevSeedRunner implements ApplicationRunner {
             1,
             workspaceId,
             workspaceName),
+        actor);
+  }
+
+  private void applyProfile(ProfileManifest manifest, Actor actor, UUID workspaceId) {
+    lifecycle.applyProfile(
+        new ApplyProfileCommand(
+            workspaceId,
+            UUID.randomUUID(),
+            key(manifest.templateCode(), "apply-profile"),
+            templateId(manifest.templateCode()),
+            1),
         actor);
   }
 
@@ -279,6 +311,22 @@ class DevSeedRunner implements ApplicationRunner {
             Integer.class,
             MBSE_WORKSPACE);
     return count != null && count >= 12;
+  }
+
+  private boolean sysmlMbseMappingSeedExists() {
+    var count =
+        jdbc.queryForObject(
+            """
+            SELECT count(*)
+            FROM data_relation relation
+            JOIN relation_type type ON type.id = relation.relation_type_id
+            WHERE relation.workspace_id = ?
+              AND type.code = 'sysml_requirement_to_mbse_requirement'
+              AND relation.status = 'ACTIVE'
+            """,
+            Integer.class,
+            MBSE_WORKSPACE);
+    return count != null && count >= 3;
   }
 
   private void seedDemoObjects() {
@@ -657,6 +705,42 @@ class DevSeedRunner implements ApplicationRunner {
     relateMbse(producesType, landingTest, landingResult, "landing-produces-fail");
   }
 
+  private void seedSysmlMbseMappingObjects() {
+    var sysmlRequirementType = objectType(MBSE_WORKSPACE, "sysml_requirement");
+    var mapsType = relationType(MBSE_WORKSPACE, "sysml_requirement_to_mbse_requirement");
+    var route =
+        createSysmlObject(
+            sysmlRequirementType,
+            "requirement-route",
+            sysmlRequirementFields("SYSML-REQ-001", "Aircraft shall follow the planned route"));
+    var wind =
+        createSysmlObject(
+            sysmlRequirementType,
+            "requirement-wind",
+            sysmlRequirementFields("SYSML-REQ-002", "Aircraft shall remain stable in crosswind"));
+    var image =
+        createSysmlObject(
+            sysmlRequirementType,
+            "requirement-image",
+            sysmlRequirementFields("SYSML-REQ-003", "Payload shall capture inspectable imagery"));
+    createSysmlObject(
+        sysmlRequirementType,
+        "requirement-unmapped",
+        sysmlRequirementFields("SYSML-REQ-004", "Mission shall export a verification report"));
+
+    relateMapping(mapsType, route, mbseRequirement("REQ-MBSE-001"), "route-to-mbse");
+    relateMapping(mapsType, wind, mbseRequirement("REQ-MBSE-002"), "wind-to-mbse");
+    relateMapping(mapsType, image, mbseRequirement("REQ-MBSE-009"), "image-to-mbse");
+  }
+
+  private Map<String, Object> sysmlRequirementFields(String reqId, String text) {
+    var fields = new LinkedHashMap<String, Object>();
+    fields.put("name", reqId);
+    fields.put("req_id", reqId);
+    fields.put("text", text);
+    return fields;
+  }
+
   private Map<String, Object> requirementFields(
       String code, String text, String target, Number marginThreshold) {
     var fields = new LinkedHashMap<String, Object>();
@@ -677,6 +761,10 @@ class DevSeedRunner implements ApplicationRunner {
     return createObject(MBSE_WORKSPACE, objectTypeId, MBSE_TEMPLATE_CODE, keySuffix, fields);
   }
 
+  private UUID createSysmlObject(UUID objectTypeId, String keySuffix, Map<String, Object> fields) {
+    return createObject(MBSE_WORKSPACE, objectTypeId, SYSML_TEMPLATE_CODE, keySuffix, fields);
+  }
+
   private void relateTechnical(
       UUID relationTypeId, UUID sourceId, UUID targetId, String keySuffix) {
     relate(
@@ -690,6 +778,16 @@ class DevSeedRunner implements ApplicationRunner {
 
   private void relateMbse(UUID relationTypeId, UUID sourceId, UUID targetId, String keySuffix) {
     relate(MBSE_WORKSPACE, relationTypeId, sourceId, targetId, MBSE_TEMPLATE_CODE, keySuffix);
+  }
+
+  private void relateMapping(UUID relationTypeId, UUID sourceId, UUID targetId, String keySuffix) {
+    relate(
+        MBSE_WORKSPACE,
+        relationTypeId,
+        sourceId,
+        targetId,
+        SYSML_MBSE_MAPPING_TEMPLATE_CODE,
+        keySuffix);
   }
 
   private UUID createObject(UUID objectTypeId, String keySuffix, Map<String, Object> fields) {
@@ -934,6 +1032,24 @@ class DevSeedRunner implements ApplicationRunner {
         "SELECT id FROM relation_type WHERE workspace_id = ? AND code = ?",
         UUID.class,
         workspaceId,
+        code);
+  }
+
+  private UUID mbseRequirement(String code) {
+    return jdbc.queryForObject(
+        """
+        SELECT object.id
+        FROM data_object object
+        JOIN object_type type ON type.id = object.object_type_id
+        JOIN data_field_value value ON value.object_id = object.id
+        JOIN field_def field ON field.id = value.field_def_id
+        WHERE object.workspace_id = ?
+          AND type.code = 'requirement'
+          AND field.code = 'code'
+          AND value.value #>> '{}' = ?
+        """,
+        UUID.class,
+        MBSE_WORKSPACE,
         code);
   }
 

@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.math.BigDecimal;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -132,6 +133,27 @@ class DevSeedRunnerIntegrationTest {
     var gaps = (Map<?, ?>) coverage.get("gaps");
     assertEquals(9, ((Number) gaps.get("total")).intValue());
 
+    assertEquals(4, objectCount(MBSE_WORKSPACE, "sysml_requirement"));
+    assertEquals(4, readModelCount(MBSE_WORKSPACE, "sysml_requirement"));
+    assertEquals(3, relationCount(MBSE_WORKSPACE, "sysml_requirement_to_mbse_requirement"));
+    assertEquals(3, workspaceProfileCount(MBSE_WORKSPACE));
+
+    var mappings =
+        Arrays.stream(
+                http.getForEntity(
+                        base() + "/workspaces/" + MBSE_WORKSPACE + "/views/mapping/correspondences",
+                        Map[].class)
+                    .getBody())
+            .toList();
+    assertEquals(1, mappings.size(), mappings.toString());
+    var mapping = mappings.getFirst();
+    assertEquals("sysml_requirement_to_mbse_requirement", mapping.get("relationType"));
+    assertEquals("sysml", mapping.get("sourceProfile"));
+    assertEquals("mbse_verification", mapping.get("targetProfile"));
+    assertEquals("sysml_requirement", mapping.get("sourceTypeCode"));
+    assertEquals("requirement", mapping.get("targetTypeCode"));
+    assertMappingCoverage(UUID.fromString(String.valueOf(mapping.get("correspondenceId"))));
+
     var workspaces =
         Arrays.stream(http.getForEntity(base() + "/views/workspaces", Map[].class).getBody())
             .toList();
@@ -225,6 +247,51 @@ class DevSeedRunnerIntegrationTest {
         Integer.class,
         workspaceId,
         ruleCode);
+  }
+
+  @SuppressWarnings("unchecked")
+  private void assertMappingCoverage(UUID correspondenceId) {
+    var coverage =
+        http.getForEntity(
+                base()
+                    + "/workspaces/"
+                    + MBSE_WORKSPACE
+                    + "/views/mapping/correspondences/"
+                    + correspondenceId
+                    + "/coverage?page=0&size=10",
+                Map.class)
+            .getBody();
+    assertEquals(4, ((Number) coverage.get("total")).intValue());
+    var items = (List<Map<String, Object>>) coverage.get("items");
+    assertEquals(4, items.size(), items.toString());
+    assertEquals(3, items.stream().filter(item -> "mapped".equals(item.get("status"))).count());
+    assertEquals(1, items.stream().filter(item -> "unmapped".equals(item.get("status"))).count());
+    assertTrue(
+        items.stream()
+            .anyMatch(
+                item ->
+                    "unmapped".equals(item.get("status"))
+                        && String.valueOf(item.get("sourceLabel")).contains("SYSML-REQ-004")));
+  }
+
+  private int relationCount(UUID workspaceId, String relationTypeCode) {
+    return jdbc.queryForObject(
+        """
+        SELECT count(*)
+        FROM data_relation relation
+        JOIN relation_type type ON type.id = relation.relation_type_id
+        WHERE relation.workspace_id = ? AND type.code = ? AND relation.status = 'ACTIVE'
+        """,
+        Integer.class,
+        workspaceId,
+        relationTypeCode);
+  }
+
+  private int workspaceProfileCount(UUID workspaceId) {
+    return jdbc.queryForObject(
+        "SELECT count(*) FROM workspace_profile WHERE workspace_id = ?",
+        Integer.class,
+        workspaceId);
   }
 
   private void assertDecimal(String expected, Object actual) {
