@@ -113,6 +113,11 @@ describe("view and command clients", () => {
               latestPublishedVersion: 2,
               publishedAt: "2026-06-22T00:00:00Z",
               description: null,
+              tags: {
+                industry: ["建筑装饰"],
+                profession: ["室内设计"],
+                scenario: ["户型评估"],
+              },
               typeOverview: [{ code: "room", name: "Room" }],
               typeOverviewTruncated: false,
             },
@@ -124,6 +129,7 @@ describe("view and command clients", () => {
 
     expect(fetchFn.mock.calls[0]?.[0]).toBe("/api/views/templates");
     expect(templates[0]?.description).toBeNull();
+    expect(templates[0]?.tags.industry).toEqual(["建筑装饰"]);
     expect(templates[0]?.typeOverview[0]?.code).toBe("room");
   });
 

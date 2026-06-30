@@ -124,6 +124,20 @@ class ProfileLoaderIntegrationTest {
   }
 
   @Test
+  void installPersistsManifestTagsOnTemplateVersion() throws Exception {
+    var manifest =
+        taggedProfile(
+            fixture(), "profile-loader-tagged", "profile_loader_tagged", "建筑装饰", "室内设计", "户型评估");
+
+    loader.install(manifest, Actor.user(ACTOR));
+
+    var tags = mapper.readTree(templateTags(manifest.templateCode()));
+    assertEquals("建筑装饰", tags.get("industry").get(0).asText());
+    assertEquals("室内设计", tags.get("profession").get(0).asText());
+    assertEquals("户型评估", tags.get("scenario").get(0).asText());
+  }
+
+  @Test
   void oclProfileExpressionsRunEquivalentToMExprAfterInstall() {
     var manifest = oclFixture("profile_loader_ocl");
     loader.install(manifest, Actor.user(ACTOR));
@@ -172,6 +186,7 @@ class ProfileLoaderIntegrationTest {
             "domain",
             null,
             null,
+            manifest.tags(),
             manifest.valueTypes(),
             manifest.objectTypes(),
             manifest.fields(),
@@ -339,6 +354,7 @@ class ProfileLoaderIntegrationTest {
         "domain",
         null,
         null,
+        manifest.tags(),
         manifest.valueTypes(),
         manifest.objectTypes(),
         List.of(new ProfileManifest.Field("missing", "oops", "Oops", "string", null, true, null)),
@@ -406,6 +422,7 @@ class ProfileLoaderIntegrationTest {
         "domain",
         null,
         null,
+        null,
         values,
         objectTypes,
         fields,
@@ -423,6 +440,7 @@ class ProfileLoaderIntegrationTest {
         "domain",
         null,
         null,
+        manifest.tags(),
         manifest.valueTypes(),
         manifest.objectTypes(),
         manifest.fields(),
@@ -446,6 +464,30 @@ class ProfileLoaderIntegrationTest {
             .toList());
   }
 
+  private ProfileManifest taggedProfile(
+      ProfileManifest manifest,
+      String id,
+      String templateCode,
+      String industry,
+      String profession,
+      String scenario) {
+    return new ProfileManifest(
+        id,
+        "Profile Loader Tagged",
+        manifest.version(),
+        templateCode,
+        "domain",
+        null,
+        null,
+        new ProfileManifest.Tags(List.of(industry), List.of(profession), List.of(scenario)),
+        manifest.valueTypes(),
+        manifest.objectTypes(),
+        manifest.fields(),
+        manifest.relations(),
+        manifest.derived(),
+        List.of());
+  }
+
   private ProfileManifest mappingProfile(ProfileManifest source, ProfileManifest target) {
     return new ProfileManifest(
         "profile-loader-mapping",
@@ -455,6 +497,7 @@ class ProfileLoaderIntegrationTest {
         "mapping",
         source.templateCode(),
         target.templateCode(),
+        null,
         List.of(),
         List.of(),
         List.of(),
@@ -794,6 +837,18 @@ class ProfileLoaderIntegrationTest {
   private int workspaceProfileCount(UUID workspace) {
     return jdbc.queryForObject(
         "SELECT count(*) FROM workspace_profile WHERE workspace_id = ?", Integer.class, workspace);
+  }
+
+  private String templateTags(String templateCode) {
+    return jdbc.queryForObject(
+        """
+        SELECT version.tags::text
+        FROM scene_template template
+        JOIN scene_template_version version ON version.template_id = template.id
+        WHERE template.code = ?
+        """,
+        String.class,
+        templateCode);
   }
 
   private UUID templateVersionId(String templateCode, int version) {

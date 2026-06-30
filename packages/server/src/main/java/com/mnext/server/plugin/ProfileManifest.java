@@ -12,6 +12,7 @@ public record ProfileManifest(
     String kind,
     String sourceProfile,
     String targetProfile,
+    Tags tags,
     List<ValueType> valueTypes,
     List<ObjectType> objectTypes,
     List<Field> fields,
@@ -40,6 +41,24 @@ public record ProfileManifest(
 
   public List<Rule> rulesOrEmpty() {
     return rules == null ? List.of() : rules;
+  }
+
+  public Tags tagsOrEmpty() {
+    return tags == null ? new Tags(List.of(), List.of(), List.of()) : tags;
+  }
+
+  public record Tags(List<String> industry, List<String> profession, List<String> scenario) {
+    public List<String> industryOrEmpty() {
+      return industry == null ? List.of() : industry;
+    }
+
+    public List<String> professionOrEmpty() {
+      return profession == null ? List.of() : profession;
+    }
+
+    public List<String> scenarioOrEmpty() {
+      return scenario == null ? List.of() : scenario;
+    }
   }
 
   public record ValueType(

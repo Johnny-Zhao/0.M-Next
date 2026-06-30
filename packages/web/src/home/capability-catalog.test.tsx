@@ -3,10 +3,12 @@ import { describe, expect, it } from "vitest";
 import type { TemplateCatalogItem } from "@m-next/views";
 
 import {
+  facetOptions,
   filterCapabilities,
   hiddenTypeCount,
   isPublished,
   publishedLabel,
+  tagValues,
   versionLabel,
   visibleTypeOverview,
 } from "./capability-catalog";
@@ -20,6 +22,11 @@ const templates: readonly TemplateCatalogItem[] = [
     latestPublishedVersion: 2,
     publishedAt: "2026-06-28T00:00:00Z",
     description: "空间与构件建模",
+    tags: {
+      industry: ["建筑装饰"],
+      profession: ["室内设计"],
+      scenario: ["户型评估"],
+    },
     typeOverview: [
       { code: "room", name: "房间" },
       { code: "wall", name: "墙体" },
@@ -34,6 +41,11 @@ const templates: readonly TemplateCatalogItem[] = [
     latestPublishedVersion: 0,
     publishedAt: null,
     description: null,
+    tags: {
+      industry: ["未分类"],
+      profession: ["未分类"],
+      scenario: ["未分类"],
+    },
     typeOverview: [],
     typeOverviewTruncated: true,
   },
@@ -44,6 +56,27 @@ describe("capability catalog helpers", () => {
     expect(filterCapabilities(templates, "室内")).toEqual([templates[0]]);
     expect(filterCapabilities(templates, "INTERIOR")).toEqual([templates[0]]);
     expect(filterCapabilities(templates, "missing")).toHaveLength(0);
+  });
+
+  it("filters capabilities by selected facets and exposes uncategorized options", () => {
+    expect(
+      filterCapabilities(templates, "", {
+        industry: ["建筑装饰"],
+        profession: [],
+        scenario: [],
+      }),
+    ).toEqual([templates[0]]);
+    expect(
+      filterCapabilities(templates, "", {
+        industry: [],
+        profession: [],
+        scenario: ["未分类"],
+      }),
+    ).toEqual([templates[1]]);
+    expect(facetOptions(templates, "scenario")).toEqual(
+      expect.arrayContaining(["户型评估", "未分类"]),
+    );
+    expect(tagValues(templates[1]!, "industry")).toEqual(["未分类"]);
   });
 
   it("marks unpublished templates and formats labels", () => {

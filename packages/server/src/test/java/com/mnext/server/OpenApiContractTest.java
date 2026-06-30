@@ -18,11 +18,17 @@ import org.springdoc.webmvc.core.configuration.SpringDocWebMvcConfiguration;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 
-@WebMvcTest({CommandController.class, DiffController.class, ViewQueryController.class})
+@WebMvcTest({
+  CommandController.class,
+  DiffController.class,
+  TemplateCatalogController.class,
+  ViewQueryController.class
+})
 @ImportAutoConfiguration({
   SpringDocConfiguration.class,
   SpringDocConfigProperties.class,
@@ -40,6 +46,7 @@ class OpenApiContractTest {
   @MockitoBean VerificationCoverageRepository verificationCoverage;
   @MockitoBean WorkspaceAuthorizer authorizer;
   @MockitoBean WorkspaceQueryRepository workspaces;
+  @MockitoBean JdbcTemplate jdbc;
   @Autowired MockMvc http;
   @Autowired ObjectMapper mapper;
 
@@ -89,6 +96,9 @@ class OpenApiContractTest {
               .isMissingNode(),
           path);
     }
+    assertFalse(document.at("/paths/~1views~1templates/get").isMissingNode());
+    assertFalse(
+        document.at("/components/schemas/TemplateCatalogItem/properties/tags").isMissingNode());
     assertFalse(document.at("/paths/~1workspaces~1{workspaceId}~1diff/post").isMissingNode());
   }
 

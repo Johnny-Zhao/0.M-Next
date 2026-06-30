@@ -7,15 +7,74 @@ import type {
   ViewClient,
 } from "@m-next/views";
 
+export type CapabilityFacet = "industry" | "profession" | "scenario";
+
+export type CapabilityFacetSelection = Readonly<
+  Record<CapabilityFacet, readonly string[]>
+>;
+
+const FACETS: readonly {
+  readonly key: CapabilityFacet;
+  readonly label: string;
+}[] = [
+  { key: "industry", label: "行业" },
+  { key: "profession", label: "专业" },
+  { key: "scenario", label: "场景" },
+];
+
+const EMPTY_FACETS: CapabilityFacetSelection = {
+  industry: [],
+  profession: [],
+  scenario: [],
+};
+
 export function filterCapabilities(
   templates: readonly TemplateCatalogItem[],
   query: string,
+  facets: CapabilityFacetSelection = EMPTY_FACETS,
 ): readonly TemplateCatalogItem[] {
   const normalized = query.trim().toLowerCase();
-  if (!normalized) return templates;
-  return templates.filter((template) =>
-    `${template.name} ${template.code}`.toLowerCase().includes(normalized),
+  return templates.filter(
+    (template) =>
+      matchesQuery(template, normalized) && matchesFacets(template, facets),
   );
+}
+
+export function facetOptions(
+  templates: readonly TemplateCatalogItem[],
+  facet: CapabilityFacet,
+): readonly string[] {
+  return Array.from(
+    new Set(templates.flatMap((template) => tagValues(template, facet))),
+  ).sort((left, right) => left.localeCompare(right, "zh-CN"));
+}
+
+export function tagValues(
+  template: TemplateCatalogItem,
+  facet: CapabilityFacet,
+): readonly string[] {
+  const values = template.tags?.[facet] ?? [];
+  return values.length > 0 ? values : ["未分类"];
+}
+
+function matchesQuery(template: TemplateCatalogItem, normalized: string) {
+  return (
+    !normalized ||
+    `${template.name} ${template.code}`.toLowerCase().includes(normalized)
+  );
+}
+
+function matchesFacets(
+  template: TemplateCatalogItem,
+  facets: CapabilityFacetSelection,
+) {
+  return FACETS.every(({ key }) => {
+    const selected = facets[key];
+    return (
+      selected.length === 0 ||
+      tagValues(template, key).some((tag) => selected.includes(tag))
+    );
+  });
 }
 
 export function isPublished(template: TemplateCatalogItem): boolean {
@@ -65,6 +124,8 @@ export function CapabilityCatalog({
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [creatingId, setCreatingId] = useState<string | null>(null);
+  const [selectedFacets, setSelectedFacets] =
+    useState<CapabilityFacetSelection>(EMPTY_FACETS);
   const [draft, setDraft] = useState<{
     readonly template: TemplateCatalogItem;
     readonly name: string;
@@ -97,9 +158,27 @@ export function CapabilityCatalog({
   }, [reportError, viewClient]);
 
   const filteredTemplates = useMemo(
-    () => filterCapabilities(templates, query),
-    [query, templates],
+    () => filterCapabilities(templates, query, selectedFacets),
+    [query, selectedFacets, templates],
   );
+
+  const options = useMemo(
+    () =>
+      Object.fromEntries(
+        FACETS.map(({ key }) => [key, facetOptions(templates, key)]),
+      ) as Record<CapabilityFacet, readonly string[]>,
+    [templates],
+  );
+
+  function toggleFacet(facet: CapabilityFacet, value: string): void {
+    setSelectedFacets((current) => {
+      const selected = current[facet];
+      const next = selected.includes(value)
+        ? selected.filter((item) => item !== value)
+        : [...selected, value];
+      return { ...current, [facet]: next };
+    });
+  }
 
   async function instantiate(): Promise<void> {
     if (!draft || !isPublished(draft.template) || !draft.name.trim()) return;
@@ -137,6 +216,28 @@ export function CapabilityCatalog({
           value={query}
         />
       </label>
+      <div className="capability-facets" aria-label="能力标签筛选">
+        {FACETS.map(({ key, label }) => (
+          <div className="capability-facet" key={key}>
+            <span>{label}</span>
+            <div>
+              {options[key].map((value) => (
+                <button
+                  aria-pressed={selectedFacets[key].includes(value)}
+                  className={
+                    selectedFacets[key].includes(value) ? "is-selected" : ""
+                  }
+                  key={value}
+                  onClick={() => toggleFacet(key, value)}
+                  type="button"
+                >
+                  {value}
+                </button>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
       {loading ? (
         <CapabilitySkeleton />
       ) : filteredTemplates.length === 0 ? (

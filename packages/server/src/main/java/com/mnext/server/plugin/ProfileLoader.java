@@ -89,7 +89,7 @@ public class ProfileLoader {
                 manifest.name()),
             actor);
     var versionId = detailUuid(created, "templateVersionId");
-    updateTemplateMetadata(manifest);
+    updateTemplateMetadata(manifest, versionId);
     defineValueTypes(manifest, versionId, actor);
     var objectTypeIds = defineObjectTypes(manifest, versionId, actor);
     defineFields(manifest, objectTypeIds, actor);
@@ -441,7 +441,7 @@ public class ProfileLoader {
     }
   }
 
-  private void updateTemplateMetadata(ProfileManifest manifest) {
+  private void updateTemplateMetadata(ProfileManifest manifest, UUID versionId) {
     jdbc.update(
         """
         UPDATE scene_template
@@ -452,6 +452,34 @@ public class ProfileLoader {
         blank(manifest.sourceProfile()) ? null : manifest.sourceProfile(),
         blank(manifest.targetProfile()) ? null : manifest.targetProfile(),
         manifest.templateCode());
+    jdbc.update(
+        """
+        UPDATE scene_template_version
+        SET tags = ?::jsonb
+        WHERE id = ?
+        """,
+        tagsJson(manifest),
+        versionId);
+  }
+
+  private String tagsJson(ProfileManifest manifest) {
+    var tags = manifest.tagsOrEmpty();
+    try {
+      return mapper.writeValueAsString(
+          Map.of(
+              "industry",
+              cleanTags(tags.industryOrEmpty()),
+              "profession",
+              cleanTags(tags.professionOrEmpty()),
+              "scenario",
+              cleanTags(tags.scenarioOrEmpty())));
+    } catch (com.fasterxml.jackson.core.JsonProcessingException failure) {
+      throw schema("profile tags 无法序列化");
+    }
+  }
+
+  private List<String> cleanTags(List<String> values) {
+    return values.stream().filter(value -> !blank(value)).map(String::trim).distinct().toList();
   }
 
   private String relationKind(ProfileManifest manifest, ProfileManifest.Relation relation) {

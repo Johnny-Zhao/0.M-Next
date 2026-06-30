@@ -3,6 +3,11 @@
   "name": "室内设计",
   "version": "1.0.0",
   "templateCode": "interior_design",
+  "tags": {
+    "industry": ["建筑装饰"],
+    "profession": ["室内设计"],
+    "scenario": ["户型评估"]
+  },
   "valueTypes": [
     {
       "code": "length_m",
