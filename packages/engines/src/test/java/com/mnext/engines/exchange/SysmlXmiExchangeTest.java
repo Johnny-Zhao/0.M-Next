@@ -46,6 +46,25 @@ class SysmlXmiExchangeTest {
   }
 
   @Test
+  void manifestMappingKeepsRichSysmlElementsAndUnknownStereotypes() {
+    var model = codec.parse(richXmi());
+    var dataSet = SysmlXmiMapper.toDataSet(model, new DataSet(null, null));
+
+    assertEquals(List.of("SysML 1.6"), model.appliedProfiles());
+    assertEquals(1, model.packages().size());
+    assertEquals("sysml_block", object(dataSet, "B1").objectTypeCode());
+    assertEquals("sysml_requirement", object(dataSet, "R1").objectTypeCode());
+    assertEquals("uml_class", object(dataSet, "CB1").objectTypeCode());
+    assertEquals("ConstraintBlock", object(dataSet, "CB1").fields().get("uml_stereotype"));
+    assertEquals("uml_class", object(dataSet, "U1").objectTypeCode());
+    assertEquals("CustomThing", object(dataSet, "U1").fields().get("uml_stereotype"));
+    assertEquals("uml_class", object(dataSet, "C1").objectTypeCode());
+    assertEquals("Comment", object(dataSet, "C1").fields().get("uml_stereotype"));
+    assertEquals("composition", relation(dataSet, "A1").fields().get("uml_kind"));
+    assertEquals("satisfy", relation(dataSet, "D1").fields().get("uml_stereotype"));
+  }
+
+  @Test
   void resolvesAssociationEndpointsByOwnedEndIds() {
     var dataSet = SysmlXmiMapper.toDataSet(codec.parse(associationXmi()), new DataSet(null, null));
 
@@ -67,7 +86,7 @@ class SysmlXmiExchangeTest {
         () -> codec.parse(associationXmi().replace("type=\"R1\"", "type=\"MISSING\"")));
     assertThrows(
         IllegalArgumentException.class,
-        () -> codec.parse(blockXmi().replace("uml:Class", "uml:Port")));
+        () -> codec.parse(blockXmi().replace("uml:Class", "uml:OpaqueThing")));
   }
 
   @Test
@@ -123,5 +142,52 @@ class SysmlXmiExchangeTest {
         </xmi:XMI>
         """
         .formatted(XMI_NS, UML_NS);
+  }
+
+  private static String richXmi() {
+    return """
+        <xmi:XMI xmlns:xmi="%s"
+                 xmlns:uml="%s"
+                 xmlns:sysml="%s">
+          <uml:Model xmi:id="model">
+            <profileApplication>
+              <appliedProfile href="pathmap://SysML_PROFILES/SysML.profile.uml#SysML/1.6"/>
+            </profileApplication>
+            <packagedElement xmi:type="uml:Package" xmi:id="P1" name="Flight">
+              <packagedElement xmi:type="uml:Class" xmi:id="B1" name="Vehicle">
+                <ownedAttribute xmi:type="uml:Property" xmi:id="B1-port" name="statusPort" type="Signal" appliedStereotype="Port"/>
+              </packagedElement>
+              <packagedElement xmi:type="uml:Class" xmi:id="R1" name="Safe flight"/>
+              <packagedElement xmi:type="uml:Class" xmi:id="CB1" name="Mass constraint"/>
+              <packagedElement xmi:type="uml:Class" xmi:id="U1" name="Opaque"/>
+              <packagedElement xmi:type="uml:Comment" xmi:id="C1" body="review note"/>
+              <packagedElement xmi:type="uml:Association" xmi:id="A1" memberEnd="A1-a A1-b">
+                <ownedEnd xmi:type="uml:Property" xmi:id="A1-a" type="B1" aggregation="composite"/>
+                <ownedEnd xmi:type="uml:Property" xmi:id="A1-b" type="R1"/>
+              </packagedElement>
+              <packagedElement xmi:type="uml:Dependency" xmi:id="D1" client="B1" supplier="R1" appliedStereotype="satisfy"/>
+            </packagedElement>
+          </uml:Model>
+          <sysml:Block base_Class="B1"/>
+          <sysml:Requirement base_Class="R1"/>
+          <sysml:ConstraintBlock base_Class="CB1"/>
+          <sysml:CustomThing base_Class="U1"/>
+        </xmi:XMI>
+        """
+        .formatted(XMI_NS, UML_NS, SYSML_NS);
+  }
+
+  private static DataObject object(DataSet dataSet, String id) {
+    return dataSet.objects().stream()
+        .filter(value -> id.equals(value.objectId()))
+        .findFirst()
+        .orElseThrow();
+  }
+
+  private static DataRelation relation(DataSet dataSet, String id) {
+    return dataSet.relations().stream()
+        .filter(value -> id.equals(value.relationId()))
+        .findFirst()
+        .orElseThrow();
   }
 }
