@@ -418,6 +418,7 @@ class DevSeedRunner implements ApplicationRunner {
     var moduleType = objectType(TECHNICAL_WORKSPACE, "module");
     var interfaceType = objectType(TECHNICAL_WORKSPACE, "interface");
     var requirementType = objectType(TECHNICAL_WORKSPACE, "requirement");
+    var alternativeType = objectType(TECHNICAL_WORKSPACE, "alternative");
     var containsSystemType = relationType(TECHNICAL_WORKSPACE, "proposal_contains_system");
     var containsModuleType = relationType(TECHNICAL_WORKSPACE, "proposal_contains_module");
     var dependsOnType = relationType(TECHNICAL_WORKSPACE, "proposal_depends_on");
@@ -475,13 +476,25 @@ class DevSeedRunner implements ApplicationRunner {
             requirementType,
             "requirement-open",
             technicalRequirementFields("REQ-TP-002", "接口必须声明协议和数据", "MEDIUM"));
+    createTechnicalObject(
+        alternativeType,
+        "alternative-cost",
+        technicalAlternativeFields("成本优先方案", 82, "硬件功耗最低，适合预算严格场景"));
+    createTechnicalObject(
+        alternativeType,
+        "alternative-balanced",
+        technicalAlternativeFields("均衡推荐方案", 91, "功耗略高但交付风险最低，建议作为当前基线"));
+    createTechnicalObject(
+        alternativeType,
+        "alternative-performance",
+        technicalAlternativeFields("性能优先方案", 87, "吞吐能力最好，需配合预算调整"));
 
     relateTechnical(containsSystemType, proposal, platformSystem, "contains-platform-system");
     relateTechnical(containsSystemType, proposal, integrationSystem, "contains-integration-system");
-    relateTechnical(containsModuleType, platformSystem, orchestration, "contains-orchestration");
+    relateTechnical(containsModuleType, proposal, orchestration, "proposal-contains-orchestration");
+    relateTechnical(containsModuleType, proposal, adapter, "proposal-contains-adapter");
+    relateTechnical(containsModuleType, proposal, undecided, "proposal-contains-undecided");
     relateTechnical(containsModuleType, orchestration, generation, "contains-generation");
-    relateTechnical(containsModuleType, integrationSystem, adapter, "contains-adapter");
-    relateTechnical(containsModuleType, integrationSystem, undecided, "contains-undecided");
     relateTechnical(dependsOnType, generation, orchestration, "generation-depends-orchestration");
     relateTechnical(interfacesWithType, orchestration, exportInterface, "orchestration-export");
     relateTechnical(interfacesWithType, adapter, reviewInterface, "adapter-review");
@@ -513,6 +526,15 @@ class DevSeedRunner implements ApplicationRunner {
     fields.put("code", code);
     fields.put("text", text);
     fields.put("priority", priority);
+    return fields;
+  }
+
+  private Map<String, Object> technicalAlternativeFields(
+      String name, Number score, String conclusion) {
+    var fields = new LinkedHashMap<String, Object>();
+    fields.put("name", name);
+    fields.put("score", score);
+    fields.put("conclusion", conclusion);
     return fields;
   }
 
@@ -754,7 +776,24 @@ class DevSeedRunner implements ApplicationRunner {
   private UUID createTechnicalObject(
       UUID objectTypeId, String keySuffix, Map<String, Object> fields) {
     return createObject(
-        TECHNICAL_WORKSPACE, objectTypeId, TECHNICAL_TEMPLATE_CODE, keySuffix, fields);
+        TECHNICAL_WORKSPACE,
+        objectTypeId,
+        TECHNICAL_TEMPLATE_CODE,
+        keySuffix,
+        technicalSeedFields(keySuffix, fields));
+  }
+
+  private Map<String, Object> technicalSeedFields(String keySuffix, Map<String, Object> fields) {
+    var result = new LinkedHashMap<String, Object>(fields);
+    switch (keySuffix) {
+      case "proposal" -> result.put("power_budget_w", 800);
+      case "module-orchestration" -> result.put("power_w", 260);
+      case "module-generation" -> result.put("power_w", 190);
+      case "module-adapter" -> result.put("power_w", 210);
+      case "module-undecided" -> result.put("power_w", 160);
+      default -> {}
+    }
+    return result;
   }
 
   private UUID createMbseObject(UUID objectTypeId, String keySuffix, Map<String, Object> fields) {
@@ -856,6 +895,7 @@ class DevSeedRunner implements ApplicationRunner {
   }
 
   private void runTechnicalRuleChecks() {
+    runTechnicalRuleCheck("proposal");
     runTechnicalRuleCheck("module");
     runTechnicalRuleCheck("interface");
     runTechnicalRuleCheck("requirement");

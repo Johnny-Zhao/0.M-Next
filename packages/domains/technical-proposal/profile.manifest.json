@@ -36,6 +36,10 @@
       "parent": "proposal_node"
     },
     {
+      "code": "alternative",
+      "name": "Alternative"
+    },
+    {
       "code": "interface",
       "name": "Interface"
     },
@@ -65,6 +69,13 @@
       "name": "Author",
       "dataType": "string",
       "required": true
+    },
+    {
+      "objectType": "proposal",
+      "code": "power_budget_w",
+      "name": "Power Budget W",
+      "dataType": "number",
+      "required": false
     },
     {
       "objectType": "system",
@@ -98,6 +109,34 @@
       "objectType": "module",
       "code": "description",
       "name": "Description",
+      "dataType": "string",
+      "required": false
+    },
+    {
+      "objectType": "module",
+      "code": "power_w",
+      "name": "Power W",
+      "dataType": "number",
+      "required": false
+    },
+    {
+      "objectType": "alternative",
+      "code": "name",
+      "name": "Name",
+      "dataType": "string",
+      "required": true
+    },
+    {
+      "objectType": "alternative",
+      "code": "score",
+      "name": "Score",
+      "dataType": "number",
+      "required": false
+    },
+    {
+      "objectType": "alternative",
+      "code": "conclusion",
+      "name": "Conclusion",
       "dataType": "string",
       "required": false
     },
@@ -205,6 +244,13 @@
   ],
   "derived": [
     {
+      "objectType": "proposal",
+      "code": "total_power_fx",
+      "name": "Total Power",
+      "resultType": "number",
+      "derivation": "sum(traverseDeep('proposal_contains_module','out',5),'power_w')"
+    },
+    {
       "objectType": "module",
       "code": "child_count_fx",
       "name": "Child Count",
@@ -213,6 +259,14 @@
     }
   ],
   "rules": [
+    {
+      "code": "R-TD-PWR",
+      "objectType": "proposal",
+      "severity": "BLOCK",
+      "when": "field('power_budget_w') != null && field('total_power_fx') > field('power_budget_w')",
+      "message": "模块功耗总和超过方案预算，请下调功耗或调整预算",
+      "lightweight": false
+    },
     {
       "code": "R-TD-RESP",
       "objectType": "module",
