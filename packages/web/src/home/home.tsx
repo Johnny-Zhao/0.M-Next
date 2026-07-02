@@ -6,11 +6,7 @@ import "./home.css";
 import { CapabilityCatalog } from "./capability-catalog";
 import { Login } from "./login";
 import { NewProjectWizard, type ProjectDraft } from "./new-project-wizard";
-import {
-  ProjectList,
-  placeholderProjects,
-  type ProjectSummary,
-} from "./project-list";
+import { ProjectList, type ProjectSummary } from "./project-list";
 
 export type HomeRoute = "login" | "projects" | "new-project";
 
@@ -19,7 +15,13 @@ export interface HomeProps {
   readonly viewClient: ViewClient;
   readonly commandClient: CommandClient;
   readonly onLogin: (actorId: string) => void;
-  readonly onOpenWorkspace: (workspaceId: string) => void;
+  readonly onOpenWorkspace: (workspace: OpenWorkspaceRequest) => void;
+}
+
+export interface OpenWorkspaceRequest {
+  readonly workspaceId: string;
+  readonly name?: string;
+  readonly templateCode?: string | null;
 }
 
 export function nextHomeRoute(
@@ -58,10 +60,12 @@ export function Home({
   }
 
   function openDraft(draft: ProjectDraft): void {
-    const fallback = placeholderProjects[0] ?? {
-      workspaceId: "11111111-1111-4111-8111-111111111111",
-    };
-    onOpenWorkspace(draft.workspaceId ?? fallback.workspaceId);
+    if (!draft.workspaceId) {
+      reportError("创建项目后未返回可打开项目，请刷新项目列表后重试");
+      setRoute("projects");
+      return;
+    }
+    onOpenWorkspace({ workspaceId: draft.workspaceId, name: draft.name });
   }
 
   if (effectiveRoute === "new-project") {
@@ -87,7 +91,11 @@ export function Home({
         key={projectListKey}
         onCreateProject={() => setRoute("new-project")}
         onOpenProject={(project: ProjectSummary) =>
-          onOpenWorkspace(project.workspaceId)
+          onOpenWorkspace({
+            workspaceId: project.workspaceId,
+            name: project.name,
+            templateCode: project.templateCode,
+          })
         }
         viewClient={viewClient}
       />

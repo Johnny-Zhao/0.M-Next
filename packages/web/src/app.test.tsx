@@ -1,12 +1,15 @@
 import { describe, expect, it } from "vitest";
 
-import { App, syncLabel } from "./app";
+import { App, syncLabel, workspaceLabel } from "./app";
 import {
   coerceEditedValue,
   saveDrivingField,
 } from "./workbench/inspector-panel";
 import { objectsAndRelationsToFlow } from "./workbench/diagram-panel";
-import { workbenchPanelDefinitions } from "./workbench/workbench";
+import {
+  workbenchDefaultsForTemplate,
+  workbenchPanelDefinitions,
+} from "./workbench/workbench";
 
 describe("App", () => {
   it("creates the application shell", () => {
@@ -14,6 +17,9 @@ describe("App", () => {
     expect(syncLabel({ pendingEvents: 0, caughtUp: true })).toContain("绿");
     expect(syncLabel({ pendingEvents: 3, caughtUp: false })).toContain("黄");
     expect(syncLabel("error")).toContain("红");
+    expect(
+      workspaceLabel({ workspaceId: "workspace-1", name: "技术方案 Demo" }),
+    ).toBe("技术方案 Demo");
   });
 
   it("registers the dockable workbench panels", () => {
@@ -34,6 +40,20 @@ describe("App", () => {
       "交换",
       "快照",
     ]);
+  });
+
+  it("selects technical document defaults by template code", () => {
+    expect(workbenchDefaultsForTemplate("technical_proposal")).toMatchObject({
+      objectType: "module",
+      relationType: "proposal_contains_module",
+      activePanel: "document",
+      rootObjectType: "proposal",
+    });
+    expect(workbenchDefaultsForTemplate("interior_design")).toMatchObject({
+      objectType: "room",
+      relationType: "adjacent",
+      activePanel: "diagram",
+    });
   });
 
   it("maps objects and relations to React Flow nodes and edges", () => {

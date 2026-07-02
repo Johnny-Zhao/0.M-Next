@@ -12,18 +12,6 @@ export interface ProjectSummary {
   readonly updatedAt?: string;
 }
 
-export const placeholderProjects: readonly ProjectSummary[] = [
-  {
-    workspaceId: "11111111-1111-4111-8111-111111111111",
-    name: "技术方案A",
-    plugin: "制图工作台",
-    role: "Owner",
-    alertCount: 0,
-    templateCode: "demo",
-    updatedAt: "2026-06-26T00:00:00Z",
-  },
-];
-
 export function filterProjects(
   projects: readonly ProjectSummary[],
   query: string,
@@ -63,11 +51,31 @@ export function projectUpdatedLabel(project: ProjectSummary): string {
   return `更新 ${date.toLocaleDateString("zh-CN")}`;
 }
 
+export type ProjectListState = "loading" | "failed" | "empty" | "ready";
+
+export function projectListState(
+  projects: readonly ProjectSummary[],
+  loading: boolean,
+  failed: boolean,
+): ProjectListState {
+  if (loading) return "loading";
+  if (failed) return "failed";
+  return projects.length === 0 ? "empty" : "ready";
+}
+
 export interface ProjectListProps {
   readonly actorId: string | null;
   readonly viewClient: ViewClient;
   readonly onOpenProject: (project: ProjectSummary) => void;
   readonly onCreateProject: () => void;
+}
+
+export interface ProjectListBodyProps {
+  readonly state: ProjectListState;
+  readonly projects: readonly ProjectSummary[];
+  readonly onOpenProject: (project: ProjectSummary) => void;
+  readonly onCreateProject: () => void;
+  readonly onRetry: () => void;
 }
 
 export function ProjectList({
@@ -78,13 +86,15 @@ export function ProjectList({
 }: ProjectListProps): ReactElement {
   const [query, setQuery] = useState("");
   const [remoteProjects, setRemoteProjects] = useState<
-    readonly ProjectSummary[] | null
-  >(null);
+    readonly ProjectSummary[]
+  >([]);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
   useEffect(() => {
     let disposed = false;
     setLoading(true);
+    setFailed(false);
     void viewClient
       .workspaces()
       .then((workspaces) => {
@@ -94,7 +104,7 @@ export function ProjectList({
       })
       .catch(() => {
         if (disposed) return;
-        setRemoteProjects(null);
+        setRemoteProjects([]);
         setFailed(true);
       })
       .finally(() => {
@@ -103,12 +113,12 @@ export function ProjectList({
     return () => {
       disposed = true;
     };
-  }, [actorId, viewClient]);
-  const sourceProjects = remoteProjects ?? placeholderProjects;
+  }, [actorId, reloadKey, viewClient]);
   const projects = useMemo(
-    () => filterProjects(sourceProjects, query),
-    [query, sourceProjects],
+    () => filterProjects(remoteProjects, query),
+    [query, remoteProjects],
   );
+  const state = projectListState(projects, loading, failed);
 
   return (
     <section className="home-shell project-list" aria-label="项目列表">
@@ -118,8 +128,11 @@ export function ProjectList({
           <h1>项目</h1>
           <p>
             {actorId} ·{" "}
-            {loading ? "正在读取工作空间" : `${projects.length} 个工作空间`}
-            {failed ? " · 已使用本地占位回退" : ""}
+            {loading
+              ? "正在读取工作空间"
+              : failed
+                ? "项目列表读取失败"
+                : `${projects.length} 个工作空间`}
           </p>
         </div>
         <button onClick={onCreateProject} type="button">
@@ -134,7 +147,42 @@ export function ProjectList({
           value={query}
         />
       </label>
-      {projects.length === 0 ? (
+      <ProjectListBody
+        onCreateProject={onCreateProject}
+        onOpenProject={onOpenProject}
+        onRetry={() => setReloadKey((value) => value + 1)}
+        projects={projects}
+        state={state}
+      />
+    </section>
+  );
+}
+
+export function ProjectListBody({
+  state,
+  projects,
+  onCreateProject,
+  onOpenProject,
+  onRetry,
+}: ProjectListBodyProps): ReactElement {
+  return (
+    <>
+      {state === "loading" ? (
+        <div className="empty-projects" role="status">
+          <h2>正在读取项目</h2>
+          <p>请稍候。</p>
+        </div>
+      ) : null}
+      {state === "failed" ? (
+        <div className="empty-projects" role="alert">
+          <h2>项目列表读取失败</h2>
+          <p>请确认服务已启动后重试。</p>
+          <button onClick={onRetry} type="button">
+            重试
+          </button>
+        </div>
+      ) : null}
+      {state === "empty" ? (
         <div className="empty-projects">
           <h2>还没有项目</h2>
           <p>创建一个项目后即可进入制图工作台。</p>
@@ -142,7 +190,8 @@ export function ProjectList({
             新建项目
           </button>
         </div>
-      ) : (
+      ) : null}
+      {state === "ready" ? (
         <div className="project-grid">
           {projects.map((project) => (
             <button
@@ -172,8 +221,8 @@ export function ProjectList({
             </button>
           ))}
         </div>
-      )}
-    </section>
+      ) : null}
+    </>
   );
 }
 

@@ -169,6 +169,7 @@ export function openWorkbenchPanel(
 export interface WorkbenchProps {
   readonly actorId: string;
   readonly workspaceId: string;
+  readonly templateCode?: string | null;
   readonly viewClient: ViewClient;
   readonly commandClient: CommandClient;
   readonly selection: SelectionCoordinator;
@@ -202,9 +203,41 @@ const defaultObjectType = "room";
 const defaultRelationType = "adjacent";
 const defaultRootId = "";
 
+export interface WorkbenchDefaults {
+  readonly objectType: string;
+  readonly relationType: string;
+  readonly rootId: string;
+  readonly activePanel: WorkbenchPanelId;
+  readonly startupPanels: readonly WorkbenchPanelId[];
+  readonly rootObjectType?: string;
+}
+
+export function workbenchDefaultsForTemplate(
+  templateCode?: string | null,
+): WorkbenchDefaults {
+  if (templateCode === "technical_proposal") {
+    return {
+      objectType: "module",
+      relationType: "proposal_contains_module",
+      rootId: "",
+      activePanel: "document",
+      startupPanels: ["table", "validate", "document"],
+      rootObjectType: "proposal",
+    };
+  }
+  return {
+    objectType: defaultObjectType,
+    relationType: defaultRelationType,
+    rootId: defaultRootId,
+    activePanel: "diagram",
+    startupPanels: [],
+  };
+}
+
 export function Workbench({
   actorId,
   workspaceId,
+  templateCode,
   viewClient,
   commandClient,
   selection,
@@ -213,17 +246,26 @@ export function Workbench({
   themeLabel,
   commandRegistry,
 }: WorkbenchProps): ReactElement {
-  const [objectType, setAppliedObjectType] = useState(defaultObjectType);
-  const [relationType, setAppliedRelationType] = useState(defaultRelationType);
-  const [rootId, setAppliedRootId] = useState(defaultRootId);
-  const [draftObjectType, setDraftObjectType] = useState(defaultObjectType);
-  const [draftRelationType, setDraftRelationType] =
-    useState(defaultRelationType);
-  const [draftRootId, setDraftRootId] = useState(defaultRootId);
+  const defaults = useMemo(
+    () => workbenchDefaultsForTemplate(templateCode),
+    [templateCode],
+  );
+  const [objectType, setAppliedObjectType] = useState(defaults.objectType);
+  const [relationType, setAppliedRelationType] = useState(
+    defaults.relationType,
+  );
+  const [rootId, setAppliedRootId] = useState(defaults.rootId);
+  const [draftObjectType, setDraftObjectType] = useState(defaults.objectType);
+  const [draftRelationType, setDraftRelationType] = useState(
+    defaults.relationType,
+  );
+  const [draftRootId, setDraftRootId] = useState(defaults.rootId);
   const [refreshVersion, setRefreshVersion] = useState(0);
   const [dockviewApi, setDockviewApi] = useState<DockviewApi | null>(null);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
-  const [activePanel, setActivePanel] = useState<WorkbenchPanelId>("diagram");
+  const [activePanel, setActivePanel] = useState<WorkbenchPanelId>(
+    defaults.activePanel,
+  );
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   const refreshViews = useCallback(
@@ -291,6 +333,21 @@ export function Workbench({
     openShellPanel("validate");
     refreshViews();
   }, [openShellPanel, refreshViews]);
+
+  useEffect(() => {
+    if (!defaults.rootObjectType || rootId.trim() !== "") return;
+    let disposed = false;
+    void viewClient
+      .objects(workspaceId, defaults.rootObjectType, 0, 1)
+      .then((page) => {
+        const firstRootId = page.items[0]?.objectId;
+        if (!disposed && firstRootId) setRootId(firstRootId);
+      })
+      .catch(() => {});
+    return () => {
+      disposed = true;
+    };
+  }, [defaults.rootObjectType, rootId, setRootId, viewClient, workspaceId]);
 
   const context = useMemo<WorkbenchContextValue>(
     () => ({
@@ -425,7 +482,10 @@ export function Workbench({
             onReady={(event: DockviewReadyEvent) => {
               setDockviewApi(event.api);
               ensureWorkbenchPanels(event.api);
-              setActivePanel("diagram");
+              defaults.startupPanels.forEach((panel) =>
+                openWorkbenchPanel(event.api, panel),
+              );
+              setActivePanel(defaults.activePanel);
             }}
           />
         </div>
