@@ -132,7 +132,11 @@ class TechDocPluginInstallE2EIntegrationTest {
         command(
             workspace,
             createRelation(
-                workspace, containsModuleType, system, parentModule, "contains-parent-module")));
+                workspace,
+                containsModuleType,
+                proposal,
+                parentModule,
+                "proposal-contains-parent-module")));
     applyEvents(
         command(
             workspace,
@@ -157,7 +161,17 @@ class TechDocPluginInstallE2EIntegrationTest {
             createRelation(
                 workspace, satisfiesType, parentModule, coveredRequirement, "module-satisfies")));
 
+    updateField(workspace, proposal, "set-proposal-budget", "power_budget_w", 300);
+    updateField(workspace, parentModule, "set-parent-power", "power_w", 180);
+    updateField(workspace, missingResponsibilityModule, "set-child-power", "power_w", 150);
+
     assertDecimal("1", derivedEvaluator.evaluate(workspace, parentModule, "child_count_fx"));
+    assertDecimal("330", derivedEvaluator.evaluate(workspace, proposal, "total_power_fx"));
+
+    var proposalRun =
+        runId(rule(workspace, runRuleCheck(workspace, "proposal", "run-proposal-rules")));
+    assertEquals(1, countResults(workspace, proposalRun, "R-TD-PWR"));
+    assertEquals("BLOCK", resultSeverity(workspace, proposalRun, "R-TD-PWR"));
 
     var moduleRun = runId(rule(workspace, runRuleCheck(workspace, "module", "run-module-rules")));
     assertEquals(1, countResults(workspace, moduleRun, "R-TD-RESP"));
@@ -173,6 +187,12 @@ class TechDocPluginInstallE2EIntegrationTest {
     assertEquals(1, countResults(workspace, requirementRun, "R-TD-COV"));
     assertEquals("WARN", ruleStatus(workspace, uncoveredRequirement));
     assertEquals("OK", ruleStatus(workspace, coveredRequirement));
+
+    updateField(workspace, missingResponsibilityModule, "reduce-child-power", "power_w", 100);
+    assertDecimal("280", derivedEvaluator.evaluate(workspace, proposal, "total_power_fx"));
+    var fixedProposalRun =
+        runId(rule(workspace, runRuleCheck(workspace, "proposal", "run-proposal-fixed")));
+    assertEquals(0, countResults(workspace, fixedProposalRun, "R-TD-PWR"));
 
     loader.uninstall(manifest.templateCode(), Actor.user(ACTOR));
     assertFalse(templateNames().contains("技术方案"));
@@ -260,6 +280,28 @@ class TechDocPluginInstallE2EIntegrationTest {
             "targetId", target,
             "relationFields", Map.of(),
             "source", Map.of("type", "manual")));
+  }
+
+  private void updateField(
+      UUID workspace, UUID objectId, String key, String fieldCode, Object value) {
+    applyEvents(
+        command(
+            workspace,
+            updateFields(
+                workspace,
+                objectId,
+                objectVersion(objectId),
+                key,
+                List.of(Map.of("fieldDefCode", fieldCode, "value", value)))));
+  }
+
+  private Map<String, Object> updateFields(
+      UUID workspace, UUID objectId, long version, String key, List<Map<String, Object>> fields) {
+    return envelope(
+        "UpdateFields",
+        workspace,
+        key,
+        Map.of("objectId", objectId, "expectedObjectVersion", version, "fields", fields));
   }
 
   private Map<String, Object> runRuleCheck(UUID workspace, String objectTypeCode, String key) {
@@ -385,6 +427,24 @@ class TechDocPluginInstallE2EIntegrationTest {
         WHERE workspace_id = ? AND run_id = ?::uuid AND rule_code = ?
         """,
         Integer.class,
+        workspace,
+        runId,
+        ruleCode);
+  }
+
+  private long objectVersion(UUID objectId) {
+    return jdbc.queryForObject(
+        "SELECT version FROM data_object WHERE id = ?", Long.class, objectId);
+  }
+
+  private String resultSeverity(UUID workspace, String runId, String ruleCode) {
+    return jdbc.queryForObject(
+        """
+        SELECT severity
+        FROM check_result
+        WHERE workspace_id = ? AND run_id = ?::uuid AND rule_code = ?
+        """,
+        String.class,
         workspace,
         runId,
         ruleCode);

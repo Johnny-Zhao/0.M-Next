@@ -52,6 +52,7 @@ class DevSeedRunnerIntegrationTest {
   @Autowired JdbcTemplate jdbc;
   @Autowired TestRestTemplate http;
   @Autowired DerivedEvaluator derivedEvaluator;
+  @Autowired DevSeedRunner runner;
   @LocalServerPort int port;
 
   @Test
@@ -62,14 +63,20 @@ class DevSeedRunnerIntegrationTest {
     assertEquals(1, objectCount(TECHNICAL_WORKSPACE, "proposal"));
     assertEquals(2, objectCount(TECHNICAL_WORKSPACE, "system"));
     assertEquals(4, objectCount(TECHNICAL_WORKSPACE, "module"));
+    assertEquals(3, objectCount(TECHNICAL_WORKSPACE, "alternative"));
     assertEquals(2, objectCount(TECHNICAL_WORKSPACE, "interface"));
     assertEquals(2, objectCount(TECHNICAL_WORKSPACE, "requirement"));
     assertEquals(4, readModelCount(TECHNICAL_WORKSPACE, "module"));
+    assertEquals(3, readModelCount(TECHNICAL_WORKSPACE, "alternative"));
 
+    var proposal = firstObjectId(TECHNICAL_WORKSPACE, "proposal");
+    assertDecimal(
+        "820", derivedEvaluator.evaluate(TECHNICAL_WORKSPACE, proposal, "total_power_fx"));
     var orchestration = objectIdByField(TECHNICAL_WORKSPACE, "module", "name", "方案编排模块");
     assertDecimal(
         "1", derivedEvaluator.evaluate(TECHNICAL_WORKSPACE, orchestration, "child_count_fx"));
 
+    assertEquals(1, checkResultCount(TECHNICAL_WORKSPACE, "R-TD-PWR"));
     assertEquals(1, checkResultCount(TECHNICAL_WORKSPACE, "R-TD-RESP"));
     assertEquals(1, checkResultCount(TECHNICAL_WORKSPACE, "R-TD-IF"));
     assertEquals(1, checkResultCount(TECHNICAL_WORKSPACE, "R-TD-COV"));
@@ -173,6 +180,17 @@ class DevSeedRunnerIntegrationTest {
     assertEquals(1, runtimeObjectTypeCount(INTERIOR_WORKSPACE, "room"));
   }
 
+  @Test
+  void devSeedSkipsExistingTechnicalProposalData() throws Exception {
+    var objectCounts = technicalObjectCounts();
+    var moduleRelations = relationCount(TECHNICAL_WORKSPACE, "proposal_contains_module");
+
+    runner.run(null);
+
+    assertEquals(objectCounts, technicalObjectCounts());
+    assertEquals(moduleRelations, relationCount(TECHNICAL_WORKSPACE, "proposal_contains_module"));
+  }
+
   private int objectCount(UUID workspaceId, String objectTypeCode) {
     return jdbc.queryForObject(
         """
@@ -184,6 +202,16 @@ class DevSeedRunnerIntegrationTest {
         Integer.class,
         workspaceId,
         objectTypeCode);
+  }
+
+  private Map<String, Integer> technicalObjectCounts() {
+    return Map.of(
+        "proposal", objectCount(TECHNICAL_WORKSPACE, "proposal"),
+        "system", objectCount(TECHNICAL_WORKSPACE, "system"),
+        "module", objectCount(TECHNICAL_WORKSPACE, "module"),
+        "alternative", objectCount(TECHNICAL_WORKSPACE, "alternative"),
+        "interface", objectCount(TECHNICAL_WORKSPACE, "interface"),
+        "requirement", objectCount(TECHNICAL_WORKSPACE, "requirement"));
   }
 
   private int readModelCount(UUID workspaceId, String objectTypeCode) {
@@ -235,6 +263,21 @@ class DevSeedRunnerIntegrationTest {
         objectTypeCode,
         fieldCode,
         expected);
+  }
+
+  private UUID firstObjectId(UUID workspaceId, String objectTypeCode) {
+    return jdbc.queryForObject(
+        """
+        SELECT object.id
+        FROM data_object object
+        JOIN object_type type ON type.id = object.object_type_id
+        WHERE object.workspace_id = ? AND type.code = ?
+        ORDER BY object.created_at, object.id
+        LIMIT 1
+        """,
+        UUID.class,
+        workspaceId,
+        objectTypeCode);
   }
 
   private int checkResultCount(UUID workspaceId, String ruleCode) {
