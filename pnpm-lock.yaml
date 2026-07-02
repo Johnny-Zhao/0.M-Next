@@ -37,6 +37,10 @@ importers:
 
   packages/domains/mbse: {}
 
+  packages/domains/sysml: {}
+
+  packages/domains/sysml-mbse-mapping: {}
+
   packages/domains/technical-proposal: {}
 
   packages/views:
