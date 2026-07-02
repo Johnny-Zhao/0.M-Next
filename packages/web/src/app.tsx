@@ -7,7 +7,7 @@ import {
   type SyncStatus,
 } from "@m-next/views";
 
-import { Home } from "./home/home";
+import { Home, type OpenWorkspaceRequest } from "./home/home";
 import {
   applyTheme,
   nextTheme,
@@ -19,11 +19,15 @@ import {
 import { ToastProvider, useToast } from "./toast";
 import { Workbench } from "./workbench/workbench";
 
-const demoWorkspace = "11111111-1111-4111-8111-111111111111";
-
 export interface AppProps {
   readonly baseUrl?: string;
   readonly fetchFn?: FetchFn;
+}
+
+interface ActiveWorkspace {
+  readonly workspaceId: string;
+  readonly name?: string;
+  readonly templateCode?: string | null;
 }
 
 export function App({
@@ -45,7 +49,7 @@ function AppContent({
   readonly fetchFn: FetchFn;
 }): ReactElement {
   const [actorId, setActorId] = useState<string | null>(null);
-  const [workspaceId, setWorkspaceId] = useState<string | null>(null);
+  const [workspace, setWorkspace] = useState<ActiveWorkspace | null>(null);
   const [errors, setErrors] = useState(0);
   const [sync, setSync] = useState<SyncStatus | "error">({
     pendingEvents: 0,
@@ -74,30 +78,30 @@ function AppContent({
   };
 
   useEffect(() => {
-    if (workspaceId) selection.switchWorkspace(workspaceId);
-  }, [selection, workspaceId]);
+    if (workspace) selection.switchWorkspace(workspace.workspaceId);
+  }, [selection, workspace]);
   useEffect(() => {
     if (actorId) commandClient.setActorId(actorId);
   }, [actorId, commandClient]);
   useEffect(() => {
-    if (!workspaceId) return;
+    if (!workspace) return;
     const refresh = () =>
       void viewClient
-        .syncStatus(workspaceId)
+        .syncStatus(workspace.workspaceId)
         .then(setSync)
         .catch(() => setSync("error"));
     refresh();
     const timer = globalThis.setInterval(refresh, 2000);
     return () => globalThis.clearInterval(timer);
-  }, [viewClient, workspaceId]);
+  }, [viewClient, workspace]);
 
-  if (!workspaceId) {
+  if (!workspace) {
     return (
       <Home
         actorId={actorId}
         commandClient={commandClient}
         onLogin={setActorId}
-        onOpenWorkspace={setWorkspaceId}
+        onOpenWorkspace={setWorkspace}
         viewClient={viewClient}
       />
     );
@@ -107,18 +111,10 @@ function AppContent({
     <main className="workbench">
       <header>
         <strong>M-Next</strong>
-        <button onClick={() => setWorkspaceId(null)} type="button">
+        <button onClick={() => setWorkspace(null)} type="button">
           返回项目
         </button>
-        <label>
-          工作空间:
-          <select
-            value={workspaceId}
-            onChange={(event) => setWorkspaceId(event.currentTarget.value)}
-          >
-            <option value={demoWorkspace}>技术方案A</option>
-          </select>
-        </label>
+        <span aria-label="当前项目">{workspaceLabel(workspace)}</span>
         <SyncBadge sync={sync} />
       </header>
       <div className="workbench-body">
@@ -130,7 +126,8 @@ function AppContent({
           selection={selection}
           themeLabel={themeLabel(theme)}
           viewClient={viewClient}
-          workspaceId={workspaceId}
+          workspaceId={workspace.workspaceId}
+          templateCode={workspace.templateCode}
         />
       </div>
       <footer>
@@ -138,6 +135,11 @@ function AppContent({
       </footer>
     </main>
   );
+}
+
+export function workspaceLabel(workspace: OpenWorkspaceRequest): string {
+  const value = workspace.name?.trim();
+  return value && value.length > 0 ? value : "当前项目";
 }
 
 export function syncLabel(sync: SyncStatus | "error"): string {
