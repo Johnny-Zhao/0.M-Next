@@ -14,4 +14,6 @@ record SnapshotMeta(
 
 record SnapshotDetail(SnapshotMeta meta, DataSet payload) {}
 
-record SnapshotCaptureRequest(String scopeObjectType) {}
+record SnapshotCaptureRequest(String scopeObjectType, SnapshotTreeScope treeScope) {}
+
+record SnapshotTreeScope(UUID rootId, String relationType, Integer maxDepth) {}

@@ -766,6 +766,73 @@ class ReadModelRepository {
     return new DataSet(objects, relations);
   }
 
+  DataSet dataSet(UUID workspaceId, SnapshotTreeScope treeScope) {
+    var nodes =
+        jdbc.query(
+            """
+            WITH RECURSIVE tree AS (
+              SELECT object.object_id, NULL::uuid AS parent_id, NULL::uuid AS relation_id,
+                     0 AS depth, ARRAY[object.object_id] AS path
+              FROM rm_object object
+              WHERE object.workspace_id = ? AND object.object_id = ?
+              UNION ALL
+              SELECT child.object_id, relation.source_id, relation.relation_id,
+                     tree.depth + 1, tree.path || child.object_id
+              FROM tree
+              JOIN rm_relation relation
+                ON relation.workspace_id = ?
+               AND relation.relation_type_code = ?
+               AND relation.source_id = tree.object_id
+               AND relation.hierarchical
+               AND relation.status = 'ACTIVE'
+              JOIN rm_object child
+                ON child.workspace_id = relation.workspace_id
+               AND child.object_id = relation.target_id
+              WHERE tree.depth < ? AND NOT relation.target_id = ANY(tree.path)
+            )
+            SELECT object.object_id, object.object_type_code, object.fields::text, object.status,
+                   object.version, tree.parent_id, tree.relation_id, tree.depth,
+                   parent_relation.relation_type_code, parent_relation.source_id,
+                   parent_relation.target_id, parent_relation.fields::text
+            FROM tree
+            JOIN rm_object object
+              ON object.workspace_id = ? AND object.object_id = tree.object_id
+            LEFT JOIN rm_relation parent_relation
+              ON parent_relation.workspace_id = ?
+             AND parent_relation.relation_id = tree.relation_id
+            ORDER BY tree.path
+            """,
+            (row, index) ->
+                new TreeSnapshotNode(
+                    row.getObject(1, UUID.class),
+                    row.getString(2),
+                    map(row.getString(3)),
+                    row.getString(4),
+                    row.getLong(5),
+                    row.getObject(6, UUID.class),
+                    row.getObject(7, UUID.class),
+                    row.getInt(8),
+                    row.getString(9),
+                    row.getObject(10, UUID.class),
+                    row.getObject(11, UUID.class),
+                    optionalMap(row.getString(12))),
+            workspaceId,
+            treeScope.rootId(),
+            workspaceId,
+            treeScope.relationType(),
+            treeScope.maxDepth(),
+            workspaceId,
+            workspaceId);
+    if (nodes.isEmpty()) throw new IllegalArgumentException("treeScope.rootId 不存在或不可见");
+    var objects =
+        java.util.stream.IntStream.range(0, nodes.size())
+            .mapToObj(index -> nodes.get(index).object(index))
+            .toList();
+    var relations =
+        nodes.stream().map(TreeSnapshotNode::relation).flatMap(java.util.Optional::stream).toList();
+    return new DataSet(objects, relations);
+  }
+
   UUID objectTypeId(UUID workspaceId, String code) {
     return jdbc.queryForObject(
         "SELECT id FROM object_type WHERE workspace_id = ? AND code = ? AND published",
@@ -939,4 +1006,45 @@ class ReadModelRepository {
 
   record MappingDescriptor(
       String cardinality, String direction, List<MappingFieldMappingView> fieldMappings) {}
+
+  record TreeSnapshotNode(
+      UUID objectId,
+      String objectTypeCode,
+      Map<String, Object> fields,
+      String status,
+      long version,
+      UUID parentId,
+      UUID relationId,
+      int depth,
+      String relationTypeCode,
+      UUID sourceId,
+      UUID targetId,
+      Map<String, Object> relationFields) {
+    DataObject object(int order) {
+      return new DataObject(
+          objectId.toString(), objectTypeCode, fieldsWithTree(order), status, version);
+    }
+
+    Map<String, Object> fieldsWithTree(int order) {
+      var result = new java.util.LinkedHashMap<>(fields);
+      var tree = new java.util.LinkedHashMap<String, Object>();
+      tree.put("depth", depth);
+      tree.put("parentId", parentId == null ? null : parentId.toString());
+      tree.put("relationId", relationId == null ? null : relationId.toString());
+      tree.put("order", order);
+      result.put("_tree", tree);
+      return result;
+    }
+
+    java.util.Optional<DataRelation> relation() {
+      if (relationId == null) return java.util.Optional.empty();
+      return java.util.Optional.of(
+          new DataRelation(
+              relationId.toString(),
+              relationTypeCode,
+              sourceId.toString(),
+              targetId.toString(),
+              relationFields));
+    }
+  }
 }

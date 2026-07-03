@@ -1,0 +1,17 @@
+{
+  "snapshotId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+  "format": "docx",
+  "objectType": "module",
+  "fieldOrder": ["name", "description"],
+  "sectionMapping": {
+    "headingLevels": {
+      "0": 1,
+      "1": 2,
+      "2": 3
+    },
+    "fieldRoles": {
+      "description": "paragraph",
+      "parameters": "table"
+    }
+  }
+}

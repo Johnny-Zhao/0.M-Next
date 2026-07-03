@@ -31,7 +31,9 @@ class OutputSnapshotRepository {
     var renderer = renderers.require(request.format());
     var artifact =
         renderer.render(
-            snapshot.payload(), new OutputTemplate(request.objectType(), request.fieldOrder()));
+            snapshot.payload(),
+            new OutputTemplate(
+                request.objectType(), request.fieldOrder(), request.sectionMapping()));
     var id = UUID.randomUUID();
     var createdAt = Instant.now();
     var hash = hash(artifact);

@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://m-next.local/contracts/output-snapshot.schema.json",
+  "title": "Output snapshot capture and template contract",
+  "anyOf": [
+    { "$ref": "#/$defs/snapshotCaptureRequest" },
+    { "$ref": "#/$defs/outputCreateRequest" }
+  ],
+  "$defs": {
+    "snapshotCaptureRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "scopeObjectType": { "type": ["string", "null"], "minLength": 1 },
+        "treeScope": { "$ref": "#/$defs/treeScope" }
+      },
+      "not": {
+        "required": ["scopeObjectType", "treeScope"],
+        "properties": {
+          "scopeObjectType": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "treeScope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["rootId", "relationType"],
+      "properties": {
+        "rootId": { "type": "string", "format": "uuid" },
+        "relationType": { "type": "string", "minLength": 1 },
+        "maxDepth": { "type": "integer", "minimum": 1, "maximum": 5 }
+      }
+    },
+    "outputCreateRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["snapshotId", "format"],
+      "properties": {
+        "snapshotId": { "type": "string", "format": "uuid" },
+        "format": {
+          "type": "string",
+          "enum": ["markdown", "docx", "pdf", "html", "csv", "xlsx"]
+        },
+        "templateId": { "type": ["string", "null"], "format": "uuid" },
+        "templateVersion": { "type": ["integer", "null"], "minimum": 1 },
+        "objectType": { "type": ["string", "null"], "minLength": 1 },
+        "fieldOrder": {
+          "type": ["array", "null"],
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "sectionMapping": { "$ref": "#/$defs/sectionMapping" }
+      }
+    },
+    "sectionMapping": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "headingLevels": {
+          "type": "object",
+          "patternProperties": {
+            "^[0-5]$": { "type": "integer", "minimum": 1, "maximum": 6 }
+          },
+          "additionalProperties": false
+        },
+        "fieldRoles": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "enum": ["paragraph", "table"]
+          }
+        }
+      }
+    }
+  }
+}

@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -36,9 +37,12 @@ import org.testcontainers.utility.DockerImageName;
     webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
     properties = {"mnext.outbox.enabled=false", "mnext.readmodel.enabled=false"})
 class SnapshotIntegrationTest {
-  private static final UUID WORKSPACE = UUID.fromString("11111111-1111-4111-8111-111111111111");
+  private static final UUID WORKSPACE = UUID.fromString("77777777-7777-4777-8777-777777777777");
   private static final UUID OTHER = UUID.fromString("99999999-9999-4999-8999-999999999999");
   private static final UUID OBJECT = UUID.fromString("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
+  private static final UUID CHILD_A = UUID.fromString("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb");
+  private static final UUID CHILD_B = UUID.fromString("cccccccc-cccc-4ccc-8ccc-cccccccccccc");
+  private static final UUID GRANDCHILD = UUID.fromString("dddddddd-dddd-4ddd-8ddd-dddddddddddd");
 
   @Container
   static final PostgreSQLContainer<?> POSTGRES =
@@ -63,6 +67,9 @@ class SnapshotIntegrationTest {
     jdbc.update("DELETE FROM snapshot");
     jdbc.update("DELETE FROM rm_relation");
     jdbc.update("DELETE FROM rm_object");
+    jdbc.update("DELETE FROM relation_type WHERE workspace_id = ?", WORKSPACE);
+    jdbc.update("DELETE FROM object_type WHERE workspace_id = ?", WORKSPACE);
+    jdbc.update("DELETE FROM workspace WHERE id = ?", WORKSPACE);
     insertObject(WORKSPACE, OBJECT, 1, "{\"z\":2,\"a\":1}");
   }
 
@@ -177,6 +184,38 @@ class SnapshotIntegrationTest {
             .value());
   }
 
+  @Test
+  void capturesTreeScopeInTreeOrderAndKeepsFlatScopeUnchanged() {
+    insertTreeMetadata();
+    insertObject(WORKSPACE, CHILD_A, 2, "{\"name\":\"child-a\"}");
+    insertObject(WORKSPACE, CHILD_B, 3, "{\"name\":\"child-b\"}");
+    insertObject(WORKSPACE, GRANDCHILD, 4, "{\"name\":\"grandchild\"}");
+    insertRelation(UUID.fromString("11111111-aaaa-4aaa-8aaa-111111111111"), OBJECT, CHILD_A);
+    insertRelation(UUID.fromString("22222222-bbbb-4bbb-8bbb-222222222222"), CHILD_A, GRANDCHILD);
+    insertRelation(UUID.fromString("33333333-cccc-4ccc-8ccc-333333333333"), OBJECT, CHILD_B);
+
+    var treeSnapshot =
+        capture(
+            WORKSPACE,
+            Map.of(
+                "treeScope", Map.of("rootId", OBJECT, "relationType", "contains", "maxDepth", 5)));
+    var treePayload =
+        payloadObjects(get(WORKSPACE, UUID.fromString((String) treeSnapshot.get("snapshotId"))));
+
+    assertEquals(
+        List.of(OBJECT.toString(), CHILD_A.toString(), GRANDCHILD.toString(), CHILD_B.toString()),
+        treePayload.stream().map(item -> String.valueOf(item.get("objectId"))).toList());
+    assertTree(treePayload.get(0), 0, null, null, 0);
+    assertTree(treePayload.get(1), 1, OBJECT.toString(), "11111111-aaaa-4aaa-8aaa-111111111111", 1);
+    assertTree(
+        treePayload.get(2), 2, CHILD_A.toString(), "22222222-bbbb-4bbb-8bbb-222222222222", 2);
+
+    var flatSnapshot = capture(WORKSPACE, Map.of("scopeObjectType", "demo"));
+    var flatPayload =
+        payloadObjects(get(WORKSPACE, UUID.fromString((String) flatSnapshot.get("snapshotId"))));
+    assertFalse(fields(flatPayload.getFirst()).containsKey("_tree"));
+  }
+
   @SuppressWarnings("unchecked")
   private Map<String, Object> capture(UUID workspace) {
     return capture(workspace, Map.of());
@@ -219,9 +258,64 @@ class SnapshotIntegrationTest {
     return ((Number) ((Map<?, ?>) response.get("summary")).get(name)).intValue();
   }
 
+  @SuppressWarnings("unchecked")
+  private List<Map<String, Object>> payloadObjects(Map<String, Object> detail) {
+    return (List<Map<String, Object>>) ((Map<?, ?>) detail.get("payload")).get("objects");
+  }
+
+  @SuppressWarnings("unchecked")
+  private Map<String, Object> fields(Map<String, Object> object) {
+    return (Map<String, Object>) object.get("fields");
+  }
+
+  private void assertTree(
+      Map<String, Object> object, int depth, String parentId, String relationId, int order) {
+    var tree = (Map<?, ?>) fields(object).get("_tree");
+    assertEquals(depth, ((Number) tree.get("depth")).intValue());
+    assertEquals(order, ((Number) tree.get("order")).intValue());
+    if (parentId == null) {
+      assertNull(tree.get("parentId"));
+    } else {
+      assertEquals(parentId, tree.get("parentId"));
+    }
+    if (relationId == null) {
+      assertNull(tree.get("relationId"));
+    } else {
+      assertEquals(relationId, tree.get("relationId"));
+    }
+  }
+
   private String payloadText(UUID snapshotId) {
     return jdbc.queryForObject(
         "SELECT payload::text FROM snapshot WHERE snapshot_id = ?", String.class, snapshotId);
+  }
+
+  private void insertTreeMetadata() {
+    var type = UUID.fromString("eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee");
+    var relation = UUID.fromString("ffffffff-ffff-4fff-8fff-ffffffffffff");
+    jdbc.update(
+        "INSERT INTO workspace (id, name, status) VALUES (?, 'Snapshot workspace', 'ACTIVE')",
+        WORKSPACE);
+    jdbc.update(
+        """
+        INSERT INTO object_type
+          (id, workspace_id, code, name, published, created_by, updated_by, created_at, updated_at)
+        VALUES (?, ?, 'demo', 'Demo', TRUE, 'test', 'test', now(), now())
+        """,
+        type,
+        WORKSPACE);
+    jdbc.update(
+        """
+        INSERT INTO relation_type
+          (id, workspace_id, code, source_type, target_type, direction, cardinality,
+           semantics, hierarchical, created_by, updated_by, created_at, updated_at)
+        VALUES (?, ?, 'contains', ?, ?, 'directed', 'many_to_many', 'strong', TRUE,
+          'test', 'test', now(), now())
+        """,
+        relation,
+        WORKSPACE,
+        type,
+        type);
   }
 
   private void insertObject(UUID workspace, UUID objectId, long version, String fields) {
@@ -235,6 +329,20 @@ class SnapshotIntegrationTest {
         objectId,
         version,
         fields);
+  }
+
+  private void insertRelation(UUID relationId, UUID sourceId, UUID targetId) {
+    jdbc.update(
+        """
+        INSERT INTO rm_relation
+          (workspace_id, relation_id, relation_type_code, source_id, target_id, fields,
+           hierarchical, status, version, updated_at)
+        VALUES (?, ?, 'contains', ?, ?, '{}'::jsonb, TRUE, 'ACTIVE', 1, now())
+        """,
+        WORKSPACE,
+        relationId,
+        sourceId,
+        targetId);
   }
 
   private String base(UUID workspace) {

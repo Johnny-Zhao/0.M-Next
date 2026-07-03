@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.mnext.engines.exchange.DataSet.DataObject;
 import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.List;
@@ -53,6 +54,7 @@ class DevSeedRunnerIntegrationTest {
   @Autowired TestRestTemplate http;
   @Autowired DerivedEvaluator derivedEvaluator;
   @Autowired DevSeedRunner runner;
+  @Autowired SnapshotRepository snapshots;
   @LocalServerPort int port;
 
   @Test
@@ -191,6 +193,42 @@ class DevSeedRunnerIntegrationTest {
     assertEquals(moduleRelations, relationCount(TECHNICAL_WORKSPACE, "proposal_contains_module"));
   }
 
+  @Test
+  void technicalProposalSnapshotCapturesTreeScopesFromProposalRoot() {
+    var proposal = firstObjectId(TECHNICAL_WORKSPACE, "proposal");
+
+    var moduleSnapshot =
+        snapshots.capture(
+            TECHNICAL_WORKSPACE,
+            null,
+            new SnapshotTreeScope(proposal, "proposal_contains_module", 5),
+            "author");
+    var modulePayload = snapshots.get(TECHNICAL_WORKSPACE, moduleSnapshot.snapshotId()).payload();
+
+    assertEquals("proposal", modulePayload.objects().getFirst().objectTypeCode());
+    assertEquals(0, treeDepth(modulePayload.objects().getFirst()));
+    assertEquals(5, modulePayload.objects().size());
+    assertEquals(4, modulePayload.relations().size());
+    assertTrue(
+        modulePayload.objects().stream()
+            .anyMatch(
+                object -> "module".equals(object.objectTypeCode()) && treeDepth(object) == 2));
+    assertTrue(
+        modulePayload.relations().stream()
+            .allMatch(relation -> "proposal_contains_module".equals(relation.relationTypeCode())));
+
+    var systemSnapshot =
+        snapshots.capture(
+            TECHNICAL_WORKSPACE,
+            null,
+            new SnapshotTreeScope(proposal, "proposal_contains_system", 1),
+            "author");
+    var systemPayload = snapshots.get(TECHNICAL_WORKSPACE, systemSnapshot.snapshotId()).payload();
+
+    assertEquals(List.of("proposal", "system", "system"), objectTypes(systemPayload.objects()));
+    assertEquals(List.of(0, 1, 1), systemPayload.objects().stream().map(this::treeDepth).toList());
+  }
+
   private int objectCount(UUID workspaceId, String objectTypeCode) {
     return jdbc.queryForObject(
         """
@@ -212,6 +250,14 @@ class DevSeedRunnerIntegrationTest {
         "alternative", objectCount(TECHNICAL_WORKSPACE, "alternative"),
         "interface", objectCount(TECHNICAL_WORKSPACE, "interface"),
         "requirement", objectCount(TECHNICAL_WORKSPACE, "requirement"));
+  }
+
+  private List<String> objectTypes(List<DataObject> objects) {
+    return objects.stream().map(DataObject::objectTypeCode).toList();
+  }
+
+  private int treeDepth(DataObject object) {
+    return ((Number) ((Map<?, ?>) object.fields().get("_tree")).get("depth")).intValue();
   }
 
   private int readModelCount(UUID workspaceId, String objectTypeCode) {

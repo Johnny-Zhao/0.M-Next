@@ -31,11 +31,31 @@ class SnapshotRepository {
   }
 
   SnapshotMeta capture(UUID workspaceId, String scopeObjectType, String actor) {
-    var payload =
-        normalize(
-            scopeObjectType == null
-                ? readModel.dataSet(workspaceId)
-                : readModel.dataSet(workspaceId, scopeObjectType));
+    return capture(workspaceId, scopeObjectType, null, actor);
+  }
+
+  SnapshotMeta capture(
+      UUID workspaceId, String scopeObjectType, SnapshotTreeScope treeScope, String actor) {
+    var payload = snapshotPayload(workspaceId, scopeObjectType, treeScope);
+    return store(workspaceId, scopeObjectType, actor, payload);
+  }
+
+  private DataSet snapshotPayload(
+      UUID workspaceId, String scopeObjectType, SnapshotTreeScope treeScope) {
+    if (treeScope != null) {
+      if (scopeObjectType != null)
+        throw new IllegalArgumentException("treeScope 与 scopeObjectType 不可同时使用");
+      return normalize(
+          readModel.dataSet(workspaceId, validateTreeScope(workspaceId, treeScope)), true);
+    }
+    return normalize(
+        scopeObjectType == null
+            ? readModel.dataSet(workspaceId)
+            : readModel.dataSet(workspaceId, scopeObjectType));
+  }
+
+  private SnapshotMeta store(
+      UUID workspaceId, String scopeObjectType, String actor, DataSet payload) {
     var id = UUID.randomUUID();
     var createdAt = Instant.now();
     var dataVersion = payload.objects().stream().mapToLong(DataObject::version).max().orElse(0);
@@ -57,6 +77,20 @@ class SnapshotRepository {
         hash,
         json);
     return new SnapshotMeta(id, createdAt, actor, dataVersion, hash, scopeObjectType);
+  }
+
+  private SnapshotTreeScope validateTreeScope(UUID workspaceId, SnapshotTreeScope treeScope) {
+    if (treeScope.rootId() == null) throw new IllegalArgumentException("treeScope.rootId 必填");
+    var relationType = treeScope.relationType();
+    if (relationType == null || relationType.isBlank())
+      throw new IllegalArgumentException("treeScope.relationType 必填");
+    var maxDepth = treeScope.maxDepth() == null ? 5 : treeScope.maxDepth();
+    if (maxDepth < 1 || maxDepth > 5)
+      throw new IllegalArgumentException("treeScope.maxDepth 必须为 1..5");
+    if (!readModel.hierarchicalRelationType(workspaceId, relationType)) {
+      throw new IllegalArgumentException("treeScope.relationType 必须为 hierarchical");
+    }
+    return new SnapshotTreeScope(treeScope.rootId(), relationType, maxDepth);
   }
 
   SnapshotDetail get(UUID workspaceId, UUID snapshotId) {
@@ -94,6 +128,10 @@ class SnapshotRepository {
   }
 
   private DataSet normalize(DataSet value) {
+    return normalize(value, false);
+  }
+
+  private DataSet normalize(DataSet value, boolean preserveObjectOrder) {
     var objects =
         value.objects().stream()
             .map(
@@ -104,7 +142,10 @@ class SnapshotRepository {
                         sorted(object.fields()),
                         object.status(),
                         object.version()))
-            .sorted(Comparator.comparing(DataObject::objectId))
+            .sorted(
+                preserveObjectOrder
+                    ? (left, right) -> 0
+                    : Comparator.comparing(DataObject::objectId))
             .toList();
     var relations =
         value.relations().stream()

@@ -1,5 +1,6 @@
 package com.mnext.server;
 
+import com.mnext.engines.output.OutputTemplate.SectionMapping;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -26,4 +27,5 @@ record OutputCreateRequest(
     Integer templateVersion,
     String objectType,
     List<String> fieldOrder,
+    SectionMapping sectionMapping,
     UUID workspaceId) {}

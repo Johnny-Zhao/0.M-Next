@@ -26,7 +26,8 @@ public class SnapshotController {
       @RequestBody(required = false) SnapshotCaptureRequest request) {
     authorizer.require(actorId, workspaceId, WorkspaceAuthorizer.Action.WRITE_DATA);
     var scope = request == null ? null : blankToNull(request.scopeObjectType());
-    return snapshots.capture(workspaceId, scope, actorId);
+    return snapshots.capture(
+        workspaceId, scope, request == null ? null : request.treeScope(), actorId);
   }
 
   @GetMapping("/workspaces/{workspaceId}/snapshots")
