@@ -1,11 +1,13 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
+  handleInspectorFieldSaved,
   partitionFields,
   relationEndpointsLabel,
   relativeTime,
   sourceLabel,
 } from "./inspector-panel";
+import { runSaveAutoCheck } from "./save-auto-check";
 
 describe("relativeTime", () => {
   const now = Date.parse("2026-06-21T12:00:00Z");
@@ -73,5 +75,37 @@ describe("relationEndpointsLabel", () => {
         version: 1,
       }),
     ).toBe("a → b");
+  });
+});
+
+describe("Inspector field save", () => {
+  it("keeps the saved notice when automatic rule check fails", async () => {
+    const runRuleCheck = vi.fn().mockRejectedValue(new Error("rules offline"));
+    const setMessage = vi.fn();
+    const toastSuccess = vi.fn();
+    const refreshSelected = vi.fn();
+    const scheduleRefresh = vi.fn();
+    const refreshViews = vi.fn();
+
+    await handleInspectorFieldSaved("power_w", {
+      setMessage,
+      toastSuccess,
+      refreshSelected,
+      scheduleRefresh,
+      autoCheckAfterSave: () =>
+        runSaveAutoCheck({
+          actorId: "actor-1",
+          workspaceId: "workspace-1",
+          viewClient: { runRuleCheck },
+          refreshViews,
+        }),
+    });
+
+    expect(setMessage).toHaveBeenCalledWith("power_w 已保存");
+    expect(toastSuccess).toHaveBeenCalledWith("power_w 已保存");
+    expect(refreshSelected).toHaveBeenCalledTimes(1);
+    expect(scheduleRefresh).toHaveBeenCalledWith(refreshSelected, 800);
+    expect(runRuleCheck).toHaveBeenCalledWith("workspace-1", "actor-1", null);
+    expect(refreshViews).not.toHaveBeenCalled();
   });
 });

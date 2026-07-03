@@ -65,12 +65,53 @@ export interface TableViewProps {
   readonly selection: SelectionCoordinator;
   readonly pageSize?: number;
   readonly onError?: (title: string) => void;
+  readonly onSaved?: () => void;
 }
 
-interface EditingCell {
+export interface EditingCell {
   readonly objectId: string;
   readonly field: FieldDefinition;
   readonly value: string;
+}
+
+interface CommitTableCellEditRequest {
+  readonly workspaceId: string;
+  readonly commandClient: Pick<CommandClient, "updateFields">;
+  readonly page: ObjectPage;
+  readonly row: ViewObject;
+  readonly cell: EditingCell;
+  readonly onSaved?: () => void;
+}
+
+export async function commitTableCellEdit({
+  workspaceId,
+  commandClient,
+  page,
+  row,
+  cell,
+  onSaved,
+}: CommitTableCellEditRequest): Promise<ObjectPage> {
+  await commandClient.updateFields(workspaceId, row.objectId, row.version, [
+    {
+      fieldDefCode: cell.field.code,
+      value: cell.value,
+      expectedFieldVersion: row.version,
+    },
+  ]);
+  const nextPage = {
+    ...page,
+    items: page.items.map((item) =>
+      item.objectId === row.objectId
+        ? {
+            ...item,
+            version: item.version + 1,
+            fields: { ...item.fields, [cell.field.code]: cell.value },
+          }
+        : item,
+    ),
+  };
+  onSaved?.();
+  return nextPage;
 }
 
 interface ConflictState {
@@ -108,30 +149,16 @@ export function TableView(props: TableViewProps): ReactElement {
   async function save(row: ViewObject, cell: EditingCell): Promise<void> {
     setEditing(null);
     try {
-      await props.commandClient.updateFields(
-        props.workspaceId,
-        row.objectId,
-        row.version,
-        [
-          {
-            fieldDefCode: cell.field.code,
-            value: cell.value,
-            expectedFieldVersion: row.version,
-          },
-        ],
+      setPage(
+        await commitTableCellEdit({
+          workspaceId: props.workspaceId,
+          commandClient: props.commandClient,
+          page,
+          row,
+          cell,
+          onSaved: props.onSaved,
+        }),
       );
-      setPage({
-        ...page,
-        items: page.items.map((item) =>
-          item.objectId === row.objectId
-            ? {
-                ...item,
-                version: item.version + 1,
-                fields: { ...item.fields, [cell.field.code]: cell.value },
-              }
-            : item,
-        ),
-      });
     } catch (error) {
       handleFailure(row, cell, error);
     }

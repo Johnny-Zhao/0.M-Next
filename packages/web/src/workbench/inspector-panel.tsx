@@ -119,6 +119,26 @@ export function relationEndpointsLabel(relation: RelationSummary): string {
   return `${relation.sourceId} → ${relation.targetId}`;
 }
 
+export interface InspectorSavedCallbacks {
+  readonly setMessage: (message: string) => void;
+  readonly toastSuccess: (message: string) => void;
+  readonly refreshSelected: () => void;
+  readonly scheduleRefresh: (callback: () => void, delayMs: number) => void;
+  readonly autoCheckAfterSave: () => Promise<void>;
+}
+
+export function handleInspectorFieldSaved(
+  code: string,
+  callbacks: InspectorSavedCallbacks,
+): Promise<void> {
+  const message = `${code} 已保存`;
+  callbacks.setMessage(message);
+  callbacks.toastSuccess(message);
+  callbacks.refreshSelected();
+  callbacks.scheduleRefresh(callbacks.refreshSelected, 800);
+  return callbacks.autoCheckAfterSave();
+}
+
 const MUTED = { opacity: 0.65, fontSize: "0.85em" } as const;
 
 export function InspectorPanel(): ReactElement {
@@ -217,10 +237,14 @@ export function InspectorPanel(): ReactElement {
       .catch(() => {});
   };
   const onFieldSaved = (code: string): void => {
-    setMessage(`${code} 已保存`);
-    toast.success(`${code} 已保存`);
-    refreshSelected();
-    window.setTimeout(refreshSelected, 800);
+    void handleInspectorFieldSaved(code, {
+      setMessage,
+      toastSuccess: toast.success,
+      refreshSelected,
+      scheduleRefresh: (callback, delayMs) =>
+        window.setTimeout(callback, delayMs),
+      autoCheckAfterSave: context.autoCheckAfterSave,
+    });
   };
   return (
     <aside aria-label="属性/校验面板" className="inspector-panel">

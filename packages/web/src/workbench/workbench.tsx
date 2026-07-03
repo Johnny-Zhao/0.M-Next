@@ -42,6 +42,7 @@ import { InspectorPanel } from "./inspector-panel";
 import { MappingPanel } from "./mapping-panel";
 import { MatrixPanel } from "./matrix-panel";
 import { ReviewPanel } from "./review-panel";
+import { runSaveAutoCheck } from "./save-auto-check";
 import { WorkbenchShellChrome } from "./shell-chrome";
 import { SnapshotPanel } from "./snapshot-panel";
 import { TablePanel } from "./table-panel";
@@ -104,6 +105,7 @@ export interface WorkbenchContextValue {
   readonly setRelationType: (value: string) => void;
   readonly setRootId: (value: string) => void;
   readonly refreshViews: () => void;
+  readonly autoCheckAfterSave: () => Promise<void>;
   readonly reportError: (message: string) => void;
 }
 
@@ -272,6 +274,10 @@ export function Workbench({
     () => setRefreshVersion((value) => value + 1),
     [],
   );
+  const autoCheckAfterSave = useCallback(
+    () => runSaveAutoCheck({ actorId, workspaceId, viewClient, refreshViews }),
+    [actorId, refreshViews, viewClient, workspaceId],
+  );
   const setObjectType = useCallback((value: string) => {
     setAppliedObjectType(value);
     setDraftObjectType(value);
@@ -364,10 +370,12 @@ export function Workbench({
       setRelationType,
       setRootId,
       refreshViews,
+      autoCheckAfterSave,
       reportError: onError,
     }),
     [
       actorId,
+      autoCheckAfterSave,
       commandClient,
       objectType,
       onError,
