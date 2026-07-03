@@ -1,4 +1,31 @@
-# 开发卡模板（发 Codex 用）
+# 给 Codex 发后端任务的格式参考（v3：可选工具，不是制度）
+
+> 工作流 v3（2026-07-03）：人（八年前端）按正常研发流程干活，前端不走任何卡。
+> 本格式只在把 Java/契约类任务丢给 Codex 时使用，目的是让 AI 不跑偏，不约束人。
+
+## 四段式任务简报
+
+```
+读 AGENTS.md（对你有强制力）。任务：<一句话目标>
+
+允许改：<文件/目录清单>
+硬红线：不碰 /docs/spec；契约改动（contracts/**）需附夹具并停下等人审；
+       不新增依赖；不改列表之外的文件；卡住两轮就停下回报。
+验收：<一句可验证的结果>
+```
+
+## 给 Codex 的提速规则
+
+- 开发期只跑相关测试类：`node scripts/run-maven.mjs -Dtest=类名 test`、`corepack pnpm contracts:check`
+- 全量 verify + `check-no-skipped.mjs`（Skipped:0）只在收尾跑一次
+- 同一错误缠斗超过两轮 → 停下回报，不许绕路自创方案
+- 合理耗时预期：轻任务 20~40 分钟，契约/管线类 1~2 小时，超时叫停拆小
+
+## 环境提醒（Windows）
+
+- verify 前先 `corepack pnpm dev:down`（jar 文件锁）
+- seed/manifest 变更后验收需重置数据卷（见 03-run-commands.md）
+<!-- # 开发卡模板（发 Codex 用）
 
 ## 结构（每张卡必含）
 
@@ -51,4 +78,4 @@
 
 - seed/manifest 卡：验收前必须重置数据卷（见 03-run-commands.md）
 - verify 前必须 dev:down（jar 文件锁）
-- 任何一步验收断了：当天只修这一步，不发新卡
+- 任何一步验收断了：当天只修这一步，不发新卡 -->

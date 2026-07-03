@@ -4,6 +4,11 @@
 
 每条规则带编号 `AG-xxx` 并标注 CI 检查方式;违反任一规则的 PR 不得合并。合并前必须本地运行 `pnpm verify`(含 `pnpm architecture:check`)。
 
+## 0.0 读者分级(2026-07-03 修订)
+
+- **AI 编码代理(Codex/Claude 等)**:本文全部条款具有强制力。
+- **人类维护者**:第 1~3、5 节(架构边界、红线、代码规范、禁止事项)是系统的架构事实,必须遵守;第 4 节中的流程仪式(分支命名、PR 模板、自检粘贴)仅约束 AI 产出。人的合并标准 = `pnpm verify` 全绿 + `check-no-skipped.mjs` Skipped:0 + 自身判断。工作流现状见 `docs/ai-memory/04-decisions.md`(v3)。
+
 ---
 
 ## 0. 已采纳技术决策(只读,变更须走 ADR 流程)
@@ -116,18 +121,18 @@
 
 ## 4. 提交规范
 
-- AG-401:**一个任务一个分支**,命名 `feat|fix|chore/<task-id>-<slug>`(例 `feat/T-1024-relation-closure-table`);禁止一分支混多任务。CI:分支名正则 + PR 关联唯一 task-id。
-- AG-402:PR 描述**必须**含 `Spec-Ref:` 行,引用 /docs/spec 契约条款编号(例 `Spec-Ref: D.1-CreateRelation, 8.11-红线2, 6.11-数据内核`);涉及选型须引用 ADR 编号。CI:PR 模板字段非空 + 编号存在于 spec 索引。
+- AG-401(2026-07-03 修订):**AI 代理产出必须走独立分支**,命名 `feat|fix|chore/<task-id>-<slug>`,禁止一分支混多任务;人类维护者的小型低风险改动可直接提交 main(合并点须 verify 绿,并在决策记录/协作对话中通报)。<!-- 原文:AG-401:一个任务一个分支,命名 feat|fix|chore/<task-id>-<slug>(例 feat/T-1024-relation-closure-table);禁止一分支混多任务。CI:分支名正则 + PR 关联唯一 task-id。 -->
+- AG-402(2026-07-03 修订):涉及契约或选型的改动,在 commit message 或任务简报中注明所依据的契约条款/ADR 编号即可;不再要求 PR 模板 `Spec-Ref` 字段。<!-- 原文:AG-402:PR 描述必须含 Spec-Ref: 行,引用 /docs/spec 契约条款编号(例 Spec-Ref: D.1-CreateRelation, 8.11-红线2, 6.11-数据内核);涉及选型须引用 ADR 编号。CI:PR 模板字段非空 + 编号存在于 spec 索引。 -->
 - AG-403:Conventional Commits;一 commit 一逻辑变更。CI:commitlint。
-- AG-404:合并前置(全部必过):format、lint、类型检查、内核命令单测(核心命令覆盖率≥80%,含异常路径/权限前置/幂等键,11.1)、契约测试、`pnpm architecture:check`、构建、双架构镜像构建、性能基准无回退(P95 超阈值阻断或登记例外)。CI:必选 stage,顺序如上。
-- AG-405:**代理写入纪律**(T-V33-001 截断事故根因 P-T01 固化):禁止对 >50 行的既有文件做整文件重写,修改一律最小补丁;新增长内容分段追加(每段 ≤40 行);每个文件写完立即核验——文本跑 `wc -l` 与 `tail -3`,JSON/YAML 跑解析校验——并将核验输出贴入 PR。CI:PR 模板"写后自检输出"段必填,缺失即拒。
+- AG-404(2026-07-03 修订):合并前置 = `pnpm verify` 全绿(含 format、lint、类型检查、单测、契约测试、architecture:check、构建)+ `node scripts/check-no-skipped.mjs` 显示 Skipped:0。双架构镜像构建与性能基准调整为**发布前检查**,不作为日常合并门槛。<!-- 原文:AG-404:合并前置(全部必过):format、lint、类型检查、内核命令单测(核心命令覆盖率≥80%,含异常路径/权限前置/幂等键,11.1)、契约测试、pnpm architecture:check、构建、双架构镜像构建、性能基准无回退(P95 超阈值阻断或登记例外)。CI:必选 stage,顺序如上。 -->
+- AG-405(2026-07-03 修订,**仅约束 AI 代理**):禁止对 >50 行的既有文件做整文件重写,修改一律最小补丁;新增长内容分段追加(每段 ≤40 行);每个文件写完立即核验——文本跑 `wc -l` 与 `tail -3`,JSON/YAML 跑解析校验(T-V33-001 截断事故根因 P-T01 固化)。人类维护者不受本条约束;不再要求把自检输出贴入 PR。<!-- 原文:AG-405:代理写入纪律(T-V33-001 截断事故根因 P-T01 固化):禁止对 >50 行的既有文件做整文件重写,修改一律最小补丁;新增长内容分段追加(每段 ≤40 行);每个文件写完立即核验——文本跑 wc -l 与 tail -3,JSON/YAML 跑解析校验——并将核验输出贴入 PR。CI:PR 模板"写后自检输出"段必填,缺失即拒。 -->
 - AG-406:**契约夹具必须随契约入库**(fed-1 夹具漏提交事故固化):凡契约 addendum(`contracts/**`、`packages/shared/contracts/**`)新增或改动,其配套 `tests/contracts/fixtures/**`(valid/invalid)与 `tests/contracts/**` 用例**必须**列入该卡封闭清单并 `git add` 同提交;严禁夹具只落本地磁盘而不入 git(否则本地 verify 假绿、全新 clone/CI 无夹具可校)。完成时 `git status` 必须 clean(无 Untracked 的 fixtures)。CI:`scripts/check-contracts.mjs` 在干净 checkout 上运行,缺夹具即 fail;PR 校验 `git status --porcelain` 为空。
 
 ## 5. 禁止事项
 
 - AG-501:**禁止修改 `/docs/spec/` 下任何文件。** 契约变更由人发起独立 spec-change PR;AI 代理只能在 PR 描述中提建议。CI:CODEOWNERS + 路径保护,代理提交触碰该路径直接 fail。
 
-- AG-502:**禁止引入未在 ADR 中批准的依赖。** 运行时依赖以 `/ci/deps-allowlist.yaml`(由 ADR-001~009 派生)为准;新增依赖先提 ADR 变更。同时执行 ADR-008 准入门禁:含 native 产物的依赖必须有 linux-arm64 构件;全部依赖可从内网私服解析;license 仅限 MIT/Apache-2.0/BSD/ISC/EPL。CI:lockfile/pom 与 allowlist 比对 + arm64 探测 + license 扫描 + 断网构建流水线。
+- AG-502(2026-07-03 修订):**运行时依赖**禁止引入未在 ADR 批准者,以 `/ci/deps-allowlist.yaml`(由 ADR-001~009 派生)为准,新增先提 ADR 变更,并执行 ADR-008 准入门禁(含 native 产物须有 linux-arm64 构件;可从内网私服解析;license 仅限 MIT/Apache-2.0/BSD/ISC/EPL)。**dev-only 依赖**(构建/测试工具)人类维护者可自行决定,在 `docs/ai-memory/04-decisions.md` 记一行即可;**AI 代理仍禁止自行新增任何依赖**。<!-- 原文:AG-502:禁止引入未在 ADR 中批准的依赖。运行时依赖以 /ci/deps-allowlist.yaml(由 ADR-001~009 派生)为准;新增依赖先提 ADR 变更。同时执行 ADR-008 准入门禁:含 native 产物的依赖必须有 linux-arm64 构件;全部依赖可从内网私服解析;license 仅限 MIT/Apache-2.0/BSD/ISC/EPL。CI:lockfile/pom 与 allowlist 比对 + arm64 探测 + license 扫描 + 断网构建流水线。 -->
 
 - AG-503:**禁止绕过权限检查。** 命令处理必须先调用 PermissionChecker 预检(D.1 前置条件);禁止新增 `skipPermission`/`internalOnly` 类旁路参数;所有查询端点(含搜索)强制 workspace 范围过滤。CI:architecture:check(命令处理器必经 PermissionChecker)+ 越权测试套件必跑(9.5)。
 
