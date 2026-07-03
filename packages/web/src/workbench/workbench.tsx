@@ -41,6 +41,7 @@ import { FloorplanPanel } from "./floorplan-panel";
 import { InspectorPanel } from "./inspector-panel";
 import { MappingPanel } from "./mapping-panel";
 import { MatrixPanel } from "./matrix-panel";
+import { ProposalSummaryBar } from "./proposal-summary-bar";
 import { ReviewPanel } from "./review-panel";
 import { runSaveAutoCheck } from "./save-auto-check";
 import { WorkbenchShellChrome } from "./shell-chrome";
@@ -456,6 +457,7 @@ export function Workbench({
           onToggleTheme={onToggleTheme}
           themeLabel={themeLabel}
         />
+        {templateCode === "technical_proposal" ? <ProposalSummaryBar /> : null}
         {settingsOpen ? (
           <div className="workbench-controls" aria-label="高级视图设置">
             <label>
