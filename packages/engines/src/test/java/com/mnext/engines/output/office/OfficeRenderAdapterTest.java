@@ -38,6 +38,45 @@ class OfficeRenderAdapterTest {
   }
 
   @Test
+  void rendersTreeDocxWithHeadingsParametersAndValidationSummary() throws Exception {
+    var bytes = new DocxRenderAdapter().render(treeDataSet("BLOCK"), treeTemplate());
+
+    assertZip(bytes);
+    try (var document = new XWPFDocument(new ByteArrayInputStream(bytes))) {
+      var headings =
+          document.getParagraphs().stream()
+              .filter(paragraph -> paragraph.getStyle() != null)
+              .filter(paragraph -> paragraph.getStyle().startsWith("Heading"))
+              .toList();
+      assertEquals(
+          List.of("技术方案 Demo", "协作系统", "供电模块"),
+          headings.stream().map(paragraph -> paragraph.getText()).toList());
+      assertEquals(
+          List.of("Heading1", "Heading2", "Heading3"),
+          headings.stream().map(paragraph -> paragraph.getStyle()).toList());
+      assertTrue(
+          document.getParagraphs().stream()
+              .anyMatch(paragraph -> "负责技术方案的供电预算。".equals(paragraph.getText())));
+      assertTrue(hasTableRow(document, "power_w", "920"));
+      assertTrue(hasTableRow(document, "power_mode", "双路冗余"));
+      assertTrue(hasTableRow(document, "技术方案 Demo", "BLOCK"));
+      assertFalse(
+          document.getParagraphs().stream()
+              .anyMatch(paragraph -> paragraph.getText().contains("_tree")));
+    }
+  }
+
+  @Test
+  void rendersTreeDocxAllOkValidationSummary() throws Exception {
+    var bytes = new DocxRenderAdapter().render(treeDataSet("OK"), treeTemplate());
+
+    assertZip(bytes);
+    try (var document = new XWPFDocument(new ByteArrayInputStream(bytes))) {
+      assertTrue(hasTableRow(document, "全部校核通过", ""));
+    }
+  }
+
+  @Test
   void rendersXlsxAndPoiReadsObjectFields() throws Exception {
     var bytes = new XlsxRenderAdapter().render(dataSet(), TEMPLATE);
 
@@ -95,6 +134,62 @@ class OfficeRenderAdapterTest {
     return new DataSet(
         List.of(new DataObject("one", "demo", Map.of("name", "First", "cost", 3), "DRAFT", 1)),
         List.of());
+  }
+
+  private static OutputTemplate treeTemplate() {
+    return new OutputTemplate(
+        null,
+        List.of(),
+        new OutputTemplate.SectionMapping(
+            Map.of(0, 1, 1, 2, 2, 3), Map.of("description", "paragraph", "power_mode", "table")));
+  }
+
+  private static DataSet treeDataSet(String proposalRuleStatus) {
+    return new DataSet(
+        List.of(
+            new DataObject(
+                "proposal",
+                "proposal",
+                Map.of(
+                    "title",
+                    "技术方案 Demo",
+                    "_tree",
+                    Map.of("depth", 0, "order", 0, "ruleStatus", proposalRuleStatus)),
+                "ACTIVE",
+                1),
+            new DataObject(
+                "system",
+                "system",
+                Map.of("name", "协作系统", "_tree", Map.of("depth", 1, "order", 1, "ruleStatus", "OK")),
+                "ACTIVE",
+                1),
+            new DataObject(
+                "module",
+                "module",
+                Map.of(
+                    "name",
+                    "供电模块",
+                    "description",
+                    "负责技术方案的供电预算。",
+                    "power_w",
+                    920,
+                    "power_mode",
+                    "双路冗余",
+                    "_tree",
+                    Map.of("depth", 2, "order", 2, "ruleStatus", "OK")),
+                "ACTIVE",
+                1)),
+        List.of());
+  }
+
+  private static boolean hasTableRow(XWPFDocument document, String firstCell, String secondCell) {
+    return document.getTables().stream()
+        .flatMap(table -> table.getRows().stream())
+        .anyMatch(
+            row ->
+                row.getTableCells().size() >= 2
+                    && firstCell.equals(row.getCell(0).getText())
+                    && secondCell.equals(row.getCell(1).getText()));
   }
 
   private static void assertOfficePackagePure() throws Exception {

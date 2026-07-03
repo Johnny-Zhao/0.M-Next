@@ -23,26 +23,34 @@ public final class DocxRenderAdapter implements RenderAdapter {
   public byte[] render(DataSet snapshot, OutputTemplate template) {
     try (var document = new XWPFDocument();
         var out = new ByteArrayOutputStream()) {
-      document.createParagraph().createRun().setText("Output");
-      var objects = RenderSupport.objects(snapshot, template);
-      var fields = RenderSupport.fields(objects, template);
-      var table = document.createTable(Math.max(1, objects.size() + 1), fields.size() + 1);
-      table.getRow(0).getCell(0).setText("objectId");
-      for (var i = 0; i < fields.size(); i++) {
-        table.getRow(0).getCell(i + 1).setText(fields.get(i));
-      }
-      for (var rowIndex = 0; rowIndex < objects.size(); rowIndex++) {
-        var object = objects.get(rowIndex);
-        var row = table.getRow(rowIndex + 1);
-        row.getCell(0).setText(object.objectId());
-        for (var i = 0; i < fields.size(); i++) {
-          row.getCell(i + 1).setText(RenderSupport.text(object.fields().get(fields.get(i))));
-        }
+      if (DocxTreeRenderer.supports(snapshot)) {
+        DocxTreeRenderer.render(document, snapshot, template);
+      } else {
+        renderFlat(document, snapshot, template);
       }
       document.write(out);
       return out.toByteArray();
     } catch (IOException failure) {
       throw new IllegalStateException("Failed to render docx output", failure);
+    }
+  }
+
+  private void renderFlat(XWPFDocument document, DataSet snapshot, OutputTemplate template) {
+    document.createParagraph().createRun().setText("Output");
+    var objects = RenderSupport.objects(snapshot, template);
+    var fields = RenderSupport.fields(objects, template);
+    var table = document.createTable(Math.max(1, objects.size() + 1), fields.size() + 1);
+    table.getRow(0).getCell(0).setText("objectId");
+    for (var i = 0; i < fields.size(); i++) {
+      table.getRow(0).getCell(i + 1).setText(fields.get(i));
+    }
+    for (var rowIndex = 0; rowIndex < objects.size(); rowIndex++) {
+      var object = objects.get(rowIndex);
+      var row = table.getRow(rowIndex + 1);
+      row.getCell(0).setText(object.objectId());
+      for (var i = 0; i < fields.size(); i++) {
+        row.getCell(i + 1).setText(RenderSupport.text(object.fields().get(fields.get(i))));
+      }
     }
   }
 }

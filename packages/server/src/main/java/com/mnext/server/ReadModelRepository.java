@@ -789,17 +789,42 @@ class ReadModelRepository {
                 ON child.workspace_id = relation.workspace_id
                AND child.object_id = relation.target_id
               WHERE tree.depth < ? AND NOT relation.target_id = ANY(tree.path)
+            ),
+            latest_run AS (
+              SELECT run_id
+              FROM check_result
+              WHERE workspace_id = ?
+              GROUP BY run_id
+              ORDER BY max(created_at) DESC, run_id
+              LIMIT 1
+            ),
+            rule_status AS (
+              SELECT result.object_id,
+                     CASE max(CASE result.severity WHEN 'BLOCK' THEN 2 WHEN 'WARN' THEN 1 ELSE 0 END)
+                       WHEN 2 THEN 'BLOCK'
+                       WHEN 1 THEN 'WARN'
+                       ELSE 'OK'
+                     END AS value
+              FROM check_result result
+              JOIN latest_run ON latest_run.run_id = result.run_id
+              WHERE result.workspace_id = ?
+              GROUP BY result.object_id
             )
             SELECT object.object_id, object.object_type_code, object.fields::text, object.status,
                    object.version, tree.parent_id, tree.relation_id, tree.depth,
                    parent_relation.relation_type_code, parent_relation.source_id,
-                   parent_relation.target_id, parent_relation.fields::text
+                   parent_relation.target_id, parent_relation.fields::text,
+                   COALESCE(
+                     rule_status.value,
+                     CASE WHEN latest_run.run_id IS NULL THEN 'UNKNOWN' ELSE 'OK' END)
             FROM tree
             JOIN rm_object object
               ON object.workspace_id = ? AND object.object_id = tree.object_id
             LEFT JOIN rm_relation parent_relation
               ON parent_relation.workspace_id = ?
              AND parent_relation.relation_id = tree.relation_id
+            LEFT JOIN latest_run ON TRUE
+            LEFT JOIN rule_status ON rule_status.object_id = object.object_id
             ORDER BY tree.path
             """,
             (row, index) ->
@@ -815,12 +840,15 @@ class ReadModelRepository {
                     row.getString(9),
                     row.getObject(10, UUID.class),
                     row.getObject(11, UUID.class),
-                    optionalMap(row.getString(12))),
+                    optionalMap(row.getString(12)),
+                    row.getString(13)),
             workspaceId,
             treeScope.rootId(),
             workspaceId,
             treeScope.relationType(),
             treeScope.maxDepth(),
+            workspaceId,
+            workspaceId,
             workspaceId,
             workspaceId);
     if (nodes.isEmpty()) throw new IllegalArgumentException("treeScope.rootId 不存在或不可见");
@@ -1019,7 +1047,8 @@ class ReadModelRepository {
       String relationTypeCode,
       UUID sourceId,
       UUID targetId,
-      Map<String, Object> relationFields) {
+      Map<String, Object> relationFields,
+      String ruleStatus) {
     DataObject object(int order) {
       return new DataObject(
           objectId.toString(), objectTypeCode, fieldsWithTree(order), status, version);
@@ -1032,6 +1061,7 @@ class ReadModelRepository {
       tree.put("parentId", parentId == null ? null : parentId.toString());
       tree.put("relationId", relationId == null ? null : relationId.toString());
       tree.put("order", order);
+      tree.put("ruleStatus", ruleStatus);
       result.put("_tree", tree);
       return result;
     }

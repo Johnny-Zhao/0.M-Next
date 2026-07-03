@@ -43,6 +43,7 @@ class SnapshotIntegrationTest {
   private static final UUID CHILD_A = UUID.fromString("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb");
   private static final UUID CHILD_B = UUID.fromString("cccccccc-cccc-4ccc-8ccc-cccccccccccc");
   private static final UUID GRANDCHILD = UUID.fromString("dddddddd-dddd-4ddd-8ddd-dddddddddddd");
+  private static final UUID RULE_RUN = UUID.fromString("12121212-1212-4212-8212-121212121212");
 
   @Container
   static final PostgreSQLContainer<?> POSTGRES =
@@ -65,6 +66,7 @@ class SnapshotIntegrationTest {
   @BeforeEach
   void reset() {
     jdbc.update("DELETE FROM snapshot");
+    jdbc.update("DELETE FROM check_result WHERE workspace_id = ?", WORKSPACE);
     jdbc.update("DELETE FROM rm_relation");
     jdbc.update("DELETE FROM rm_object");
     jdbc.update("DELETE FROM relation_type WHERE workspace_id = ?", WORKSPACE);
@@ -193,6 +195,7 @@ class SnapshotIntegrationTest {
     insertRelation(UUID.fromString("11111111-aaaa-4aaa-8aaa-111111111111"), OBJECT, CHILD_A);
     insertRelation(UUID.fromString("22222222-bbbb-4bbb-8bbb-222222222222"), CHILD_A, GRANDCHILD);
     insertRelation(UUID.fromString("33333333-cccc-4ccc-8ccc-333333333333"), OBJECT, CHILD_B);
+    insertCheckResult(GRANDCHILD, "BLOCK");
 
     var treeSnapshot =
         capture(
@@ -209,6 +212,8 @@ class SnapshotIntegrationTest {
     assertTree(treePayload.get(1), 1, OBJECT.toString(), "11111111-aaaa-4aaa-8aaa-111111111111", 1);
     assertTree(
         treePayload.get(2), 2, CHILD_A.toString(), "22222222-bbbb-4bbb-8bbb-222222222222", 2);
+    assertEquals("OK", treeStatus(treePayload.get(0)));
+    assertEquals("BLOCK", treeStatus(treePayload.get(2)));
 
     var flatSnapshot = capture(WORKSPACE, Map.of("scopeObjectType", "demo"));
     var flatPayload =
@@ -343,6 +348,26 @@ class SnapshotIntegrationTest {
         relationId,
         sourceId,
         targetId);
+  }
+
+  private void insertCheckResult(UUID objectId, String severity) {
+    jdbc.update(
+        """
+        INSERT INTO check_result
+          (id, workspace_id, run_id, rule_code, severity, message,
+           object_id, field_code, config_hash, created_at)
+        VALUES (?, ?, ?, 'R-TREE', ?, '树快照校核', ?, NULL,
+          'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', now())
+        """,
+        UUID.randomUUID(),
+        WORKSPACE,
+        RULE_RUN,
+        severity,
+        objectId);
+  }
+
+  private String treeStatus(Map<String, Object> object) {
+    return String.valueOf(((Map<?, ?>) fields(object).get("_tree")).get("ruleStatus"));
   }
 
   private String base(UUID workspace) {
