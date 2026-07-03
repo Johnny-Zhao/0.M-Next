@@ -783,6 +783,40 @@ describe("view and command clients", () => {
     expect(detail.payload.objects).toEqual([]);
   });
 
+  it("serializes tree snapshot scope without object scope", async () => {
+    const fetchFn = vi.fn<FetchFn>(
+      async () =>
+        new Response(
+          JSON.stringify({
+            snapshotId: "snap-tree",
+            createdAt: "2026-06-28T00:00:00Z",
+            createdBy: "actor",
+            dataVersion: 8,
+            contentHash: "hash-tree",
+            scopeObjectType: null,
+          }),
+        ),
+    );
+    const client = new ViewClient("/api", fetchFn);
+
+    await client.captureSnapshot("ws", "actor", "module", {
+      rootId: "proposal-1",
+      relationType: "proposal_contains_module",
+    });
+
+    expect(fetchFn.mock.calls[0]?.[0]).toBe("/api/workspaces/ws/snapshots");
+    expect(fetchFn.mock.calls[0]?.[1]?.headers).toMatchObject({
+      "X-Actor-Id": "actor",
+    });
+    expect(JSON.parse(String(fetchFn.mock.calls[0]?.[1]?.body))).toEqual({
+      treeScope: {
+        rootId: "proposal-1",
+        relationType: "proposal_contains_module",
+        maxDepth: 5,
+      },
+    });
+  });
+
   it("posts diff requests with controller DataSet payloads", async () => {
     const fetchFn = vi.fn<FetchFn>(
       async () =>

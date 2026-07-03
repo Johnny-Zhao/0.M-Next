@@ -320,12 +320,14 @@ export function Workbench({
         actorId,
         format,
         objectType,
+        relationType,
+        rootId,
         viewClient,
         workspaceId,
       });
       downloadOutput(detail);
     },
-    [actorId, objectType, viewClient, workspaceId],
+    [actorId, objectType, relationType, rootId, viewClient, workspaceId],
   );
   const generateOutputSafely = useCallback(
     (format: OutputFormat): void => {
@@ -438,7 +440,9 @@ export function Workbench({
             <DocumentOutputAction
               actorId={actorId}
               objectType={objectType}
+              relationType={relationType}
               reportError={onError}
+              rootId={rootId}
               viewClient={viewClient}
               workspaceId={workspaceId}
             />

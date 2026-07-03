@@ -100,6 +100,12 @@ export interface SnapshotDataSet {
   readonly relations: readonly SnapshotDataRelation[];
 }
 
+export interface SnapshotTreeScope {
+  readonly rootId: string;
+  readonly relationType: string;
+  readonly maxDepth?: number;
+}
+
 export interface SnapshotDetail {
   readonly meta: SnapshotMeta;
   readonly payload: SnapshotDataSet;
@@ -524,10 +530,18 @@ export class ViewClient {
     workspaceId: string,
     actorId: string,
     scopeObjectType?: string | null,
+    treeScope?: SnapshotTreeScope | null,
   ): Promise<SnapshotMeta> {
-    return this.post(`/workspaces/${workspaceId}/snapshots`, actorId, {
-      scopeObjectType: scopeObjectType || null,
-    });
+    const body = treeScope
+      ? {
+          treeScope: {
+            rootId: treeScope.rootId,
+            relationType: treeScope.relationType,
+            maxDepth: boundedDepth(treeScope.maxDepth ?? 5),
+          },
+        }
+      : { scopeObjectType: scopeObjectType || null };
+    return this.post(`/workspaces/${workspaceId}/snapshots`, actorId, body);
   }
 
   listSnapshots(

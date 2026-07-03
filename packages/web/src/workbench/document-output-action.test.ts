@@ -55,6 +55,32 @@ describe("document output action", () => {
     );
   });
 
+  it("captures a tree snapshot when a root object is available", async () => {
+    const viewClient = outputClient();
+
+    await generateDocumentOutput({
+      actorId: "alice",
+      format: "docx",
+      objectType: "module",
+      relationType: " proposal_contains_module ",
+      rootId: " proposal-1 ",
+      viewClient,
+      workspaceId: "workspace-1",
+    });
+
+    expect(viewClient.captureSnapshot).toHaveBeenCalledWith(
+      "workspace-1",
+      "alice",
+      null,
+      { rootId: "proposal-1", relationType: "proposal_contains_module" },
+    );
+    expect(viewClient.createOutput).toHaveBeenCalledWith(
+      "workspace-1",
+      "alice",
+      expect.objectContaining({ format: "docx", objectType: "module" }),
+    );
+  });
+
   it("uses stable file extensions for supported formats", () => {
     expect(filename("markdown", "one")).toBe("mnext-output-one.md");
     expect(filename("docx", "two")).toBe("mnext-output-two.docx");

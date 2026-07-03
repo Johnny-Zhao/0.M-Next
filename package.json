@@ -17,7 +17,8 @@
     "typecheck": "corepack pnpm --filter @m-next/views typecheck && corepack pnpm --filter @m-next/web typecheck && node scripts/run-maven.mjs -DskipTests compile",
     "test": "corepack pnpm --filter @m-next/views test && corepack pnpm --filter @m-next/web test && node scripts/run-maven.mjs verify",
     "build": "corepack pnpm --filter @m-next/views build && corepack pnpm --filter @m-next/web build && node scripts/run-maven.mjs -DskipTests package",
-    "verify": "corepack pnpm architecture:check && corepack pnpm architecture:test && corepack pnpm format:check && corepack pnpm lint && corepack pnpm typecheck && corepack pnpm test && corepack pnpm build"
+    "verify": "corepack pnpm architecture:check && corepack pnpm architecture:test && corepack pnpm format:check && corepack pnpm lint && corepack pnpm typecheck && corepack pnpm test && corepack pnpm build",
+    "verify:web": "corepack pnpm architecture:check && prettier --check \"packages/views/**/*.{ts,tsx,css,json}\" \"packages/web/**/*.{ts,tsx,css,json}\" && eslint packages/views/src packages/web/src && corepack pnpm --filter @m-next/views typecheck && corepack pnpm --filter @m-next/web typecheck && corepack pnpm --filter @m-next/views test && corepack pnpm --filter @m-next/web test && corepack pnpm --filter @m-next/views build && corepack pnpm --filter @m-next/web build"
   },
   "devDependencies": {
     "@eslint/js": "9.28.0",

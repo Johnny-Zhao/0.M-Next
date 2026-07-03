@@ -1,6 +1,11 @@
 import { useState, type ReactElement } from "react";
 
-import type { OutputDetail, OutputFormat, ViewClient } from "@m-next/views";
+import type {
+  OutputDetail,
+  OutputFormat,
+  SnapshotTreeScope,
+  ViewClient,
+} from "@m-next/views";
 
 import { useToast } from "../toast";
 
@@ -28,6 +33,8 @@ export interface DocumentOutputActionProps {
   readonly actorId: string;
   readonly objectType: string;
   readonly reportError: (message: string) => void;
+  readonly relationType?: string | null;
+  readonly rootId?: string | null;
   readonly viewClient: Pick<
     ViewClient,
     "captureSnapshot" | "createOutput" | "getOutput"
@@ -40,6 +47,8 @@ export interface GenerateDocumentOutputOptions {
   readonly actorId: string;
   readonly format: OutputFormat;
   readonly objectType: string;
+  readonly relationType?: string | null;
+  readonly rootId?: string | null;
   readonly viewClient: Pick<
     ViewClient,
     "captureSnapshot" | "createOutput" | "getOutput"
@@ -51,15 +60,16 @@ export async function generateDocumentOutput({
   actorId,
   format,
   objectType,
+  relationType,
+  rootId,
   viewClient,
   workspaceId,
 }: GenerateDocumentOutputOptions): Promise<OutputDetail> {
   const scope = objectType.trim() || null;
-  const snapshot = await viewClient.captureSnapshot(
-    workspaceId,
-    actorId,
-    scope,
-  );
+  const treeScope = outputTreeScope(rootId, relationType);
+  const snapshot = treeScope
+    ? await viewClient.captureSnapshot(workspaceId, actorId, null, treeScope)
+    : await viewClient.captureSnapshot(workspaceId, actorId, scope);
   const output = await viewClient.createOutput(workspaceId, actorId, {
     snapshotId: snapshot.snapshotId,
     format,
@@ -72,12 +82,14 @@ export function DocumentOutputAction({
   actorId,
   download = downloadOutput,
   objectType,
+  relationType,
   reportError,
+  rootId,
   viewClient,
   workspaceId,
 }: DocumentOutputActionProps): ReactElement {
   const toast = useToast();
-  const [format, setFormat] = useState<OutputFormat>("markdown");
+  const [format, setFormat] = useState<OutputFormat>("docx");
   const [generating, setGenerating] = useState(false);
   const [message, setMessage] = useState("");
 
@@ -89,6 +101,8 @@ export function DocumentOutputAction({
         actorId,
         format,
         objectType,
+        relationType,
+        rootId,
         viewClient,
         workspaceId,
       });
@@ -146,6 +160,15 @@ export function downloadOutput(detail: OutputDetail): void {
 
 export function filename(format: OutputFormat, outputId: string): string {
   return `mnext-output-${outputId}.${extensions[format]}`;
+}
+
+function outputTreeScope(
+  rootId?: string | null,
+  relationType?: string | null,
+): SnapshotTreeScope | null {
+  const root = rootId?.trim() ?? "";
+  if (!root) return null;
+  return { rootId: root, relationType: relationType?.trim() ?? "" };
 }
 
 function base64Bytes(value: string): Uint8Array {

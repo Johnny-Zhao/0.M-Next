@@ -17,7 +17,8 @@
 ## 给 Codex 的提速规则
 
 - 开发期只跑相关测试类：`node scripts/run-maven.mjs -Dtest=类名 test`、`corepack pnpm contracts:check`
-- 全量 verify + `check-no-skipped.mjs`（Skipped:0）只在收尾跑一次
+- **前端任务合并门槛 = `corepack pnpm verify:web`**（不跑 Java）；全量 verify 只用于后端/契约任务与发布前
+- 后端任务收尾才跑全量 verify + `check-no-skipped.mjs`（Skipped:0）一次
 - 同一错误缠斗超过两轮 → 停下回报，不许绕路自创方案
 - 合理耗时预期：轻任务 20~40 分钟，契约/管线类 1~2 小时，超时叫停拆小
 
