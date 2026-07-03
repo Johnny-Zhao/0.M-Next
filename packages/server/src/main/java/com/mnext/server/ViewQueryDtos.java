@@ -10,6 +10,8 @@ record FieldDefinitionView(
 
 record ObjectTypeView(UUID id, String code, String name, List<FieldDefinitionView> fields) {}
 
+record RelationTypeView(UUID id, String code, String name, boolean hierarchical) {}
+
 record WorkspaceProfileView(
     UUID templateVersionId, String templateCode, String name, int version, Instant appliedAt) {}
 
