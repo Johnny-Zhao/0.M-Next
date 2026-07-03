@@ -29,6 +29,19 @@ const mediaTypes: Readonly<Record<OutputFormat, string>> = {
   xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
 };
 
+const technicalDocumentSectionMapping = {
+  fieldLabels: {
+    conclusion: "结论",
+    power_budget_w: "功耗预算(W)",
+    power_w: "功耗(W)",
+    score: "评分",
+  },
+  fieldRoles: {
+    description: "paragraph",
+    responsibility: "paragraph",
+  },
+} as const;
+
 export interface DocumentOutputActionProps {
   readonly actorId: string;
   readonly objectType: string;
@@ -70,11 +83,13 @@ export async function generateDocumentOutput({
   const snapshot = treeScope
     ? await viewClient.captureSnapshot(workspaceId, actorId, null, treeScope)
     : await viewClient.captureSnapshot(workspaceId, actorId, scope);
-  const output = await viewClient.createOutput(workspaceId, actorId, {
+  const request = {
     snapshotId: snapshot.snapshotId,
     format,
     objectType: scope,
-  });
+    ...(treeScope ? { sectionMapping: technicalDocumentSectionMapping } : {}),
+  };
+  const output = await viewClient.createOutput(workspaceId, actorId, request);
   return viewClient.getOutput(workspaceId, output.outputId);
 }
 

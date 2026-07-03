@@ -1,0 +1,10 @@
+{
+  "snapshotId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+  "format": "docx",
+  "sectionMapping": {
+    "fieldLabels": {
+      "power_w": "功耗(W)",
+      "power_budget_w": "功耗预算(W)"
+    }
+  }
+}

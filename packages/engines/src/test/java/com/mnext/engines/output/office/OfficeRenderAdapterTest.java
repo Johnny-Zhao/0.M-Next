@@ -9,6 +9,7 @@ import com.mnext.engines.exchange.DataSet.DataObject;
 import com.mnext.engines.output.OutputTemplate;
 import com.mnext.engines.output.RenderRegistry;
 import java.io.ByteArrayInputStream;
+import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -54,12 +55,17 @@ class OfficeRenderAdapterTest {
       assertEquals(
           List.of("Heading1", "Heading2", "Heading3"),
           headings.stream().map(paragraph -> paragraph.getStyle()).toList());
+      assertHeadingOutlineStyles(document);
       assertTrue(
           document.getParagraphs().stream()
               .anyMatch(paragraph -> "负责技术方案的供电预算。".equals(paragraph.getText())));
-      assertTrue(hasTableRow(document, "power_w", "920"));
+      assertTrue(
+          document.getParagraphs().stream()
+              .anyMatch(
+                  paragraph -> "Recommended for detailed design.".equals(paragraph.getText())));
+      assertTrue(hasTableRow(document, "功耗(W)", "920"));
       assertTrue(hasTableRow(document, "power_mode", "双路冗余"));
-      assertTrue(hasTableRow(document, "技术方案 Demo", "BLOCK"));
+      assertTrue(hasTableRow(document, "技术方案 Demo", "阻断"));
       assertFalse(
           document.getParagraphs().stream()
               .anyMatch(paragraph -> paragraph.getText().contains("_tree")));
@@ -130,6 +136,15 @@ class OfficeRenderAdapterTest {
     assertEquals(4, bytes[3]);
   }
 
+  private static void assertHeadingOutlineStyles(XWPFDocument document) {
+    var styles = document.getStyles();
+    for (var level = 1; level <= 6; level++) {
+      var style = styles.getStyle("Heading" + level);
+      assertEquals(
+          BigInteger.valueOf(level - 1L), style.getCTStyle().getPPr().getOutlineLvl().getVal());
+    }
+  }
+
   private static DataSet dataSet() {
     return new DataSet(
         List.of(new DataObject("one", "demo", Map.of("name", "First", "cost", 3), "DRAFT", 1)),
@@ -141,7 +156,9 @@ class OfficeRenderAdapterTest {
         null,
         List.of(),
         new OutputTemplate.SectionMapping(
-            Map.of(0, 1, 1, 2, 2, 3), Map.of("description", "paragraph", "power_mode", "table")));
+            Map.of(0, 1, 1, 2, 2, 3),
+            Map.of("description", "paragraph", "power_mode", "table"),
+            Map.of("power_w", "功耗(W)")));
   }
 
   private static DataSet treeDataSet(String proposalRuleStatus) {
@@ -171,6 +188,8 @@ class OfficeRenderAdapterTest {
                     "供电模块",
                     "description",
                     "负责技术方案的供电预算。",
+                    "conclusion",
+                    "Recommended for detailed design.",
                     "power_w",
                     920,
                     "power_mode",

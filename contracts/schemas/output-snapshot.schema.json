@@ -68,6 +68,10 @@
             "type": "string",
             "enum": ["paragraph", "table"]
           }
+        },
+        "fieldLabels": {
+          "type": "object",
+          "additionalProperties": { "type": "string", "minLength": 1 }
         }
       }
     }

@@ -4,10 +4,15 @@ import com.mnext.engines.exchange.DataSet;
 import com.mnext.engines.exchange.DataSet.DataObject;
 import com.mnext.engines.output.OutputTemplate;
 import com.mnext.engines.output.RenderSupport;
+import java.math.BigInteger;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.apache.poi.xwpf.usermodel.XWPFDocument;
+import org.apache.poi.xwpf.usermodel.XWPFStyle;
+import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTStyle;
+import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTStyles;
+import org.openxmlformats.schemas.wordprocessingml.x2006.main.STStyleType;
 
 final class DocxTreeRenderer {
   private DocxTreeRenderer() {}
@@ -18,6 +23,7 @@ final class DocxTreeRenderer {
   }
 
   static void render(XWPFDocument document, DataSet snapshot, OutputTemplate template) {
+    ensureHeadingStyles(document);
     for (var object : snapshot.objects()) {
       var tree = tree(object);
       addHeading(document, headingLevel(template, number(tree, "depth", 0)), title(object));
@@ -25,6 +31,26 @@ final class DocxTreeRenderer {
       addParameterTable(document, object, template);
     }
     addValidationSummary(document, snapshot.objects());
+  }
+
+  private static void ensureHeadingStyles(XWPFDocument document) {
+    var styles = document.createStyles();
+    if (styles.getCtStyles() == null) styles.setStyles(CTStyles.Factory.newInstance());
+    for (var level = 1; level <= 6; level++) {
+      var styleId = "Heading" + level;
+      if (styles.styleExist(styleId)) continue;
+      var style = CTStyle.Factory.newInstance();
+      style.setStyleId(styleId);
+      style.setType(STStyleType.PARAGRAPH);
+      style.addNewName().setVal("heading " + level);
+      style.addNewBasedOn().setVal("Normal");
+      style.addNewNext().setVal("Normal");
+      style.addNewUiPriority().setVal(BigInteger.valueOf(8L + level));
+      style.addNewQFormat();
+      style.addNewPPr().addNewOutlineLvl().setVal(BigInteger.valueOf(level - 1L));
+      style.addNewRPr().addNewB();
+      styles.addStyle(new XWPFStyle(style));
+    }
   }
 
   private static void addHeading(XWPFDocument document, int level, String text) {
@@ -57,7 +83,7 @@ final class DocxTreeRenderer {
         .fields()
         .forEach(
             (field, value) -> {
-              if (visible(field) && "paragraph".equals(roles.get(field))) {
+              if (visible(field) && paragraphField(field, value, roles)) {
                 var text = RenderSupport.text(value).trim();
                 if (!text.isEmpty()) document.createParagraph().createRun().setText(text);
               }
@@ -75,15 +101,29 @@ final class DocxTreeRenderer {
     table.getRow(0).getCell(0).setText("字段名");
     table.getRow(0).getCell(1).setText("值");
     for (var index = 0; index < rows.size(); index++) {
-      table.getRow(index + 1).getCell(0).setText(rows.get(index).getKey());
+      table.getRow(index + 1).getCell(0).setText(fieldLabel(rows.get(index).getKey(), template));
       table.getRow(index + 1).getCell(1).setText(RenderSupport.text(rows.get(index).getValue()));
     }
   }
 
   private static boolean parameterField(String field, Object value, OutputTemplate template) {
-    var role = fieldRoles(template).get(field);
-    if (!visible(field) || "paragraph".equals(role)) return false;
+    var roles = fieldRoles(template);
+    var role = roles.get(field);
+    if (!visible(field) || paragraphField(field, value, roles)) return false;
     return "table".equals(role) || value instanceof Number;
+  }
+
+  private static boolean paragraphField(String field, Object value, Map<String, String> roles) {
+    var role = roles.get(field);
+    if ("paragraph".equals(role)) return true;
+    if ("table".equals(role)) return false;
+    return defaultParagraphField(field, value);
+  }
+
+  private static boolean defaultParagraphField(String field, Object value) {
+    if (!(value instanceof String text)) return false;
+    return List.of("description", "responsibility", "conclusion").contains(field)
+        || text.trim().length() > 20;
   }
 
   private static void addValidationSummary(XWPFDocument document, List<DataObject> objects) {
@@ -107,7 +147,7 @@ final class DocxTreeRenderer {
     }
     for (var index = 0; index < rows.size(); index++) {
       table.getRow(index + 1).getCell(0).setText(rows.get(index).getKey());
-      table.getRow(index + 1).getCell(1).setText(rows.get(index).getValue());
+      table.getRow(index + 1).getCell(1).setText(statusLabel(rows.get(index).getValue()));
     }
   }
 
@@ -117,6 +157,23 @@ final class DocxTreeRenderer {
 
   private static Map<String, String> fieldRoles(OutputTemplate template) {
     return template.sectionMapping() == null ? Map.of() : template.sectionMapping().fieldRoles();
+  }
+
+  private static String fieldLabel(String field, OutputTemplate template) {
+    return fieldLabels(template).getOrDefault(field, field);
+  }
+
+  private static Map<String, String> fieldLabels(OutputTemplate template) {
+    return template.sectionMapping() == null ? Map.of() : template.sectionMapping().fieldLabels();
+  }
+
+  private static String statusLabel(String status) {
+    return switch (status) {
+      case "BLOCK" -> "阻断";
+      case "WARN" -> "告警";
+      case "UNKNOWN" -> "未校核";
+      default -> status;
+    };
   }
 
   private static int number(Map<String, Object> values, String key, int fallback) {

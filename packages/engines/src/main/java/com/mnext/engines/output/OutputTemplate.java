@@ -14,10 +14,17 @@ public record OutputTemplate(
   }
 
   public record SectionMapping(
-      Map<Integer, Integer> headingLevels, Map<String, String> fieldRoles) {
+      Map<Integer, Integer> headingLevels,
+      Map<String, String> fieldRoles,
+      Map<String, String> fieldLabels) {
     public SectionMapping {
       headingLevels = headingLevels == null ? Map.of() : Map.copyOf(headingLevels);
       fieldRoles = fieldRoles == null ? Map.of() : Map.copyOf(fieldRoles);
+      fieldLabels = fieldLabels == null ? Map.of() : Map.copyOf(fieldLabels);
+    }
+
+    public SectionMapping(Map<Integer, Integer> headingLevels, Map<String, String> fieldRoles) {
+      this(headingLevels, fieldRoles, Map.of());
     }
   }
 }

@@ -77,7 +77,22 @@ describe("document output action", () => {
     expect(viewClient.createOutput).toHaveBeenCalledWith(
       "workspace-1",
       "alice",
-      expect.objectContaining({ format: "docx", objectType: "module" }),
+      expect.objectContaining({
+        format: "docx",
+        objectType: "module",
+        sectionMapping: {
+          fieldLabels: {
+            conclusion: "结论",
+            power_budget_w: "功耗预算(W)",
+            power_w: "功耗(W)",
+            score: "评分",
+          },
+          fieldRoles: {
+            description: "paragraph",
+            responsibility: "paragraph",
+          },
+        },
+      }),
     );
   });
 
