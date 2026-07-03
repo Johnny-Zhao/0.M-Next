@@ -13,6 +13,13 @@ export interface ObjectType {
   readonly fields: readonly FieldDefinition[];
 }
 
+export interface RelationType {
+  readonly id: string;
+  readonly code: string;
+  readonly name: string;
+  readonly hierarchical: boolean;
+}
+
 export type RuleStatus = "BLOCK" | "WARN" | "OK" | "UNKNOWN";
 
 export interface ViewObject {
@@ -599,6 +606,10 @@ export class ViewClient {
 
   objectTypes(workspaceId: string): Promise<readonly ObjectType[]> {
     return this.get(`/workspaces/${workspaceId}/views/object-types`);
+  }
+
+  relationTypes(workspaceId: string): Promise<readonly RelationType[]> {
+    return this.get(`/workspaces/${workspaceId}/views/relation-types`);
   }
 
   templates(): Promise<readonly TemplateCatalogItem[]> {

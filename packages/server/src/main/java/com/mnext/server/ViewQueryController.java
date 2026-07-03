@@ -76,6 +76,12 @@ public class ViewQueryController {
     return repository.objectTypes(workspaceId);
   }
 
+  @GetMapping("/workspaces/{workspaceId}/views/relation-types")
+  public List<RelationTypeView> relationTypes(@PathVariable("workspaceId") UUID workspaceId) {
+    authorize(workspaceId);
+    return repository.relationTypes(workspaceId);
+  }
+
   @GetMapping("/workspaces/{workspaceId}/views/objects")
   public PageView<ObjectView> objects(
       @PathVariable("workspaceId") UUID workspaceId,

@@ -290,6 +290,23 @@ class ReadModelRepository {
         workspaceId);
   }
 
+  List<RelationTypeView> relationTypes(UUID workspaceId) {
+    return jdbc.query(
+        """
+        SELECT id, code, hierarchical
+        FROM relation_type
+        WHERE workspace_id = ?
+        ORDER BY code
+        """,
+        (row, index) ->
+            new RelationTypeView(
+                row.getObject(1, UUID.class),
+                row.getString(2),
+                row.getString(2),
+                row.getBoolean(3)),
+        workspaceId);
+  }
+
   PageView<ObjectView> objects(UUID workspaceId, String objectType, int page, int pageSize) {
     var total =
         jdbc.queryForObject(
