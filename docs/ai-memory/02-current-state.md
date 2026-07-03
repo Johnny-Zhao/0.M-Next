@@ -26,7 +26,8 @@
 
 ## 新发现（2026-07-03，T-V01-6 探明阶段）
 
-- **历史断点**：前端创建关系从未真正可用——CommandController 严格要求 relationTypeId 为 UUID，前端只持有 code，且无 relation-types 读端点（室内画布连线同样受影响，室内已冻结不修）。→ T-V01-6a 补只读 relation-types 端点（已发 Codex），6 号任务解除阻断后继续。
+- **历史断点**：前端创建关系从未真正可用——CommandController 严格要求 relationTypeId 为 UUID，前端只持有 code，且无 relation-types 读端点（室内画布连线同样受影响，室内已冻结不修）。→ T-V01-6a 补只读 relation-types 端点。
+- **2026-07-03 审查发现**：Codex 对 T-V01-6 只交付了向导段（part1，质量合格可收），跳过了被阻断的"加模块/归档"且未做 6a。处置：part1 单独合并；6a 重发（只做端点）；之后发 6-part2（加模块+归档）。教训入规：**收货先跑验收一句话**。
 - CreateObject 响应不直接携带新对象 id，前端按既有模式（事件+唯一字段查询）兜底。
 - **无阻断切片已落**（feat/T-V01-6-authoring-minimal，verify:web 全绿）：CommandClient 新增 createObject/archive（走已注册 /commands）；向导「技术方案」= 名称+功耗预算 → instantiateWorkspace → CreateObject(proposal: title/version=v1/author/power_budget_w) → onOpenWorkspace 携带 templateCode 直入工作台；文档树节点「归档」确认流 → Archive → 刷新（onArchived 联动概览条 refreshVersion）。**留待 6a**：文档树「加模块」（需 relationTypeId UUID）与 Inspector 新建后聚焦（其唯一触发＝加模块）。
 
