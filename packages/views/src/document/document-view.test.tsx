@@ -1,16 +1,24 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { CommandFailure, type CommandClient } from "../api/command-client";
-import type { ObjectPage, ObjectType, ViewObject } from "../api/view-client";
+import type {
+  ObjectPage,
+  ObjectType,
+  ViewClient,
+  ViewObject,
+} from "../api/view-client";
 import { ConflictDialog } from "../conflict/conflict-dialog";
 import { SelectionCoordinator } from "../selection/selection-coordinator";
 import {
+  addModuleEntryState,
+  addModuleToProposal,
   ArchiveConfirm,
   archiveDocumentObject,
   buildDocumentSections,
   canEditDocumentField,
   canInlineEditDocumentField,
   documentEmptyMessage,
+  handleModuleAdded,
   isDocumentSelection,
   replaceDocumentField,
   saveDocumentField,
@@ -245,6 +253,201 @@ describe("DocumentView", () => {
     expect(markup).toContain("方案编排");
     expect(markup).toContain("取消");
   });
+
+  it("adds a module: creates it then links it under the proposal", async () => {
+    const objectTypes = vi
+      .fn()
+      .mockResolvedValue([
+        { id: "type-module", code: "module", name: "Module", fields: [] },
+      ]);
+    const objects = vi
+      .fn()
+      .mockResolvedValueOnce(page())
+      .mockResolvedValueOnce(page(moduleObject("mod-1", "供电模块")));
+    const createObject = vi.fn().mockResolvedValue(undefined);
+    const createRelation = vi.fn().mockResolvedValue(undefined);
+
+    const result = await addModuleToProposal({
+      viewClient: { objectTypes, objects } as unknown as Pick<
+        ViewClient,
+        "objectTypes" | "objects"
+      >,
+      commandClient: { createObject, createRelation } as unknown as Pick<
+        CommandClient,
+        "createObject" | "createRelation"
+      >,
+      workspaceId: "ws",
+      proposalId: "proposal-1",
+      name: "供电模块",
+      relationTypeId: "rel-contains-module",
+      delay: () => Promise.resolve(),
+    });
+
+    expect(createObject).toHaveBeenCalledWith("ws", "type-module", {
+      name: "供电模块",
+      power_w: 0,
+    });
+    expect(createRelation).toHaveBeenCalledWith(
+      "ws",
+      "rel-contains-module",
+      "proposal-1",
+      "mod-1",
+    );
+    expect(result).toEqual({ kind: "added", moduleId: "mod-1" });
+  });
+
+  it("reports an unsupported template when there is no module type", async () => {
+    const objectTypes = vi
+      .fn()
+      .mockResolvedValue([
+        { id: "type-proposal", code: "proposal", name: "Proposal", fields: [] },
+      ]);
+    const createObject = vi.fn();
+    const createRelation = vi.fn();
+
+    const result = await addModuleToProposal({
+      viewClient: { objectTypes, objects: vi.fn() } as unknown as Pick<
+        ViewClient,
+        "objectTypes" | "objects"
+      >,
+      commandClient: { createObject, createRelation } as unknown as Pick<
+        CommandClient,
+        "createObject" | "createRelation"
+      >,
+      workspaceId: "ws",
+      proposalId: "proposal-1",
+      name: "供电模块",
+      relationTypeId: "rel",
+      delay: () => Promise.resolve(),
+    });
+
+    expect(result).toEqual({
+      kind: "error",
+      message: "当前模板不支持添加模块",
+    });
+    expect(createObject).not.toHaveBeenCalled();
+  });
+
+  it("requires a non-empty module name before issuing commands", async () => {
+    const createObject = vi.fn();
+    const result = await addModuleToProposal({
+      viewClient: { objectTypes: vi.fn(), objects: vi.fn() } as unknown as Pick<
+        ViewClient,
+        "objectTypes" | "objects"
+      >,
+      commandClient: {
+        createObject,
+        createRelation: vi.fn(),
+      } as unknown as Pick<CommandClient, "createObject" | "createRelation">,
+      workspaceId: "ws",
+      proposalId: "proposal-1",
+      name: "   ",
+      relationTypeId: "rel",
+    });
+
+    expect(result).toEqual({ kind: "error", message: "请输入模块名称" });
+    expect(createObject).not.toHaveBeenCalled();
+  });
+
+  it("maps a command failure to a readable message without codes", async () => {
+    const objectTypes = vi
+      .fn()
+      .mockResolvedValue([
+        { id: "type-module", code: "module", name: "Module", fields: [] },
+      ]);
+    const objects = vi
+      .fn()
+      .mockResolvedValueOnce(page())
+      .mockResolvedValueOnce(page(moduleObject("mod-1", "供电模块")));
+    const createRelation = vi.fn().mockRejectedValue(
+      new CommandFailure({
+        code: "KERNEL-410-TARGET-ARCHIVED",
+        title: "目标已废止",
+      }),
+    );
+
+    const result = await addModuleToProposal({
+      viewClient: { objectTypes, objects } as unknown as Pick<
+        ViewClient,
+        "objectTypes" | "objects"
+      >,
+      commandClient: {
+        createObject: vi.fn().mockResolvedValue(undefined),
+        createRelation,
+      } as unknown as Pick<CommandClient, "createObject" | "createRelation">,
+      workspaceId: "ws",
+      proposalId: "proposal-1",
+      name: "供电模块",
+      relationTypeId: "rel",
+      delay: () => Promise.resolve(),
+    });
+
+    expect(result).toEqual({ kind: "error", message: "目标已废止" });
+    const message = result.kind === "error" ? result.message : "";
+    expect(message).not.toContain("KERNEL");
+  });
+
+  it("hints a refresh when the new module cannot be read back yet", async () => {
+    const objectTypes = vi
+      .fn()
+      .mockResolvedValue([
+        { id: "type-module", code: "module", name: "Module", fields: [] },
+      ]);
+    const objects = vi.fn().mockResolvedValue(page());
+    const createRelation = vi.fn();
+
+    const result = await addModuleToProposal({
+      viewClient: { objectTypes, objects } as unknown as Pick<
+        ViewClient,
+        "objectTypes" | "objects"
+      >,
+      commandClient: {
+        createObject: vi.fn().mockResolvedValue(undefined),
+        createRelation,
+      } as unknown as Pick<CommandClient, "createObject" | "createRelation">,
+      workspaceId: "ws",
+      proposalId: "proposal-1",
+      name: "供电模块",
+      relationTypeId: "rel",
+      attempts: 2,
+      delay: () => Promise.resolve(),
+    });
+
+    expect(result.kind).toBe("error");
+    const message = result.kind === "error" ? result.message : "";
+    expect(message).toContain("刷新");
+    expect(createRelation).not.toHaveBeenCalled();
+  });
+
+  it("disables the add-module entry when the relation type is missing", () => {
+    expect(addModuleEntryState(null)).toEqual({
+      disabled: true,
+      unsupported: true,
+    });
+    expect(addModuleEntryState(undefined)).toEqual({
+      disabled: true,
+      unsupported: false,
+    });
+    expect(addModuleEntryState("rel-1")).toEqual({
+      disabled: false,
+      unsupported: false,
+    });
+  });
+
+  it("after adding: refreshes views, reloads the tree, and selects the module", () => {
+    const selection = new SelectionCoordinator();
+    const reload = vi.fn();
+    const onRefresh = vi.fn();
+
+    handleModuleAdded(selection, "mod-1", { reload, onRefresh });
+
+    expect(onRefresh).toHaveBeenCalledOnce();
+    expect(reload).toHaveBeenCalledOnce();
+    expect(selection.current()).toEqual({
+      entityType: "object",
+      entityId: "mod-1",
+    });
+  });
 });
 
 function object(id: string, name: string): ViewObject {
@@ -258,6 +461,10 @@ function object(id: string, name: string): ViewObject {
     source: null,
     ruleStatus: "OK",
   };
+}
+
+function moduleObject(id: string, name: string): ViewObject {
+  return { ...object(id, name), objectType: "module" };
 }
 
 function terminal(): ViewObject {

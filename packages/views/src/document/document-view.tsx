@@ -49,7 +49,7 @@ export interface DocumentViewProps {
   readonly relationType: string;
   readonly onError?: (title: string) => void;
   readonly onEditField?: () => void;
-  /** 归档等结构性变更后回调,供工作台刷新派生/概览条(refreshVersion 联动)。 */
+  /** 归档 / 加模块等结构性变更后回调,供工作台刷新派生/概览条(refreshVersion 联动)。 */
   readonly onArchived?: () => void;
 }
 
@@ -80,6 +80,148 @@ export async function archiveDocumentObject(
       message: error instanceof Error ? error.message : "归档失败",
     };
   }
+}
+
+const MODULE_OBJECT_TYPE_CODE = "module";
+export const PROPOSAL_OBJECT_TYPE_CODE = "proposal";
+export const PROPOSAL_CONTAINS_MODULE_RELATION = "proposal_contains_module";
+const RESOLVE_ATTEMPTS = 6;
+const RESOLVE_DELAY_MS = 200;
+
+export type AddModuleResult =
+  | { readonly kind: "added"; readonly moduleId: string }
+  | { readonly kind: "error"; readonly message: string };
+
+function realDelay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/** 命令失败转可读中文提示;绝不外泄 UUID / 错误码(仅用业务标题或通用兜底文案)。 */
+function readableAddModuleError(error: unknown): string {
+  if (error instanceof CommandFailure) return error.commandError.title;
+  return "添加模块失败,请稍后重试";
+}
+
+/**
+ * CreateObject 不直接回传新对象 id;沿用仓库既有兜底:创建后按 name 分页查询,取"此前
+ * 不存在"的新对象 id。读模型投影有滞后,做有限次重试。
+ */
+async function resolveNewObjectId(params: {
+  readonly viewClient: Pick<ViewClient, "objects">;
+  readonly workspaceId: string;
+  readonly typeCode: string;
+  readonly known: ReadonlySet<string>;
+  readonly name: string;
+  readonly attempts: number;
+  readonly delay: (ms: number) => Promise<void>;
+}): Promise<string | null> {
+  for (let attempt = 0; attempt < params.attempts; attempt++) {
+    const page = await params.viewClient.objects(
+      params.workspaceId,
+      params.typeCode,
+      0,
+      MAX_SECTIONS,
+    );
+    const fresh = page.items.filter((item) => !params.known.has(item.objectId));
+    const byName = fresh.find(
+      (item) => String(item.fields.name ?? "") === params.name,
+    );
+    if (byName) return byName.objectId;
+    if (fresh.length === 1) return fresh[0]!.objectId;
+    if (attempt < params.attempts - 1) await params.delay(RESOLVE_DELAY_MS);
+  }
+  return null;
+}
+
+/**
+ * 在方案下新增一个模块:解析 module 类型 → CreateObject(name) → 取回新 id →
+ * CreateRelation(proposal_contains_module)。命令只用注册集(AG-301),经命令入口。
+ * relationTypeId 由调用方从 relationTypes 缓存解析(proposal_contains_module 的 UUID)。
+ */
+export async function addModuleToProposal(params: {
+  readonly viewClient: Pick<ViewClient, "objectTypes" | "objects">;
+  readonly commandClient: Pick<
+    CommandClient,
+    "createObject" | "createRelation"
+  >;
+  readonly workspaceId: string;
+  readonly proposalId: string;
+  readonly name: string;
+  readonly relationTypeId: string;
+  readonly attempts?: number;
+  readonly delay?: (ms: number) => Promise<void>;
+}): Promise<AddModuleResult> {
+  const name = params.name.trim();
+  if (name === "") return { kind: "error", message: "请输入模块名称" };
+  try {
+    const types = await params.viewClient.objectTypes(params.workspaceId);
+    const moduleTypeId = types.find(
+      (type) => type.code === MODULE_OBJECT_TYPE_CODE,
+    )?.id;
+    if (!moduleTypeId) {
+      return { kind: "error", message: "当前模板不支持添加模块" };
+    }
+    const existing = await params.viewClient.objects(
+      params.workspaceId,
+      MODULE_OBJECT_TYPE_CODE,
+      0,
+      MAX_SECTIONS,
+    );
+    const known = new Set(existing.items.map((item) => item.objectId));
+    // 预置 power_w=0:读模型只投影"已设"字段,置 0 让属性面板即刻出现「功耗」可填(默认不计入总功耗)。
+    await params.commandClient.createObject(params.workspaceId, moduleTypeId, {
+      name,
+      power_w: 0,
+    });
+    const moduleId = await resolveNewObjectId({
+      viewClient: params.viewClient,
+      workspaceId: params.workspaceId,
+      typeCode: MODULE_OBJECT_TYPE_CODE,
+      known,
+      name,
+      attempts: params.attempts ?? RESOLVE_ATTEMPTS,
+      delay: params.delay ?? realDelay,
+    });
+    if (!moduleId) {
+      return {
+        kind: "error",
+        message: "模块已创建,但暂时读取不到,请稍后刷新文档树",
+      };
+    }
+    await params.commandClient.createRelation(
+      params.workspaceId,
+      params.relationTypeId,
+      params.proposalId,
+      moduleId,
+    );
+    return { kind: "added", moduleId };
+  } catch (error) {
+    return { kind: "error", message: readableAddModuleError(error) };
+  }
+}
+
+/** 加模块入口状态:relationTypeId 为 null=模板不支持;undefined=加载中。纯函数。 */
+export function addModuleEntryState(
+  relationTypeId: string | null | undefined,
+): {
+  readonly disabled: boolean;
+  readonly unsupported: boolean;
+} {
+  return {
+    disabled: relationTypeId == null,
+    unsupported: relationTypeId === null,
+  };
+}
+
+/** 新模块落库后:刷新概览条/派生(onRefresh)、重载文档树(reload)、选中新节点。 */
+export function handleModuleAdded(
+  selection: SelectionCoordinator,
+  moduleId: string,
+  callbacks: { readonly reload: () => void; readonly onRefresh?: () => void },
+): void {
+  callbacks.onRefresh?.();
+  callbacks.reload();
+  selectDocumentObject(selection, moduleId);
 }
 
 export interface DocumentFieldConflict {
@@ -265,8 +407,31 @@ export function DocumentView(props: DocumentViewProps): ReactElement {
   const [sections, setSections] = useState<readonly DocumentSection[]>([]);
   const [selected, setSelected] = useState<SelectionRef | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
+  const [moduleRelationTypeId, setModuleRelationTypeId] = useState<
+    string | null | undefined
+  >(undefined);
   const targets = useRef(new Map<string, HTMLElement>());
   const reload = () => setReloadKey((value) => value + 1);
+
+  // 一次性缓存 proposal_contains_module 的关系类型 UUID(加模块需要它);找不到则禁用入口。
+  useEffect(() => {
+    let active = true;
+    void viewClient
+      .relationTypes(workspaceId)
+      .then((relations) => {
+        if (!active) return;
+        const match = relations.find(
+          (relation) => relation.code === PROPOSAL_CONTAINS_MODULE_RELATION,
+        );
+        setModuleRelationTypeId(match?.id ?? null);
+      })
+      .catch(() => {
+        if (active) setModuleRelationTypeId(null);
+      });
+    return () => {
+      active = false;
+    };
+  }, [viewClient, workspaceId]);
 
   const updateField = (
     objectId: string,
@@ -314,6 +479,7 @@ export function DocumentView(props: DocumentViewProps): ReactElement {
         <DocumentSectionView
           key={section.object.objectId}
           commandClient={commandClient}
+          moduleRelationTypeId={moduleRelationTypeId}
           onArchived={() => {
             onArchived?.();
             reload();
@@ -321,10 +487,17 @@ export function DocumentView(props: DocumentViewProps): ReactElement {
           onEditField={onEditField}
           onError={onError}
           onFieldSaved={updateField}
+          onModuleAdded={(moduleId) =>
+            handleModuleAdded(selection, moduleId, {
+              reload,
+              onRefresh: onArchived,
+            })
+          }
           section={section}
           selected={selected}
           selection={selection}
           targets={targets.current}
+          viewClient={viewClient}
           workspaceId={workspaceId}
         />
       ))}
@@ -384,6 +557,90 @@ export function ArchiveConfirm(props: {
   );
 }
 
+export function AddModuleControl(props: {
+  readonly viewClient: Pick<ViewClient, "objectTypes" | "objects">;
+  readonly commandClient: Pick<
+    CommandClient,
+    "createObject" | "createRelation"
+  >;
+  readonly workspaceId: string;
+  readonly proposalId: string;
+  readonly relationTypeId: string | null | undefined;
+  readonly onAdded: (moduleId: string) => void;
+  readonly onError?: (message: string) => void;
+}): ReactElement {
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState("");
+  const [busy, setBusy] = useState(false);
+  const { disabled, unsupported } = addModuleEntryState(props.relationTypeId);
+
+  async function submit(): Promise<void> {
+    if (busy || !props.relationTypeId || name.trim() === "") return;
+    setBusy(true);
+    const result = await addModuleToProposal({
+      viewClient: props.viewClient,
+      commandClient: props.commandClient,
+      workspaceId: props.workspaceId,
+      proposalId: props.proposalId,
+      name,
+      relationTypeId: props.relationTypeId,
+    });
+    setBusy(false);
+    if (result.kind === "added") {
+      setName("");
+      setOpen(false);
+      props.onAdded(result.moduleId);
+    } else {
+      props.onError?.(result.message);
+    }
+  }
+
+  if (!open) {
+    return (
+      <button
+        className="document-add-module"
+        disabled={disabled}
+        onClick={() => setOpen(true)}
+        title={unsupported ? "当前模板不支持添加模块" : undefined}
+        type="button"
+      >
+        + 添加模块
+      </button>
+    );
+  }
+  return (
+    <form
+      className="document-add-module-form"
+      onSubmit={(event) => {
+        event.preventDefault();
+        void submit();
+      }}
+    >
+      <input
+        aria-label="新模块名称"
+        autoFocus
+        disabled={busy}
+        onChange={(event) => setName(event.currentTarget.value)}
+        placeholder="模块名称,回车添加"
+        value={name}
+      />
+      <button disabled={busy || name.trim() === ""} type="submit">
+        {busy ? "添加中…" : "添加"}
+      </button>
+      <button
+        disabled={busy}
+        onClick={() => {
+          setOpen(false);
+          setName("");
+        }}
+        type="button"
+      >
+        取消
+      </button>
+    </form>
+  );
+}
+
 function DocumentSectionView(props: {
   readonly section: DocumentSection;
   readonly commandClient?: CommandClient;
@@ -399,6 +656,9 @@ function DocumentSectionView(props: {
     version: number,
   ) => void;
   readonly onArchived?: () => void;
+  readonly moduleRelationTypeId?: string | null;
+  readonly onModuleAdded?: (moduleId: string) => void;
+  readonly viewClient?: Pick<ViewClient, "objectTypes" | "objects">;
   readonly workspaceId: string;
 }): ReactElement {
   const id = props.section.object.objectId;
@@ -457,6 +717,20 @@ function DocumentSectionView(props: {
           onCancel={() => setConfirming(false)}
           onConfirm={() => void archive()}
           title={props.section.title}
+        />
+      ) : null}
+      {props.section.object.objectType === PROPOSAL_OBJECT_TYPE_CODE &&
+      !props.section.terminal &&
+      props.commandClient &&
+      props.viewClient ? (
+        <AddModuleControl
+          commandClient={props.commandClient}
+          onAdded={(moduleId) => props.onModuleAdded?.(moduleId)}
+          onError={props.onError}
+          proposalId={id}
+          relationTypeId={props.moduleRelationTypeId}
+          viewClient={props.viewClient}
+          workspaceId={props.workspaceId}
         />
       ) : null}
       {props.section.fields.map((field) => (
