@@ -19,10 +19,16 @@
 | 4c 前端导出走文档树 | Codex | ✅ 验收通过，合并中 |
 | 4d 导出观感修缮（标题样式注入/fieldLabels 契约小增补人审/默认段落/状态中文化） | Codex | 🔄 已发 |
 | 概览条（总功耗/预算/超预算徽章，refreshVersion 联动） | Codex（并行） | 🔄 已发 |
-| 最小创作能力（新建方案+文档树加章节模块+填参数+导出自有 Word） | Codex（业主定交互） | 待做，下一优先 |
+| 最小创作能力（新建方案+文档树加章节模块+填参数+导出自有 Word） | Codex（业主定交互） | 🔄 无阻断切片已做（feat/T-V01-6-authoring-minimal）：向导「技术方案」路径建 proposal 根+templateCode 直入工作台、文档树节点归档流；「加模块」（CreateRelation）与 Inspector 新建后聚焦阻断于 6a，待 relation-types 端点合并后补 |
 | 跨类型校核可见 | — | 概览条落地后重评，可能降级 |
 | 30 分钟启动脚本 | Fable | 待做 |
 | 演示打磨杂项 | — | 降级 v0.1 后 |
+
+## 新发现（2026-07-03，T-V01-6 探明阶段）
+
+- **历史断点**：前端创建关系从未真正可用——CommandController 严格要求 relationTypeId 为 UUID，前端只持有 code，且无 relation-types 读端点（室内画布连线同样受影响，室内已冻结不修）。→ T-V01-6a 补只读 relation-types 端点（已发 Codex），6 号任务解除阻断后继续。
+- CreateObject 响应不直接携带新对象 id，前端按既有模式（事件+唯一字段查询）兜底。
+- **无阻断切片已落**（feat/T-V01-6-authoring-minimal，verify:web 全绿）：CommandClient 新增 createObject/archive（走已注册 /commands）；向导「技术方案」= 名称+功耗预算 → instantiateWorkspace → CreateObject(proposal: title/version=v1/author/power_budget_w) → onOpenWorkspace 携带 templateCode 直入工作台；文档树节点「归档」确认流 → Archive → 刷新（onArchived 联动概览条 refreshVersion）。**留待 6a**：文档树「加模块」（需 relationTypeId UUID）与 Inspector 新建后聚焦（其唯一触发＝加模块）。
 
 ## 已知问题（4d 修复中）
 

@@ -5,6 +5,8 @@ import type { ObjectPage, ObjectType, ViewObject } from "../api/view-client";
 import { ConflictDialog } from "../conflict/conflict-dialog";
 import { SelectionCoordinator } from "../selection/selection-coordinator";
 import {
+  ArchiveConfirm,
+  archiveDocumentObject,
   buildDocumentSections,
   canEditDocumentField,
   canInlineEditDocumentField,
@@ -198,6 +200,50 @@ describe("DocumentView", () => {
   it("explains empty document states without changing tree semantics", () => {
     expect(documentEmptyMessage("", "decomposes_to")).toContain("根对象");
     expect(documentEmptyMessage("root", "adjacent")).toContain("hierarchical");
+  });
+
+  it("archives a node through the registered Archive command with its version", async () => {
+    const archive = vi.fn().mockResolvedValue(undefined);
+    const target = { ...object("module-1", "方案编排"), version: 4 };
+
+    const result = await archiveDocumentObject(
+      { archive } as unknown as CommandClient,
+      "workspace",
+      target,
+    );
+
+    expect(archive).toHaveBeenCalledWith("workspace", "object", "module-1", 4);
+    expect(result).toEqual({ kind: "archived" });
+  });
+
+  it("surfaces a readable message when archiving fails", async () => {
+    const archive = vi
+      .fn()
+      .mockRejectedValue(
+        new CommandFailure({ code: "PERM-403", title: "无权归档" }),
+      );
+
+    const result = await archiveDocumentObject(
+      { archive } as unknown as CommandClient,
+      "workspace",
+      object("module-1", "方案编排"),
+    );
+
+    expect(result).toEqual({ kind: "error", message: "无权归档" });
+  });
+
+  it("renders the archive confirmation with the node title and actions", () => {
+    const dialog = ArchiveConfirm({
+      title: "方案编排",
+      busy: false,
+      onConfirm: () => undefined,
+      onCancel: () => undefined,
+    });
+
+    const markup = JSON.stringify(dialog);
+    expect(markup).toContain("确认归档");
+    expect(markup).toContain("方案编排");
+    expect(markup).toContain("取消");
   });
 });
 

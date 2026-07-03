@@ -19,6 +19,7 @@ export function DocumentPanel(): ReactElement {
       {warming ? <PanelSkeleton label="文档加载中" /> : null}
       <DocumentView
         commandClient={context.commandClient}
+        onArchived={context.refreshViews}
         onEditField={context.refreshViews}
         onError={context.reportError}
         relationType={context.relationType}

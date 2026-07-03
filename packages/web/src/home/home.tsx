@@ -65,12 +65,17 @@ export function Home({
       setRoute("projects");
       return;
     }
-    onOpenWorkspace({ workspaceId: draft.workspaceId, name: draft.name });
+    onOpenWorkspace({
+      workspaceId: draft.workspaceId,
+      name: draft.name,
+      templateCode: draft.templateCode,
+    });
   }
 
   if (effectiveRoute === "new-project") {
     return (
       <NewProjectWizard
+        actorId={actorId ?? ""}
         commandClient={commandClient}
         onCancel={() => setRoute("projects")}
         onCreated={openDraft}

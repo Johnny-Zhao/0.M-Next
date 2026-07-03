@@ -532,6 +532,67 @@ describe("view and command clients", () => {
     });
   });
 
+  it("posts CreateObject with resolved object type id and manual source", async () => {
+    const fetchFn = vi.fn<FetchFn>(
+      async () =>
+        new Response(
+          JSON.stringify({
+            commandId: "cmd-1",
+            status: "COMMITTED",
+            events: [],
+          }),
+        ),
+    );
+    const client = new CommandClient("/api", fetchFn);
+    client.setActorId("alice");
+
+    await client.createObject("ws", "type-proposal", {
+      title: "我的第一个方案",
+      version: "v1",
+      author: "alice",
+      power_budget_w: 500,
+    });
+
+    expect(fetchFn.mock.calls[0]?.[0]).toBe("/api/workspaces/ws/commands");
+    expect(fetchFn.mock.calls[0]?.[1]?.headers).toMatchObject({
+      "content-type": "application/json",
+      "X-Actor-Id": "alice",
+    });
+    const request = JSON.parse(String(fetchFn.mock.calls[0]?.[1]?.body));
+    expect(request.commandType).toBe("CreateObject");
+    expect(request.payload).toMatchObject({
+      objectTypeId: "type-proposal",
+      fields: {
+        title: "我的第一个方案",
+        version: "v1",
+        author: "alice",
+        power_budget_w: 500,
+      },
+      source: { type: "manual", ref: "authoring" },
+    });
+    expect(request.payload.initialState).toBeUndefined();
+  });
+
+  it("posts Archive with object version optimistic lock through the command endpoint", async () => {
+    const fetchFn = vi.fn<FetchFn>(
+      async () => new Response(null, { status: 204 }),
+    );
+    const client = new CommandClient("/api", fetchFn);
+    client.setActorId("alice");
+
+    await client.archive("ws", "object", "module-1", 3);
+
+    expect(fetchFn.mock.calls[0]?.[0]).toBe("/api/workspaces/ws/commands");
+    const request = JSON.parse(String(fetchFn.mock.calls[0]?.[1]?.body));
+    expect(request.commandType).toBe("Archive");
+    expect(request.payload).toMatchObject({
+      targetType: "object",
+      targetId: "module-1",
+      reason: "authoring-archive",
+      expectedVersion: 3,
+    });
+  });
+
   it("posts AI proposal commands to the governed AI endpoint", async () => {
     const fetchFn = vi.fn<FetchFn>(
       async () => new Response(JSON.stringify({ events: ["set-1"] })),

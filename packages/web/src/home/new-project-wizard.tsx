@@ -2,17 +2,24 @@ import { useEffect, useState, type ReactElement } from "react";
 
 import type {
   CommandClient,
+  ObjectType,
   TemplateCatalogItem,
   ViewClient,
 } from "@m-next/views";
 
 export type WizardStep = "name" | "profile" | "config" | "create";
 
+/** 技术方案模板 code 与其根对象类型 code(附录A 术语,不得自造同义词)。 */
+export const TECHNICAL_PROPOSAL_TEMPLATE_CODE = "technical_proposal";
+export const PROPOSAL_OBJECT_TYPE_CODE = "proposal";
+
 export interface ProjectDraft {
   readonly name: string;
   readonly profile: string;
   readonly workspaceId?: string;
   readonly templateId?: string;
+  readonly templateCode?: string;
+  readonly powerBudget?: string;
   readonly version?: number;
 }
 
@@ -48,7 +55,98 @@ export function templateVersion(template: TemplateCatalogItem): number {
     : template.version;
 }
 
+/** 是否为技术方案模板——决定是否附带「功耗预算」字段并自动建 proposal 根。 */
+export function isTechnicalProposalTemplate(
+  template: TemplateCatalogItem | undefined,
+): boolean {
+  return template?.code === TECHNICAL_PROPOSAL_TEMPLATE_CODE;
+}
+
+/** 解析功耗预算输入:空串或非法回落 null(字段可空),负数按非法处理。纯函数。 */
+export function parsePowerBudget(raw: string): number | null {
+  const trimmed = raw.trim();
+  if (trimmed === "") return null;
+  const value = Number(trimmed);
+  return Number.isFinite(value) && value >= 0 ? value : null;
+}
+
+/** 由对象类型清单按 code 解析 UUID id(CreateObject 需要 objectTypeId 为 UUID)。纯函数。 */
+export function findObjectTypeId(
+  types: readonly ObjectType[],
+  code: string,
+): string | null {
+  return types.find((type) => type.code === code)?.id ?? null;
+}
+
+/** 组装 proposal 根字段:title/version/author 为必填,power_budget_w 可空。纯函数。 */
+export function proposalRootFields(
+  name: string,
+  author: string,
+  powerBudgetW: number | null,
+): Record<string, unknown> {
+  const fields: Record<string, unknown> = {
+    title: name.trim(),
+    version: "v1",
+    author: author.trim() || "我",
+  };
+  if (typeof powerBudgetW === "number" && Number.isFinite(powerBudgetW)) {
+    fields.power_budget_w = powerBudgetW;
+  }
+  return fields;
+}
+
+export interface CreatedProject {
+  readonly workspaceId: string;
+  readonly templateId: string;
+  readonly templateCode: string;
+  readonly version: number;
+}
+
+/**
+ * 新建项目链路:实例化工作空间 → 若为技术方案模板,解析 proposal 类型并 CreateObject 建根。
+ * 命令只用注册集(InstantiateWorkspace/CreateObject),经命令入口(AG-301)。纯编排,便于测试。
+ */
+export async function instantiateProjectWithTemplate(params: {
+  readonly commandClient: Pick<
+    CommandClient,
+    "instantiateWorkspace" | "createObject"
+  >;
+  readonly viewClient: Pick<ViewClient, "objectTypes">;
+  readonly template: TemplateCatalogItem;
+  readonly name: string;
+  readonly author: string;
+  readonly powerBudgetW: number | null;
+  readonly newWorkspaceId: string;
+}): Promise<CreatedProject> {
+  const version = templateVersion(params.template);
+  await params.commandClient.instantiateWorkspace(
+    params.newWorkspaceId,
+    params.template.templateId,
+    version,
+    params.name,
+  );
+  if (isTechnicalProposalTemplate(params.template)) {
+    const types = await params.viewClient.objectTypes(params.newWorkspaceId);
+    const proposalTypeId = findObjectTypeId(types, PROPOSAL_OBJECT_TYPE_CODE);
+    if (!proposalTypeId) {
+      throw new Error("模板缺少 proposal 对象类型,无法创建方案根");
+    }
+    await params.commandClient.createObject(
+      params.newWorkspaceId,
+      proposalTypeId,
+      proposalRootFields(params.name, params.author, params.powerBudgetW),
+    );
+  }
+  return {
+    workspaceId: params.newWorkspaceId,
+    templateId: params.template.templateId,
+    templateCode: params.template.code,
+    version,
+  };
+}
+
 export interface NewProjectWizardProps {
+  readonly actorId: string;
   readonly commandClient: CommandClient;
   readonly viewClient: ViewClient;
   readonly onCancel: () => void;
@@ -56,6 +154,7 @@ export interface NewProjectWizardProps {
 }
 
 export function NewProjectWizard({
+  actorId,
   commandClient,
   onCancel,
   onCreated,
@@ -98,18 +197,21 @@ export function NewProjectWizard({
     setCreating(true);
     setError("");
     try {
-      const newWorkspaceId = crypto.randomUUID();
-      await commandClient.instantiateWorkspace(
-        newWorkspaceId,
-        template.templateId,
-        templateVersion(template),
-        draft.name,
-      );
+      const created = await instantiateProjectWithTemplate({
+        commandClient,
+        viewClient,
+        template,
+        name: draft.name,
+        author: actorId,
+        powerBudgetW: parsePowerBudget(draft.powerBudget ?? ""),
+        newWorkspaceId: crypto.randomUUID(),
+      });
       onCreated({
         ...draft,
-        templateId: template.templateId,
-        version: templateVersion(template),
-        workspaceId: newWorkspaceId,
+        templateId: created.templateId,
+        templateCode: created.templateCode,
+        version: created.version,
+        workspaceId: created.workspaceId,
       });
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : "创建项目失败");
@@ -117,6 +219,10 @@ export function NewProjectWizard({
       setCreating(false);
     }
   }
+
+  const selectedTemplate = templates.find(
+    (item) => item.name === draft.profile,
+  );
 
   function advance(): void {
     if (!canAdvance(step, draft) || creating) return;
@@ -185,6 +291,21 @@ export function NewProjectWizard({
             模板
             <input readOnly value={draft.profile} />
           </label>
+          {isTechnicalProposalTemplate(selectedTemplate) ? (
+            <label>
+              功耗预算(W)
+              <input
+                inputMode="numeric"
+                min="0"
+                onChange={(event) =>
+                  setDraft({ ...draft, powerBudget: event.currentTarget.value })
+                }
+                placeholder="如 500,可留空"
+                type="number"
+                value={draft.powerBudget ?? ""}
+              />
+            </label>
+          ) : null}
           <label>
             邀请成员
             <input placeholder="name@example.com" />
@@ -203,6 +324,14 @@ export function NewProjectWizard({
         <div className="wizard-summary">
           <h2>{draft.name}</h2>
           <p>{draft.profile}</p>
+          {isTechnicalProposalTemplate(selectedTemplate) ? (
+            <p>
+              功耗预算:
+              {parsePowerBudget(draft.powerBudget ?? "") === null
+                ? "未设置"
+                : `${parsePowerBudget(draft.powerBudget ?? "")}W`}
+            </p>
+          ) : null}
           <p>将以该模板创建并进入新工作空间。</p>
         </div>
       ) : null}

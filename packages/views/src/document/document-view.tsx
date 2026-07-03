@@ -49,6 +49,37 @@ export interface DocumentViewProps {
   readonly relationType: string;
   readonly onError?: (title: string) => void;
   readonly onEditField?: () => void;
+  /** 归档等结构性变更后回调,供工作台刷新派生/概览条(refreshVersion 联动)。 */
+  readonly onArchived?: () => void;
+}
+
+export type ArchiveResult =
+  | { readonly kind: "archived" }
+  | { readonly kind: "error"; readonly message: string };
+
+/**
+ * 归档文档节点:走已注册 Archive 命令(AG-301),按对象版本乐观锁。纯函数,便于测试。
+ * 不做硬删除(v0.1 边界)。
+ */
+export async function archiveDocumentObject(
+  commandClient: Pick<CommandClient, "archive">,
+  workspaceId: string,
+  object: ViewObject,
+): Promise<ArchiveResult> {
+  try {
+    await commandClient.archive(
+      workspaceId,
+      "object",
+      object.objectId,
+      object.version,
+    );
+    return { kind: "archived" };
+  } catch (error) {
+    return {
+      kind: "error",
+      message: error instanceof Error ? error.message : "归档失败",
+    };
+  }
 }
 
 export interface DocumentFieldConflict {
@@ -229,10 +260,13 @@ export function DocumentView(props: DocumentViewProps): ReactElement {
     relationType,
     onError,
     onEditField,
+    onArchived,
   } = props;
   const [sections, setSections] = useState<readonly DocumentSection[]>([]);
   const [selected, setSelected] = useState<SelectionRef | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
   const targets = useRef(new Map<string, HTMLElement>());
+  const reload = () => setReloadKey((value) => value + 1);
 
   const updateField = (
     objectId: string,
@@ -257,7 +291,7 @@ export function DocumentView(props: DocumentViewProps): ReactElement {
     return () => {
       active = false;
     };
-  }, [relationType, rootId, viewClient, workspaceId, onError]);
+  }, [relationType, rootId, viewClient, workspaceId, onError, reloadKey]);
 
   useEffect(
     () =>
@@ -280,6 +314,10 @@ export function DocumentView(props: DocumentViewProps): ReactElement {
         <DocumentSectionView
           key={section.object.objectId}
           commandClient={commandClient}
+          onArchived={() => {
+            onArchived?.();
+            reload();
+          }}
           onEditField={onEditField}
           onError={onError}
           onFieldSaved={updateField}
@@ -323,6 +361,29 @@ function selectionKey(selection: SelectionRef | null): string | null {
     : selection.entityId;
 }
 
+export function ArchiveConfirm(props: {
+  readonly title: string;
+  readonly busy: boolean;
+  readonly onConfirm: () => void;
+  readonly onCancel: () => void;
+}): ReactElement {
+  return (
+    <div
+      aria-label="归档确认"
+      className="document-archive-confirm"
+      role="dialog"
+    >
+      <p>确认归档「{props.title}」？归档后不可再编辑（不做硬删除）。</p>
+      <button disabled={props.busy} onClick={props.onConfirm} type="button">
+        {props.busy ? "归档中…" : "确认归档"}
+      </button>
+      <button disabled={props.busy} onClick={props.onCancel} type="button">
+        取消
+      </button>
+    </div>
+  );
+}
+
 function DocumentSectionView(props: {
   readonly section: DocumentSection;
   readonly commandClient?: CommandClient;
@@ -337,9 +398,32 @@ function DocumentSectionView(props: {
     value: unknown,
     version: number,
   ) => void;
+  readonly onArchived?: () => void;
   readonly workspaceId: string;
 }): ReactElement {
   const id = props.section.object.objectId;
+  const [confirming, setConfirming] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const canArchive =
+    !props.section.terminal && props.commandClient !== undefined;
+
+  async function archive(): Promise<void> {
+    if (!props.commandClient) return;
+    setBusy(true);
+    const result = await archiveDocumentObject(
+      props.commandClient,
+      props.workspaceId,
+      props.section.object,
+    );
+    setBusy(false);
+    if (result.kind === "archived") {
+      setConfirming(false);
+      props.onArchived?.();
+    } else {
+      props.onError?.(result.message);
+    }
+  }
+
   return (
     <section
       aria-current={isDocumentSelection(props.selected, id) || undefined}
@@ -357,6 +441,23 @@ function DocumentSectionView(props: {
       </button>
       {props.section.terminal ? (
         <span className="document-readonly">只读</span>
+      ) : null}
+      {canArchive ? (
+        <button
+          className="document-archive"
+          onClick={() => setConfirming(true)}
+          type="button"
+        >
+          归档
+        </button>
+      ) : null}
+      {confirming ? (
+        <ArchiveConfirm
+          busy={busy}
+          onCancel={() => setConfirming(false)}
+          onConfirm={() => void archive()}
+          title={props.section.title}
+        />
       ) : null}
       {props.section.fields.map((field) => (
         <DocumentFieldView

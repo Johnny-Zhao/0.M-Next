@@ -18,6 +18,13 @@ export interface RelationCommandResult {
   readonly version?: number;
 }
 
+export interface CommandAck {
+  readonly commandId?: string;
+  readonly status?: string;
+  readonly idempotentReplay?: boolean;
+  readonly events?: readonly string[];
+}
+
 export interface AiCommandResult {
   readonly events?: readonly string[];
   readonly results?: readonly unknown[];
@@ -127,6 +134,40 @@ export class CommandClient {
       objectId,
       expectedObjectVersion,
       fields,
+    });
+  }
+
+  /**
+   * 新建对象。objectTypeId 为对象类型的 UUID(经 viewClient.objectTypes 由 code 解析),
+   * fields 至少含该类型的必填字段。走已注册命令入口 POST /commands(AG-301/AG-110)。
+   */
+  async createObject(
+    workspaceId: string,
+    objectTypeId: string,
+    fields: Readonly<Record<string, unknown>>,
+    initialState?: "DRAFT" | "PENDING_CONFIRM",
+  ): Promise<CommandAck | void> {
+    return this.post("CreateObject", workspaceId, {
+      objectTypeId,
+      fields,
+      source: { type: "manual", ref: "authoring" },
+      ...(initialState ? { initialState } : {}),
+    });
+  }
+
+  /** 归档对象(或关系)。按对象版本乐观锁,走已注册命令入口 POST /commands。 */
+  async archive(
+    workspaceId: string,
+    targetType: "object" | "relation",
+    targetId: string,
+    expectedVersion: number,
+    reason = "authoring-archive",
+  ): Promise<void> {
+    await this.post("Archive", workspaceId, {
+      targetType,
+      targetId,
+      reason,
+      expectedVersion,
     });
   }
 
