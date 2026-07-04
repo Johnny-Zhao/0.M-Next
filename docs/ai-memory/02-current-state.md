@@ -16,10 +16,12 @@
 | 保存即自动校核 | Codex | ✅（合并状态待业主确认） |
 | 4a 导出契约（treeScope/sectionMapping） | Codex | ✅ 已合并 |
 | 4b docx 章节化渲染 | Codex | ✅ 已合并 |
-| 4c 前端导出走文档树 | Codex | ✅ 验收通过，合并中 |
-| 4d 导出观感修缮（标题样式注入/fieldLabels 契约小增补人审/默认段落/状态中文化） | Codex | 🔄 已发 |
-| 概览条（总功耗/预算/超预算徽章，refreshVersion 联动） | Codex（并行） | 🔄 已发 |
-| 最小创作能力（新建方案+文档树加章节模块+填参数+导出自有 Word） | Codex（业主定交互） | 🔄 无阻断切片已做（feat/T-V01-6-authoring-minimal）：向导「技术方案」路径建 proposal 根+templateCode 直入工作台、文档树节点归档流；「加模块」（CreateRelation）与 Inspector 新建后聚焦阻断于 6a，待 relation-types 端点合并后补 |
+| 4c 前端导出走文档树 | Codex | ✅ 已合并 |
+| 4d 导出观感修缮（标题样式/中文标签/默认段落/状态中文化） | Codex | ✅ 已合并 |
+| 概览条（总功耗/预算/超预算徽章，refreshVersion 联动） | Codex | ✅ 已合并 |
+| 创作能力 part1（向导建方案+归档） | Codex | ✅ 已合并 |
+| 6a relation-types 只读端点（解锁 UI 建关系历史断点） | Codex | ✅ 已合并 |
+| 6b 文档树「添加模块」（relationTypes→CreateObject→CreateRelation→自动选中，新模块预置 power_w=0） | Codex | 🔄 Fable 审查通过，待业主 6 步验收后合并 |
 | 跨类型校核可见 | — | 概览条落地后重评，可能降级 |
 | 30 分钟启动脚本 | Fable | 待做 |
 | 演示打磨杂项 | — | 降级 v0.1 后 |
@@ -31,12 +33,11 @@
 - CreateObject 响应不直接携带新对象 id，前端按既有模式（事件+唯一字段查询）兜底。
 - **无阻断切片已落**（feat/T-V01-6-authoring-minimal，verify:web 全绿）：CommandClient 新增 createObject/archive（走已注册 /commands）；向导「技术方案」= 名称+功耗预算 → instantiateWorkspace → CreateObject(proposal: title/version=v1/author/power_budget_w) → onOpenWorkspace 携带 templateCode 直入工作台；文档树节点「归档」确认流 → Archive → 刷新（onArchived 联动概览条 refreshVersion）。**留待 6a**：文档树「加模块」（需 relationTypeId UUID）与 Inspector 新建后聚焦（其唯一触发＝加模块）。
 
-## 已知问题（4d 修复中）
+## 已知问题
 
-1. 导出的 docx 标题无样式定义 → Word 导航窗格为空（POI 空白文档坑，已确认）
-2. 参数表标签为字段码（power_w）
-3. 无 sectionMapping 时描述类字段不出段落，文档偏骨架
-4. 校核结论表状态为英文码（BLOCK/WARN/UNKNOWN）
+- （4d 已修复并合并：标题样式/导航窗格、中文字段标签、默认段落、校核状态中文化——留档）
+- relation-types 返回的 name 暂为 code 复读（SQL 未取 name 列），前端显示中文名时再补
+- 6b 合并后：v0.1 剩余收尾＝golden-path 计时验收（文档已备）+ dogfood（搬 V3.3 一章）
 
 ## 环境与门禁事实
 
