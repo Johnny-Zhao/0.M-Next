@@ -387,7 +387,7 @@ describe("DocumentView", () => {
     expect(message).not.toContain("KERNEL");
   });
 
-  it("hints a refresh when the new module cannot be read back yet", async () => {
+  it("returns a soft syncing notice (not an error) when the module can't be read back", async () => {
     const objectTypes = vi
       .fn()
       .mockResolvedValue([
@@ -409,13 +409,15 @@ describe("DocumentView", () => {
       proposalId: "proposal-1",
       name: "供电模块",
       relationTypeId: "rel",
-      attempts: 2,
+      attempts: 3,
       delay: () => Promise.resolve(),
     });
 
-    expect(result.kind).toBe("error");
-    const message = result.kind === "error" ? result.message : "";
-    expect(message).toContain("刷新");
+    expect(result).toEqual({
+      kind: "pending",
+      message: "模块已创建，正在同步，稍后会出现在文档树中",
+    });
+    expect(objects).toHaveBeenCalledTimes(4);
     expect(createRelation).not.toHaveBeenCalled();
   });
 

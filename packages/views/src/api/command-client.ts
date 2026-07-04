@@ -111,6 +111,14 @@ export class CommandFailure extends Error {
   }
 }
 
+/**
+ * 系统作者工作空间:模板在此装载/授权,实例化命令须发往这里(而非尚不存在的新空间)。
+ * 值与服务端 ProfileLoader.AUTHOR_WORKSPACE 一致;调用形状对齐
+ * RelationTypeQueryIntegrationTest.instantiate()(唯一权威示例)。
+ * TODO(T-V01-x):后续由模板目录接口下发作者空间 id,不长期依赖前端常量。
+ */
+const AUTHOR_WORKSPACE_ID = "a0000000-0000-4000-8000-000000000000";
+
 export class CommandClient {
   private actorId: string | null = null;
 
@@ -334,7 +342,10 @@ export class CommandClient {
     throw failure;
   }
 
-  /** 用模板实例化一个新工作空间(新建项目)。新工作空间无成员=未治理,鉴权放行。 */
+  /**
+   * 用模板实例化一个新工作空间(新建项目)。命令发往系统作者工作空间(模板在此授权/装载,
+   * 未治理故鉴权放行);目标新空间由 payload.newWorkspaceId 指定,而非命令信封/路径。
+   */
   async instantiateWorkspace(
     newWorkspaceId: string,
     templateId: string,
@@ -345,7 +356,7 @@ export class CommandClient {
       throw new Error("缺少 X-Actor-Id: 请先登录后再创建项目");
     }
     const response = await this.fetchFn(
-      `${this.baseUrl}/workspaces/${newWorkspaceId}/meta-commands`,
+      `${this.baseUrl}/workspaces/${AUTHOR_WORKSPACE_ID}/meta-commands`,
       {
         method: "POST",
         headers: {
@@ -354,7 +365,7 @@ export class CommandClient {
         },
         body: JSON.stringify({
           commandType: "InstantiateWorkspace",
-          workspaceId: newWorkspaceId,
+          workspaceId: AUTHOR_WORKSPACE_ID,
           correlationId: crypto.randomUUID(),
           idempotencyKey: `mc-${crypto.randomUUID()}`,
           payload: { templateId, version, newWorkspaceId, workspaceName },

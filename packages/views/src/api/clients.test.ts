@@ -593,6 +593,34 @@ describe("view and command clients", () => {
     });
   });
 
+  it("instantiates against the author workspace with the new id in the payload", async () => {
+    const fetchFn = vi.fn<FetchFn>(
+      async () => new Response(null, { status: 200 }),
+    );
+    const client = new CommandClient("/api", fetchFn);
+    client.setActorId("alice");
+
+    await client.instantiateWorkspace("ws-new", "tpl-1", 2, "测试方案");
+
+    const author = "a0000000-0000-4000-8000-000000000000";
+    expect(fetchFn.mock.calls[0]?.[0]).toBe(
+      `/api/workspaces/${author}/meta-commands`,
+    );
+    expect(fetchFn.mock.calls[0]?.[1]?.headers).toMatchObject({
+      "content-type": "application/json",
+      "X-Actor-Id": "alice",
+    });
+    const request = JSON.parse(String(fetchFn.mock.calls[0]?.[1]?.body));
+    expect(request.commandType).toBe("InstantiateWorkspace");
+    expect(request.workspaceId).toBe(author);
+    expect(request.payload).toMatchObject({
+      templateId: "tpl-1",
+      version: 2,
+      newWorkspaceId: "ws-new",
+      workspaceName: "测试方案",
+    });
+  });
+
   it("posts AI proposal commands to the governed AI endpoint", async () => {
     const fetchFn = vi.fn<FetchFn>(
       async () => new Response(JSON.stringify({ events: ["set-1"] })),

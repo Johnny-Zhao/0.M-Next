@@ -85,11 +85,12 @@ export async function archiveDocumentObject(
 const MODULE_OBJECT_TYPE_CODE = "module";
 export const PROPOSAL_OBJECT_TYPE_CODE = "proposal";
 export const PROPOSAL_CONTAINS_MODULE_RELATION = "proposal_contains_module";
-const RESOLVE_ATTEMPTS = 6;
-const RESOLVE_DELAY_MS = 200;
+const RESOLVE_ATTEMPTS = 10;
+const RESOLVE_DELAY_MS = 500;
 
 export type AddModuleResult =
   | { readonly kind: "added"; readonly moduleId: string }
+  | { readonly kind: "pending"; readonly message: string }
   | { readonly kind: "error"; readonly message: string };
 
 function realDelay(ms: number): Promise<void> {
@@ -183,9 +184,10 @@ export async function addModuleToProposal(params: {
       delay: params.delay ?? realDelay,
     });
     if (!moduleId) {
+      // 读模型投影滞后、重试预算耗尽:模块已落库,不作失败处理——软提示 + 触发树刷新,稍后自现。
       return {
-        kind: "error",
-        message: "模块已创建,但暂时读取不到,请稍后刷新文档树",
+        kind: "pending",
+        message: "模块已创建，正在同步，稍后会出现在文档树中",
       };
     }
     await params.commandClient.createRelation(
@@ -493,6 +495,11 @@ export function DocumentView(props: DocumentViewProps): ReactElement {
               onRefresh: onArchived,
             })
           }
+          onModulePending={(message) => {
+            onError?.(message);
+            onArchived?.();
+            reload();
+          }}
           section={section}
           selected={selected}
           selection={selection}
@@ -567,6 +574,7 @@ export function AddModuleControl(props: {
   readonly proposalId: string;
   readonly relationTypeId: string | null | undefined;
   readonly onAdded: (moduleId: string) => void;
+  readonly onPending?: (message: string) => void;
   readonly onError?: (message: string) => void;
 }): ReactElement {
   const [open, setOpen] = useState(false);
@@ -590,6 +598,10 @@ export function AddModuleControl(props: {
       setName("");
       setOpen(false);
       props.onAdded(result.moduleId);
+    } else if (result.kind === "pending") {
+      setName("");
+      setOpen(false);
+      props.onPending?.(result.message);
     } else {
       props.onError?.(result.message);
     }
@@ -658,6 +670,7 @@ function DocumentSectionView(props: {
   readonly onArchived?: () => void;
   readonly moduleRelationTypeId?: string | null;
   readonly onModuleAdded?: (moduleId: string) => void;
+  readonly onModulePending?: (message: string) => void;
   readonly viewClient?: Pick<ViewClient, "objectTypes" | "objects">;
   readonly workspaceId: string;
 }): ReactElement {
@@ -727,6 +740,7 @@ function DocumentSectionView(props: {
           commandClient={props.commandClient}
           onAdded={(moduleId) => props.onModuleAdded?.(moduleId)}
           onError={props.onError}
+          onPending={(message) => props.onModulePending?.(message)}
           proposalId={id}
           relationTypeId={props.moduleRelationTypeId}
           viewClient={props.viewClient}
