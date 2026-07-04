@@ -553,7 +553,7 @@ export function ArchiveConfirm(props: {
       className="document-archive-confirm"
       role="dialog"
     >
-      <p>确认归档「{props.title}」？归档后不可再编辑（不做硬删除）。</p>
+      <p>归档「{props.title}」，并解除它与方案的关联？</p>
       <button disabled={props.busy} onClick={props.onConfirm} type="button">
         {props.busy ? "归档中…" : "确认归档"}
       </button>

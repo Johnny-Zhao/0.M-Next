@@ -163,7 +163,11 @@ export class CommandClient {
     });
   }
 
-  /** 归档对象(或关系)。按对象版本乐观锁,走已注册命令入口 POST /commands。 */
+  /**
+   * 归档对象(或关系)。按对象版本乐观锁,走已注册命令入口 POST /commands。
+   * relationPolicy="unlink":内核要求归档带活动关系的对象须显式声明连带解除,否则拒
+   * KERNEL-422-ACTIVE-RELATIONS。
+   */
   async archive(
     workspaceId: string,
     targetType: "object" | "relation",
@@ -176,6 +180,7 @@ export class CommandClient {
       targetId,
       reason,
       expectedVersion,
+      relationPolicy: "unlink",
     });
   }
 

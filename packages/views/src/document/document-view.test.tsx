@@ -251,6 +251,7 @@ describe("DocumentView", () => {
     const markup = JSON.stringify(dialog);
     expect(markup).toContain("确认归档");
     expect(markup).toContain("方案编排");
+    expect(markup).toContain("解除它与方案的关联");
     expect(markup).toContain("取消");
   });
 

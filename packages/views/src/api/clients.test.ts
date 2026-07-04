@@ -590,6 +590,7 @@ describe("view and command clients", () => {
       targetId: "module-1",
       reason: "authoring-archive",
       expectedVersion: 3,
+      relationPolicy: "unlink",
     });
   });
 
