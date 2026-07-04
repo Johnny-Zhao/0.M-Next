@@ -35,6 +35,11 @@
 
 ## 已知问题
 
+- **backlog（不阻断）**：per-workspace 队列（workspace.*.events）自断流修复后无人消费、持续堆积（22222222 已 86 条、33333333 已 209 条）——后续加消息 TTL/max-length 策略或停发，v0.1 不动拓扑。
+- 归档需 relationPolicy=unlink（内核 KERNEL-422-ACTIVE-RELATIONS 保护）——前端修复中。
+- 新模块未填职责会触发 R-TD-RESP 黄色告警——预期行为，非缺陷。
+- **2026-07-04 重大发现（6b 验收踩雷）**：读模型投影只覆盖种子工作空间——发布侧 per-workspace 队列 + 消费侧写死监听 11111111 队列 + DevSeed 进程内直投掩盖；运行期新建的工作空间读模型永远为空。修复方向：发布侧加投共享队列 readmodel.events + 去掉 dev 配置写死（Codex 修复中，Fable 审）。同批前端修复：作者空间常量修正（已落）、根发现/读回重试与概览条中性态。
+
 - （4d 已修复并合并：标题样式/导航窗格、中文字段标签、默认段落、校核状态中文化——留档）
 - relation-types 返回的 name 暂为 code 复读（SQL 未取 name 列），前端显示中文名时再补
 - 6b 合并后：v0.1 剩余收尾＝golden-path 计时验收（文档已备）+ dogfood（搬 V3.3 一章）

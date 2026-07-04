@@ -345,18 +345,41 @@ export function Workbench({
 
   useEffect(() => {
     if (!defaults.rootObjectType || rootId.trim() !== "") return;
+    // 进门瞬间读模型可能还没投影到方案根:重试 10 次×500ms;refreshVersion 变化时整体重跑再触发。
+    const rootType = defaults.rootObjectType;
     let disposed = false;
-    void viewClient
-      .objects(workspaceId, defaults.rootObjectType, 0, 1)
-      .then((page) => {
-        const firstRootId = page.items[0]?.objectId;
-        if (!disposed && firstRootId) setRootId(firstRootId);
-      })
-      .catch(() => {});
+    let remaining = 10;
+    let timer: number | undefined;
+    const scheduleRetry = () => {
+      remaining -= 1;
+      if (remaining > 0) timer = window.setTimeout(tryDiscover, 500);
+    };
+    function tryDiscover(): void {
+      void viewClient
+        .objects(workspaceId, rootType, 0, 1)
+        .then((page) => {
+          if (disposed) return;
+          const firstRootId = page.items[0]?.objectId;
+          if (firstRootId) setRootId(firstRootId);
+          else scheduleRetry();
+        })
+        .catch(() => {
+          if (!disposed) scheduleRetry();
+        });
+    }
+    tryDiscover();
     return () => {
       disposed = true;
+      if (timer !== undefined) window.clearTimeout(timer);
     };
-  }, [defaults.rootObjectType, rootId, setRootId, viewClient, workspaceId]);
+  }, [
+    defaults.rootObjectType,
+    refreshVersion,
+    rootId,
+    setRootId,
+    viewClient,
+    workspaceId,
+  ]);
 
   const context = useMemo<WorkbenchContextValue>(
     () => ({

@@ -56,9 +56,10 @@ export function formatPower(value: number | null): string {
   return `${text}W`;
 }
 
-export function ProposalSummaryBar(): ReactElement | null {
+export function ProposalSummaryBar(): ReactElement {
   const { refreshVersion, viewClient, workspaceId } = useWorkbenchContext();
-  const [summary, setSummary] = useState<ProposalSummary | null>(null);
+  // 查不到数据(尚未投影/查询失败)时用中性摘要「— / —」占位,不整条隐藏——进门瞬间也保持在场。
+  const [summary, setSummary] = useState<ProposalSummary>(emptySummary);
   const loadKey = proposalSummaryLoadKey(workspaceId, refreshVersion);
 
   useEffect(() => {
@@ -68,14 +69,14 @@ export function ProposalSummaryBar(): ReactElement | null {
         if (!disposed) setSummary(next);
       })
       .catch(() => {
-        if (!disposed) setSummary(null);
+        if (!disposed) setSummary(emptySummary());
       });
     return () => {
       disposed = true;
     };
   }, [loadKey, viewClient, workspaceId]);
 
-  return summary ? <ProposalSummaryBarView summary={summary} /> : null;
+  return <ProposalSummaryBarView summary={summary} />;
 }
 
 export function ProposalSummaryBarView({

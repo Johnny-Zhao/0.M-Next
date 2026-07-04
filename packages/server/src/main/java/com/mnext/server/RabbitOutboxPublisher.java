@@ -8,6 +8,9 @@ import org.springframework.stereotype.Component;
 
 @Component
 final class RabbitOutboxPublisher implements OutboxPublisher {
+  // 共享读模型队列:所有工作空间的事件都投一份到这里,读模型监听器统一消费(默认队列名,
+  // 与 ReadModelRabbitListener 的 ${mnext.readmodel.queue:readmodel.events} 默认值一致)。
+  static final String READMODEL_QUEUE = "readmodel.events";
   private final RabbitTemplate rabbit;
   private final AmqpAdmin admin;
 
@@ -20,9 +23,12 @@ final class RabbitOutboxPublisher implements OutboxPublisher {
   public void publish(UUID workspaceId, String payload) {
     var channel = channel(workspaceId);
     admin.declareQueue(new Queue(channel, true));
+    admin.declareQueue(new Queue(READMODEL_QUEUE, true));
     rabbit.invoke(
         operations -> {
+          // 每个事件同时进入 per-workspace 队列与共享读模型队列;重复消费由读模型幂等去重兜底。
           operations.convertAndSend("", channel, payload);
+          operations.convertAndSend("", READMODEL_QUEUE, payload);
           operations.waitForConfirmsOrDie(5_000);
           return null;
         });

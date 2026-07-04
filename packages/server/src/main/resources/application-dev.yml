@@ -15,4 +15,5 @@ spring:
 mnext:
   readmodel:
     enabled: true
-    queue: workspace.11111111-1111-4111-8111-111111111111.events
+    # 队列名用监听器默认值 readmodel.events(RabbitOutboxPublisher 会把每个事件投一份到此共享队列);
+    # 不再写死到单个工作空间队列,否则只有该工作空间的读模型会被更新。
