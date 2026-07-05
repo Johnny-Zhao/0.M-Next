@@ -21,6 +21,8 @@ import {
   handleModuleAdded,
   isDocumentSelection,
   replaceDocumentField,
+  replaceDocumentObject,
+  resolveDocumentFieldConflict,
   saveDocumentField,
   selectDocumentField,
   selectDocumentObject,
@@ -145,17 +147,58 @@ describe("DocumentView", () => {
       2,
     );
 
+    // 仅按对象版本乐观锁:载荷不含 expectedFieldVersion(前端无 per-field 版本)。
     expect(updateFields).toHaveBeenCalledWith("workspace", "child", 1, [
-      {
-        fieldDefCode: "body",
-        value: "Changed body",
-        expectedFieldVersion: 1,
-      },
+      { fieldDefCode: "body", value: "Changed body" },
     ]);
-    expect(result).toEqual({ kind: "saved" });
+    expect(result).toEqual({ kind: "saved", value: "Changed body" });
     expect(changed[0]?.fields[1]?.value).toBe("Changed body");
     expect(changed[0]?.object.version).toBe(2);
     expect(changed[1]).toBe(before[1]);
+  });
+
+  it("coerces a number field to a number before submitting (document view)", async () => {
+    const updateFields = vi.fn().mockResolvedValue(undefined);
+    const module: ViewObject = {
+      ...object("module-1", "供电模块"),
+      objectType: "module",
+      fields: { name: "供电模块", power_w: 0 },
+    };
+
+    const result = await saveDocumentField(
+      commandClient(updateFields),
+      "workspace",
+      module,
+      "power_w",
+      "50",
+      "number",
+    );
+
+    expect(updateFields).toHaveBeenCalledWith("workspace", "module-1", 1, [
+      { fieldDefCode: "power_w", value: 50 },
+    ]);
+    expect(result).toEqual({ kind: "saved", value: 50 });
+  });
+
+  it("blocks a non-numeric document field and does not submit", async () => {
+    const updateFields = vi.fn();
+    const module: ViewObject = {
+      ...object("module-1", "供电模块"),
+      objectType: "module",
+      fields: { name: "供电模块", power_w: 0 },
+    };
+
+    const result = await saveDocumentField(
+      commandClient(updateFields),
+      "workspace",
+      module,
+      "power_w",
+      "abc",
+      "number",
+    );
+
+    expect(result).toEqual({ kind: "error", message: "请输入数字" });
+    expect(updateFields).not.toHaveBeenCalled();
   });
 
   it("returns KERNEL-409 details for the existing conflict dialog", async () => {
@@ -192,6 +235,118 @@ describe("DocumentView", () => {
     });
     expect(JSON.stringify(dialog)).toContain("字段已被他人修改");
     expect(JSON.stringify(dialog)).toContain("Latest");
+  });
+
+  it("采用当前值: refetches the object, sends no command, refreshes local display", async () => {
+    const updateFields = vi.fn();
+    const objectFetch = vi.fn().mockResolvedValue({
+      object: {
+        ...object("child", "Child"),
+        version: 3,
+        fields: { name: "Child", body: "对方的值" },
+      },
+      relations: [],
+    });
+
+    const resolution = await resolveDocumentFieldConflict({
+      commandClient: commandClient(updateFields),
+      viewClient: viewClientWith(objectFetch),
+      workspaceId: "workspace",
+      objectId: "child",
+      fieldCode: "body",
+      choice: "current",
+      draft: "我的草稿",
+    });
+
+    expect(objectFetch).toHaveBeenCalledWith("workspace", "child");
+    expect(updateFields).not.toHaveBeenCalled();
+    expect(resolution.kind).toBe("refreshed");
+    const refreshed =
+      resolution.kind === "refreshed" ? resolution.object : null;
+    expect(refreshed?.version).toBe(3);
+    expect(refreshed?.fields.body).toBe("对方的值");
+  });
+
+  it("采用我的值: refetches the latest version then resubmits my draft", async () => {
+    const updateFields = vi.fn().mockResolvedValue(undefined);
+    const objectFetch = vi.fn().mockResolvedValue({
+      object: { ...object("child", "Child"), version: 3 },
+      relations: [],
+    });
+
+    const resolution = await resolveDocumentFieldConflict({
+      commandClient: commandClient(updateFields),
+      viewClient: viewClientWith(objectFetch),
+      workspaceId: "workspace",
+      objectId: "child",
+      fieldCode: "body",
+      choice: "mine",
+      draft: "我的值胜出",
+    });
+
+    // 用重新拉取到的最新版本(3)重提,而非过期版本 → 不再撞 409。
+    expect(updateFields).toHaveBeenCalledWith("workspace", "child", 3, [
+      { fieldDefCode: "body", value: "我的值胜出" },
+    ]);
+    expect(resolution.kind).toBe("saved");
+    const saved = resolution.kind === "saved" ? resolution.object : null;
+    expect(saved?.version).toBe(4);
+    expect(saved?.fields.body).toBe("我的值胜出");
+  });
+
+  it("edits another field normally after conflict resolution (fresh version, no stale 409)", async () => {
+    const objectFetch = vi.fn().mockResolvedValue({
+      object: { ...object("child", "Child"), version: 3 },
+      relations: [],
+    });
+    const resolution = await resolveDocumentFieldConflict({
+      commandClient: commandClient(vi.fn()),
+      viewClient: viewClientWith(objectFetch),
+      workspaceId: "workspace",
+      objectId: "child",
+      fieldCode: "body",
+      choice: "current",
+      draft: "我的草稿",
+    });
+    const latest =
+      resolution.kind === "refreshed"
+        ? resolution.object
+        : object("child", "Child");
+
+    const updateFields = vi.fn().mockResolvedValue(undefined);
+    const result = await saveDocumentField(
+      commandClient(updateFields),
+      "workspace",
+      latest,
+      "name",
+      "新名称",
+    );
+
+    expect(updateFields).toHaveBeenCalledWith("workspace", "child", 3, [
+      { fieldDefCode: "name", value: "新名称" },
+    ]);
+    expect(result.kind).toBe("saved");
+  });
+
+  it("replaceDocumentObject refreshes version and every field value in place", () => {
+    const before = buildDocumentSections(
+      "child",
+      [],
+      [page({ ...object("child", "Child"), version: 1 })],
+      types,
+    );
+    const fresh = {
+      ...object("child", "Child"),
+      version: 5,
+      fields: { name: "Child", body: "Server body" },
+    };
+
+    const after = replaceDocumentObject(before, "child", fresh);
+
+    expect(after[0]?.object.version).toBe(5);
+    expect(
+      after[0]?.fields.find((field) => field.definition.code === "body")?.value,
+    ).toBe("Server body");
   });
 
   it("stays readonly without a command client", () => {
@@ -490,4 +645,10 @@ function commandClient(
   updateFields = vi.fn().mockResolvedValue(undefined),
 ): CommandClient {
   return { updateFields } as unknown as CommandClient;
+}
+
+function viewClientWith(
+  objectFetch: ReturnType<typeof vi.fn>,
+): Pick<ViewClient, "object"> {
+  return { object: objectFetch } as unknown as Pick<ViewClient, "object">;
 }

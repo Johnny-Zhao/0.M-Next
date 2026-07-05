@@ -5,6 +5,7 @@ import {
   type CommandClient,
   type ConflictField,
 } from "../api/command-client";
+import { updateSingleField } from "../api/update-single-field";
 import type {
   FieldDefinition,
   ObjectPage,
@@ -232,7 +233,7 @@ export interface DocumentFieldConflict {
 }
 
 export type DocumentFieldSaveResult =
-  | { readonly kind: "saved" }
+  | { readonly kind: "saved"; readonly value: unknown }
   | { readonly kind: "conflict"; readonly conflict: DocumentFieldConflict }
   | { readonly kind: "error"; readonly message: string };
 
@@ -336,22 +337,22 @@ export async function saveDocumentField(
   workspaceId: string,
   object: ViewObject,
   fieldCode: string,
-  value: unknown,
+  raw: string,
+  dataType?: string,
 ): Promise<DocumentFieldSaveResult> {
   try {
-    await commandClient.updateFields(
+    // 经唯一出口 updateSingleField 完成"按字段类型转换 + 提交";非法数字拦截为可读提示。
+    // 仅按对象版本乐观锁(object.version 充当 expectedObjectVersion,不传字段版本——前端无 per-field 版本)。
+    const result = await updateSingleField(commandClient, {
       workspaceId,
-      object.objectId,
-      object.version,
-      [
-        {
-          fieldDefCode: fieldCode,
-          value,
-          expectedFieldVersion: object.version,
-        },
-      ],
-    );
-    return { kind: "saved" };
+      object,
+      fieldCode,
+      raw,
+      dataType,
+    });
+    return result.kind === "invalid"
+      ? { kind: "error", message: result.message }
+      : { kind: "saved", value: result.value };
   } catch (error) {
     if (
       error instanceof CommandFailure &&
@@ -392,6 +393,96 @@ export function replaceDocumentField(
     );
     return documentSection(object, section.depth, fields);
   });
+}
+
+/**
+ * 用服务端最新对象整体替换某节段(版本 + 全字段值 + 状态/标题重算),供冲突解决后刷新本地显示,
+ * 不留过期版本。字段定义沿用原节段,值取自最新对象。纯函数,便于测试。
+ */
+export function replaceDocumentObject(
+  sections: readonly DocumentSection[],
+  objectId: string,
+  object: ViewObject,
+): readonly DocumentSection[] {
+  return sections.map((section) => {
+    if (section.object.objectId !== objectId) return section;
+    const fields = section.fields.map((field) => ({
+      ...field,
+      value: object.fields[field.definition.code],
+    }));
+    return documentSection(object, section.depth, fields);
+  });
+}
+
+export type DocumentConflictChoice = "mine" | "current";
+
+export type DocumentConflictResolution =
+  | { readonly kind: "refreshed"; readonly object: ViewObject }
+  | {
+      readonly kind: "saved";
+      readonly object: ViewObject;
+      readonly value: unknown;
+    }
+  | { readonly kind: "conflict"; readonly conflict: DocumentFieldConflict }
+  | { readonly kind: "error"; readonly message: string };
+
+/**
+ * 解决文档字段编辑冲突(KERNEL-409)。两个分支都先重新拉取该对象最新 detail——拿到权威版本 +
+ * 当前值,不信任 409 details 里可能过期/缺失的 currentVersion(否则本地会留过期版本,下次编辑再撞
+ * 409):
+ *  - "current"(采用当前值 / 放弃我的草稿):不发任何命令,返回服务端最新对象供本地刷新、关闭对话框;
+ *  - "mine"(采用我的值 / 覆盖):用我的草稿值 + 最新对象版本经唯一出口 saveDocumentField 重提。
+ * 冲突按对象版本乐观锁(前端无字段级版本,见 updateSingleField 注释)。纯编排,便于测试。
+ */
+export async function resolveDocumentFieldConflict(params: {
+  readonly commandClient: CommandClient;
+  readonly viewClient: Pick<ViewClient, "object">;
+  readonly workspaceId: string;
+  readonly objectId: string;
+  readonly fieldCode: string;
+  readonly choice: DocumentConflictChoice;
+  readonly draft: string;
+  readonly dataType?: string;
+}): Promise<DocumentConflictResolution> {
+  let latest: ViewObject;
+  try {
+    latest = (
+      await params.viewClient.object(params.workspaceId, params.objectId)
+    ).object;
+  } catch (error) {
+    return {
+      kind: "error",
+      message: error instanceof Error ? error.message : "刷新失败",
+    };
+  }
+  if (params.choice === "current") {
+    return { kind: "refreshed", object: latest };
+  }
+  // 采用我的值:用最新版本重提我的草稿,避免旧版本再撞 409。
+  const result = await saveDocumentField(
+    params.commandClient,
+    params.workspaceId,
+    latest,
+    params.fieldCode,
+    params.draft,
+    params.dataType,
+  );
+  if (result.kind === "saved") {
+    return {
+      kind: "saved",
+      value: result.value,
+      object: {
+        ...latest,
+        version: latest.version + 1,
+        fields: { ...latest.fields, [params.fieldCode]: result.value },
+      },
+    };
+  }
+  if (result.kind === "conflict") {
+    // 极少数:重提又撞版本(投影仍滞后)——回报冲突,由用户再决定。
+    return { kind: "conflict", conflict: result.conflict };
+  }
+  return { kind: "error", message: result.message };
 }
 
 export function DocumentView(props: DocumentViewProps): ReactElement {
@@ -445,6 +536,10 @@ export function DocumentView(props: DocumentViewProps): ReactElement {
       replaceDocumentField(current, objectId, fieldCode, value, version),
     );
 
+  // 冲突解决后:用服务端最新对象整体刷新该节段(版本 + 全字段),不留过期版本。
+  const refreshObject = (objectId: string, object: ViewObject) =>
+    setSections((current) => replaceDocumentObject(current, objectId, object));
+
   useEffect(() => {
     let active = true;
     void loadSections(viewClient, workspaceId, rootId, relationType)
@@ -489,6 +584,7 @@ export function DocumentView(props: DocumentViewProps): ReactElement {
           onEditField={onEditField}
           onError={onError}
           onFieldSaved={updateField}
+          onObjectRefreshed={refreshObject}
           onModuleAdded={(moduleId) =>
             handleModuleAdded(selection, moduleId, {
               reload,
@@ -667,11 +763,12 @@ function DocumentSectionView(props: {
     value: unknown,
     version: number,
   ) => void;
+  readonly onObjectRefreshed: (objectId: string, object: ViewObject) => void;
   readonly onArchived?: () => void;
   readonly moduleRelationTypeId?: string | null;
   readonly onModuleAdded?: (moduleId: string) => void;
   readonly onModulePending?: (message: string) => void;
-  readonly viewClient?: Pick<ViewClient, "objectTypes" | "objects">;
+  readonly viewClient?: Pick<ViewClient, "objectTypes" | "objects" | "object">;
   readonly workspaceId: string;
 }): ReactElement {
   const id = props.section.object.objectId;
@@ -757,10 +854,12 @@ function DocumentSectionView(props: {
           onEditField={props.onEditField}
           onError={props.onError}
           onFieldSaved={props.onFieldSaved}
+          onObjectRefreshed={props.onObjectRefreshed}
           selected={props.selected}
           selection={props.selection}
           targets={props.targets}
           terminal={props.section.terminal}
+          viewClient={props.viewClient}
           workspaceId={props.workspaceId}
         />
       ))}
@@ -785,6 +884,8 @@ function DocumentFieldView(props: {
     value: unknown,
     version: number,
   ) => void;
+  readonly onObjectRefreshed: (objectId: string, object: ViewObject) => void;
+  readonly viewClient?: Pick<ViewClient, "object">;
   readonly workspaceId: string;
 }): ReactElement {
   const code = props.field.definition.code;
@@ -792,25 +893,65 @@ function DocumentFieldView(props: {
   const content = `${props.field.definition.name}: ${String(props.field.value ?? "")}`;
   const [editing, setEditing] = useState(false);
   const [conflict, setConflict] = useState<DocumentFieldConflict | null>(null);
+  const [draft, setDraft] = useState("");
   const editable = !props.terminal && props.commandClient !== undefined;
 
-  async function save(value: unknown, version = props.object.version) {
+  async function save(raw: string): Promise<void> {
     if (!props.commandClient) return;
     const result = await saveDocumentField(
       props.commandClient,
       props.workspaceId,
-      { ...props.object, version },
+      props.object,
       code,
-      value,
+      raw,
+      props.field.definition.dataType,
     );
     if (result.kind === "saved") {
-      props.onFieldSaved(props.objectId, code, value, version + 1);
+      props.onFieldSaved(
+        props.objectId,
+        code,
+        result.value,
+        props.object.version + 1,
+      );
       setEditing(false);
       setConflict(null);
     } else if (result.kind === "conflict") {
+      setDraft(raw); // 保留我的草稿,供"采用我的值"以最新版本重提
       setConflict(result.conflict);
     } else {
       props.onError?.(result.message);
+    }
+  }
+
+  // 冲突解决:两分支都先重新拉取最新对象刷新本地,不留过期版本(见 resolveDocumentFieldConflict)。
+  async function resolveConflict(
+    choice: DocumentConflictChoice,
+  ): Promise<void> {
+    if (!props.commandClient || !props.viewClient) {
+      setConflict(null);
+      setEditing(false);
+      return;
+    }
+    const resolution = await resolveDocumentFieldConflict({
+      commandClient: props.commandClient,
+      viewClient: props.viewClient,
+      workspaceId: props.workspaceId,
+      objectId: props.objectId,
+      fieldCode: code,
+      choice,
+      draft,
+      dataType: props.field.definition.dataType,
+    });
+    if (resolution.kind === "refreshed" || resolution.kind === "saved") {
+      props.onObjectRefreshed(props.objectId, resolution.object);
+      setConflict(null);
+      setEditing(false);
+    } else if (resolution.kind === "conflict") {
+      setConflict(resolution.conflict);
+    } else {
+      props.onError?.(resolution.message);
+      setConflict(null);
+      setEditing(false);
     }
   }
   return (
@@ -876,26 +1017,9 @@ function DocumentFieldView(props: {
             setConflict(null);
             setEditing(false);
           }}
-          onConfirm={(choices) => {
-            const field = conflict.fields.find(
-              (item) => item.fieldDefCode === code,
-            );
-            if (choices[code] === "mine") {
-              void save(
-                field?.yourValue ?? props.field.value,
-                conflict.currentVersion,
-              );
-            } else if (field) {
-              props.onFieldSaved(
-                props.objectId,
-                code,
-                field.currentValue,
-                conflict.currentVersion,
-              );
-              setConflict(null);
-              setEditing(false);
-            }
-          }}
+          onConfirm={(choices) =>
+            void resolveConflict(choices[code] === "mine" ? "mine" : "current")
+          }
         />
       ) : null}
     </div>
@@ -952,15 +1076,18 @@ function FieldEditor({
   );
 }
 
-function editorValue(form: HTMLFormElement, field: FieldDefinition): unknown {
+function editorValue(form: HTMLFormElement, field: FieldDefinition): string {
   const input = form.elements.namedItem("value");
-  return field.dataType === "boolean"
-    ? input instanceof HTMLInputElement && input.checked
-    : input instanceof HTMLInputElement ||
-        input instanceof HTMLTextAreaElement ||
-        input instanceof HTMLSelectElement
-      ? input.value
-      : "";
+  if (field.dataType === "boolean") {
+    return input instanceof HTMLInputElement && input.checked
+      ? "true"
+      : "false";
+  }
+  return input instanceof HTMLInputElement ||
+    input instanceof HTMLTextAreaElement ||
+    input instanceof HTMLSelectElement
+    ? input.value
+    : "";
 }
 
 function enumValues(

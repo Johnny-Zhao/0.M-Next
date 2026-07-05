@@ -110,12 +110,9 @@ describe("CommandPalette", () => {
 
     await executeCommand(command!, context, "改字段");
 
+    // 仅按对象版本乐观锁(version 7 = expectedObjectVersion);载荷不含 expectedFieldVersion。
     expect(calls.updateFields).toHaveBeenCalledWith("workspace-1", "obj-a", 7, [
-      {
-        fieldDefCode: "name",
-        value: "Alpha Pump",
-        expectedFieldVersion: 7,
-      },
+      { fieldDefCode: "name", value: "Alpha Pump" },
     ]);
     expect(calls.refreshViews).toHaveBeenCalled();
   });

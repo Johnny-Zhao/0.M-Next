@@ -4,7 +4,10 @@ import {
   CommandFailure,
   type CommandClient,
   type ObjectDetail,
+  type ObjectType,
   type RelationSummary,
+  updateSingleField,
+  type UpdateSingleFieldResult,
   type ViewObject,
 } from "@m-next/views";
 
@@ -14,48 +17,33 @@ import { LineageView } from "./lineage-view";
 import { ProvenancePassport, RuleLamp } from "./widgets";
 import { useWorkbenchContext } from "./workbench";
 
-export function coerceEditedValue(
-  value: string,
-  currentValue: unknown,
-): unknown {
-  if (typeof currentValue === "number") {
-    const numeric = Number(value);
-    return Number.isFinite(numeric) ? numeric : currentValue;
-  }
-  if (typeof currentValue === "boolean") return value === "true";
-  return value;
-}
-
-export async function saveDrivingField(
+/**
+ * 保存 Inspector 字段:经唯一出口 updateSingleField 完成"按字段类型转换 + 提交"(数值→number,
+ * 非法数字拦截提示「请输入数字」不提交);字段版本≠对象版本导致 409 时,用后端返回的真实版本
+ * 重试一次(读库版本可能慢于写库)。不直接调用 updateFields。纯编排,便于测试。
+ */
+export async function saveInspectorField(
   commandClient: Pick<CommandClient, "updateFields">,
   workspaceId: string,
   object: ViewObject,
   fieldCode: string,
-  value: unknown,
-): Promise<void> {
-  // 不传 expectedFieldVersion:仅按对象版本做乐观锁(字段版本≠对象版本会 409)
-  const fields = [{ fieldDefCode: fieldCode, value }];
+  draft: string,
+  dataType: string | undefined,
+): Promise<UpdateSingleFieldResult> {
+  const params = { workspaceId, object, fieldCode, raw: draft, dataType };
   try {
-    await commandClient.updateFields(
-      workspaceId,
-      object.objectId,
-      object.version,
-      fields,
-    );
+    return await updateSingleField(commandClient, params);
   } catch (error) {
-    // 读库版本可能慢于写库;撞版本冲突时,用后端返回的真实版本重试一次
     const current =
       error instanceof CommandFailure &&
       error.commandError.code === "KERNEL-409-VERSION-CONFLICT"
         ? error.commandError.details?.currentVersion
         : undefined;
     if (typeof current !== "number") throw error;
-    await commandClient.updateFields(
-      workspaceId,
-      object.objectId,
-      current,
-      fields,
-    );
+    return updateSingleField(commandClient, {
+      ...params,
+      expectedObjectVersion: current,
+    });
   }
 }
 
@@ -149,6 +137,23 @@ export function InspectorPanel(): ReactElement {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [lineageFieldCode, setLineageFieldCode] = useState<string | null>(null);
+  const [objectTypes, setObjectTypes] = useState<readonly ObjectType[]>([]);
+
+  // 字段类型定义:保存数值字段前用它把字符串转 number(见 FieldEditor / saveInspectorField)。
+  useEffect(() => {
+    let disposed = false;
+    void context.viewClient
+      .objectTypes(context.workspaceId)
+      .then((types) => {
+        if (!disposed) setObjectTypes(types);
+      })
+      .catch(() => {
+        if (!disposed) setObjectTypes([]);
+      });
+    return () => {
+      disposed = true;
+    };
+  }, [context.viewClient, context.workspaceId]);
 
   useEffect(
     () =>
@@ -224,6 +229,10 @@ export function InspectorPanel(): ReactElement {
   }
 
   const object = detail.object;
+  const fieldDataType = (code: string): string | undefined =>
+    objectTypes
+      .find((type) => type.code === object.objectType)
+      ?.fields.find((field) => field.code === code)?.dataType;
   const { derived, stored } = partitionFields({
     ...object.fields,
     ...(object.derived ?? {}),
@@ -304,6 +313,7 @@ export function InspectorPanel(): ReactElement {
                 value={value}
                 workspaceId={context.workspaceId}
                 commandClient={context.commandClient}
+                dataType={fieldDataType(code)}
               />
             ))}
           </div>
@@ -321,6 +331,7 @@ export function InspectorPanel(): ReactElement {
                   value={value}
                   workspaceId={context.workspaceId}
                   commandClient={context.commandClient}
+                  dataType={fieldDataType(code)}
                 />
                 <button
                   className="field-lineage-toggle"
@@ -372,6 +383,7 @@ interface FieldEditorProps {
   readonly object: ViewObject;
   readonly workspaceId: string;
   readonly commandClient: Pick<CommandClient, "updateFields">;
+  readonly dataType?: string;
   readonly onSaved: () => void;
   readonly reportError: (message: string) => void;
 }
@@ -382,6 +394,7 @@ function FieldEditor({
   object,
   workspaceId,
   commandClient,
+  dataType,
   onSaved,
   reportError,
 }: FieldEditorProps): ReactElement {
@@ -392,13 +405,18 @@ function FieldEditor({
 
   async function save(): Promise<void> {
     try {
-      await saveDrivingField(
+      const result = await saveInspectorField(
         commandClient,
         workspaceId,
         object,
         fieldCode,
-        coerceEditedValue(draft, value),
+        draft,
+        dataType,
       );
+      if (result.kind === "invalid") {
+        reportError(result.message);
+        return;
+      }
       onSaved();
     } catch (error) {
       reportError(error instanceof Error ? error.message : "字段保存失败");

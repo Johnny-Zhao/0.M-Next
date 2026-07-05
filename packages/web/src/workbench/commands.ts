@@ -1,10 +1,11 @@
-import type {
-  CommandClient,
-  ObjectDetail,
-  OutputFormat,
-  SelectionCoordinator,
-  ViewClient,
-  ViewObject,
+import {
+  type CommandClient,
+  type ObjectDetail,
+  type OutputFormat,
+  type SelectionCoordinator,
+  updateSingleField,
+  type ViewClient,
+  type ViewObject,
 } from "@m-next/views";
 
 export type CommandGroup = "定位" | "编辑" | "视图" | "分析";
@@ -185,18 +186,15 @@ const builtInCommands: readonly CommandDefinition[] = [
       const detail = await selectedObject(context);
       if (!detail) return;
       const currentName = stringField(detail.object.fields.name);
-      await context.commandClient.updateFields(
-        context.workspaceId,
-        detail.object.objectId,
-        detail.object.version,
-        [
-          {
-            fieldDefCode: "name",
-            value: currentName,
-            expectedFieldVersion: detail.object.version,
-          },
-        ],
-      );
+      // 经唯一出口提交(禁止直接调用 updateFields);name 为字符串字段,原样透传。
+      // 仅按对象版本乐观锁(detail.object.version 充当 expectedObjectVersion,不传字段版本)。
+      await updateSingleField(context.commandClient, {
+        workspaceId: context.workspaceId,
+        object: detail.object,
+        fieldCode: "name",
+        raw: currentName,
+        dataType: "string",
+      });
       context.refreshViews();
     },
   },

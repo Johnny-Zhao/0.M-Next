@@ -1,3 +1,4 @@
+import type { ViewObject } from "@m-next/views";
 import { describe, expect, it, vi } from "vitest";
 
 import {
@@ -5,6 +6,7 @@ import {
   partitionFields,
   relationEndpointsLabel,
   relativeTime,
+  saveInspectorField,
   sourceLabel,
 } from "./inspector-panel";
 import { runSaveAutoCheck } from "./save-auto-check";
@@ -75,6 +77,53 @@ describe("relationEndpointsLabel", () => {
         version: 1,
       }),
     ).toBe("a → b");
+  });
+});
+
+describe("saveInspectorField", () => {
+  const object: ViewObject = {
+    objectId: "module-1",
+    objectType: "module",
+    status: "ACTIVE",
+    version: 5,
+    fields: { power_w: 180 },
+    updatedAt: "2026-07-02T00:00:00Z",
+    source: "manual",
+    ruleStatus: "OK",
+  };
+
+  it("converts a numeric field to a number before sending", async () => {
+    const updateFields = vi.fn().mockResolvedValue(undefined);
+
+    const result = await saveInspectorField(
+      { updateFields },
+      "workspace-1",
+      object,
+      "power_w",
+      "240",
+      "number",
+    );
+
+    expect(result).toEqual({ kind: "saved", value: 240 });
+    expect(updateFields).toHaveBeenCalledWith("workspace-1", "module-1", 5, [
+      { fieldDefCode: "power_w", value: 240 },
+    ]);
+  });
+
+  it("blocks a non-numeric input and does not send the command", async () => {
+    const updateFields = vi.fn();
+
+    const result = await saveInspectorField(
+      { updateFields },
+      "workspace-1",
+      object,
+      "power_w",
+      "not-a-number",
+      "number",
+    );
+
+    expect(result).toEqual({ kind: "invalid", message: "请输入数字" });
+    expect(updateFields).not.toHaveBeenCalled();
   });
 });
 

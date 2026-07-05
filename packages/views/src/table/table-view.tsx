@@ -5,6 +5,7 @@ import {
   type CommandClient,
   type ConflictField,
 } from "../api/command-client";
+import { updateSingleField } from "../api/update-single-field";
 import type {
   FieldDefinition,
   ObjectPage,
@@ -91,13 +92,17 @@ export async function commitTableCellEdit({
   cell,
   onSaved,
 }: CommitTableCellEditRequest): Promise<ObjectPage> {
-  await commandClient.updateFields(workspaceId, row.objectId, row.version, [
-    {
-      fieldDefCode: cell.field.code,
-      value: cell.value,
-      expectedFieldVersion: row.version,
-    },
-  ]);
+  // 经唯一出口 updateSingleField 完成"按字段类型转换 + 提交"(数值字段发 number,否则内核
+  // KERNEL-422-FIELD-VALUE-INVALID);非法数字则抛错,由调用方 handleFailure 提示「请输入数字」。
+  // 仅按对象版本乐观锁(row.version 充当 expectedObjectVersion,不传字段版本——前端无 per-field 版本)。
+  const result = await updateSingleField(commandClient, {
+    workspaceId,
+    object: row,
+    fieldCode: cell.field.code,
+    raw: cell.value,
+    dataType: cell.field.dataType,
+  });
+  if (result.kind === "invalid") throw new Error(result.message);
   const nextPage = {
     ...page,
     items: page.items.map((item) =>
@@ -105,7 +110,7 @@ export async function commitTableCellEdit({
         ? {
             ...item,
             version: item.version + 1,
-            fields: { ...item.fields, [cell.field.code]: cell.value },
+            fields: { ...item.fields, [cell.field.code]: result.value },
           }
         : item,
     ),

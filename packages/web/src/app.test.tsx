@@ -1,10 +1,6 @@
 import { describe, expect, it } from "vitest";
 
 import { App, syncLabel, workspaceLabel } from "./app";
-import {
-  coerceEditedValue,
-  saveDrivingField,
-} from "./workbench/inspector-panel";
 import { objectsAndRelationsToFlow } from "./workbench/diagram-panel";
 import {
   workbenchDefaultsForTemplate,
@@ -159,45 +155,5 @@ describe("App", () => {
       "energy_soc",
     ]);
     expect(energy.nodes[0]?.data.activeDimension).toBe("energy");
-  });
-
-  it("saves a driving field through the command client", async () => {
-    const calls: unknown[] = [];
-    await saveDrivingField(
-      {
-        updateFields: async (...args: unknown[]) => {
-          calls.push(args);
-        },
-      },
-      "workspace-1",
-      {
-        objectId: "obj-a",
-        objectType: "demo_object",
-        status: "DRAFT",
-        version: 7,
-        fields: { name: "旧值" },
-        updatedAt: "2026-06-21T00:00:00Z",
-        source: null,
-        ruleStatus: "OK",
-      },
-      "name",
-      "新值",
-    );
-
-    expect(calls).toEqual([
-      [
-        "workspace-1",
-        "obj-a",
-        7,
-        [
-          {
-            fieldDefCode: "name",
-            value: "新值",
-          },
-        ],
-      ],
-    ]);
-    expect(coerceEditedValue("42", 1)).toBe(42);
-    expect(coerceEditedValue("true", false)).toBe(true);
   });
 });

@@ -9,6 +9,8 @@ export function ReadModelView({ model }: { model: ReadModel }): ReactElement {
 }
 
 export * from "./api/command-client";
+export * from "./api/field-coerce";
+export * from "./api/update-single-field";
 export * from "./api/view-client";
 export * from "./conflict/conflict-dialog";
 export * from "./detail/detail-panel";
