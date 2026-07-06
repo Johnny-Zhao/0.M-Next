@@ -52,9 +52,9 @@ const templates: readonly TemplateCatalogItem[] = [
 ];
 
 describe("capability catalog helpers", () => {
-  it("filters capabilities by name or code on the client", () => {
+  it("filters capabilities by user-facing name only", () => {
     expect(filterCapabilities(templates, "室内")).toEqual([templates[0]]);
-    expect(filterCapabilities(templates, "INTERIOR")).toEqual([templates[0]]);
+    expect(filterCapabilities(templates, "INTERIOR")).toHaveLength(0);
     expect(filterCapabilities(templates, "missing")).toHaveLength(0);
   });
 

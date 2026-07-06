@@ -13,6 +13,7 @@ import type {
   ViewObject,
 } from "@m-next/views";
 
+import { objectTypeLabel, safeVisibleText } from "../display-labels";
 import { useToast } from "../toast";
 import { useWorkbenchContext } from "./workbench";
 
@@ -39,12 +40,20 @@ export function aiChangeSetId(result: {
 }
 
 export function objectLabel(object: ViewObject): string {
-  return String(
-    object.fields.name ??
-      object.fields.title ??
-      object.fields.code ??
-      object.objectId,
+  return safeVisibleText(
+    String(
+      object.fields.name ?? object.fields.title ?? object.fields.code ?? "",
+    ),
+    objectTypeLabel(object.objectType),
   );
+}
+
+function aiVerdictLabel(verdict: string): string {
+  const normalized = verdict.toLowerCase();
+  if (normalized === "accept") return "建议采用";
+  if (normalized === "reject") return "建议拒绝";
+  if (normalized === "needs_review") return "待复核";
+  return "待确认";
 }
 
 export function aiItemChanges(
@@ -341,14 +350,12 @@ function AiChangeSetList(props: {
             onClick={() => props.onSelectObject(change.objectId)}
             type="button"
           >
-            <span>
-              {props.snapshots.get(change.objectId)?.label ?? change.objectId}
-            </span>
-            <b>{change.fieldCode}</b>
+            <span>{props.snapshots.get(change.objectId)?.label ?? "对象"}</span>
+            <b>字段</b>
             <small>
               {valueText(change.before)} → {valueText(change.after)}
             </small>
-            <i>{change.verdict}</i>
+            <i>{aiVerdictLabel(change.verdict)}</i>
           </button>
         ))}
       </div>

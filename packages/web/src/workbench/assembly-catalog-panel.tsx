@@ -2,6 +2,11 @@ import { useEffect, useMemo, useState, type ReactElement } from "react";
 
 import type { ReusableAssembly, ViewClient, ViewObject } from "@m-next/views";
 
+import {
+  objectTypeLabel,
+  safeVisibleText,
+  templateLabel,
+} from "../display-labels";
 import { useToast } from "../toast";
 import { useWorkbenchContext } from "./workbench";
 
@@ -30,7 +35,9 @@ export function filterAssemblies(
       assembly.name.toLowerCase().includes(normalizedQuery);
     const matchesProfile =
       normalizedProfile === "" ||
-      assembly.templateCode.toLowerCase().includes(normalizedProfile);
+      templateLabel(assembly.templateCode)
+        .toLowerCase()
+        .includes(normalizedProfile);
     return matchesQuery && matchesProfile;
   });
 }
@@ -131,7 +138,7 @@ export function AssemblyCatalogPanel(): ReactElement {
       <header className="assembly-catalog-header">
         <div>
           <strong>装配目录</strong>
-          <span>可复用 by-copy 装配</span>
+          <span>可复用装配</span>
         </div>
         <span>{assemblies.length}</span>
       </header>
@@ -145,10 +152,10 @@ export function AssemblyCatalogPanel(): ReactElement {
           />
         </label>
         <label>
-          Profile
+          模板
           <input
             onChange={(event) => setProfile(event.currentTarget.value)}
-            placeholder="profile code"
+            placeholder="模板名称"
             value={profile}
           />
         </label>
@@ -201,14 +208,14 @@ function AssemblyCard({
         <div>
           <strong>{assembly.name}</strong>
           <span>
-            {assembly.templateCode} · v{assembly.version}
+            {templateLabel(assembly.templateCode)} · 第 {assembly.version} 版
           </span>
         </div>
-        <small>profile {assembly.templateVersion}</small>
+        <small>模板版本 {assembly.templateVersion}</small>
       </header>
       <div aria-label="对象类型" className="assembly-type-chips">
         {assembly.objectTypes.map((type) => (
-          <span key={type}>{type}</span>
+          <span key={type}>{objectTypeLabel(type)}</span>
         ))}
       </div>
       <div className="assembly-place-form">
@@ -222,7 +229,7 @@ function AssemblyCard({
           />
         </label>
         <label>
-          放置键
+          放置标识
           <input
             onChange={(event) =>
               onDraft({ ...draft, placementKey: event.currentTarget.value })
@@ -231,7 +238,7 @@ function AssemblyCard({
           />
         </label>
         <label>
-          参数 JSON
+          参数
           <textarea
             onChange={(event) =>
               onDraft({ ...draft, paramsJson: event.currentTarget.value })
@@ -242,7 +249,7 @@ function AssemblyCard({
         </label>
       </div>
       <footer>
-        <small title={sourceRef(assembly)}>{sourceRef(assembly)}</small>
+        <small>来源: 复用装配</small>
         <button
           disabled={placing || !validPlacementKey}
           onClick={onPlace}
@@ -256,7 +263,7 @@ function AssemblyCard({
           {usage.map((item) => (
             <li key={item.objectId}>
               <span>{item.label}</span>
-              <small>{item.objectType}</small>
+              <small>{objectTypeLabel(item.objectType)}</small>
             </li>
           ))}
         </ul>
@@ -322,9 +329,11 @@ function usageItem(object: ViewObject): UsageItem {
 function labelOf(object: ViewObject): string {
   for (const key of ["name", "title", "code"]) {
     const value = object.fields[key];
-    if (typeof value === "string" && value.trim() !== "") return value;
+    if (typeof value === "string" && value.trim() !== "") {
+      return safeVisibleText(value, objectTypeLabel(object.objectType));
+    }
   }
-  return object.objectId.slice(0, 8);
+  return objectTypeLabel(object.objectType);
 }
 
 function slug(value: string): string {

@@ -13,6 +13,7 @@ import type {
   SnapshotMeta,
 } from "@m-next/views";
 
+import { objectTypeLabel } from "../display-labels";
 import { useToast } from "../toast";
 import { useWorkbenchContext } from "./workbench";
 
@@ -268,10 +269,10 @@ function SnapshotList({
       {snapshots.map((snapshot) => (
         <article key={snapshot.snapshotId}>
           <strong>{snapshotTitle(snapshot)}</strong>
-          <span>{snapshot.createdBy}</span>
-          <code>{snapshot.contentHash}</code>
+          <span>创建者</span>
+          <span>内容已记录</span>
           {snapshot.scopeObjectType ? (
-            <small>{snapshot.scopeObjectType}</small>
+            <small>{objectTypeLabel(snapshot.scopeObjectType)}</small>
           ) : null}
         </article>
       ))}
@@ -357,13 +358,13 @@ function IdList({
   return (
     <section className={`snapshot-diff-group snapshot-group-${tone}`}>
       <h3>{title}</h3>
-      {values.map((value) =>
+      {values.map((value, index) =>
         onSelect ? (
           <button key={value} onClick={() => onSelect(value)} type="button">
-            {value}
+            对象 {index + 1}
           </button>
         ) : (
-          <code key={value}>{value}</code>
+          <span key={value}>关系 {index + 1}</span>
         ),
       )}
     </section>
@@ -383,10 +384,10 @@ function ChangedObjects({
   return (
     <section className="snapshot-diff-group snapshot-group-change">
       <h3>修改对象</h3>
-      {values.map((value) => (
+      {values.map((value, index) => (
         <article key={value.objectId}>
           <button onClick={() => onSelect(value.objectId)} type="button">
-            {value.objectId}
+            对象 {index + 1}
           </button>
           <FieldChanges fields={value.fields} reversed={reversed} />
         </article>
@@ -406,9 +407,9 @@ function ChangedRelations({
   return (
     <section className="snapshot-diff-group snapshot-group-change">
       <h3>修改关系</h3>
-      {values.map((value) => (
+      {values.map((value, index) => (
         <article key={value.relationId}>
-          <strong>{value.relationId}</strong>
+          <strong>关系 {index + 1}</strong>
           <FieldChanges fields={value.fields} reversed={reversed} />
         </article>
       ))}
@@ -430,19 +431,15 @@ function FieldChanges({
     <ul>
       {changed.map(([code, change]) => (
         <li key={code}>
-          {code}: {valueText(reversed ? change.to : change.from)} →{" "}
+          字段: {valueText(reversed ? change.to : change.from)} →{" "}
           {valueText(reversed ? change.from : change.to)}
         </li>
       ))}
       {added.map(([code, value]) => (
-        <li key={code}>
-          {code}: 新增 {valueText(value)}
-        </li>
+        <li key={code}>字段: 新增 {valueText(value)}</li>
       ))}
       {removed.map(([code, value]) => (
-        <li key={code}>
-          {code}: 删除 {valueText(value)}
-        </li>
+        <li key={code}>字段: 删除 {valueText(value)}</li>
       ))}
     </ul>
   );
@@ -450,6 +447,15 @@ function FieldChanges({
 
 function valueText(value: unknown): string {
   if (value === null || value === undefined || value === "") return "空";
-  if (typeof value === "object") return JSON.stringify(value);
-  return String(value);
+  if (typeof value === "object") return "对象值";
+  const text = String(value);
+  if (
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{12}$/i.test(
+      text,
+    ) ||
+    /^[a-z][a-z0-9]*(?:[_-][a-z0-9]+)+$/i.test(text)
+  ) {
+    return "内部值";
+  }
+  return text;
 }

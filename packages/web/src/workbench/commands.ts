@@ -8,6 +8,8 @@ import {
   type ViewObject,
 } from "@m-next/views";
 
+import { objectTypeLabel, safeVisibleText } from "../display-labels";
+
 export type CommandGroup = "定位" | "编辑" | "视图" | "分析";
 export type CommandPanelId = "diagram" | "tree" | "inspector";
 
@@ -109,7 +111,7 @@ function objectToGoToCommand(object: ViewObject): CommandDefinition {
     id: `go-to-object:${object.objectId}`,
     title: `定位 ${title}`,
     group: "定位",
-    description: `${object.objectType} · ${object.objectId}`,
+    description: objectTypeLabel(object.objectType),
     keywords: [object.objectId, object.objectType, title],
     run: (context) => {
       context.selection.select({
@@ -140,10 +142,11 @@ function objectSearchValues(object: ViewObject): readonly string[] {
 }
 
 function objectTitle(object: ViewObject): string {
-  return (
+  return safeVisibleText(
     stringField(object.fields.name) ||
-    stringField(object.fields.title) ||
-    object.objectId
+      stringField(object.fields.title) ||
+      stringField(object.fields.code),
+    objectTypeLabel(object.objectType),
   );
 }
 

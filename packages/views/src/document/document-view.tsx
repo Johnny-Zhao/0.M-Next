@@ -278,13 +278,25 @@ function documentSection(
   return {
     object,
     depth,
-    title:
-      preferred === undefined
-        ? `${object.objectType} ${object.objectId.slice(0, 8)}`
-        : String(preferred),
+    title: documentVisibleTitle(preferred),
     fields,
     terminal: terminalStatuses.has(object.status),
   };
+}
+
+function documentVisibleTitle(value: unknown): string {
+  if (typeof value !== "string") return "对象";
+  const text = value.trim();
+  if (
+    text === "" ||
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{12}$/i.test(
+      text,
+    ) ||
+    /^[a-z][a-z0-9]*(?:[_-][a-z0-9]+)+$/i.test(text)
+  ) {
+    return "对象";
+  }
+  return text;
 }
 
 export function isDocumentSelection(
@@ -777,6 +789,9 @@ function DocumentSectionView(props: {
   const id = props.section.object.objectId;
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [bodyConflict, setBodyConflict] =
+    useState<DocumentFieldConflict | null>(null);
+  const [bodyDraft, setBodyDraft] = useState("");
   const canArchive =
     !props.section.terminal && props.commandClient !== undefined;
 
@@ -819,10 +834,40 @@ function DocumentSectionView(props: {
         result.value,
         props.section.object.version + 1,
       );
+      setBodyConflict(null);
     } else if (result.kind === "conflict") {
-      props.onError?.("正文已被他人修改,请刷新后重试。");
+      setBodyDraft(json);
+      setBodyConflict(result.conflict);
     } else {
       props.onError?.(result.message);
+    }
+  }
+
+  async function resolveBodyConflict(
+    choice: DocumentConflictChoice,
+  ): Promise<void> {
+    if (!props.commandClient || !props.viewClient) {
+      setBodyConflict(null);
+      return;
+    }
+    const resolution = await resolveDocumentFieldConflict({
+      commandClient: props.commandClient,
+      viewClient: props.viewClient,
+      workspaceId: props.workspaceId,
+      objectId: id,
+      fieldCode: BODY_FIELD_CODE,
+      choice,
+      draft: bodyDraft,
+      dataType: "string",
+    });
+    if (resolution.kind === "refreshed" || resolution.kind === "saved") {
+      props.onObjectRefreshed(id, resolution.object);
+      setBodyConflict(null);
+    } else if (resolution.kind === "conflict") {
+      setBodyConflict(resolution.conflict);
+    } else {
+      props.onError?.(resolution.message);
+      setBodyConflict(null);
     }
   }
 
@@ -883,6 +928,17 @@ function DocumentSectionView(props: {
           }
           onSave={(json) => void saveBody(json)}
           value={bodyField.value}
+        />
+      ) : null}
+      {bodyConflict ? (
+        <ConflictDialog
+          fields={bodyConflict.fields}
+          onClose={() => setBodyConflict(null)}
+          onConfirm={(choices) =>
+            void resolveBodyConflict(
+              choices[BODY_FIELD_CODE] === "mine" ? "mine" : "current",
+            )
+          }
         />
       ) : null}
       {props.section.fields

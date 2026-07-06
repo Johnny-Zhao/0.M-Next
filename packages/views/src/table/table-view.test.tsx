@@ -6,7 +6,9 @@ import {
   commitTableCellEdit,
   isTerminalStatus,
   ruleStatusMark,
+  ruleStatusText,
   tableColumns,
+  tableStatusText,
 } from "./table-view";
 
 describe("TableView behavior", () => {
@@ -59,6 +61,13 @@ describe("TableView behavior", () => {
     expect(ruleStatusMark("WARN")).toBe("!");
     expect(ruleStatusMark("BLOCK")).toBe("×");
     expect(ruleStatusMark("UNKNOWN")).toBe("?");
+  });
+
+  it("renders rule and object statuses as user-facing Chinese labels", () => {
+    expect(ruleStatusText("BLOCK")).toBe("阻断");
+    expect(ruleStatusText("UNKNOWN")).toBe("未知");
+    expect(tableStatusText("ACTIVE")).toBe("正常");
+    expect(tableStatusText("CONFIRMED")).toBe("已确认");
   });
 
   it("notifies the shell after a successful cell save", async () => {

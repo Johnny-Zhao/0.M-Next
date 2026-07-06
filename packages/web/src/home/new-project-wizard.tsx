@@ -129,7 +129,7 @@ export async function instantiateProjectWithTemplate(params: {
     const types = await params.viewClient.objectTypes(params.newWorkspaceId);
     const proposalTypeId = findObjectTypeId(types, PROPOSAL_OBJECT_TYPE_CODE);
     if (!proposalTypeId) {
-      throw new Error("模板缺少 proposal 对象类型,无法创建方案根");
+      throw new Error("模板缺少方案根对象类型,无法创建方案根");
     }
     await params.commandClient.createObject(
       params.newWorkspaceId,
@@ -312,10 +312,10 @@ export function NewProjectWizard({
           </label>
           <label>
             我的角色
-            <select defaultValue="Owner">
-              <option>Owner</option>
-              <option>Editor</option>
-              <option>Viewer</option>
+            <select defaultValue="负责人">
+              <option>负责人</option>
+              <option>编辑者</option>
+              <option>查看者</option>
             </select>
           </label>
         </div>
@@ -363,7 +363,7 @@ export function NewProjectWizard({
 function stepTitle(step: WizardStep): string {
   return {
     name: "命名",
-    profile: "选插件",
+    profile: "选模板",
     config: "基础配置",
     create: "创建",
   }[step];

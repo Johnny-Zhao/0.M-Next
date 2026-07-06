@@ -1,8 +1,9 @@
-import type { ViewObject } from "@m-next/views";
+import { CommandFailure, type ViewObject } from "@m-next/views";
 import { describe, expect, it, vi } from "vitest";
 
 import {
   handleInspectorFieldSaved,
+  inspectorVersionConflict,
   omitInspectorHiddenFields,
   partitionFields,
   relationEndpointsLabel,
@@ -74,14 +75,14 @@ describe("sourceLabel", () => {
     expect(sourceLabel("artifact_sync")).toBe("工具同步");
   });
 
-  it("falls back to 未知 for null and passes through unknowns", () => {
+  it("falls back to 未知 for null and unknowns", () => {
     expect(sourceLabel(null)).toBe("未知");
-    expect(sourceLabel("custom_kind")).toBe("custom_kind");
+    expect(sourceLabel("custom_kind")).toBe("未知");
   });
 });
 
 describe("relationEndpointsLabel", () => {
-  it("formats source → target", () => {
+  it("hides endpoint ids behind user-facing labels", () => {
     expect(
       relationEndpointsLabel({
         relationId: "r1",
@@ -90,7 +91,7 @@ describe("relationEndpointsLabel", () => {
         targetId: "b",
         version: 1,
       }),
-    ).toBe("a → b");
+    ).toBe("源对象 → 目标对象");
   });
 });
 
@@ -138,6 +139,38 @@ describe("saveInspectorField", () => {
 
     expect(result).toEqual({ kind: "invalid", message: "请输入数字" });
     expect(updateFields).not.toHaveBeenCalled();
+  });
+
+  it("turns a version conflict into dialog state instead of a toast error", () => {
+    const failure = new CommandFailure({
+      code: "KERNEL-409-VERSION-CONFLICT",
+      title: "乐观版本冲突",
+      details: {
+        currentVersion: 8,
+        conflictingFields: [
+          {
+            fieldDefCode: "power_w",
+            yourValue: 240,
+            currentValue: 180,
+            changedBy: "reviewer",
+            changedAt: "now",
+          },
+        ],
+      },
+    });
+
+    expect(inspectorVersionConflict(failure, 5)).toEqual({
+      currentVersion: 8,
+      fields: [
+        {
+          fieldDefCode: "power_w",
+          yourValue: 240,
+          currentValue: 180,
+          changedBy: "reviewer",
+          changedAt: "now",
+        },
+      ],
+    });
   });
 });
 

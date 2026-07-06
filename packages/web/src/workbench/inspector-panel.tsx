@@ -3,6 +3,8 @@ import { useEffect, useState, type ReactElement } from "react";
 import {
   CommandFailure,
   type CommandClient,
+  ConflictDialog,
+  type ConflictField,
   type ObjectDetail,
   type ObjectType,
   type RelationSummary,
@@ -11,6 +13,11 @@ import {
   type ViewObject,
 } from "@m-next/views";
 
+import {
+  objectTypeLabel,
+  safeVisibleText,
+  statusLabel as dataStatusLabel,
+} from "../display-labels";
 import { useToast } from "../toast";
 import { isDerivedField } from "./diagram-panel";
 import { LineageView } from "./lineage-view";
@@ -19,8 +26,7 @@ import { useWorkbenchContext } from "./workbench";
 
 /**
  * 保存 Inspector 字段:经唯一出口 updateSingleField 完成"按字段类型转换 + 提交"(数值→number,
- * 非法数字拦截提示「请输入数字」不提交);字段版本≠对象版本导致 409 时,用后端返回的真实版本
- * 重试一次(读库版本可能慢于写库)。不直接调用 updateFields。纯编排,便于测试。
+ * 非法数字拦截提示「请输入数字」不提交)。409 冲突原样抛给 UI 打开冲突对话框。
  */
 export async function saveInspectorField(
   commandClient: Pick<CommandClient, "updateFields">,
@@ -30,25 +36,42 @@ export async function saveInspectorField(
   draft: string,
   dataType: string | undefined,
 ): Promise<UpdateSingleFieldResult> {
-  const params = { workspaceId, object, fieldCode, raw: draft, dataType };
-  try {
-    return await updateSingleField(commandClient, params);
-  } catch (error) {
-    const current =
-      error instanceof CommandFailure &&
-      error.commandError.code === "KERNEL-409-VERSION-CONFLICT"
-        ? error.commandError.details?.currentVersion
-        : undefined;
-    if (typeof current !== "number") throw error;
-    return updateSingleField(commandClient, {
-      ...params,
-      expectedObjectVersion: current,
-    });
+  return updateSingleField(commandClient, {
+    workspaceId,
+    object,
+    fieldCode,
+    raw: draft,
+    dataType,
+  });
+}
+
+export interface InspectorConflictState {
+  readonly currentVersion: number;
+  readonly fields: readonly ConflictField[];
+}
+
+export function inspectorVersionConflict(
+  error: unknown,
+  fallbackVersion: number,
+): InspectorConflictState | null {
+  if (
+    !(error instanceof CommandFailure) ||
+    error.commandError.code !== "KERNEL-409-VERSION-CONFLICT"
+  ) {
+    return null;
   }
+  return {
+    currentVersion:
+      error.commandError.details?.currentVersion ?? fallbackVersion,
+    fields: error.commandError.details?.conflictingFields ?? [],
+  };
 }
 
 export function ruleStatusText(object: ViewObject): string {
-  return object.ruleStatus;
+  if (object.ruleStatus === "OK") return "通过";
+  if (object.ruleStatus === "WARN") return "告警";
+  if (object.ruleStatus === "BLOCK") return "阻断";
+  return "未知";
 }
 
 /** 对象来源 kind → 中文标签。未知/缺省回落到 "未知"。纯函数。 */
@@ -67,7 +90,7 @@ export function sourceLabel(source: string | null): string {
     case "system":
       return "系统";
     default:
-      return source ?? "未知";
+      return "未知";
   }
 }
 
@@ -116,7 +139,7 @@ export function omitInspectorHiddenFields(
 
 /** 连线两端的可读标签:源 → 目标。纯函数。 */
 export function relationEndpointsLabel(relation: RelationSummary): string {
-  return `${relation.sourceId} → ${relation.targetId}`;
+  return relation.sourceId && relation.targetId ? "源对象 → 目标对象" : "未知";
 }
 
 export interface InspectorSavedCallbacks {
@@ -225,7 +248,6 @@ export function InspectorPanel(): ReactElement {
           }
         }}
         relation={relation}
-        relationId={relationId}
         reportError={context.reportError}
         workspaceId={context.workspaceId}
       />
@@ -245,6 +267,13 @@ export function InspectorPanel(): ReactElement {
     objectTypes
       .find((type) => type.code === object.objectType)
       ?.fields.find((field) => field.code === code)?.dataType;
+  const fieldLabel = (code: string): string =>
+    safeVisibleText(
+      objectTypes
+        .find((type) => type.code === object.objectType)
+        ?.fields.find((field) => field.code === code)?.name ?? code,
+      "字段",
+    );
   const { derived, stored } = partitionFields({
     ...omitInspectorHiddenFields(object.fields),
     ...(object.derived ?? {}),
@@ -269,9 +298,14 @@ export function InspectorPanel(): ReactElement {
   };
   return (
     <aside aria-label="属性/校验面板" className="inspector-panel">
-      <h2>{String(object.fields.name ?? object.objectId)}</h2>
+      <h2>
+        {safeVisibleText(
+          typeof object.fields.name === "string" ? object.fields.name : null,
+          objectTypeLabel(object.objectType),
+        )}
+      </h2>
       <p className="inspector-passport">
-        {object.status} · v{object.version}
+        {dataStatusLabel(object.status)} · v{object.version}
       </p>
       <section aria-label="来源" className="inspector-section">
         <h3>来源 · 护照</h3>
@@ -318,6 +352,7 @@ export function InspectorPanel(): ReactElement {
             {stored.map(([code, value]) => (
               <FieldEditor
                 fieldCode={code}
+                fieldLabel={fieldLabel(code)}
                 key={code}
                 object={object}
                 onSaved={() => onFieldSaved(code)}
@@ -337,6 +372,7 @@ export function InspectorPanel(): ReactElement {
               <div className="derived-field" key={code}>
                 <FieldEditor
                   fieldCode={code}
+                  fieldLabel={fieldLabel(code)}
                   object={object}
                   onSaved={() => onFieldSaved(code)}
                   reportError={context.reportError}
@@ -371,7 +407,8 @@ export function InspectorPanel(): ReactElement {
             }
             type="button"
           >
-            {relation.relationType}: {relation.sourceId} → {relation.targetId}
+            {safeVisibleText(relation.relationType, "关系")}:{" "}
+            {relationEndpointsLabel(relation)}
           </button>
         ))}
       </section>
@@ -391,6 +428,7 @@ export function InspectorPanel(): ReactElement {
 
 interface FieldEditorProps {
   readonly fieldCode: string;
+  readonly fieldLabel: string;
   readonly value: unknown;
   readonly object: ViewObject;
   readonly workspaceId: string;
@@ -402,6 +440,7 @@ interface FieldEditorProps {
 
 function FieldEditor({
   fieldCode,
+  fieldLabel,
   value,
   object,
   workspaceId,
@@ -411,9 +450,13 @@ function FieldEditor({
   reportError,
 }: FieldEditorProps): ReactElement {
   const [draft, setDraft] = useState(String(value ?? ""));
+  const [conflict, setConflict] = useState<InspectorConflictState | null>(null);
   const derived = isDerivedField(fieldCode);
 
-  useEffect(() => setDraft(String(value ?? "")), [value]);
+  useEffect(() => {
+    setDraft(String(value ?? ""));
+    setConflict(null);
+  }, [value]);
 
   async function save(): Promise<void> {
     try {
@@ -429,38 +472,96 @@ function FieldEditor({
         reportError(result.message);
         return;
       }
+      setConflict(null);
       onSaved();
     } catch (error) {
+      const nextConflict = inspectorVersionConflict(error, object.version);
+      if (nextConflict) {
+        setConflict(nextConflict);
+        return;
+      }
+      reportError(error instanceof Error ? error.message : "字段保存失败");
+    }
+  }
+
+  async function resolveConflict(
+    choices: Readonly<Record<string, "mine" | "current">>,
+  ): Promise<void> {
+    if (!conflict) return;
+    if (choices[fieldCode] !== "mine") {
+      const current = conflict.fields.find(
+        (item) => item.fieldDefCode === fieldCode,
+      )?.currentValue;
+      if (current !== undefined) setDraft(String(current ?? ""));
+      setConflict(null);
+      return;
+    }
+    try {
+      const result = await saveInspectorField(
+        commandClient,
+        workspaceId,
+        { ...object, version: conflict.currentVersion },
+        fieldCode,
+        draft,
+        dataType,
+      );
+      if (result.kind === "invalid") {
+        reportError(result.message);
+        return;
+      }
+      setConflict(null);
+      onSaved();
+    } catch (error) {
+      const nextConflict = inspectorVersionConflict(
+        error,
+        conflict.currentVersion,
+      );
+      if (nextConflict) {
+        setConflict(nextConflict);
+        return;
+      }
       reportError(error instanceof Error ? error.message : "字段保存失败");
     }
   }
 
   return (
-    <form
-      className="field-editor"
-      onSubmit={(event) => {
-        event.preventDefault();
-        if (!derived) void save();
-      }}
-    >
-      <label>
-        <span>
-          {fieldCode} {derived ? "fx" : "存储"}
-        </span>
-        <input
-          disabled={derived}
-          onBlur={() => {
-            // 失焦自动保存:值变了就提交(派生字段只读、不存)
-            if (!derived && draft !== String(value ?? "")) void save();
-          }}
-          onChange={(event) => setDraft(event.currentTarget.value)}
-          value={draft}
+    <>
+      <form
+        className="field-editor"
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (!derived) void save();
+        }}
+      >
+        <label>
+          <span>
+            {fieldLabel} {derived ? "fx" : "存储"}
+          </span>
+          <input
+            disabled={derived}
+            onBlur={() => {
+              // 失焦自动保存:值变了就提交(派生字段只读、不存)
+              if (!derived && draft !== String(value ?? "")) void save();
+            }}
+            onChange={(event) => setDraft(event.currentTarget.value)}
+            value={draft}
+          />
+        </label>
+        <button
+          disabled={derived || draft === String(value ?? "")}
+          type="submit"
+        >
+          保存
+        </button>
+      </form>
+      {conflict ? (
+        <ConflictDialog
+          fields={conflict.fields}
+          onClose={() => setConflict(null)}
+          onConfirm={(choices) => void resolveConflict(choices)}
         />
-      </label>
-      <button disabled={derived || draft === String(value ?? "")} type="submit">
-        保存
-      </button>
-    </form>
+      ) : null}
+    </>
   );
 }
 
@@ -471,7 +572,6 @@ function FieldEditor({
  */
 function EdgeInspector({
   relation,
-  relationId,
   workspaceId,
   commandClient,
   onBack,
@@ -479,7 +579,6 @@ function EdgeInspector({
   reportError,
 }: {
   readonly relation: RelationSummary | null;
-  readonly relationId: string;
   readonly workspaceId: string;
   readonly commandClient: Pick<CommandClient, "unlink">;
   readonly onBack: () => void;
@@ -518,7 +617,9 @@ function EdgeInspector({
           <section aria-label="关系类型" className="inspector-section">
             <h3>关系类型</h3>
             <p>
-              <span className="edge-kind">{relation.relationType}</span>
+              <span className="edge-kind">
+                {safeVisibleText(relation.relationType, "关系")}
+              </span>
             </p>
           </section>
           <section aria-label="两端" className="inspector-section">
@@ -541,9 +642,7 @@ function EdgeInspector({
         </>
       ) : (
         <section className="inspector-section">
-          <p>
-            已选连线 {relationId}。请先选中其一端的图元以查看类型、两端并删除。
-          </p>
+          <p>已选连线。请先选中其一端的图元以查看类型、两端并删除。</p>
         </section>
       )}
     </aside>

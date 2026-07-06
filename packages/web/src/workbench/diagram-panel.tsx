@@ -25,6 +25,11 @@ import {
 
 import type { RelationSummary, ViewObject } from "@m-next/views";
 
+import {
+  objectTypeLabel,
+  safeVisibleText,
+  statusLabel,
+} from "../display-labels";
 import { useToast } from "../toast";
 import {
   alignNodes,
@@ -115,15 +120,18 @@ export function isDerivedField(code: string): boolean {
 
 export function objectTitle(object: ViewObject): string {
   const value = object.fields.name ?? object.fields.title ?? object.objectId;
-  return String(value);
+  return safeVisibleText(
+    typeof value === "string" ? value : null,
+    objectTypeLabel(object.objectType),
+  );
 }
 
 export function objectCode(object: ViewObject): string {
   const value = object.fields.code ?? object.fields.identifier;
   if (value !== undefined && value !== null && String(value).trim() !== "") {
-    return String(value);
+    return safeVisibleText(String(value), objectTypeLabel(object.objectType));
   }
-  return object.objectId.slice(0, 8).toUpperCase();
+  return objectTypeLabel(object.objectType);
 }
 
 export function objectDerivedChips(
@@ -278,7 +286,7 @@ export function objectNodeData(
   return {
     title: objectTitle(object),
     objectType: object.objectType,
-    status: object.status,
+    status: statusLabel(object.status),
     code: objectCode(object),
     typeVariant: objectTypeVariant(object.objectType),
     fields,
@@ -297,9 +305,9 @@ export function objectNodeData(
 export function relationLabel(relation: DiagramRelationSummary): string {
   const name = relation.fields?.name ?? relation.fields?.title;
   if (name === undefined || name === null || String(name).trim() === "") {
-    return relation.relationType;
+    return safeVisibleText(relation.relationType, "关系");
   }
-  return `${relation.relationType} / ${String(name)}`;
+  return `关系 / ${safeVisibleText(String(name), "未命名")}`;
 }
 
 function relationStatus(

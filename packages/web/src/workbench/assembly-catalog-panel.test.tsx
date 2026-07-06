@@ -20,8 +20,8 @@ const assembly = {
 } as const;
 
 describe("AssemblyCatalogPanel helpers", () => {
-  it("filters assemblies by client-side name and profile", () => {
-    const result = filterAssemblies([assembly], "battery", "reuse");
+  it("filters assemblies by client-side name and template label", () => {
+    const result = filterAssemblies([assembly], "battery", "复用");
 
     expect(result).toEqual([assembly]);
     expect(filterAssemblies([assembly], "missing", "")).toEqual([]);

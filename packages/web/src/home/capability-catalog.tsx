@@ -7,6 +7,8 @@ import type {
   ViewClient,
 } from "@m-next/views";
 
+import { objectTypeLabel, safeVisibleText } from "../display-labels";
+
 export type CapabilityFacet = "industry" | "profession" | "scenario";
 
 export type CapabilityFacetSelection = Readonly<
@@ -58,10 +60,7 @@ export function tagValues(
 }
 
 function matchesQuery(template: TemplateCatalogItem, normalized: string) {
-  return (
-    !normalized ||
-    `${template.name} ${template.code}`.toLowerCase().includes(normalized)
-  );
+  return !normalized || template.name.toLowerCase().includes(normalized);
 }
 
 function matchesFacets(
@@ -212,7 +211,7 @@ export function CapabilityCatalog({
         搜索能力
         <input
           onChange={(event) => setQuery(event.currentTarget.value)}
-          placeholder="按名称或 code"
+          placeholder="按名称"
           value={query}
         />
       </label>
@@ -243,7 +242,7 @@ export function CapabilityCatalog({
       ) : filteredTemplates.length === 0 ? (
         <div className="empty-projects">
           <h2>暂无可用能力模板</h2>
-          <p>{loadFailed ? "能力目录读取失败。" : "换个名称或 code 再试。"}</p>
+          <p>{loadFailed ? "能力目录读取失败。" : "换个名称再试。"}</p>
         </div>
       ) : (
         <div className="capability-grid">
@@ -313,7 +312,6 @@ function CapabilityCard({
       <div className="capability-card-head">
         <div>
           <strong>{template.name}</strong>
-          <code>{template.code}</code>
         </div>
         <span
           className={
@@ -328,8 +326,8 @@ function CapabilityCard({
       <p>{template.description || "暂无描述"}</p>
       <div className="capability-types" aria-label="对象类型">
         {visibleTypeOverview(template.typeOverview).map((type) => (
-          <span key={type.code} title={type.code}>
-            {type.name || type.code}
+          <span key={type.code}>
+            {safeVisibleText(type.name, objectTypeLabel(type.code))}
           </span>
         ))}
         {moreCount > 0 ? <span>+{moreCount} 更多</span> : null}

@@ -268,8 +268,8 @@ function DiffList({
   return (
     <section>
       <h3>{title}</h3>
-      {values.map((value) => (
-        <code key={value}>{value}</code>
+      {values.map((value, index) => (
+        <span key={value}>项目 {index + 1}</span>
       ))}
     </section>
   );
@@ -284,9 +284,9 @@ function ChangedObjects({
   return (
     <section>
       <h3>变更对象</h3>
-      {values.map((value) => (
+      {values.map((value, index) => (
         <article key={value.objectId}>
-          <strong>{value.objectId}</strong>
+          <strong>对象 {index + 1}</strong>
           <FieldChanges fields={value.fields} />
         </article>
       ))}
@@ -303,9 +303,9 @@ function ChangedRelations({
   return (
     <section>
       <h3>变更关系</h3>
-      {values.map((value) => (
+      {values.map((value, index) => (
         <article key={value.relationId}>
-          <strong>{value.relationId}</strong>
+          <strong>关系 {index + 1}</strong>
           <FieldChanges fields={value.fields} />
         </article>
       ))}
@@ -325,14 +325,14 @@ function FieldChanges({
     <ul>
       {changed.map(([code, change]) => (
         <li key={code}>
-          {code}: {valueText(change.from)} → {valueText(change.to)}
+          字段: {valueText(change.from)} → {valueText(change.to)}
         </li>
       ))}
       {added.map((code) => (
-        <li key={code}>{code}: 新增</li>
+        <li key={code}>字段: 新增</li>
       ))}
       {removed.map((code) => (
-        <li key={code}>{code}: 删除</li>
+        <li key={code}>字段: 删除</li>
       ))}
     </ul>
   );
@@ -340,6 +340,15 @@ function FieldChanges({
 
 function valueText(value: unknown): string {
   if (value === null || value === undefined || value === "") return "空";
-  if (typeof value === "object") return JSON.stringify(value);
-  return String(value);
+  if (typeof value === "object") return "对象值";
+  const text = String(value);
+  if (
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{12}$/i.test(
+      text,
+    ) ||
+    /^[a-z][a-z0-9]*(?:[_-][a-z0-9]+)+$/i.test(text)
+  ) {
+    return "内部值";
+  }
+  return text;
 }

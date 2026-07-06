@@ -58,7 +58,7 @@ describe("diagram relation edges", () => {
     expect(flow.edges[0]?.sourceHandle).toBe("source-right");
     expect(flow.edges[0]?.targetHandle).toBe("target-left");
     expect(flow.edges[0]?.data).toMatchObject({
-      label: "depends_on / 供电依赖",
+      label: "关系 / 供电依赖",
       route: "orthogonal",
       status: "ACTIVE",
       version: 2,

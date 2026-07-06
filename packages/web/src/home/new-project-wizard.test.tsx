@@ -160,7 +160,7 @@ describe("instantiateProjectWithTemplate", () => {
         powerBudgetW: null,
         newWorkspaceId: "ws-empty",
       }),
-    ).rejects.toThrow("proposal");
+    ).rejects.toThrow("方案根");
     expect(createObject).not.toHaveBeenCalled();
   });
 });

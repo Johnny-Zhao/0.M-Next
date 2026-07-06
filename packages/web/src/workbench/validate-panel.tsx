@@ -7,6 +7,7 @@ import type {
   ViewObject,
 } from "@m-next/views";
 
+import { objectTypeLabel, safeVisibleText } from "../display-labels";
 import { useWorkbenchContext } from "./workbench";
 
 export type ValidateTone = "block" | "warn" | "info";
@@ -32,7 +33,7 @@ export function severityLabel(severity: string): string {
   if (upper === "BLOCK") return "阻断";
   if (upper === "WARN") return "告警";
   if (upper === "INFO") return "提示";
-  return severity;
+  return "未知";
 }
 
 export function summarizeRuleStatus(
@@ -209,7 +210,9 @@ export function ValidatePanel(): ReactElement {
                 >
                   {ruleStatusLabel(object.ruleStatus)}
                 </span>
-                <span className="validate-rule">{object.objectType}</span>
+                <span className="validate-rule">
+                  {objectTypeLabel(object.objectType)}
+                </span>
                 <span className="validate-msg">
                   {objectName(object)} {ruleStatusLabel(object.ruleStatus)}
                 </span>
@@ -239,7 +242,7 @@ export function ValidatePanel(): ReactElement {
                 >
                   {severityLabel(result.severity)}
                 </span>
-                <span className="validate-rule">{result.ruleCode}</span>
+                <span className="validate-rule">校验项</span>
                 <span className="validate-msg">{result.message}</span>
               </button>
             </li>
@@ -257,7 +260,8 @@ export function ValidatePanel(): ReactElement {
 
 function objectName(object: ViewObject): string {
   const value = object.fields.name ?? object.fields.title ?? object.objectId;
-  return typeof value === "string" && value.trim() !== ""
-    ? value
-    : object.objectId;
+  return safeVisibleText(
+    typeof value === "string" ? value : null,
+    objectTypeLabel(object.objectType),
+  );
 }

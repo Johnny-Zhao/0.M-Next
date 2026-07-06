@@ -17,11 +17,11 @@ describe("validate-panel", () => {
     expect(severityTone("whatever")).toBe("info");
   });
 
-  it("labels severities in Chinese, passing through unknowns", () => {
+  it("labels severities in Chinese without exposing unknown codes", () => {
     expect(severityLabel("BLOCK")).toBe("阻断");
     expect(severityLabel("WARN")).toBe("告警");
     expect(severityLabel("INFO")).toBe("提示");
-    expect(severityLabel("X")).toBe("X");
+    expect(severityLabel("X")).toBe("未知");
   });
 
   it("summarizes object rule lamps for the initial panel state", () => {

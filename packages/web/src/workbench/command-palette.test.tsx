@@ -77,6 +77,9 @@ describe("CommandPalette", () => {
       "alpha",
     );
 
+    expect(items[0]?.description).toBe("对象");
+    expect(items[0]?.description).not.toContain("obj-a");
+    expect(items[0]?.description).not.toContain("demo_object");
     await executeCommand(items[0]!, context, "alpha");
 
     expect(calls.objects).toHaveBeenCalledWith(

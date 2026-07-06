@@ -41,7 +41,7 @@ describe("lineage view formatting", () => {
   });
 
   it("falls back without inventing values", () => {
-    expect(lineageFieldLabel("unknown_fx")).toBe("unknown_fx");
+    expect(lineageFieldLabel("unknown_fx")).toBe("字段");
     expect(formatLineageValue("unknown_fx", undefined)).toBe("未取到");
   });
 });

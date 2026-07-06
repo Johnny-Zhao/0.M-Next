@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState, type ReactElement } from "react";
 
 import type { ViewClient, WorkspaceSummary } from "@m-next/views";
 
+import { templateLabel } from "../display-labels";
+
 export interface ProjectSummary {
   readonly workspaceId: string;
   readonly name: string;
@@ -36,7 +38,7 @@ export function workspaceToProject(
   return {
     workspaceId: workspace.workspaceId,
     name: workspace.name,
-    plugin: workspace.templateCode ?? "未绑定模板",
+    plugin: templateLabel(workspace.templateCode),
     role: "工作空间",
     alertCount: 0,
     templateCode: workspace.templateCode,
@@ -127,7 +129,7 @@ export function ProjectList({
           <strong>M-Next</strong>
           <h1>项目</h1>
           <p>
-            {actorId} ·{" "}
+            {actorId ? "已登录" : "未登录"} ·{" "}
             {loading
               ? "正在读取工作空间"
               : failed
@@ -143,7 +145,7 @@ export function ProjectList({
         搜索
         <input
           onChange={(event) => setQuery(event.currentTarget.value)}
-          placeholder="项目、插件或角色"
+          placeholder="项目、模板或角色"
           value={query}
         />
       </label>
@@ -185,7 +187,7 @@ export function ProjectListBody({
       {state === "empty" ? (
         <div className="empty-projects">
           <h2>还没有项目</h2>
-          <p>创建一个项目后即可进入制图工作台。</p>
+          <p>创建一个项目后即可进入工作台。</p>
           <button onClick={onCreateProject} type="button">
             新建项目
           </button>

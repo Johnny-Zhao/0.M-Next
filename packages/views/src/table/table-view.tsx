@@ -58,6 +58,24 @@ export function ruleStatusMark(status: ViewObject["ruleStatus"]): string {
   return "?";
 }
 
+export function ruleStatusText(status: ViewObject["ruleStatus"]): string {
+  if (status === "OK") return "通过";
+  if (status === "WARN") return "告警";
+  if (status === "BLOCK") return "阻断";
+  return "未知";
+}
+
+export function tableStatusText(status: string): string {
+  const normalized = status.toUpperCase();
+  if (normalized === "ACTIVE") return "正常";
+  if (normalized === "DRAFT") return "草稿";
+  if (normalized === "CONFIRMED") return "已确认";
+  if (normalized === "FILED" || normalized === "ARCHIVED") return "已归档";
+  if (normalized === "VOID") return "已作废";
+  if (normalized === "DELETED") return "已删除";
+  return "未知";
+}
+
 export interface TableViewProps {
   readonly workspaceId: string;
   readonly objectType: string;
@@ -291,11 +309,14 @@ export function TableView(props: TableViewProps): ReactElement {
                 <span
                   className={`table-rule table-rule-${row.ruleStatus.toLowerCase()}`}
                 >
-                  {ruleStatusMark(row.ruleStatus)} {row.ruleStatus}
+                  {ruleStatusMark(row.ruleStatus)}{" "}
+                  {ruleStatusText(row.ruleStatus)}
                 </span>
               </td>
               <td>
-                {isTerminalStatus(row.status) ? `🔒 ${row.status}` : row.status}
+                {isTerminalStatus(row.status)
+                  ? `🔒 ${tableStatusText(row.status)}`
+                  : tableStatusText(row.status)}
               </td>
               <td>v{row.version}</td>
             </tr>

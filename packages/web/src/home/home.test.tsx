@@ -73,6 +73,7 @@ describe("home shell", () => {
     expect(html).toContain("技术方案 Demo");
     expect(html).toContain("室内设计 Demo");
     expect(html).not.toContain("技术方案A");
+    expect(html).not.toContain("technical_proposal");
   });
 
   it("maps real workspaces to project cards", () => {
@@ -84,7 +85,7 @@ describe("home shell", () => {
     });
 
     expect(project.workspaceId).toBe("workspace-1");
-    expect(project.plugin).toBe("interior_design");
+    expect(project.plugin).toBe("室内设计");
     expect(projectUpdatedLabel(project)).toContain("2026");
   });
 

@@ -13,6 +13,7 @@ import type {
   ViewObject,
 } from "@m-next/views";
 
+import { objectTypeLabel, safeVisibleText } from "../display-labels";
 import { useToast } from "../toast";
 import { useWorkbenchContext } from "./workbench";
 
@@ -162,7 +163,7 @@ export function ReviewPanel(): ReactElement {
             <option value="">对象: {objectTitle(detail.object)}</option>
             {fields.map((code) => (
               <option key={code} value={code}>
-                字段: {code}
+                字段
               </option>
             ))}
           </select>
@@ -227,8 +228,8 @@ function AnnotationCard(props: {
       </header>
       <p>{annotation.body}</p>
       <small>
-        {annotation.fieldCode ? `字段 ${annotation.fieldCode}` : "对象"} · v
-        {annotation.anchoredDataVersion} · {annotation.createdBy}
+        {annotation.fieldCode ? "字段" : "对象"} · v
+        {annotation.anchoredDataVersion} · 创建者
       </small>
       <footer>
         {annotation.status === "open" ? (
@@ -259,10 +260,10 @@ function fieldOptions(object: ViewObject | undefined): readonly string[] {
 }
 
 function objectTitle(object: ViewObject): string {
-  return String(
-    object.fields.name ??
-      object.fields.title ??
-      object.fields.code ??
-      object.objectId,
+  return safeVisibleText(
+    String(
+      object.fields.name ?? object.fields.title ?? object.fields.code ?? "",
+    ),
+    objectTypeLabel(object.objectType),
   );
 }

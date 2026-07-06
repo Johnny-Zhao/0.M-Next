@@ -24,7 +24,7 @@ export function lineageFieldLabel(code: string): string {
   if (code === "area_fx" || code === "total_area_fx") return "面积";
   if (code === "window_floor_ratio_fx") return "窗地比";
   if (code === "orientation") return "朝向";
-  return code;
+  return "字段";
 }
 
 export function lineageFieldValue(object: ViewObject, code: string): unknown {
