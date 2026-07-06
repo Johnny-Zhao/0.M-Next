@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useState, type ReactElement } from "react";
 
-import type { CheckResultItem, RuleStatus, ViewObject } from "@m-next/views";
+import type {
+  CheckResultItem,
+  RuleStatus,
+  ViewClient,
+  ViewObject,
+} from "@m-next/views";
 
 import { useWorkbenchContext } from "./workbench";
 
@@ -50,6 +55,42 @@ export function ruleStatusLabel(status: RuleStatus): string {
 }
 
 /**
+ * 手动校验:一律按【全工作空间】(null 范围)运行 RunRuleCheck。
+ * 必须全量,而非按当前 objectType——否则技术方案工作台默认 objectType=module 时,只跑模块规则,
+ * proposal 级 BLOCK 规则(如超预算 R-TD-PWR)永不被求值,面板/导出误报「全部通过」。纯编排,便于测试。
+ */
+export async function runValidation(params: {
+  readonly viewClient: Pick<ViewClient, "runRuleCheck" | "checkResults">;
+  readonly workspaceId: string;
+  readonly actorId: string;
+}): Promise<readonly CheckResultItem[]> {
+  const runId = await params.viewClient.runRuleCheck(
+    params.workspaceId,
+    params.actorId,
+    null,
+  );
+  const page = await params.viewClient.checkResults(params.workspaceId, runId);
+  return page.items;
+}
+
+/**
+ * 规则灯汇总:跨【全部对象类型】聚合(不止当前 objectType),使 proposal 的 BLOCK 也计入红灯。
+ * 每类分页查询带 workspaceId + pageSize≤200(AG-202)。纯编排,便于测试。
+ */
+export async function collectRuleStatusSummary(params: {
+  readonly viewClient: Pick<ViewClient, "objectTypes" | "objects">;
+  readonly workspaceId: string;
+}): Promise<RuleStatusSummary> {
+  const types = await params.viewClient.objectTypes(params.workspaceId);
+  const pages = await Promise.all(
+    types.map((type) =>
+      params.viewClient.objects(params.workspaceId, type.code, 0, 200),
+    ),
+  );
+  return summarizeRuleStatus(pages.flatMap((page) => page.items));
+}
+
+/**
  * 校验面板:触发一次规则校验运行(RunRuleCheck),列出命中结果。
  * 点击某条结果在画布中选中对应图元。规则引擎/权限缺失时优雅降级。
  */
@@ -57,7 +98,6 @@ export function ValidatePanel(): ReactElement {
   const context = useWorkbenchContext();
   const {
     actorId,
-    objectType,
     refreshVersion,
     reportError,
     selection,
@@ -75,8 +115,7 @@ export function ValidatePanel(): ReactElement {
   const loadSummary = useCallback(async (): Promise<void> => {
     setLoadingSummary(true);
     try {
-      const page = await viewClient.objects(workspaceId, objectType, 0, 200);
-      setSummary(summarizeRuleStatus(page.items));
+      setSummary(await collectRuleStatusSummary({ viewClient, workspaceId }));
     } catch (error) {
       reportError(error instanceof Error ? error.message : "读取规则状态失败");
       setMessage("规则状态读取失败,请稍后刷新。");
@@ -84,7 +123,7 @@ export function ValidatePanel(): ReactElement {
     } finally {
       setLoadingSummary(false);
     }
-  }, [objectType, reportError, viewClient, workspaceId]);
+  }, [reportError, viewClient, workspaceId]);
 
   useEffect(() => {
     void loadSummary();
@@ -94,14 +133,9 @@ export function ValidatePanel(): ReactElement {
     setRunning(true);
     setMessage("");
     try {
-      const runId = await viewClient.runRuleCheck(
-        workspaceId,
-        actorId,
-        objectType || null,
-      );
-      const page = await viewClient.checkResults(workspaceId, runId);
-      setResults(page.items);
-      if (page.items.length === 0) {
+      const items = await runValidation({ viewClient, workspaceId, actorId });
+      setResults(items);
+      if (items.length === 0) {
         setMessage("✓ 全部规则通过,无告警或阻断。");
       }
       await loadSummary();

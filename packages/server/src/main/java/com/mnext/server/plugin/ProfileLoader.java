@@ -67,6 +67,7 @@ public class ProfileLoader {
     var existing = latestTemplateVersion(manifest.templateCode());
     if (existing != null) {
       if ("published".equals(existing.status())) {
+        defineMissingFields(manifest, existing, actor);
         return;
       }
       if ("withdrawn".equals(existing.status())) {
@@ -74,6 +75,7 @@ public class ProfileLoader {
             new RestoreTemplateVersionCommand(
                 AUTHOR_WORKSPACE, correlation(), key(manifest, "restore"), existing.versionId()),
             actor);
+        defineMissingFields(manifest, existing, actor);
         return;
       }
       throw schema("templateCode 已存在未发布版本，无法装载 profile: " + manifest.templateCode());
@@ -187,6 +189,76 @@ public class ProfileLoader {
               constraints(field.constraints())),
           actor);
     }
+  }
+
+  private void defineMissingFields(ProfileManifest manifest, TemplateVersion version, Actor actor) {
+    var objectTypeIds = objectTypeIds(version);
+    for (var field : manifest.fieldsOrEmpty()) {
+      var objectTypeId = objectTypeIds.get(field.objectType());
+      if (objectTypeId == null) {
+        throw schema("fields.objectType 已安装模板中不存在: " + field.objectType());
+      }
+      if (fieldExists(objectTypeId, field.code())) continue;
+      var type = fieldType(version.versionId(), field);
+      insertFieldDef(version.versionId(), objectTypeId, field, type, actor);
+    }
+  }
+
+  private boolean fieldExists(UUID objectTypeId, String code) {
+    return Boolean.TRUE.equals(
+        jdbc.queryForObject(
+            "SELECT EXISTS(SELECT 1 FROM field_def WHERE object_type_id = ? AND code = ?)",
+            Boolean.class,
+            objectTypeId,
+            code));
+  }
+
+  private FieldType fieldType(UUID versionId, ProfileManifest.Field field) {
+    if (!blank(field.dataType())) return new FieldType(DataType.fromCode(field.dataType()), null);
+    var rows =
+        jdbc.query(
+            """
+            SELECT id, base_primitive
+            FROM value_type
+            WHERE workspace_id = ?
+              AND code = ?
+              AND (template_version_id = ? OR template_version_id IS NULL)
+            ORDER BY CASE WHEN template_version_id = ? THEN 0 ELSE 1 END
+            LIMIT 1
+            """,
+            (row, index) ->
+                new FieldType(
+                    DataType.fromCode(row.getString("base_primitive")),
+                    row.getObject("id", UUID.class)),
+            AUTHOR_WORKSPACE,
+            field.valueTypeCode(),
+            versionId,
+            versionId);
+    if (rows.isEmpty()) throw schema("fields.valueTypeCode 引用不存在: " + field.valueTypeCode());
+    return rows.getFirst();
+  }
+
+  private void insertFieldDef(
+      UUID versionId, UUID objectTypeId, ProfileManifest.Field field, FieldType type, Actor actor) {
+    jdbc.update(
+        """
+        INSERT INTO field_def
+          (id, object_type_id, template_version_id, code, name, required, data_type,
+           value_type_id, constraints, redefines_field_def_id, created_by, updated_by,
+           created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, NULL, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        """,
+        UUID.randomUUID(),
+        objectTypeId,
+        versionId,
+        field.code(),
+        field.name(),
+        Boolean.TRUE.equals(field.required()),
+        type.dataType().code(),
+        type.valueTypeId(),
+        constraintsJson(field.constraints()),
+        actor.id(),
+        actor.id());
   }
 
   private void defineRelations(
@@ -574,6 +646,14 @@ public class ProfileLoader {
     return mapper.convertValue(node, FieldConstraints.class);
   }
 
+  private String constraintsJson(JsonNode node) {
+    try {
+      return mapper.writeValueAsString(constraints(node).asMap());
+    } catch (com.fasterxml.jackson.core.JsonProcessingException failure) {
+      throw schema("fields.constraints 无法序列化");
+    }
+  }
+
   private UUID detailUuid(CommandResult result, String key) {
     var prefix = key + "=";
     for (var event : result.events()) {
@@ -630,4 +710,6 @@ public class ProfileLoader {
   }
 
   private record TemplateVersion(UUID templateId, UUID versionId, int version, String status) {}
+
+  private record FieldType(DataType dataType, UUID valueTypeId) {}
 }

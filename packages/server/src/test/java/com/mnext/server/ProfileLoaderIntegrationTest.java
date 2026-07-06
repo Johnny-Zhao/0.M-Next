@@ -138,6 +138,44 @@ class ProfileLoaderIntegrationTest {
   }
 
   @Test
+  void reinstallPublishedProfileAddsMissingManifestFieldsWithoutLosingExistingData()
+      throws Exception {
+    var base = profileVariant(fixture(), "profile-loader-upgrade", "profile_loader_upgrade");
+    loader.install(base, Actor.user(ACTOR));
+    var workspace = UUID.randomUUID();
+    assertOk(
+        meta(
+            AUTHOR,
+            instantiate(templateId(base.templateCode()), workspace, "instantiate-upgrade")));
+    var roomType = objectType(workspace, "room");
+    var room =
+        createObject(
+            workspace, roomType, "create-upgrade-room", Map.of("name", "lab", "base_score", 4));
+
+    var upgraded =
+        new ProfileManifest(
+            base.id(),
+            base.name(),
+            "1.0.1",
+            base.templateCode(),
+            base.kind(),
+            base.sourceProfile(),
+            base.targetProfile(),
+            base.tags(),
+            base.valueTypes(),
+            base.objectTypes(),
+            appendBodyField(base.fields()),
+            base.relations(),
+            base.derived(),
+            base.rules());
+    loader.install(upgraded, Actor.user(ACTOR));
+
+    assertEquals(1, templateVersionCount(base.templateCode()));
+    assertTrue(fieldDefExists(templateVersionId(base.templateCode(), 1), "room", "body"));
+    assertEquals("lab", fieldValue(room, "name"));
+  }
+
+  @Test
   void oclProfileExpressionsRunEquivalentToMExprAfterInstall() {
     var manifest = oclFixture("profile_loader_ocl");
     loader.install(manifest, Actor.user(ACTOR));
@@ -462,6 +500,12 @@ class ProfileLoaderIntegrationTest {
                         rule.fix(),
                         rule.lightweight()))
             .toList());
+  }
+
+  private List<ProfileManifest.Field> appendBodyField(List<ProfileManifest.Field> fields) {
+    var values = new java.util.ArrayList<>(fields);
+    values.add(new ProfileManifest.Field("room", "body", "正文", "text", null, false, null));
+    return values;
   }
 
   private ProfileManifest taggedProfile(
@@ -862,6 +906,38 @@ class ProfileLoaderIntegrationTest {
         UUID.class,
         templateCode,
         version);
+  }
+
+  private boolean fieldDefExists(UUID templateVersionId, String objectTypeCode, String fieldCode) {
+    return Boolean.TRUE.equals(
+        jdbc.queryForObject(
+            """
+            SELECT EXISTS(
+              SELECT 1
+              FROM field_def field
+              JOIN object_type type ON type.id = field.object_type_id
+              WHERE type.template_version_id = ?
+                AND type.code = ?
+                AND field.code = ?
+            )
+            """,
+            Boolean.class,
+            templateVersionId,
+            objectTypeCode,
+            fieldCode));
+  }
+
+  private String fieldValue(UUID objectId, String fieldCode) {
+    return jdbc.queryForObject(
+        """
+        SELECT value.value #>> '{}'
+        FROM data_field_value value
+        JOIN field_def field ON field.id = value.field_def_id
+        WHERE value.object_id = ? AND field.code = ?
+        """,
+        String.class,
+        objectId,
+        fieldCode);
   }
 
   private void assertObjectType(UUID objectId, UUID objectTypeId) {

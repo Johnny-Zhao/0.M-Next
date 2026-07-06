@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mnext.engines.exchange.DataSet.DataObject;
 import java.math.BigDecimal;
 import java.util.Arrays;
@@ -51,6 +52,7 @@ class DevSeedRunnerIntegrationTest {
   }
 
   @Autowired JdbcTemplate jdbc;
+  @Autowired ObjectMapper mapper;
   @Autowired TestRestTemplate http;
   @Autowired DerivedEvaluator derivedEvaluator;
   @Autowired DevSeedRunner runner;
@@ -191,6 +193,42 @@ class DevSeedRunnerIntegrationTest {
 
     assertEquals(objectCounts, technicalObjectCounts());
     assertEquals(moduleRelations, relationCount(TECHNICAL_WORKSPACE, "proposal_contains_module"));
+  }
+
+  @Test
+  void technicalProposalDeclaresBodyFieldAndSeedsRichTextModule() throws Exception {
+    // 装载后:proposal 与 module 均声明 body(正文)字段——为富文本内容块铺路(ADR-011)。
+    assertTrue(fieldDefExists(TECHNICAL_WORKSPACE, "proposal", "body"), "proposal 应声明 body 字段");
+    assertTrue(fieldDefExists(TECHNICAL_WORKSPACE, "module", "body"), "module 应声明 body 字段");
+
+    // seed 留样:编排模块预置一段合法 Tiptap 正文(段落 + 无序列表)。
+    var orchestration = objectIdByField(TECHNICAL_WORKSPACE, "module", "name", "方案编排模块");
+    var body =
+        jdbc.queryForObject(
+            "SELECT fields->>'body' FROM rm_object WHERE workspace_id = ? AND object_id = ?",
+            String.class,
+            TECHNICAL_WORKSPACE,
+            orchestration);
+    var doc = mapper.readTree(body);
+    assertEquals("doc", doc.get("type").asText());
+    var blockTypes = new java.util.ArrayList<String>();
+    doc.get("content").forEach(node -> blockTypes.add(node.get("type").asText()));
+    assertEquals(List.of("paragraph", "bulletList"), blockTypes);
+  }
+
+  private boolean fieldDefExists(UUID workspaceId, String objectTypeCode, String fieldCode) {
+    return Boolean.TRUE.equals(
+        jdbc.queryForObject(
+            """
+            SELECT EXISTS(
+              SELECT 1 FROM field_def field
+              JOIN object_type type ON type.id = field.object_type_id
+              WHERE type.workspace_id = ? AND type.code = ? AND field.code = ?)
+            """,
+            Boolean.class,
+            workspaceId,
+            objectTypeCode,
+            fieldCode));
   }
 
   @Test

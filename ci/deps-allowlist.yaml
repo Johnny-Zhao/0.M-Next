@@ -42,3 +42,10 @@ buildPlugins:
   - org.springframework.boot:spring-boot-maven-plugin
   - com.diffplug.spotless:spotless-maven-plugin
   - org.jacoco:jacoco-maven-plugin
+# —— 前端富文本编辑(ADR-011:文档正文富文本子集;版本固定,仅 packages/views 文档视图接入)——
+# 纯 JS 依赖(Tiptap/ProseMirror,无 native 产物)、license 均为 MIT;新增经 ADR-011 批准。
+frontendDependencies:
+  - "@tiptap/core@3.27.1"
+  - "@tiptap/pm@3.27.1"
+  - "@tiptap/react@3.27.1"
+  - "@tiptap/starter-kit@3.27.1"

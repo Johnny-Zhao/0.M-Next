@@ -27,6 +27,7 @@ final class DocxTreeRenderer {
     for (var object : snapshot.objects()) {
       var tree = tree(object);
       addHeading(document, headingLevel(template, number(tree, "depth", 0)), title(object));
+      addBodyContent(document, object);
       addParagraphFields(document, object, template);
       addParameterTable(document, object, template);
     }
@@ -73,7 +74,8 @@ final class DocxTreeRenderer {
       var text = RenderSupport.text(object.fields().get(field)).trim();
       if (!text.isEmpty()) return text;
     }
-    return object.objectId();
+    // 文案红线:无 name/title/code 时用可读兜底,绝不把 objectId/UUID 当标题输出。
+    return "未命名方案";
   }
 
   private static void addParagraphFields(
@@ -109,11 +111,12 @@ final class DocxTreeRenderer {
   private static boolean parameterField(String field, Object value, OutputTemplate template) {
     var roles = fieldRoles(template);
     var role = roles.get(field);
-    if (!visible(field) || paragraphField(field, value, roles)) return false;
+    if (!visible(field) || bodyField(field) || paragraphField(field, value, roles)) return false;
     return "table".equals(role) || value instanceof Number;
   }
 
   private static boolean paragraphField(String field, Object value, Map<String, String> roles) {
+    if (bodyField(field)) return false;
     var role = roles.get(field);
     if ("paragraph".equals(role)) return true;
     if ("table".equals(role)) return false;
@@ -153,6 +156,15 @@ final class DocxTreeRenderer {
 
   private static boolean visible(String field) {
     return !field.startsWith("_");
+  }
+
+  private static boolean bodyField(String field) {
+    return "body".equals(field);
+  }
+
+  private static void addBodyContent(XWPFDocument document, DataObject object) {
+    var body = RenderSupport.text(object.fields().get("body")).trim();
+    if (!body.isEmpty()) TiptapDocxBodyRenderer.render(document, body);
   }
 
   private static Map<String, String> fieldRoles(OutputTemplate template) {

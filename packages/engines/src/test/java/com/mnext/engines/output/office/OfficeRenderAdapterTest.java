@@ -1,5 +1,6 @@
 package com.mnext.engines.output.office;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -79,6 +80,101 @@ class OfficeRenderAdapterTest {
     assertZip(bytes);
     try (var document = new XWPFDocument(new ByteArrayInputStream(bytes))) {
       assertTrue(hasTableRow(document, "全部校核通过", ""));
+    }
+  }
+
+  @Test
+  void rendersTreeDocxBodyAfterHeadingWithRichTextAndBullets() throws Exception {
+    var bytes = new DocxRenderAdapter().render(treeDataSetWithBody(), treeTemplate());
+
+    assertZip(bytes);
+    try (var document = new XWPFDocument(new ByteArrayInputStream(bytes))) {
+      assertTrue(
+          document.getParagraphs().stream()
+              .anyMatch(paragraph -> "正文第一段，含粗体和斜体。".equals(paragraph.getText())));
+      var richParagraph =
+          document.getParagraphs().stream()
+              .filter(paragraph -> "正文第一段，含粗体和斜体。".equals(paragraph.getText()))
+              .findFirst()
+              .orElseThrow();
+      assertTrue(
+          richParagraph.getRuns().stream()
+              .anyMatch(run -> "粗体".equals(run.text()) && run.isBold()));
+      assertEquals(
+          2,
+          document.getParagraphs().stream()
+              .filter(paragraph -> paragraph.getNumID() != null)
+              .filter(paragraph -> List.of("第一项", "第二项").contains(paragraph.getText()))
+              .count());
+      assertFalse(hasTableRow(document, "body", bodyJson()));
+      assertTrue(hasTableRow(document, "功耗(W)", "920"));
+    }
+  }
+
+  @Test
+  void badTiptapBodyJsonFallsBackWithoutThrowing() throws Exception {
+    var dataSet =
+        new DataSet(
+            List.of(
+                new DataObject(
+                    "module",
+                    "module",
+                    Map.of(
+                        "name",
+                        "坏正文模块",
+                        "body",
+                        "{bad-json",
+                        "_tree",
+                        Map.of("depth", 0, "order", 0, "ruleStatus", "OK")),
+                    "ACTIVE",
+                    1)),
+            List.of());
+
+    var bytes = new DocxRenderAdapter().render(dataSet, treeTemplate());
+
+    try (var document = new XWPFDocument(new ByteArrayInputStream(bytes))) {
+      assertTrue(
+          document.getParagraphs().stream()
+              .anyMatch(paragraph -> "{bad-json".equals(paragraph.getText())));
+    }
+  }
+
+  @Test
+  void treeDocxWithoutBodyKeepsByteStableRegressionBytes() throws Exception {
+    var bytes = new DocxRenderAdapter().render(treeDataSet("BLOCK"), treeTemplate());
+    var repeated = new DocxRenderAdapter().render(treeDataSet("BLOCK"), treeTemplate());
+
+    assertArrayEquals(bytes, repeated);
+  }
+
+  @Test
+  void treeHeadingFallsBackToUnnamedWithoutEmittingObjectId() throws Exception {
+    var objectId = "3f2504e0-4f89-41d3-9a0c-0305e82c3301";
+    var dataSet =
+        new DataSet(
+            List.of(
+                new DataObject(
+                    objectId,
+                    "proposal",
+                    Map.of("_tree", Map.of("depth", 0, "order", 0, "ruleStatus", "OK")),
+                    "ACTIVE",
+                    1)),
+            List.of());
+
+    var bytes = new DocxRenderAdapter().render(dataSet, treeTemplate());
+
+    try (var document = new XWPFDocument(new ByteArrayInputStream(bytes))) {
+      var headings =
+          document.getParagraphs().stream()
+              .filter(paragraph -> paragraph.getStyle() != null)
+              .filter(paragraph -> paragraph.getStyle().startsWith("Heading"))
+              .map(paragraph -> paragraph.getText())
+              .toList();
+      assertEquals(List.of("未命名方案"), headings);
+      // 文案红线:标题绝不外泄 objectId/UUID。
+      assertFalse(
+          document.getParagraphs().stream()
+              .anyMatch(paragraph -> paragraph.getText().contains(objectId)));
     }
   }
 
@@ -199,6 +295,41 @@ class OfficeRenderAdapterTest {
                 "ACTIVE",
                 1)),
         List.of());
+  }
+
+  private static DataSet treeDataSetWithBody() {
+    return new DataSet(
+        List.of(
+            new DataObject(
+                "module",
+                "module",
+                Map.of(
+                    "name",
+                    "正文模块",
+                    "body",
+                    bodyJson(),
+                    "power_w",
+                    920,
+                    "_tree",
+                    Map.of("depth", 0, "order", 0, "ruleStatus", "OK")),
+                "ACTIVE",
+                1)),
+        List.of());
+  }
+
+  private static String bodyJson() {
+    return """
+        {"type":"doc","content":[
+          {"type":"paragraph","content":[
+            {"type":"text","text":"正文第一段，含"},
+            {"type":"text","text":"粗体","marks":[{"type":"bold"}]},
+            {"type":"text","text":"和"},
+            {"type":"text","text":"斜体","marks":[{"type":"italic"}]},
+            {"type":"text","text":"。"}]},
+          {"type":"bulletList","content":[
+            {"type":"listItem","content":[{"type":"paragraph","content":[{"type":"text","text":"第一项"}]}]},
+            {"type":"listItem","content":[{"type":"paragraph","content":[{"type":"text","text":"第二项"}]}]}]}]}
+        """;
   }
 
   private static boolean hasTableRow(XWPFDocument document, String firstCell, String secondCell) {

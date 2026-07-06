@@ -78,6 +78,13 @@
       "required": false
     },
     {
+      "objectType": "proposal",
+      "code": "body",
+      "name": "正文",
+      "dataType": "string",
+      "required": false
+    },
+    {
       "objectType": "system",
       "code": "name",
       "name": "Name",
@@ -117,6 +124,13 @@
       "code": "power_w",
       "name": "Power W",
       "dataType": "number",
+      "required": false
+    },
+    {
+      "objectType": "module",
+      "code": "body",
+      "name": "正文",
+      "dataType": "string",
       "required": false
     },
     {

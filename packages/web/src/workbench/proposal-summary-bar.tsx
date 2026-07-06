@@ -101,7 +101,8 @@ export function ProposalSummaryBarView({
 
 function proposalName(object: ViewObject): string {
   const value = object.fields.name ?? object.fields.title ?? object.fields.code;
-  return typeof value === "string" && value.trim() ? value : object.objectId;
+  // 文案红线:无 name/title/code 时用可读兜底,绝不把 objectId/UUID 当方案名显示。
+  return typeof value === "string" && value.trim() ? value : "未命名方案";
 }
 
 function finiteNumber(value: unknown): number | null {

@@ -1,51 +1,42 @@
-# 当前状态
+# 当前状态（v0.2 阶段）
 
-更新：2026-07-03（导出闭环合龙日）。工作流 v3：代码默认 Codex 实现；前端轻简报+业主审；后端/契约 Fable 审；前端合并门槛 `verify:web`。
+更新：2026-07-05。v0.1 已封版（tag v0.1，含已知缺陷入账，见 04/05）。
 
-## 里程碑
+## v0.2 一句话目标
 
-**2026-07-04 创作链路全通，v0.1 功能面闭合**：新建方案项目 → 概览条 → 文档树加模块 → 填参数 → 派生+红灯联动 → 导出章节化 Word → 归档（relationPolicy=unlink）。期间修复三个历史地雷：UI 建关系断点（relation-types 端点）、实例化命令目标空间、读模型断流（readmodel.events 共享队列）。待办仅剩：6b 合并、golden-path 计时验收、dogfood。
+从"能走通的 demo"到"作者本人每天真用的写作工具"：**校核可信 + 正文可写**。
 
-**核心闭环已通**：打开技术方案 Demo → 改参数 → 派生重算+自动校核 → 导出章节化 Word（树序正确、参数表、校核结论表）。首份模型驱动 Word 已于 2026-07-03 导出成功。
+## v0.2 闭环标尺（一切任务的判断标准）
 
-## 待办与进度
+用 M-Next 把《技术说明书 V3.3》的一整章维护成活文档——建结构、写正文、填参数、看校核、导出可交付 Word——全程不需要绕开任何面板、不需要相信任何错误结论。
 
-| 事项 | 谁 | 状态 |
-| --- | --- | --- |
-| 仓库收口、v0.1 基线 | 人 | ✅ |
-| TECHDOC_DEMO 入口 + 默认布局 | Codex | ✅ 已合并 |
-| seed 加厚（参数链/红灯/比选） | Codex | ✅ 已合并 |
-| 保存即自动校核 | Codex | ✅（合并状态待业主确认） |
-| 4a 导出契约（treeScope/sectionMapping） | Codex | ✅ 已合并 |
-| 4b docx 章节化渲染 | Codex | ✅ 已合并 |
-| 4c 前端导出走文档树 | Codex | ✅ 已合并 |
-| 4d 导出观感修缮（标题样式/中文标签/默认段落/状态中文化） | Codex | ✅ 已合并 |
-| 概览条（总功耗/预算/超预算徽章，refreshVersion 联动） | Codex | ✅ 已合并 |
-| 创作能力 part1（向导建方案+归档） | Codex | ✅ 已合并 |
-| 6a relation-types 只读端点（解锁 UI 建关系历史断点） | Codex | ✅ 已合并 |
-| 6b 文档树「添加模块」（relationTypes→CreateObject→CreateRelation→自动选中，新模块预置 power_w=0） | Codex | 🔄 Fable 审查通过，待业主 6 步验收后合并 |
-| 跨类型校核可见 | — | 概览条落地后重评，可能降级 |
-| 30 分钟启动脚本 | Fable | 待做 |
-| 演示打磨杂项 | — | 降级 v0.1 后 |
+## 执行队列（用户已拍板：P0 两个先做 → Tiptap）
 
-## 新发现（2026-07-03，T-V01-6 探明阶段）
+| 批次 | 任务 | 谁 | 状态 |
+| --- | --- | --- | --- |
+| 1-P0 | T-V02-1 新建工作空间 BLOCK 规则不生效（失败测试先行）+ 标题禁 UUID 兜底 | Codex（后端，Fable 审） | 待发 |
+| 1-P0 | T-V02-2 文档面板冲突解决修复（采用当前值/我的值语义）| Codex（前端，业主审）| 待发（与 T-V02-1 零交集可并行） |
+| 2-Tiptap | T-V02-3a Tiptap 依赖 ADR（运行时依赖须走 ADR-002 修订，Fable 起草、业主批） | Fable→业主 | 批次1交付期间起草 |
+| 2-Tiptap | T-V02-3b 模型侧：proposal/module 增加富文本正文字段 body（存 Tiptap JSON；manifest 声明式） | Codex（后端） | 待定义 |
+| 2-Tiptap | T-V02-3c 文档视图正文块接入 Tiptap 编辑器（保存走 updateSingleField 唯一出口） | Codex（前端） | 待定义 |
+| 2-Tiptap | T-V02-3d 导出：body 富文本 → docx 段落（子集：段落/粗斜体/无序列表；超出子集降级纯文本） | Codex（后端） | 待定义 |
+| 3-债 | 跨类型校核可见（校验面板全工作空间红灯汇总） | Codex | 穿插 |
+| 3-债 | 文案杂项打包：relation-types 中文名、字段显示名全局化、新建项目引导文案 | Codex | 穿插 |
 
-- **历史断点**：前端创建关系从未真正可用——CommandController 严格要求 relationTypeId 为 UUID，前端只持有 code，且无 relation-types 读端点（室内画布连线同样受影响，室内已冻结不修）。→ T-V01-6a 补只读 relation-types 端点。
-- **2026-07-03 审查发现**：Codex 对 T-V01-6 只交付了向导段（part1，质量合格可收），跳过了被阻断的"加模块/归档"且未做 6a。处置：part1 单独合并；6a 重发（只做端点）；之后发 6-part2（加模块+归档）。教训入规：**收货先跑验收一句话**。
-- CreateObject 响应不直接携带新对象 id，前端按既有模式（事件+唯一字段查询）兜底。
-- **无阻断切片已落**（feat/T-V01-6-authoring-minimal，verify:web 全绿）：CommandClient 新增 createObject/archive（走已注册 /commands）；向导「技术方案」= 名称+功耗预算 → instantiateWorkspace → CreateObject(proposal: title/version=v1/author/power_budget_w) → onOpenWorkspace 携带 templateCode 直入工作台；文档树节点「归档」确认流 → Archive → 刷新（onArchived 联动概览条 refreshVersion）。**留待 6a**：文档树「加模块」（需 relationTypeId UUID）与 Inspector 新建后聚焦（其唯一触发＝加模块）。
+## 批次 2 进展（2026-07-06）
 
-## 已知问题
+- 3b 正文字段 ✅ / 3c Tiptap 编辑器 ✅（tiptap@3.27.1 落 views 层，ADR-011 已同步措辞）/ 3d 正文导出 ✅（TiptapDocxBodyRenderer）——待业主终极验证（写正文→导出 Word 见段落/列表）后合并收口。
+- **额外修复（本批狩到的雷）**：ProfileLoader 增量升级（defineMissingFields）——manifest 新增字段对已有安装重启即生效，永别"清库才能升级"；含数据无损测试。
+- 新知识入库：字段定义是项目创建时的模板快照，老项目吃不到新字段（"模板升级应用到既有工作空间"仍在债清单，后端 applyTemplateVersion 机制在、无 UI）。
 
-- **backlog（不阻断）**：per-workspace 队列（workspace.*.events）自断流修复后无人消费、持续堆积（22222222 已 86 条、33333333 已 209 条）——后续加消息 TTL/max-length 策略或停发，v0.1 不动拓扑。
-- 归档需 relationPolicy=unlink（内核 KERNEL-422-ACTIVE-RELATIONS 保护）——前端修复中。
-- 新模块未填职责会触发 R-TD-RESP 黄色告警——预期行为，非缺陷。
-- **2026-07-04 重大发现（6b 验收踩雷）**：读模型投影只覆盖种子工作空间——发布侧 per-workspace 队列 + 消费侧写死监听 11111111 队列 + DevSeed 进程内直投掩盖；运行期新建的工作空间读模型永远为空。修复方向：发布侧加投共享队列 readmodel.events + 去掉 dev 配置写死（Codex 修复中，Fable 审）。同批前端修复：作者空间常量修正（已落）、根发现/读回重试与概览条中性态。
+## v0.2 明确不做（防发散）
 
-- （4d 已修复并合并：标题样式/导航窗格、中文字段标签、默认段落、校核状态中文化——留档）
-- relation-types 返回的 name 暂为 code 复读（SQL 未取 name 列），前端显示中文名时再补
-- 6b 合并后：v0.1 剩余收尾＝golden-path 计时验收（文档已备）+ dogfood（搬 V3.3 一章）
+AI 入口真实化（推 v0.3——Tiptap 落地后 AI 草稿才有好落点）；多人协同/权限；新领域 profile；消息拓扑重构（队列堆积先用运维策略顶）；全文档 Tiptap 化——**文档章节结构永远由模型驱动，Tiptap 只管"正文字段"内部**，这是定位红线。
 
-## 环境与门禁事实
+## 已知限制（发布说明级）
 
-Java 21（Temurin）/ Node 22+ / pnpm 10.12.1；前端合并门槛 `corepack pnpm verify:web`（约 1~2 分钟，不跑 Java）；全量 `verify` 用于后端/契约与发布前（先 `dev:down`，jar 锁）；seed/manifest 变更后验收需重置 postgres 数据卷。
+- v0.1 已知缺陷见 05-known-p0；新项目校核结论在 T-V02-1 修复前不可信，演示校核用种子 demo。
+
+## 环境与门禁（沿用 v0.1）
+
+前端合并门槛 verify:web；后端/契约全量 verify+Skipped:0；契约人审；Codex 一任务一分支；人改代码可直 main。重启速查见 03。

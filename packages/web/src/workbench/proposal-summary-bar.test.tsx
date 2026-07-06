@@ -66,6 +66,23 @@ describe("proposal summary bar", () => {
     expect(html).toContain(">—</span>");
   });
 
+  it("falls back to 未命名方案 (never the objectId) when the proposal has no name/title/code", () => {
+    const summary = summarizeProposal({
+      objectId: "9f8e7d6c-1234-4abc-8def-000000000000",
+      objectType: "proposal",
+      status: "ACTIVE",
+      version: 1,
+      fields: { power_budget_w: 500 },
+      derived: {},
+      updatedAt: "2026-07-05T00:00:00Z",
+      source: "manual",
+      ruleStatus: "OK",
+    });
+
+    expect(summary.name).toBe("未命名方案");
+    expect(summary.name).not.toContain("9f8e7d6c");
+  });
+
   it("loads the first proposal and keys reloads by refresh version", async () => {
     const objects = vi.fn().mockResolvedValue({
       items: [proposal({ power_budget_w: 800 }, { total_power_fx: 820 })],

@@ -18,6 +18,7 @@ import { ConflictDialog } from "../conflict/conflict-dialog";
 import type { SelectionCoordinator } from "../selection/selection-coordinator";
 import type { SelectionRef } from "../selection/selection-ref";
 import { supportsTreeRelation } from "../tree/tree-view";
+import { DocumentBodyBlock } from "./body-editor";
 
 const MAX_SECTIONS = 200;
 const terminalStatuses = new Set([
@@ -84,6 +85,8 @@ export async function archiveDocumentObject(
 }
 
 const MODULE_OBJECT_TYPE_CODE = "module";
+/** 正文字段码:有专属富文本渲染区,从普通字段列表中隐藏。 */
+const BODY_FIELD_CODE = "body";
 export const PROPOSAL_OBJECT_TYPE_CODE = "proposal";
 export const PROPOSAL_CONTAINS_MODULE_RELATION = "proposal_contains_module";
 const RESOLVE_ATTEMPTS = 10;
@@ -794,6 +797,35 @@ function DocumentSectionView(props: {
     }
   }
 
+  // body 有专属富文本渲染区,从普通字段列表隐藏;保存走 saveDocumentField → updateSingleField(string)。
+  const bodyField = props.section.fields.find(
+    (item) => item.definition.code === BODY_FIELD_CODE,
+  );
+
+  async function saveBody(json: string): Promise<void> {
+    if (!props.commandClient) return;
+    const result = await saveDocumentField(
+      props.commandClient,
+      props.workspaceId,
+      props.section.object,
+      BODY_FIELD_CODE,
+      json,
+      "string",
+    );
+    if (result.kind === "saved") {
+      props.onFieldSaved(
+        id,
+        BODY_FIELD_CODE,
+        result.value,
+        props.section.object.version + 1,
+      );
+    } else if (result.kind === "conflict") {
+      props.onError?.("正文已被他人修改,请刷新后重试。");
+    } else {
+      props.onError?.(result.message);
+    }
+  }
+
   return (
     <section
       aria-current={isDocumentSelection(props.selected, id) || undefined}
@@ -844,25 +876,36 @@ function DocumentSectionView(props: {
           workspaceId={props.workspaceId}
         />
       ) : null}
-      {props.section.fields.map((field) => (
-        <DocumentFieldView
-          commandClient={props.commandClient}
-          field={field}
-          key={field.definition.code}
-          object={props.section.object}
-          objectId={id}
-          onEditField={props.onEditField}
-          onError={props.onError}
-          onFieldSaved={props.onFieldSaved}
-          onObjectRefreshed={props.onObjectRefreshed}
-          selected={props.selected}
-          selection={props.selection}
-          targets={props.targets}
-          terminal={props.section.terminal}
-          viewClient={props.viewClient}
-          workspaceId={props.workspaceId}
+      {bodyField ? (
+        <DocumentBodyBlock
+          editable={
+            !props.section.terminal && props.commandClient !== undefined
+          }
+          onSave={(json) => void saveBody(json)}
+          value={bodyField.value}
         />
-      ))}
+      ) : null}
+      {props.section.fields
+        .filter((field) => field.definition.code !== BODY_FIELD_CODE)
+        .map((field) => (
+          <DocumentFieldView
+            commandClient={props.commandClient}
+            field={field}
+            key={field.definition.code}
+            object={props.section.object}
+            objectId={id}
+            onEditField={props.onEditField}
+            onError={props.onError}
+            onFieldSaved={props.onFieldSaved}
+            onObjectRefreshed={props.onObjectRefreshed}
+            selected={props.selected}
+            selection={props.selection}
+            targets={props.targets}
+            terminal={props.section.terminal}
+            viewClient={props.viewClient}
+            workspaceId={props.workspaceId}
+          />
+        ))}
     </section>
   );
 }

@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   handleInspectorFieldSaved,
+  omitInspectorHiddenFields,
   partitionFields,
   relationEndpointsLabel,
   relativeTime,
@@ -50,6 +51,19 @@ describe("partitionFields", () => {
     const result = partitionFields({}, () => true);
     expect(result.derived).toEqual([]);
     expect(result.stored).toEqual([]);
+  });
+});
+
+describe("omitInspectorHiddenFields", () => {
+  it("hides body (rich-text) from the inspector so its raw JSON is never shown", () => {
+    const visible = omitInspectorHiddenFields({
+      name: "供电模块",
+      power_w: 50,
+      body: '{"type":"doc","content":[]}',
+    });
+
+    expect(visible).toEqual({ name: "供电模块", power_w: 50 });
+    expect(visible).not.toHaveProperty("body");
   });
 });
 

@@ -102,6 +102,18 @@ export function partitionFields(
   return { derived, stored };
 }
 
+/**
+ * 属性面板隐藏字段:body(正文)有文档视图专属富文本编辑区,属性面板不展示其原始 JSON。
+ * 纯函数,便于测试。
+ */
+export function omitInspectorHiddenFields(
+  fields: Readonly<Record<string, unknown>>,
+): Record<string, unknown> {
+  return Object.fromEntries(
+    Object.entries(fields).filter(([code]) => code !== "body"),
+  );
+}
+
 /** 连线两端的可读标签:源 → 目标。纯函数。 */
 export function relationEndpointsLabel(relation: RelationSummary): string {
   return `${relation.sourceId} → ${relation.targetId}`;
@@ -234,7 +246,7 @@ export function InspectorPanel(): ReactElement {
       .find((type) => type.code === object.objectType)
       ?.fields.find((field) => field.code === code)?.dataType;
   const { derived, stored } = partitionFields({
-    ...object.fields,
+    ...omitInspectorHiddenFields(object.fields),
     ...(object.derived ?? {}),
   });
   // 保存后刷新:即时刷一次,再过一拍刷一次(等读库经投影追平,画布/派生自动跟上,免手动 F5)

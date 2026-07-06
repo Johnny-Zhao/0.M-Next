@@ -44,6 +44,18 @@ class DevSeedRunner implements ApplicationRunner {
   private static final String SYSML_TEMPLATE_CODE = "sysml";
   private static final String SYSML_MBSE_MAPPING_TEMPLATE_CODE = "sysml_mbse_mapping";
 
+  // 富文本正文样本(合法 Tiptap JSON:一个段落 + 一个无序列表),为富文本内容块回归留样(ADR-011)。
+  // body 为普通字符串字段,仅承载内容,不参与任何派生与规则。
+  private static final String MODULE_BODY_SAMPLE =
+      "{\"type\":\"doc\",\"content\":["
+          + "{\"type\":\"paragraph\",\"content\":["
+          + "{\"type\":\"text\",\"text\":\"方案编排模块负责组织系统、模块、接口与需求。\"}]},"
+          + "{\"type\":\"bulletList\",\"content\":["
+          + "{\"type\":\"listItem\",\"content\":[{\"type\":\"paragraph\",\"content\":["
+          + "{\"type\":\"text\",\"text\":\"组织章节结构\"}]}]},"
+          + "{\"type\":\"listItem\",\"content\":[{\"type\":\"paragraph\",\"content\":["
+          + "{\"type\":\"text\",\"text\":\"驱动导出与评审\"}]}]}]}]}";
+
   private final ProfileLoader profileLoader;
   private final TemplateLifecycleService lifecycle;
   private final KernelCommandService commands;
@@ -787,7 +799,10 @@ class DevSeedRunner implements ApplicationRunner {
     var result = new LinkedHashMap<String, Object>(fields);
     switch (keySuffix) {
       case "proposal" -> result.put("power_budget_w", 800);
-      case "module-orchestration" -> result.put("power_w", 260);
+      case "module-orchestration" -> {
+        result.put("power_w", 260);
+        result.put("body", MODULE_BODY_SAMPLE); // 回归留样:富文本正文(不参与派生/规则)
+      }
       case "module-generation" -> result.put("power_w", 190);
       case "module-adapter" -> result.put("power_w", 210);
       case "module-undecided" -> result.put("power_w", 160);
