@@ -84,6 +84,7 @@ export interface TableViewProps {
   readonly commandClient: CommandClient;
   readonly selection: SelectionCoordinator;
   readonly pageSize?: number;
+  readonly refreshKey?: number;
   readonly onError?: (title: string) => void;
   readonly onSaved?: () => void;
 }
@@ -146,11 +147,12 @@ interface ConflictState {
 }
 
 export function TableView(props: TableViewProps): ReactElement {
+  const pageSize = props.pageSize ?? 50;
   const [type, setType] = useState<ObjectType | null>(null);
   const [page, setPage] = useState<ObjectPage>({
     items: [],
     page: 0,
-    pageSize: 50,
+    pageSize,
     total: 0,
   });
   const [selected, setSelected] = useState<SelectionRef | null>(null);
@@ -165,10 +167,17 @@ export function TableView(props: TableViewProps): ReactElement {
       );
     });
     void props.viewClient
-      .objects(props.workspaceId, props.objectType, 0, props.pageSize ?? 50)
+      .objects(props.workspaceId, props.objectType, 0, pageSize)
       .then(setPage);
     return props.selection.subscribe(setSelected);
-  }, [props]);
+  }, [
+    pageSize,
+    props.objectType,
+    props.refreshKey,
+    props.selection,
+    props.viewClient,
+    props.workspaceId,
+  ]);
 
   async function save(row: ViewObject, cell: EditingCell): Promise<void> {
     setEditing(null);
@@ -212,12 +221,7 @@ export function TableView(props: TableViewProps): ReactElement {
 
   function loadPage(pageNumber: number): void {
     void props.viewClient
-      .objects(
-        props.workspaceId,
-        props.objectType,
-        pageNumber,
-        props.pageSize ?? 50,
-      )
+      .objects(props.workspaceId, props.objectType, pageNumber, pageSize)
       .then(setPage);
   }
 

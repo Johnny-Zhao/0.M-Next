@@ -99,6 +99,7 @@ export function MatrixPanel(): ReactElement {
   const {
     commandClient,
     objectType,
+    refreshVersion,
     relationType,
     reportError,
     selection,
@@ -137,7 +138,14 @@ export function MatrixPanel(): ReactElement {
     return () => {
       disposed = true;
     };
-  }, [objectType, relationType, reportError, viewClient, workspaceId]);
+  }, [
+    objectType,
+    refreshVersion,
+    relationType,
+    reportError,
+    viewClient,
+    workspaceId,
+  ]);
 
   const relationOptions = useMemo(
     () => relationOptionsForTypes(objectTypes),
@@ -215,6 +223,7 @@ export function MatrixPanel(): ReactElement {
           colType={config.colType}
           commandClient={commandClient}
           onError={reportError}
+          refreshKey={refreshVersion}
           relationType={config.relationType}
           rowType={config.rowType}
           selection={selection}

@@ -19,6 +19,7 @@ import {
   SelectionCoordinator,
   ViewClient,
   type OutputFormat,
+  type SelectionRef,
 } from "@m-next/views";
 
 import { AiPanel } from "./ai-panel";
@@ -169,6 +170,14 @@ export function openWorkbenchPanel(
   api.focus();
 }
 
+export function shouldOpenInspectorForSelection(
+  selection: SelectionRef | null,
+): boolean {
+  return (
+    selection?.entityType === "object" || selection?.entityType === "field"
+  );
+}
+
 export interface WorkbenchProps {
   readonly actorId: string;
   readonly workspaceId: string;
@@ -313,6 +322,16 @@ export function Workbench({
       setActivePanel(panelId);
     },
     [dockviewApi],
+  );
+
+  useEffect(
+    () =>
+      selection.subscribe((selected) => {
+        if (shouldOpenInspectorForSelection(selected)) {
+          openShellPanel("inspector");
+        }
+      }),
+    [openShellPanel, selection],
   );
 
   const generateOutput = useCallback(

@@ -12,14 +12,32 @@ import {
 describe("TreeView", () => {
   it("builds hierarchy and truncates beyond depth five", () => {
     const tree = buildTree("root", [
-      { sourceId: "root", targetId: "one", depth: 1 },
-      { sourceId: "one", targetId: "two", depth: 2 },
+      { sourceId: "root", targetId: "one", depth: 1, targetName: "一级模块" },
+      { sourceId: "one", targetId: "two", depth: 2, targetName: "二级模块" },
       { sourceId: "two", targetId: "hidden", depth: 6 },
     ]);
 
+    expect(tree.label).toBeUndefined();
     expect(tree.children[0]?.id).toBe("one");
+    expect(tree.children[0]?.label).toBe("一级模块");
     expect(tree.children[0]?.children[0]?.id).toBe("two");
+    expect(tree.children[0]?.children[0]?.label).toBe("二级模块");
     expect(tree.children[0]?.children[0]?.children).toEqual([]);
+  });
+
+  it("uses the source name for the root label", () => {
+    const tree = buildTree("root", [
+      {
+        sourceId: "root",
+        targetId: "one",
+        depth: 1,
+        sourceName: "技术方案 Demo",
+        targetName: "编排模块",
+      },
+    ]);
+
+    expect(tree.label).toBe("技术方案 Demo");
+    expect(tree.children[0]?.label).toBe("编排模块");
   });
 
   it("selection stays in memory without writes", () => {

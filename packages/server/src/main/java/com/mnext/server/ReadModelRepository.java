@@ -401,16 +401,36 @@ class ReadModelRepository {
           FROM rm_relation relation JOIN tree ON relation.source_id = tree.target_id
           WHERE relation.workspace_id = ? AND relation.relation_type_code = ?
             AND relation.hierarchical AND relation.status = 'ACTIVE' AND tree.depth < 5)
-        SELECT source_id, target_id, depth FROM tree ORDER BY depth, target_id
+        SELECT tree.source_id, tree.target_id, tree.depth,
+               COALESCE(
+                 NULLIF(source.fields->>'name', ''),
+                 NULLIF(source.fields->>'title', ''),
+                 NULLIF(source.fields->>'code', '')) AS source_name,
+               COALESCE(
+                 NULLIF(target.fields->>'name', ''),
+                 NULLIF(target.fields->>'title', ''),
+                 NULLIF(target.fields->>'code', '')) AS target_name
+        FROM tree
+        LEFT JOIN rm_object source
+          ON source.workspace_id = ? AND source.object_id = tree.source_id
+        LEFT JOIN rm_object target
+          ON target.workspace_id = ? AND target.object_id = tree.target_id
+        ORDER BY tree.depth, tree.target_id
         """,
         (row, index) ->
             new TreeNodeView(
-                row.getObject(1, UUID.class), row.getObject(2, UUID.class), row.getInt(3)),
+                row.getObject(1, UUID.class),
+                row.getObject(2, UUID.class),
+                row.getInt(3),
+                row.getString(4),
+                row.getString(5)),
         workspaceId,
         relationType,
         rootId,
         workspaceId,
-        relationType);
+        relationType,
+        workspaceId,
+        workspaceId);
   }
 
   MatrixView matrix(

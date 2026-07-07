@@ -72,9 +72,11 @@ class ReadModelQueryIntegrationTest {
   void projectsAndQueriesPagedObjectsRelationsTreeAndSyncStatus() {
     projection.apply(objectCreated(FIRST));
     projection.apply(objectCreated(SECOND));
-    projection.apply(fieldChanged(FIRST, 2, 5));
+    projection.apply(fieldChanged(FIRST, 2, "name", "第一对象"));
+    projection.apply(fieldChanged(FIRST, 3, 5));
+    projection.apply(fieldChanged(SECOND, 2, "name", "第二对象"));
     projection.apply(relationCreated());
-    projection.apply(stateChanged(FIRST, 3, "CONFIRMED"));
+    projection.apply(stateChanged(FIRST, 4, "CONFIRMED"));
     projection.apply(stateChanged(FIRST, 2, "DRAFT"));
 
     var objects = get("/views/objects?objectType=demo_object&page=0&pageSize=1");
@@ -93,6 +95,8 @@ class ReadModelQueryIntegrationTest {
     assertEquals(1, relations.size());
     assertEquals(1, ((Number) relations.getFirst().get("version")).longValue());
     assertEquals(1, tree.size());
+    assertEquals("第一对象", tree.getFirst().get("sourceName"));
+    assertEquals("第二对象", tree.getFirst().get("targetName"));
     assertFalse(types.isEmpty());
     assertEquals("CONFIRMED", ((Map<?, ?>) detail.get("object")).get("status"));
     assertEquals(0, ((Number) sync.get("pendingEvents")).intValue());
@@ -261,12 +265,16 @@ class ReadModelQueryIntegrationTest {
   }
 
   private EventEnvelope fieldChanged(UUID objectId, long version, Object value) {
+    return fieldChanged(objectId, version, "budget", value);
+  }
+
+  private EventEnvelope fieldChanged(UUID objectId, long version, String code, Object value) {
     return event(
         "FieldChanged",
         "fieldValue",
-        objectId + ":budget",
+        objectId + ":" + code,
         version,
-        Map.of("fieldDefCode", "budget", "value", value));
+        Map.of("fieldDefCode", code, "value", value));
   }
 
   private EventEnvelope stateChanged(UUID objectId, long version, String status) {

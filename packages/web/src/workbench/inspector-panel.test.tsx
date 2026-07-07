@@ -202,6 +202,6 @@ describe("Inspector field save", () => {
     expect(refreshSelected).toHaveBeenCalledTimes(1);
     expect(scheduleRefresh).toHaveBeenCalledWith(refreshSelected, 800);
     expect(runRuleCheck).toHaveBeenCalledWith("workspace-1", "actor-1", null);
-    expect(refreshViews).not.toHaveBeenCalled();
+    expect(refreshViews).toHaveBeenCalledTimes(1);
   });
 });

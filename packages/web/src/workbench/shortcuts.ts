@@ -1,4 +1,4 @@
-import type { CommandClient, ViewObject } from "@m-next/views";
+import type { CommandClient, ViewClient, ViewObject } from "@m-next/views";
 
 export type DiagramShortcut =
   | "clearSelection"
@@ -44,17 +44,36 @@ type KernelCommandPost = <T>(
 
 export async function createObjectByCommand(
   commandClient: CommandClient,
+  viewClient: Pick<ViewClient, "objectTypes">,
   workspaceId: string,
-  objectTypeId: string,
+  objectTypeCode: string,
   fields: Readonly<Record<string, unknown>>,
   ref: string,
 ): Promise<void> {
+  const objectTypeId = await resolveObjectTypeId(
+    viewClient,
+    workspaceId,
+    objectTypeCode,
+  );
   await postKernelCommand(commandClient, "CreateObject", workspaceId, {
     objectTypeId,
     fields,
     source: { type: "manual", ref },
     initialState: "DRAFT",
   });
+}
+
+export async function resolveObjectTypeId(
+  viewClient: Pick<ViewClient, "objectTypes">,
+  workspaceId: string,
+  objectTypeCode: string,
+): Promise<string> {
+  const types = await viewClient.objectTypes(workspaceId);
+  const type = types.find(
+    (item) => item.code === objectTypeCode || item.id === objectTypeCode,
+  );
+  if (!type) throw new Error(`未找到对象类型: ${objectTypeCode}`);
+  return type.id;
 }
 
 export async function softDeleteObjectByCommand(

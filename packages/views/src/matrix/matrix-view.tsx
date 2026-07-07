@@ -48,6 +48,7 @@ export interface MatrixViewProps {
   readonly colType: string;
   readonly relationType: string;
   readonly commandClient?: MatrixCommandClient;
+  readonly refreshKey?: number;
   readonly onError?: (title: string) => void;
 }
 
@@ -233,6 +234,7 @@ export function MatrixView(props: MatrixViewProps): ReactElement {
     colType,
     relationType,
     commandClient,
+    refreshKey,
     onError,
   } = props;
   const [matrix, setMatrix] = useState<MatrixResult>(emptyMatrix);
@@ -285,6 +287,7 @@ export function MatrixView(props: MatrixViewProps): ReactElement {
     colPage,
     colType,
     relationType,
+    refreshKey,
     rowPage,
     rowType,
     viewClient,

@@ -6,12 +6,16 @@ const mocks = vi.hoisted(() => ({
     readonly autoCheckAfterSave: () => Promise<void>;
     readonly commandClient: unknown;
     readonly objectType: string;
+    readonly refreshVersion: number;
     readonly reportError: (message: string) => void;
     readonly selection: unknown;
     readonly viewClient: unknown;
     readonly workspaceId: string;
   },
-  tableProps: null as null | { readonly onSaved?: () => void },
+  tableProps: null as null | {
+    readonly onSaved?: () => void;
+    readonly refreshKey?: number;
+  },
 }));
 
 vi.mock("./workbench", () => ({
@@ -34,6 +38,7 @@ describe("TablePanel", () => {
       autoCheckAfterSave,
       commandClient: {},
       objectType: "module",
+      refreshVersion: 7,
       reportError: vi.fn(),
       selection: {},
       viewClient: {},
@@ -44,5 +49,6 @@ describe("TablePanel", () => {
     mocks.tableProps?.onSaved?.();
 
     expect(autoCheckAfterSave).toHaveBeenCalledTimes(1);
+    expect(mocks.tableProps?.refreshKey).toBe(7);
   });
 });

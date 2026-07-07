@@ -4,8 +4,11 @@ import type { ViewObject } from "@m-next/views";
 
 import {
   connectDiagramObjects,
+  containsRelationCodesForObjectType,
+  defaultDiagramObjectFields,
   objectDerivedChips,
   objectsAndRelationsToFlow,
+  pickCreatedDiagramObjectId,
   relationLabel,
   unlinkDiagramEdges,
   type DiagramCommandClient,
@@ -14,6 +17,37 @@ import {
 import { relationEdgeVisual, relationRoute } from "./edges";
 
 describe("diagram relation edges", () => {
+  it("uses required defaults for right-click object creation", () => {
+    expect(defaultDiagramObjectFields).toEqual({ name: "新模块", power_w: 0 });
+  });
+
+  it("maps created technical proposal objects to contains relations", () => {
+    expect(containsRelationCodesForObjectType("module")).toEqual([
+      "proposal_contains_module",
+    ]);
+    expect(containsRelationCodesForObjectType("system")).toEqual([
+      "proposal_contains_system",
+    ]);
+    expect(containsRelationCodesForObjectType("interface")).toEqual([
+      "proposal_contains_interface",
+    ]);
+  });
+
+  it("resolves the freshly created object before attaching it to the root", () => {
+    const knownIds = new Set(["old-module"]);
+
+    expect(
+      pickCreatedDiagramObjectId({
+        knownIds,
+        expectedName: "新模块",
+        objects: [
+          object("old-module", "旧模块"),
+          object("new-module", "新模块"),
+        ],
+      }),
+    ).toBe("new-module");
+  });
+
   it("creates relations from anchored connections through CommandClient", async () => {
     const commandClient = diagramCommandClient();
 

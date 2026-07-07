@@ -23,7 +23,12 @@ import {
   type ReactElement,
 } from "react";
 
-import type { RelationSummary, ViewObject } from "@m-next/views";
+import type {
+  RelationSummary,
+  RelationType,
+  ViewClient,
+  ViewObject,
+} from "@m-next/views";
 
 import {
   fieldLabel,
@@ -517,6 +522,18 @@ interface DiagramData {
   readonly relations: readonly RelationSummary[];
 }
 
+export const defaultDiagramObjectFields = {
+  name: "新模块",
+  power_w: 0,
+} as const;
+
+const diagramCreateResolveAttempts = 5;
+const diagramCreateResolveDelayMs = 350;
+const proposalContainsRelationByObjectType: Readonly<Record<string, string>> = {
+  module: "proposal_contains_module",
+  system: "proposal_contains_system",
+};
+
 interface LineageTarget {
   readonly object: ViewObject;
   readonly fieldCode: string;
@@ -558,8 +575,106 @@ export async function unlinkDiagramEdges(
   );
 }
 
+export function containsRelationCodesForObjectType(
+  objectTypeCode: string,
+): readonly string[] {
+  return [
+    `proposal_contains_${objectTypeCode}`,
+    proposalContainsRelationByObjectType[objectTypeCode],
+  ].filter((code, index, codes): code is string =>
+    Boolean(code && codes.indexOf(code) === index),
+  );
+}
+
+export function pickCreatedDiagramObjectId(params: {
+  readonly objects: readonly ViewObject[];
+  readonly knownIds: ReadonlySet<string>;
+  readonly expectedName?: string;
+}): string | null {
+  const fresh = params.objects.filter(
+    (object) => !params.knownIds.has(object.objectId),
+  );
+  const named = params.expectedName
+    ? fresh.find(
+        (object) => String(object.fields.name ?? "") === params.expectedName,
+      )
+    : undefined;
+  return named?.objectId ?? fresh[0]?.objectId ?? null;
+}
+
+async function resolveCreatedDiagramObjectId(params: {
+  readonly viewClient: Pick<ViewClient, "objects">;
+  readonly workspaceId: string;
+  readonly objectTypeCode: string;
+  readonly knownIds: ReadonlySet<string>;
+  readonly expectedName?: string;
+}): Promise<string | null> {
+  for (let attempt = 0; attempt < diagramCreateResolveAttempts; attempt += 1) {
+    const page = await params.viewClient.objects(
+      params.workspaceId,
+      params.objectTypeCode,
+      0,
+      100,
+    );
+    const objectId = pickCreatedDiagramObjectId({
+      objects: page.items,
+      knownIds: params.knownIds,
+      expectedName: params.expectedName,
+    });
+    if (objectId) return objectId;
+    await new Promise((resolve) =>
+      window.setTimeout(resolve, diagramCreateResolveDelayMs),
+    );
+  }
+  return null;
+}
+
+function relationTypeIdForCreatedObject(
+  relationTypes: readonly RelationType[],
+  objectTypeCode: string,
+): string | null {
+  const candidates = containsRelationCodesForObjectType(objectTypeCode);
+  return (
+    relationTypes.find((type) => candidates.includes(type.code))?.id ?? null
+  );
+}
+
+async function attachCreatedObjectToRoot(params: {
+  readonly viewClient: Pick<ViewClient, "relationTypes">;
+  readonly commandClient: Pick<DiagramCommandClient, "createRelation">;
+  readonly workspaceId: string;
+  readonly rootId: string;
+  readonly objectTypeCode: string;
+  readonly objectId: string | null;
+}): Promise<void> {
+  if (!params.objectId || params.rootId.trim() === "") return;
+  const relationTypes = await params.viewClient.relationTypes(
+    params.workspaceId,
+  );
+  const relationTypeId = relationTypeIdForCreatedObject(
+    relationTypes,
+    params.objectTypeCode,
+  );
+  if (!relationTypeId) return;
+  await params.commandClient.createRelation(
+    params.workspaceId,
+    relationTypeId,
+    params.rootId,
+    params.objectId,
+  );
+}
+
 export function DiagramPanel(): ReactElement {
   const context = useWorkbenchContext();
+  const {
+    objectType,
+    refreshVersion,
+    relationType,
+    reportError,
+    rootId,
+    viewClient,
+    workspaceId,
+  } = context;
   const toast = useToast();
   const [data, setData] = useState<DiagramData>({
     objects: [],
@@ -598,17 +713,12 @@ export function DiagramPanel(): ReactElement {
     let disposed = false;
     async function load(): Promise<void> {
       try {
-        const page = await context.viewClient.objects(
-          context.workspaceId,
-          context.objectType,
-          0,
-          100,
-        );
-        const sourceId = context.rootId || page.items[0]?.objectId;
+        const page = await viewClient.objects(workspaceId, objectType, 0, 100);
+        const sourceId = rootId || page.items[0]?.objectId;
         const relations = sourceId
-          ? await context.viewClient.relations(
-              context.workspaceId,
-              context.relationType,
+          ? await viewClient.relations(
+              workspaceId,
+              relationType,
               "out",
               sourceId,
               2,
@@ -617,7 +727,7 @@ export function DiagramPanel(): ReactElement {
         if (!disposed) setData({ objects: page.items, relations });
       } catch (error) {
         if (!disposed) {
-          context.reportError(
+          reportError(
             error instanceof Error ? error.message : "读取图面板失败",
           );
           setData({ objects: [], relations: [] });
@@ -628,7 +738,15 @@ export function DiagramPanel(): ReactElement {
     return () => {
       disposed = true;
     };
-  }, [context]);
+  }, [
+    objectType,
+    refreshVersion,
+    relationType,
+    reportError,
+    rootId,
+    viewClient,
+    workspaceId,
+  ]);
 
   useEffect(() => {
     const flow = objectsAndRelationsToFlow(
@@ -799,15 +917,41 @@ export function DiagramPanel(): ReactElement {
     setMenu(null);
   }
 
-  async function createObject(fields = {}): Promise<void> {
+  async function createObject(
+    fields: Readonly<Record<string, unknown>> = defaultDiagramObjectFields,
+  ): Promise<void> {
     try {
+      const existing = await context.viewClient.objects(
+        context.workspaceId,
+        context.objectType,
+        0,
+        100,
+      );
+      const knownIds = new Set(existing.items.map((object) => object.objectId));
       await createObjectByCommand(
         context.commandClient,
+        context.viewClient,
         context.workspaceId,
         context.objectType,
         fields,
         "diagram-panel",
       );
+      const objectId = await resolveCreatedDiagramObjectId({
+        viewClient: context.viewClient,
+        workspaceId: context.workspaceId,
+        objectTypeCode: context.objectType,
+        knownIds,
+        expectedName:
+          typeof fields.name === "string" ? fields.name.trim() : undefined,
+      });
+      await attachCreatedObjectToRoot({
+        viewClient: context.viewClient,
+        commandClient: context.commandClient,
+        workspaceId: context.workspaceId,
+        rootId: context.rootId,
+        objectTypeCode: context.objectType,
+        objectId,
+      }).catch(() => {});
       context.refreshViews();
     } catch (error) {
       context.reportError(errorMessage(error, "新建对象失败"));
@@ -823,6 +967,7 @@ export function DiagramPanel(): ReactElement {
       for (const object of clipboard.objects) {
         await createObjectByCommand(
           context.commandClient,
+          context.viewClient,
           context.workspaceId,
           object.objectType,
           object.fields,

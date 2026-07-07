@@ -63,7 +63,8 @@ record SimResultSeriesPointView(
 
 record ObjectDetailView(ObjectView object, List<RelationView> relations) {}
 
-record TreeNodeView(UUID sourceId, UUID targetId, int depth) {}
+record TreeNodeView(
+    UUID sourceId, UUID targetId, int depth, String sourceName, String targetName) {}
 
 record SyncStatusView(long pendingEvents, boolean caughtUp) {}
 

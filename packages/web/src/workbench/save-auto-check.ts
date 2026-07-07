@@ -10,6 +10,7 @@ export interface SaveAutoCheckContext {
 export async function runSaveAutoCheck(
   context: SaveAutoCheckContext,
 ): Promise<void> {
+  context.refreshViews();
   try {
     await context.viewClient.runRuleCheck(
       context.workspaceId,

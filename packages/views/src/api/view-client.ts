@@ -51,6 +51,8 @@ export interface TreeNodeSummary {
   readonly sourceId: string;
   readonly targetId: string;
   readonly depth: number;
+  readonly sourceName?: string | null;
+  readonly targetName?: string | null;
 }
 
 export interface ObjectPage {

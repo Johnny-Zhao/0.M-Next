@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { runSaveAutoCheck } from "./save-auto-check";
 
 describe("runSaveAutoCheck", () => {
-  it("runs a workspace-wide rule check and refreshes after it completes", async () => {
+  it("refreshes once before checking and again after results arrive", async () => {
     const runRuleCheck = vi.fn().mockResolvedValue("run-1");
     const refreshViews = vi.fn();
 
@@ -15,13 +15,16 @@ describe("runSaveAutoCheck", () => {
     });
 
     expect(runRuleCheck).toHaveBeenCalledWith("workspace-1", "actor-1", null);
-    expect(refreshViews).toHaveBeenCalledTimes(1);
+    expect(refreshViews).toHaveBeenCalledTimes(2);
+    expect(refreshViews.mock.invocationCallOrder[0]).toBeLessThan(
+      runRuleCheck.mock.invocationCallOrder[0] ?? 0,
+    );
     expect(runRuleCheck.mock.invocationCallOrder[0]).toBeLessThan(
-      refreshViews.mock.invocationCallOrder[0] ?? 0,
+      refreshViews.mock.invocationCallOrder[1] ?? 0,
     );
   });
 
-  it("swallows rule check failures without refreshing or reporting", async () => {
+  it("swallows rule check failures after the immediate refresh", async () => {
     const runRuleCheck = vi.fn().mockRejectedValue(new Error("rules offline"));
     const refreshViews = vi.fn();
 
@@ -34,6 +37,6 @@ describe("runSaveAutoCheck", () => {
       }),
     ).resolves.toBeUndefined();
 
-    expect(refreshViews).not.toHaveBeenCalled();
+    expect(refreshViews).toHaveBeenCalledTimes(1);
   });
 });

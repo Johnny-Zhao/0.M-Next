@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { App, syncLabel, workspaceLabel } from "./app";
 import { objectsAndRelationsToFlow } from "./workbench/diagram-panel";
 import {
+  shouldOpenInspectorForSelection,
   workbenchDefaultsForTemplate,
   workbenchPanelDefinitions,
 } from "./workbench/workbench";
@@ -50,6 +51,28 @@ describe("App", () => {
       relationType: "adjacent",
       activePanel: "diagram",
     });
+  });
+
+  it("opens the inspector for object and field selections", () => {
+    expect(
+      shouldOpenInspectorForSelection({
+        entityType: "object",
+        entityId: "module-1",
+      }),
+    ).toBe(true);
+    expect(
+      shouldOpenInspectorForSelection({
+        entityType: "field",
+        entityId: "module-1",
+        fieldCode: "power_w",
+      }),
+    ).toBe(true);
+    expect(
+      shouldOpenInspectorForSelection({
+        entityType: "relation",
+        entityId: "relation-1",
+      }),
+    ).toBe(false);
   });
 
   it("maps objects and relations to React Flow nodes and edges", () => {

@@ -27,14 +27,22 @@ export function buildTree(
   edges.forEach((edge) =>
     children.set(edge.sourceId, [...(children.get(edge.sourceId) ?? []), edge]),
   );
-  const branch = (id: string, depth: number): TreeBranch => ({
+  const rootName = edges.find(
+    (edge) => edge.sourceId === rootId && edge.sourceName?.trim(),
+  )?.sourceName;
+  const branch = (
+    id: string,
+    depth: number,
+    label?: string | null,
+  ): TreeBranch => ({
     id,
+    label: label?.trim() || undefined,
     depth,
     children: (children.get(id) ?? [])
       .filter((edge) => edge.depth <= 5)
-      .map((edge) => branch(edge.targetId, edge.depth)),
+      .map((edge) => branch(edge.targetId, edge.depth, edge.targetName)),
   });
-  return branch(rootId, 0);
+  return branch(rootId, 0, rootName);
 }
 
 export function buildFlatTree(

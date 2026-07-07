@@ -19,6 +19,7 @@ export function TablePanel(): ReactElement {
         objectType={context.objectType}
         onError={context.reportError}
         onSaved={() => void context.autoCheckAfterSave()}
+        refreshKey={context.refreshVersion}
         selection={context.selection}
         viewClient={context.viewClient}
         workspaceId={context.workspaceId}
