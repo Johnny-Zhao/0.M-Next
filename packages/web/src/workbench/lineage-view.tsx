@@ -7,6 +7,8 @@ import type {
   ViewObject,
 } from "@m-next/views";
 
+import { fieldLabel } from "../display-labels";
+
 export interface LineageViewProps {
   readonly workspaceId: string;
   readonly object: ViewObject;
@@ -24,7 +26,7 @@ export function lineageFieldLabel(code: string): string {
   if (code === "area_fx" || code === "total_area_fx") return "面积";
   if (code === "window_floor_ratio_fx") return "窗地比";
   if (code === "orientation") return "朝向";
-  return "字段";
+  return fieldLabel(code, "字段");
 }
 
 export function lineageFieldValue(object: ViewObject, code: string): unknown {

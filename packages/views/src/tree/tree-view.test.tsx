@@ -59,4 +59,21 @@ describe("TreeView", () => {
       ])[0],
     ).toMatchObject({ id: "room-a", label: "客厅", depth: 0 });
   });
+
+  it("never uses raw UUIDs as fallback tree labels", () => {
+    expect(
+      buildFlatTree([
+        {
+          objectId: "a0000000-0000-4000-8000-000000000000",
+          objectType: "module",
+          status: "ACTIVE",
+          version: 1,
+          fields: {},
+          updatedAt: "2026-07-07T00:00:00Z",
+          source: null,
+          ruleStatus: "OK",
+        },
+      ])[0]?.label,
+    ).toBe("模块 a00000");
+  });
 });

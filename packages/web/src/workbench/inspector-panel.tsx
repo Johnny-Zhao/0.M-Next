@@ -14,7 +14,8 @@ import {
 } from "@m-next/views";
 
 import {
-  objectTypeLabel,
+  fieldLabel as displayFieldLabel,
+  objectDisplayTitle,
   safeVisibleText,
   statusLabel as dataStatusLabel,
 } from "../display-labels";
@@ -154,7 +155,7 @@ export function handleInspectorFieldSaved(
   code: string,
   callbacks: InspectorSavedCallbacks,
 ): Promise<void> {
-  const message = `${code} 已保存`;
+  const message = `${displayFieldLabel(code)} 已保存`;
   callbacks.setMessage(message);
   callbacks.toastSuccess(message);
   callbacks.refreshSelected();
@@ -268,11 +269,11 @@ export function InspectorPanel(): ReactElement {
       .find((type) => type.code === object.objectType)
       ?.fields.find((field) => field.code === code)?.dataType;
   const fieldLabel = (code: string): string =>
-    safeVisibleText(
+    displayFieldLabel(
+      code,
       objectTypes
         .find((type) => type.code === object.objectType)
-        ?.fields.find((field) => field.code === code)?.name ?? code,
-      "字段",
+        ?.fields.find((field) => field.code === code)?.name,
     );
   const { derived, stored } = partitionFields({
     ...omitInspectorHiddenFields(object.fields),
@@ -298,12 +299,7 @@ export function InspectorPanel(): ReactElement {
   };
   return (
     <aside aria-label="属性/校验面板" className="inspector-panel">
-      <h2>
-        {safeVisibleText(
-          typeof object.fields.name === "string" ? object.fields.name : null,
-          objectTypeLabel(object.objectType),
-        )}
-      </h2>
+      <h2>{objectDisplayTitle(object)}</h2>
       <p className="inspector-passport">
         {dataStatusLabel(object.status)} · v{object.version}
       </p>

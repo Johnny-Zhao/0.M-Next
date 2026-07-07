@@ -3,8 +3,8 @@ import { useEffect, useMemo, useState, type ReactElement } from "react";
 import type { ReusableAssembly, ViewClient, ViewObject } from "@m-next/views";
 
 import {
+  objectDisplayTitle,
   objectTypeLabel,
-  safeVisibleText,
   templateLabel,
 } from "../display-labels";
 import { useToast } from "../toast";
@@ -327,13 +327,7 @@ function usageItem(object: ViewObject): UsageItem {
 }
 
 function labelOf(object: ViewObject): string {
-  for (const key of ["name", "title", "code"]) {
-    const value = object.fields[key];
-    if (typeof value === "string" && value.trim() !== "") {
-      return safeVisibleText(value, objectTypeLabel(object.objectType));
-    }
-  }
-  return objectTypeLabel(object.objectType);
+  return objectDisplayTitle(object);
 }
 
 function slug(value: string): string {

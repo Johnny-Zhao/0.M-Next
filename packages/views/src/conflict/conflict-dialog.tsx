@@ -1,6 +1,7 @@
 import type { ReactElement } from "react";
 
 import type { ConflictField } from "../api/command-client";
+import { fieldLabel } from "../display-labels";
 
 export interface ConflictDialogProps {
   readonly fields: readonly ConflictField[];
@@ -20,7 +21,7 @@ export function ConflictDialog({
       <h2>字段已被他人修改</h2>
       {fields.map((field) => (
         <section key={field.fieldDefCode}>
-          <strong>{field.fieldDefCode}</strong>
+          <strong>{fieldLabel(field.fieldDefCode)}</strong>
           <p>你的值: {String(field.yourValue)}</p>
           <p>当前值: {String(field.currentValue)}</p>
           <p>

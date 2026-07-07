@@ -26,6 +26,8 @@ import {
 import type { RelationSummary, ViewObject } from "@m-next/views";
 
 import {
+  fieldLabel,
+  objectDisplayTitle,
   objectTypeLabel,
   safeVisibleText,
   statusLabel,
@@ -119,11 +121,7 @@ export function isDerivedField(code: string): boolean {
 }
 
 export function objectTitle(object: ViewObject): string {
-  const value = object.fields.name ?? object.fields.title ?? object.objectId;
-  return safeVisibleText(
-    typeof value === "string" ? value : null,
-    objectTypeLabel(object.objectType),
-  );
+  return objectDisplayTitle(object);
 }
 
 export function objectCode(object: ViewObject): string {
@@ -207,7 +205,7 @@ export function objectFieldPreviews(
     .slice(0, activeDimension === "all" ? 4 : 2)
     .map(([code, value]) => ({
       code,
-      label: fieldLabel(code),
+      label: diagramFieldLabel(code),
       value: formatFieldValue(code, value),
     }));
 }
@@ -443,12 +441,12 @@ function prioritizedFieldEntries(
   return [...preferred, ...rest];
 }
 
-function fieldLabel(code: string): string {
+function diagramFieldLabel(code: string): string {
   if (code === "length_m") return "长";
   if (code === "width_m") return "宽";
   if (code === "orientation") return "朝向";
   if (code === "window_area_m2") return "窗面积";
-  return code;
+  return fieldLabel(code);
 }
 
 function formatFieldValue(code: string, value: unknown): string {

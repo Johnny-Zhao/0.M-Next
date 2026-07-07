@@ -9,11 +9,12 @@ import {
 import type {
   AiChangeItem,
   AiChangeSet,
+  FetchFn,
   SelectionRef,
   ViewObject,
 } from "@m-next/views";
 
-import { objectTypeLabel, safeVisibleText } from "../display-labels";
+import { objectDisplayTitle } from "../display-labels";
 import { useToast } from "../toast";
 import { useWorkbenchContext } from "./workbench";
 
@@ -23,6 +24,9 @@ interface DisplayChange {
   readonly fieldCode: string;
   readonly before: unknown;
   readonly after: unknown;
+  readonly label: string;
+  readonly actionLabel: string;
+  readonly summary: string;
   readonly verdict: string;
   readonly status: string;
 }
@@ -33,19 +37,51 @@ interface ObjectSnapshot {
   readonly fields: Readonly<Record<string, unknown>>;
 }
 
+interface AiExtractClientAccess {
+  readonly actorId: string | null;
+  readonly baseUrl: string;
+  readonly fetchFn: FetchFn;
+}
+
 export function aiChangeSetId(result: {
   readonly events?: readonly string[];
 }): string | null {
   return result.events?.[0] ?? null;
 }
 
-export function objectLabel(object: ViewObject): string {
-  return safeVisibleText(
-    String(
-      object.fields.name ?? object.fields.title ?? object.fields.code ?? "",
-    ),
-    objectTypeLabel(object.objectType),
+export async function extractDraft(
+  commandClient: unknown,
+  workspaceId: string,
+  draft: string,
+): Promise<string> {
+  const client = commandClient as AiExtractClientAccess;
+  if (!client.actorId) {
+    throw new Error("缺少 X-Actor-Id: 请先登录后再执行 AI 抽取");
+  }
+  const response = await client.fetchFn(
+    `${client.baseUrl}/workspaces/${workspaceId}/ai/extract`,
+    {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "X-Actor-Id": client.actorId,
+      },
+      body: JSON.stringify({ draft }),
+    },
   );
+  const body = (await response.json().catch(() => ({}))) as {
+    readonly setId?: string;
+    readonly error?: { readonly message?: string; readonly title?: string };
+  };
+  if (!response.ok) {
+    throw new Error(body.error?.message ?? body.error?.title ?? "AI 抽取失败");
+  }
+  if (!body.setId) throw new Error("AI 抽取未返回变更集");
+  return body.setId;
+}
+
+export function objectLabel(object: ViewObject): string {
+  return objectDisplayTitle(object);
 }
 
 function aiVerdictLabel(verdict: string): string {
@@ -60,6 +96,7 @@ export function aiItemChanges(
   item: AiChangeItem,
   snapshots: ReadonlyMap<string, ObjectSnapshot>,
 ): readonly DisplayChange[] {
+  if (item.opType === "CreateObject") return createObjectChange(item);
   if (item.opType !== "UpdateFields") return [];
   const objectId = stringValue(item.payload.objectId);
   const fields = Array.isArray(item.payload.fields) ? item.payload.fields : [];
@@ -67,18 +104,47 @@ export function aiItemChanges(
     if (!isRecord(field)) return [];
     const fieldCode = stringValue(field.fieldDefCode);
     if (!objectId || !fieldCode) return [];
+    const before = snapshots.get(objectId)?.fields[fieldCode] ?? null;
     return [
       {
         itemId: item.itemId,
         objectId,
         fieldCode,
-        before: snapshots.get(objectId)?.fields[fieldCode] ?? null,
+        before,
         after: field.value,
+        label: snapshots.get(objectId)?.label ?? "对象",
+        actionLabel: "字段",
+        summary: `${valueText(before)} → ${valueText(field.value)}`,
         verdict: stringValue(item.precheck.verdict) || "UNKNOWN",
         status: item.itemStatus,
       },
     ];
   });
+}
+
+function createObjectChange(item: AiChangeItem): readonly DisplayChange[] {
+  const fields = isRecord(item.payload.fields) ? item.payload.fields : {};
+  const name = stringValue(fields.name);
+  if (!name) return [];
+  const details = [
+    fields.power_w === undefined ? "" : `${valueText(fields.power_w)}W`,
+    stringValue(fields.responsibility),
+    stringValue(fields.description),
+  ].filter(Boolean);
+  return [
+    {
+      itemId: item.itemId,
+      objectId: "",
+      fieldCode: "CreateObject",
+      before: null,
+      after: fields,
+      label: name,
+      actionLabel: "建议创建模块",
+      summary: details.join(" · "),
+      verdict: stringValue(item.precheck.verdict) || "UNKNOWN",
+      status: item.itemStatus,
+    },
+  ];
 }
 
 export function valueText(value: unknown): string {
@@ -108,8 +174,10 @@ export function AiPanel(): ReactElement {
   const [selected, setSelected] = useState<SelectionRef | null>(
     context.selection.current(),
   );
+  const [draft, setDraft] = useState("");
   const [instruction, setInstruction] = useState("补齐缺失必填字段");
   const [busy, setBusy] = useState(false);
+  const [extracting, setExtracting] = useState(false);
   const [sets, setSets] = useState<readonly AiChangeSet[]>([]);
   const [activeSetId, setActiveSetId] = useState<string | null>(null);
   const [snapshots, setSnapshots] = useState<
@@ -187,6 +255,32 @@ export function AiPanel(): ReactElement {
       activeSet?.items.flatMap((item) => aiItemChanges(item, snapshots)) ?? [],
     [activeSet, snapshots],
   );
+
+  async function extractFromDraft(): Promise<void> {
+    const trimmed = draft.trim();
+    if (!trimmed) {
+      toast.info("请先粘贴要抽取的文字");
+      return;
+    }
+    setBusy(true);
+    setExtracting(true);
+    try {
+      const setId = await extractDraft(
+        context.commandClient,
+        context.workspaceId,
+        trimmed,
+      );
+      await loadProposals(setId);
+      toast.success("AI 抽取已生成,等待人工确认");
+    } catch (error) {
+      context.reportError(
+        error instanceof Error ? error.message : "AI 抽取失败",
+      );
+    } finally {
+      setExtracting(false);
+      setBusy(false);
+    }
+  }
 
   async function proposeForSelected(): Promise<void> {
     const objectId =
@@ -270,6 +364,31 @@ export function AiPanel(): ReactElement {
     <aside aria-label="AI 助手" className="ai-panel">
       <section className="ai-panel-controls">
         <label>
+          <span>草稿</span>
+          <textarea
+            maxLength={8000}
+            onChange={(event) => setDraft(event.currentTarget.value)}
+            placeholder="粘贴自然语言草稿"
+            value={draft}
+          />
+        </label>
+        <div className="ai-panel-actions">
+          <button
+            disabled={busy || draft.trim().length === 0}
+            onClick={() => void extractFromDraft()}
+            type="button"
+          >
+            {extracting ? (
+              <>
+                <span aria-hidden="true" className="ai-panel-spinner" />
+                抽取中
+              </>
+            ) : (
+              "抽取"
+            )}
+          </button>
+        </div>
+        <label>
           <span>指令</span>
           <textarea
             onChange={(event) => setInstruction(event.currentTarget.value)}
@@ -346,15 +465,16 @@ function AiChangeSetList(props: {
         {props.changes.map((change) => (
           <button
             className={`ai-change-item ai-change-${aiVerdictTone(change.verdict)}`}
-            key={`${change.itemId}-${change.fieldCode}`}
-            onClick={() => props.onSelectObject(change.objectId)}
+            disabled={!change.objectId}
+            key={`${change.itemId}-${change.fieldCode}-${change.label}`}
+            onClick={() => {
+              if (change.objectId) props.onSelectObject(change.objectId);
+            }}
             type="button"
           >
-            <span>{props.snapshots.get(change.objectId)?.label ?? "对象"}</span>
-            <b>字段</b>
-            <small>
-              {valueText(change.before)} → {valueText(change.after)}
-            </small>
+            <span>{change.label}</span>
+            <b>{change.actionLabel}</b>
+            <small>{change.summary}</small>
             <i>{aiVerdictLabel(change.verdict)}</i>
           </button>
         ))}

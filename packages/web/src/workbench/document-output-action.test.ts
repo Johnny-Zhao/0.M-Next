@@ -83,8 +83,8 @@ describe("document output action", () => {
         sectionMapping: {
           fieldLabels: {
             conclusion: "结论",
-            power_budget_w: "功耗预算(W)",
-            power_w: "功耗(W)",
+            power_budget_w: "功率预算(W)",
+            power_w: "功率(W)",
             score: "评分",
           },
           fieldRoles: {

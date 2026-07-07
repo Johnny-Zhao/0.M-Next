@@ -13,6 +13,8 @@ import com.mnext.kernel.api.CommandRejectedException;
 import com.mnext.kernel.api.CommandResult;
 import com.mnext.kernel.api.CommandStatus;
 import com.mnext.kernel.api.KernelCommandService;
+import com.mnext.kernel.api.SourceInfo;
+import com.mnext.kernel.api.commands.CreateObjectCommand;
 import com.mnext.kernel.api.commands.FieldUpdate;
 import com.mnext.kernel.api.commands.UpdateFieldsCommand;
 import com.mnext.server.ai.AiActionProvider;
@@ -35,7 +37,7 @@ import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
 @Repository
-class AiChangeRepository {
+class AiChangeRepository implements AiChangeSetSubmitter {
   private static final Pattern FIELD_PLACEHOLDER =
       Pattern.compile("\\$\\{field\\('([a-z][a-z0-9_]{0,127})'\\)\\}");
   private final JdbcTemplate jdbc;
@@ -119,6 +121,47 @@ class AiChangeRepository {
     return result;
   }
 
+  @Override
+  @Transactional
+  public CommandResult submitGenerated(
+      UUID workspaceId,
+      String actorId,
+      String idempotencyKey,
+      String action,
+      AiActionProvider.ProviderDescriptor provider,
+      String contextHash,
+      AiActionProvider.AiResult aiResult,
+      String payloadHash) {
+    validateEnvelope(workspaceId, idempotencyKey);
+    var setId = UUID.randomUUID();
+    var now = Instant.now();
+    jdbc.update(
+        """
+        INSERT INTO ai_change_set
+          (id, workspace_id, action, status, created_by, updated_by, provider,
+           provider_version, context_hash, result_text, created_at, updated_at)
+        VALUES (?, ?, ?, 'PROPOSED', ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        setId,
+        workspaceId,
+        action,
+        actorId,
+        actorId,
+        provider.providerId(),
+        provider.version(),
+        contextHash,
+        aiResult.text(),
+        Timestamp.from(now),
+        Timestamp.from(now));
+    insertItems(workspaceId, setId, aiResult.items());
+    projection.projectProposed(setId);
+    var result =
+        new CommandResult(
+            commandId(), CommandStatus.ACCEPTED, false, List.of(setId.toString()), null);
+    remember(workspaceId, idempotencyKey, "SubmitAIChangeSet", payloadHash, result);
+    return result;
+  }
+
   @Transactional
   CommandResult reject(RejectAiChangeRequest request, String actorId, String payloadHash) {
     validateEnvelope(request.workspaceId(), request.idempotencyKey());
@@ -178,7 +221,14 @@ class AiChangeRepository {
         results.add(skippedItem(item.seq(), precheck));
         continue;
       }
-      var written = commands.updateFields(updateCommand(request, item), Actor.user(actorId));
+      var written =
+          switch (item.opType()) {
+            case "UpdateFields" ->
+                commands.updateFields(updateCommand(request, item), Actor.user(actorId));
+            case "CreateObject" ->
+                commands.createObject(createCommand(request, item), Actor.user(actorId));
+            default -> throw rejected("AI-422-ITEM-PRECHECK-FAILED", "AI 变更项类型不支持", "刷新变更集后重试");
+          };
       applied++;
       markItem(item.id(), "APPLIED");
       results.add(new BatchItemResult(item.seq(), written.status(), null, written.events()));
@@ -251,7 +301,8 @@ class AiChangeRepository {
     return sets.stream().map(set -> withItems(set, items(set.setId()))).toList();
   }
 
-  String payloadHash(Object value) {
+  @Override
+  public String payloadHash(Object value) {
     return hash(json(value));
   }
 
@@ -311,6 +362,20 @@ class AiChangeRepository {
             .toList());
   }
 
+  private CreateObjectCommand createCommand(ConfirmAiChangeRequest request, ChangeItemRow item) {
+    if (!"CreateObject".equals(item.opType())) {
+      throw rejected("AI-422-ITEM-PRECHECK-FAILED", "AI 变更项类型不支持", "刷新变更集后重试");
+    }
+    return new CreateObjectCommand(
+        request.workspaceId(),
+        request.correlationId(),
+        "aiconfirm:" + request.setId() + ":item:" + item.seq(),
+        createObjectTypeId(request.workspaceId(), item.payload()),
+        createFields(item.payload()),
+        new SourceInfo("manual", "ai-change-set:" + request.setId()),
+        "DRAFT");
+  }
+
   private void updateItemPrecheck(UUID itemId, Map<String, Object> precheck) {
     jdbc.update(
         "UPDATE ai_change_item SET precheck = CAST(? AS jsonb) WHERE id = ?",
@@ -335,6 +400,9 @@ class AiChangeRepository {
   }
 
   private Map<String, Object> precheck(UUID workspaceId, AiActionProvider.AiChangeItem item) {
+    if ("CreateObject".equals(item.opType())) {
+      return precheckCreateObject(workspaceId, item.payload());
+    }
     if (!"UpdateFields".equals(item.opType())) {
       return precheck("BLOCKED", List.of(Map.of("reason", "unsupported_op_type")));
     }
@@ -377,6 +445,18 @@ class AiChangeRepository {
       return precheck("BLOCKED", details);
     }
     if (!details.isEmpty()) return precheck("WARN", details);
+    return precheck("WRITABLE", List.of());
+  }
+
+  private Map<String, Object> precheckCreateObject(UUID workspaceId, Map<String, Object> payload) {
+    var objectTypeId = createObjectTypeId(workspaceId, payload);
+    if (objectTypeId == null) {
+      return precheck("BLOCKED", List.of(Map.of("reason", "object_type_not_found")));
+    }
+    var fields = createFields(payload);
+    if (string(fields.get("name")).isBlank()) {
+      return precheck("BLOCKED", List.of(Map.of("reason", "name_required")));
+    }
     return precheck("WRITABLE", List.of());
   }
 
@@ -594,6 +674,37 @@ class AiChangeRepository {
     return List.of();
   }
 
+  private Map<String, Object> createFields(Map<String, Object> payload) {
+    var fields = payload.get("fields");
+    if (!(fields instanceof Map<?, ?> values)) return Map.of();
+    var result = new LinkedHashMap<String, Object>();
+    values.forEach((key, value) -> result.put(String.valueOf(key), value));
+    return result;
+  }
+
+  private UUID createObjectTypeId(UUID workspaceId, Map<String, Object> payload) {
+    var id = uuid(payload.get("objectTypeId"));
+    if (id != null && objectTypePublished(workspaceId, id)) return id;
+    var code = string(payload.get("objectTypeCode"));
+    if (code.isBlank()) return null;
+    var values =
+        jdbc.query(
+            "SELECT id FROM object_type WHERE workspace_id = ? AND code = ? AND published",
+            (row, ignored) -> row.getObject(1, UUID.class),
+            workspaceId,
+            code);
+    return values.isEmpty() ? null : values.getFirst();
+  }
+
+  private boolean objectTypePublished(UUID workspaceId, UUID objectTypeId) {
+    return Boolean.TRUE.equals(
+        jdbc.queryForObject(
+            "SELECT EXISTS(SELECT 1 FROM object_type WHERE workspace_id = ? AND id = ? AND published)",
+            Boolean.class,
+            workspaceId,
+            objectTypeId));
+  }
+
   private Map<String, Object> precheck(String verdict, List<Map<String, Object>> details) {
     return Map.of("verdict", verdict, "details", details);
   }
@@ -630,6 +741,10 @@ class AiChangeRepository {
     if (value instanceof UUID id) return id;
     if (!(value instanceof String text) || text.isBlank()) return null;
     return UUID.fromString(text);
+  }
+
+  private static String string(Object value) {
+    return value == null ? "" : String.valueOf(value).trim();
   }
 
   private static void validateEnvelope(UUID workspaceId, String idempotencyKey) {

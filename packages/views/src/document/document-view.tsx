@@ -15,6 +15,7 @@ import type {
   ViewObject,
 } from "../api/view-client";
 import { ConflictDialog } from "../conflict/conflict-dialog";
+import { fieldLabel, objectDisplayTitle } from "../display-labels";
 import type { SelectionCoordinator } from "../selection/selection-coordinator";
 import type { SelectionRef } from "../selection/selection-ref";
 import { supportsTreeRelation } from "../tree/tree-view";
@@ -274,29 +275,13 @@ function documentSection(
   depth: number,
   fields: readonly DocumentField[],
 ): DocumentSection {
-  const preferred = object.fields.name ?? object.fields.title;
   return {
     object,
     depth,
-    title: documentVisibleTitle(preferred),
+    title: objectDisplayTitle(object),
     fields,
     terminal: terminalStatuses.has(object.status),
   };
-}
-
-function documentVisibleTitle(value: unknown): string {
-  if (typeof value !== "string") return "对象";
-  const text = value.trim();
-  if (
-    text === "" ||
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{12}$/i.test(
-      text,
-    ) ||
-    /^[a-z][a-z0-9]*(?:[_-][a-z0-9]+)+$/i.test(text)
-  ) {
-    return "对象";
-  }
-  return text;
 }
 
 export function isDocumentSelection(
@@ -989,7 +974,8 @@ function DocumentFieldView(props: {
 }): ReactElement {
   const code = props.field.definition.code;
   const selected = isDocumentSelection(props.selected, props.objectId, code);
-  const content = `${props.field.definition.name}: ${String(props.field.value ?? "")}`;
+  const label = fieldLabel(code, props.field.definition.name);
+  const content = `${label}: ${String(props.field.value ?? "")}`;
   const [editing, setEditing] = useState(false);
   const [conflict, setConflict] = useState<DocumentFieldConflict | null>(null);
   const [draft, setDraft] = useState("");
@@ -1095,7 +1081,7 @@ function DocumentFieldView(props: {
       ) : null}
       {editable && !editing ? (
         <button onClick={() => setEditing(true)} type="button">
-          编辑 {props.field.definition.name}
+          编辑 {label}
         </button>
       ) : null}
       {!editable && !props.terminal && props.onEditField ? (
@@ -1132,10 +1118,11 @@ function FieldEditor({
 }): ReactElement {
   const definition = field.definition;
   const value = String(field.value ?? "");
+  const label = fieldLabel(definition.code, definition.name);
   if (definition.dataType === "text") {
     return (
       <textarea
-        aria-label={`编辑 ${definition.name}`}
+        aria-label={`编辑 ${label}`}
         defaultValue={value}
         name="value"
       />
@@ -1144,7 +1131,7 @@ function FieldEditor({
   if (definition.dataType === "boolean") {
     return (
       <input
-        aria-label={`编辑 ${definition.name}`}
+        aria-label={`编辑 ${label}`}
         defaultChecked={field.value === true}
         name="value"
         type="checkbox"
@@ -1153,11 +1140,7 @@ function FieldEditor({
   }
   if (definition.dataType === "enum") {
     return (
-      <select
-        aria-label={`编辑 ${definition.name}`}
-        defaultValue={value}
-        name="value"
-      >
+      <select aria-label={`编辑 ${label}`} defaultValue={value} name="value">
         {enumValues(definition, value).map((option) => (
           <option key={option} value={option}>
             {option}
@@ -1167,11 +1150,7 @@ function FieldEditor({
     );
   }
   return (
-    <input
-      aria-label={`编辑 ${definition.name}`}
-      defaultValue={value}
-      name="value"
-    />
+    <input aria-label={`编辑 ${label}`} defaultValue={value} name="value" />
   );
 }
 

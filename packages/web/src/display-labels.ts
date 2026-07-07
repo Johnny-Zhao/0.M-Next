@@ -1,7 +1,12 @@
-const UUID_PATTERN =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-
-const INTERNAL_CODE_PATTERN = /^[a-z][a-z0-9]*(?:[_-][a-z0-9]+)+$/i;
+export {
+  FIELD_LABELS,
+  OBJECT_TYPE_LABELS,
+  fieldLabel,
+  objectDisplayTitle,
+  objectTypeLabel,
+  safeVisibleText,
+  shortObjectId,
+} from "@m-next/views";
 
 const TEMPLATE_LABELS: Readonly<Record<string, string>> = {
   interior_design: "室内设计",
@@ -9,17 +14,6 @@ const TEMPLATE_LABELS: Readonly<Record<string, string>> = {
   mbse: "系统工程",
   sysml_mbse: "系统工程",
   reuse_profile: "复用装配",
-};
-
-const OBJECT_TYPE_LABELS: Readonly<Record<string, string>> = {
-  proposal: "方案",
-  system: "系统",
-  module: "模块",
-  requirement: "需求",
-  interface: "接口",
-  room: "房间",
-  wall: "墙体",
-  fixture: "设备",
 };
 
 const STATUS_LABELS: Readonly<Record<string, string>> = {
@@ -42,23 +36,7 @@ export function templateLabel(code: string | null | undefined): string {
   return TEMPLATE_LABELS[code] ?? "领域模板";
 }
 
-export function objectTypeLabel(code: string | null | undefined): string {
-  if (!code) return "对象";
-  return OBJECT_TYPE_LABELS[code] ?? "对象";
-}
-
 export function statusLabel(status: string | null | undefined): string {
   if (!status) return "未知";
   return STATUS_LABELS[status.toUpperCase()] ?? "未知";
-}
-
-export function safeVisibleText(
-  value: string | null | undefined,
-  fallback: string,
-): string {
-  const text = value?.trim() ?? "";
-  if (!text || UUID_PATTERN.test(text) || INTERNAL_CODE_PATTERN.test(text)) {
-    return fallback;
-  }
-  return text;
 }

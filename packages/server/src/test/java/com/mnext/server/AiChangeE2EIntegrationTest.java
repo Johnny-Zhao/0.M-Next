@@ -41,6 +41,11 @@ class AiChangeE2EIntegrationTest {
   private static final UUID BLOCKED = UUID.fromString("99999999-0000-4000-8000-000000000004");
   private static final UUID OBJECT = UUID.fromString("99999999-0000-4000-8000-000000000005");
   private static final UUID CHECK = UUID.fromString("99999999-0000-4000-8000-000000000006");
+  private static final UUID MODULE_TYPE = UUID.fromString("99999999-0000-4000-8000-000000000007");
+  private static final UUID MODULE_NAME = UUID.fromString("99999999-0000-4000-8000-000000000008");
+  private static final UUID MODULE_POWER = UUID.fromString("99999999-0000-4000-8000-000000000009");
+  private static final UUID MODULE_RESPONSIBILITY =
+      UUID.fromString("99999999-0000-4000-8000-000000000010");
   private static final UUID VIEWER = UUID.fromString("99999999-0000-4000-8000-000000000011");
   private static final UUID AUTHOR = UUID.fromString("99999999-0000-4000-8000-000000000012");
   private static final UUID REVIEWER = UUID.fromString("99999999-0000-4000-8000-000000000013");
@@ -81,7 +86,9 @@ class AiChangeE2EIntegrationTest {
     jdbc.update("DELETE FROM data_object WHERE workspace_id = ?", WORKSPACE);
     jdbc.update("DELETE FROM workspace_member WHERE workspace_id = ?", WORKSPACE);
     jdbc.update("DELETE FROM field_def WHERE object_type_id = ?", TYPE);
+    jdbc.update("DELETE FROM field_def WHERE object_type_id = ?", MODULE_TYPE);
     jdbc.update("DELETE FROM object_type WHERE id = ?", TYPE);
+    jdbc.update("DELETE FROM object_type WHERE id = ?", MODULE_TYPE);
     jdbc.update("DELETE FROM app_user WHERE id IN (?, ?, ?)", VIEWER, AUTHOR, REVIEWER);
     insertProfile();
   }
@@ -196,6 +203,26 @@ class AiChangeE2EIntegrationTest {
     assertEquals("AI-409-INVALID-STATE", errorCode(invalid));
   }
 
+  @Test
+  void confirmCreateObjectItemCreatesModuleThroughAiChangeSet() throws Exception {
+    enableGovernance();
+    var setId = insertCreateObjectChangeSet(AUTHOR.toString());
+    var payload = Map.<String, Object>of("setId", setId);
+
+    var confirmed =
+        post(command("ConfirmAiChange", "ai-confirm-create-module", payload), REVIEWER.toString());
+
+    assertEquals(200, confirmed.getStatusCode().value(), String.valueOf(confirmed.getBody()));
+    assertEquals(
+        List.of(setId.toString(), "applied=1", "skipped=0", "errors=0"),
+        confirmed.getBody().get("events"));
+    projectOutbox();
+    var objectId = createdModuleObjectId();
+    assertEquals("编排模块", moduleFieldValue(objectId, "name"));
+    assertEquals("200", String.valueOf(moduleFieldValue(objectId, "power_w")));
+    assertEquals("任务调度", moduleFieldValue(objectId, "responsibility"));
+  }
+
   private Map<String, Object> suggestPayload() {
     return Map.of(
         "action",
@@ -276,6 +303,58 @@ class AiChangeE2EIntegrationTest {
     return (String) ((Map<?, ?>) response.getBody().get("error")).get("code");
   }
 
+  private UUID insertCreateObjectChangeSet(String actorId) throws Exception {
+    var setId = UUID.randomUUID();
+    jdbc.update(
+        """
+        INSERT INTO ai_change_set
+          (id, workspace_id, action, status, created_by, updated_by, provider,
+           provider_version, context_hash, result_text, created_at, updated_at)
+        VALUES (?, ?, 'EXTRACT_MODULES', 'PROPOSED', ?, ?, 'test', '1',
+                repeat('a', 64), '抽取到 1 个模块，等待人工确认。', now(), now())
+        """,
+        setId,
+        WORKSPACE,
+        actorId,
+        actorId);
+    var payload =
+        Map.of(
+            "objectTypeCode",
+            "module",
+            "objectTypeId",
+            MODULE_TYPE.toString(),
+            "fields",
+            Map.of("name", "编排模块", "power_w", 200, "responsibility", "任务调度"));
+    jdbc.update(
+        """
+        INSERT INTO ai_change_item (id, set_id, seq, op_type, payload, precheck, item_status)
+        VALUES (?, ?, 1, 'CreateObject', CAST(? AS jsonb),
+                CAST('{"verdict":"WRITABLE","details":[]}' AS jsonb), 'PROPOSED')
+        """,
+        UUID.randomUUID(),
+        setId,
+        mapper.writeValueAsString(payload));
+    jdbc.update(
+        """
+        INSERT INTO rm_ai_change_set
+          (id, workspace_id, action, status, created_by, provider, provider_version,
+           context_hash, result_text, created_at, updated_at)
+        SELECT id, workspace_id, action, status, created_by, provider, provider_version,
+               context_hash, result_text, created_at, updated_at
+        FROM ai_change_set WHERE id = ?
+        """,
+        setId);
+    jdbc.update(
+        """
+        INSERT INTO rm_ai_change_item
+          (id, set_id, seq, op_type, payload, precheck, item_status)
+        SELECT id, set_id, seq, op_type, payload, precheck, item_status
+        FROM ai_change_item WHERE set_id = ?
+        """,
+        setId);
+    return setId;
+  }
+
   private String fieldSnapshot() {
     return jdbc.queryForObject(
         "SELECT fields::text FROM rm_object WHERE workspace_id = ? AND object_id = ?",
@@ -293,6 +372,26 @@ class AiChangeE2EIntegrationTest {
         OBJECT);
   }
 
+  private UUID createdModuleObjectId() {
+    return jdbc.queryForObject(
+        """
+        SELECT object_id FROM rm_object
+        WHERE workspace_id = ? AND object_type_code = 'module'
+        ORDER BY updated_at DESC LIMIT 1
+        """,
+        UUID.class,
+        WORKSPACE);
+  }
+
+  private Object moduleFieldValue(UUID objectId, String code) {
+    return jdbc.queryForObject(
+        "SELECT fields ->> ? FROM rm_object WHERE workspace_id = ? AND object_id = ?",
+        Object.class,
+        code,
+        WORKSPACE,
+        objectId);
+  }
+
   private int objectVersion() {
     return jdbc.queryForObject(
         "SELECT version FROM data_object WHERE workspace_id = ? AND id = ?",
@@ -307,6 +406,7 @@ class AiChangeE2EIntegrationTest {
             """
             SELECT payload::text FROM event_outbox
             ORDER BY CASE event_type
+                WHEN 'ObjectCreated' THEN 0
                 WHEN 'FieldChanged' THEN 1
                 WHEN 'ObjectUpdated' THEN 2
                 ELSE 9
@@ -343,9 +443,20 @@ class AiChangeE2EIntegrationTest {
         """,
         TYPE,
         WORKSPACE);
+    jdbc.update(
+        """
+        INSERT INTO object_type
+          (id, workspace_id, code, name, published, created_by, updated_by, created_at, updated_at)
+        VALUES (?, ?, 'module', 'Module', TRUE, 'test', 'test', now(), now())
+        """,
+        MODULE_TYPE,
+        WORKSPACE);
     insertField(PRIORITY, "priority", "string", "{\"enum\":[\"LOW\",\"HIGH\"]}");
     insertField(SCORE, "score", "number", "{}");
     insertField(BLOCKED, "blocked_number", "number", "{}");
+    insertModuleField(MODULE_NAME, "name", "string", "{}", true);
+    insertModuleField(MODULE_POWER, "power_w", "number", "{}", false);
+    insertModuleField(MODULE_RESPONSIBILITY, "responsibility", "string", "{}", false);
     jdbc.update(
         """
         INSERT INTO data_object
@@ -381,17 +492,28 @@ class AiChangeE2EIntegrationTest {
   }
 
   private void insertField(UUID id, String code, String dataType, String constraints) {
+    insertField(TYPE, id, code, dataType, constraints, true);
+  }
+
+  private void insertModuleField(
+      UUID id, String code, String dataType, String constraints, boolean required) {
+    insertField(MODULE_TYPE, id, code, dataType, constraints, required);
+  }
+
+  private void insertField(
+      UUID typeId, UUID id, String code, String dataType, String constraints, boolean required) {
     jdbc.update(
         """
         INSERT INTO field_def
           (id, object_type_id, code, name, required, data_type, constraints,
            created_by, updated_by, created_at, updated_at)
-        VALUES (?, ?, ?, ?, TRUE, ?, CAST(? AS jsonb), 'test', 'test', now(), now())
+        VALUES (?, ?, ?, ?, ?, ?, CAST(? AS jsonb), 'test', 'test', now(), now())
         """,
         id,
-        TYPE,
+        typeId,
         code,
         code,
+        required,
         dataType,
         constraints);
   }

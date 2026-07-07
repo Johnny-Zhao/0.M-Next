@@ -13,7 +13,7 @@ import type {
   SnapshotMeta,
 } from "@m-next/views";
 
-import { objectTypeLabel } from "../display-labels";
+import { fieldLabel, objectTypeLabel } from "../display-labels";
 import { useToast } from "../toast";
 import { useWorkbenchContext } from "./workbench";
 
@@ -431,15 +431,19 @@ function FieldChanges({
     <ul>
       {changed.map(([code, change]) => (
         <li key={code}>
-          字段: {valueText(reversed ? change.to : change.from)} →{" "}
+          {fieldLabel(code)}: {valueText(reversed ? change.to : change.from)} →{" "}
           {valueText(reversed ? change.from : change.to)}
         </li>
       ))}
       {added.map(([code, value]) => (
-        <li key={code}>字段: 新增 {valueText(value)}</li>
+        <li key={code}>
+          {fieldLabel(code)}: 新增 {valueText(value)}
+        </li>
       ))}
       {removed.map(([code, value]) => (
-        <li key={code}>字段: 删除 {valueText(value)}</li>
+        <li key={code}>
+          {fieldLabel(code)}: 删除 {valueText(value)}
+        </li>
       ))}
     </ul>
   );

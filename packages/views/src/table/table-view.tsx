@@ -14,6 +14,7 @@ import type {
   ViewObject,
 } from "../api/view-client";
 import { ConflictDialog } from "../conflict/conflict-dialog";
+import { fieldLabel } from "../display-labels";
 import type { SelectionCoordinator } from "../selection/selection-coordinator";
 import {
   isObjectSelected,
@@ -260,7 +261,7 @@ export function TableView(props: TableViewProps): ReactElement {
           <tr>
             <th>#</th>
             {fields.map((field) => (
-              <th key={field.code}>{field.name}</th>
+              <th key={field.code}>{fieldLabel(field.code, field.name)}</th>
             ))}
             <th>规则</th>
             <th>状态</th>
@@ -396,7 +397,7 @@ function Cell(props: CellProps): ReactElement {
     >
       {active ? (
         <input
-          aria-label={`编辑 ${props.field.name}`}
+          aria-label={`编辑 ${fieldLabel(props.field.code, props.field.name)}`}
           autoFocus
           defaultValue={props.editing.value}
           onBlur={(event) =>

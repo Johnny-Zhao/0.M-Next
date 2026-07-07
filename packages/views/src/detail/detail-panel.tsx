@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactElement } from "react";
 
 import type { ObjectDetail, ViewClient } from "../api/view-client";
+import { fieldLabel, objectDisplayTitle } from "../display-labels";
 import type { SelectionCoordinator } from "../selection/selection-coordinator";
 
 export interface DetailPanelProps {
@@ -32,7 +33,7 @@ export function DetailPanel({
   const object = detail.object;
   return (
     <aside aria-label="对象详情">
-      <h2>{String(object.fields.name ?? object.objectId)}</h2>
+      <h2>{objectDisplayTitle(object)}</h2>
       <p>
         {object.status} v{object.version}
       </p>
@@ -49,7 +50,7 @@ export function DetailPanel({
           }
           type="button"
         >
-          {code}: {String(value)}
+          {fieldLabel(code)}: {String(value)}
         </button>
       ))}
       <h3>关系</h3>

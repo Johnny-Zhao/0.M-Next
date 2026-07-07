@@ -10,6 +10,7 @@ import {
   isObjectSelected,
   type SelectionRef,
 } from "../selection/selection-ref";
+import { objectDisplayTitle } from "../display-labels";
 
 export interface TreeBranch {
   readonly id: string;
@@ -210,8 +211,5 @@ export function selectTreeNode(
 }
 
 function treeObjectLabel(object: ViewObject): string {
-  const value = object.fields.name ?? object.fields.title ?? object.objectId;
-  return typeof value === "string" && value.trim() !== ""
-    ? value
-    : object.objectId;
+  return objectDisplayTitle(object);
 }

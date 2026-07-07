@@ -12,6 +12,7 @@ const serverLog = path.join(logsDir, "server.log");
 const serverPidFile = path.join(stateDir, "server.pid");
 const demoWorkspaceId = "11111111-1111-1111-1111-111111111111";
 const serverReadyText = "DEV SEED: interior-design installed, demo workspace";
+const dotEnv = loadDotEnv();
 
 main().catch((error) => {
   console.error(error instanceof Error ? error.message : error);
@@ -137,12 +138,37 @@ function startServer(jar) {
   const child = spawn("java", ["-jar", jar], {
     cwd: root,
     detached: true,
-    env: { ...process.env, SPRING_PROFILES_ACTIVE: "dev" },
+    env: { ...dotEnv, ...process.env, SPRING_PROFILES_ACTIVE: "dev" },
     stdio: ["ignore", out, out],
   });
   child.unref();
   fs.writeFileSync(serverPidFile, `${child.pid}\n`);
   return child.pid;
+}
+
+function loadDotEnv() {
+  const file = path.join(root, ".env");
+  if (!fs.existsSync(file)) return {};
+  const values = {};
+  for (const line of fs.readFileSync(file, "utf8").split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+    const match = trimmed.match(/^([A-Za-z_][A-Za-z0-9_]*)=(.*)$/);
+    if (!match) continue;
+    values[match[1]] = unquoteEnv(match[2]);
+  }
+  return values;
+}
+
+function unquoteEnv(value) {
+  const trimmed = value.trim();
+  if (
+    (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+    (trimmed.startsWith("'") && trimmed.endsWith("'"))
+  ) {
+    return trimmed.slice(1, -1);
+  }
+  return trimmed;
 }
 
 function windowsPidsOnPort(port) {

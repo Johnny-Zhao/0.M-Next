@@ -7,6 +7,8 @@ import type {
   ViewClient,
 } from "@m-next/views";
 
+import { fieldLabel } from "../display-labels";
+
 export type WizardStep = "name" | "profile" | "config" | "create";
 
 /** 技术方案模板 code 与其根对象类型 code(附录A 术语,不得自造同义词)。 */
@@ -55,14 +57,14 @@ export function templateVersion(template: TemplateCatalogItem): number {
     : template.version;
 }
 
-/** 是否为技术方案模板——决定是否附带「功耗预算」字段并自动建 proposal 根。 */
+/** 是否为技术方案模板——决定是否附带功率预算字段并自动建 proposal 根。 */
 export function isTechnicalProposalTemplate(
   template: TemplateCatalogItem | undefined,
 ): boolean {
   return template?.code === TECHNICAL_PROPOSAL_TEMPLATE_CODE;
 }
 
-/** 解析功耗预算输入:空串或非法回落 null(字段可空),负数按非法处理。纯函数。 */
+/** 解析功率预算输入:空串或非法回落 null(字段可空),负数按非法处理。纯函数。 */
 export function parsePowerBudget(raw: string): number | null {
   const trimmed = raw.trim();
   if (trimmed === "") return null;
@@ -293,7 +295,7 @@ export function NewProjectWizard({
           </label>
           {isTechnicalProposalTemplate(selectedTemplate) ? (
             <label>
-              功耗预算(W)
+              {fieldLabel("power_budget_w")}
               <input
                 inputMode="numeric"
                 min="0"
@@ -326,7 +328,7 @@ export function NewProjectWizard({
           <p>{draft.profile}</p>
           {isTechnicalProposalTemplate(selectedTemplate) ? (
             <p>
-              功耗预算:
+              {fieldLabel("power_budget_w")}:
               {parsePowerBudget(draft.powerBudget ?? "") === null
                 ? "未设置"
                 : `${parsePowerBudget(draft.powerBudget ?? "")}W`}

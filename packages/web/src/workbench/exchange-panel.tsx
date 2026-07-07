@@ -6,6 +6,7 @@ import type {
   ExchangeFormat,
 } from "@m-next/views";
 
+import { fieldLabel } from "../display-labels";
 import { useToast } from "../toast";
 import { useWorkbenchContext } from "./workbench";
 
@@ -325,14 +326,14 @@ function FieldChanges({
     <ul>
       {changed.map(([code, change]) => (
         <li key={code}>
-          字段: {valueText(change.from)} → {valueText(change.to)}
+          {fieldLabel(code)}: {valueText(change.from)} → {valueText(change.to)}
         </li>
       ))}
       {added.map((code) => (
-        <li key={code}>字段: 新增</li>
+        <li key={code}>{fieldLabel(code)}: 新增</li>
       ))}
       {removed.map((code) => (
-        <li key={code}>字段: 删除</li>
+        <li key={code}>{fieldLabel(code)}: 删除</li>
       ))}
     </ul>
   );

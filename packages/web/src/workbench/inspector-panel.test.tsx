@@ -197,8 +197,8 @@ describe("Inspector field save", () => {
         }),
     });
 
-    expect(setMessage).toHaveBeenCalledWith("power_w 已保存");
-    expect(toastSuccess).toHaveBeenCalledWith("power_w 已保存");
+    expect(setMessage).toHaveBeenCalledWith("功率(W) 已保存");
+    expect(toastSuccess).toHaveBeenCalledWith("功率(W) 已保存");
     expect(refreshSelected).toHaveBeenCalledTimes(1);
     expect(scheduleRefresh).toHaveBeenCalledWith(refreshSelected, 800);
     expect(runRuleCheck).toHaveBeenCalledWith("workspace-1", "actor-1", null);

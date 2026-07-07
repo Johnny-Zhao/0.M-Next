@@ -13,7 +13,7 @@ import type {
   ViewObject,
 } from "@m-next/views";
 
-import { objectTypeLabel, safeVisibleText } from "../display-labels";
+import { fieldLabel, objectDisplayTitle } from "../display-labels";
 import { useToast } from "../toast";
 import { useWorkbenchContext } from "./workbench";
 
@@ -163,7 +163,7 @@ export function ReviewPanel(): ReactElement {
             <option value="">对象: {objectTitle(detail.object)}</option>
             {fields.map((code) => (
               <option key={code} value={code}>
-                字段
+                字段: {fieldLabel(code)}
               </option>
             ))}
           </select>
@@ -260,10 +260,5 @@ function fieldOptions(object: ViewObject | undefined): readonly string[] {
 }
 
 function objectTitle(object: ViewObject): string {
-  return safeVisibleText(
-    String(
-      object.fields.name ?? object.fields.title ?? object.fields.code ?? "",
-    ),
-    objectTypeLabel(object.objectType),
-  );
+  return objectDisplayTitle(object);
 }

@@ -8,7 +8,7 @@ import {
   type ViewObject,
 } from "@m-next/views";
 
-import { objectTypeLabel, safeVisibleText } from "../display-labels";
+import { objectDisplayTitle, objectTypeLabel } from "../display-labels";
 
 export type CommandGroup = "定位" | "编辑" | "视图" | "分析";
 export type CommandPanelId = "diagram" | "tree" | "inspector";
@@ -142,12 +142,7 @@ function objectSearchValues(object: ViewObject): readonly string[] {
 }
 
 function objectTitle(object: ViewObject): string {
-  return safeVisibleText(
-    stringField(object.fields.name) ||
-      stringField(object.fields.title) ||
-      stringField(object.fields.code),
-    objectTypeLabel(object.objectType),
-  );
+  return objectDisplayTitle(object);
 }
 
 function commandSearchText(command: CommandDefinition): string {

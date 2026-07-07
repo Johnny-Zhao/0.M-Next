@@ -124,6 +124,22 @@ codes:
     httpStatus: 409
     title: AI 变更集状态非法
     responseRequirement: 返回当前态与允许操作
+  - code: AI-408-GATEWAY-TIMEOUT
+    httpStatus: 408
+    title: AI 网关响应超时
+    responseRequirement: 返回可读重试提示
+  - code: AI-502-GATEWAY-BAD-RESPONSE
+    httpStatus: 502
+    title: AI 网关返回无法解析
+    responseRequirement: 返回可读重试提示
+  - code: AI-422-EXTRACT-EMPTY
+    httpStatus: 422
+    title: AI 草稿抽取结果为空
+    responseRequirement: 提示补充明确模块信息
+  - code: AI-422-EXTRACT-TYPE-MISSING
+    httpStatus: 422
+    title: AI 抽取目标类型缺失
+    responseRequirement: 提示先安装包含模块定义的模板
   - code: KERNEL-409-TEMPLATE-VERSION-IMMUTABLE
     httpStatus: 409
     title: 已发布模板版本下定义类型

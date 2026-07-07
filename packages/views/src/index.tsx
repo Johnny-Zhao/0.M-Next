@@ -14,6 +14,7 @@ export * from "./api/update-single-field";
 export * from "./api/view-client";
 export * from "./conflict/conflict-dialog";
 export * from "./detail/detail-panel";
+export * from "./display-labels";
 export * from "./document/document-view";
 export * from "./graph/graph-view";
 export * from "./mapping/mapping-view";

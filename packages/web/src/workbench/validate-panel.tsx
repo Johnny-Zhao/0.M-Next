@@ -7,7 +7,7 @@ import type {
   ViewObject,
 } from "@m-next/views";
 
-import { objectTypeLabel, safeVisibleText } from "../display-labels";
+import { objectDisplayTitle, objectTypeLabel } from "../display-labels";
 import { useWorkbenchContext } from "./workbench";
 
 export type ValidateTone = "block" | "warn" | "info";
@@ -259,9 +259,5 @@ export function ValidatePanel(): ReactElement {
 }
 
 function objectName(object: ViewObject): string {
-  const value = object.fields.name ?? object.fields.title ?? object.objectId;
-  return safeVisibleText(
-    typeof value === "string" ? value : null,
-    objectTypeLabel(object.objectType),
-  );
+  return objectDisplayTitle(object);
 }

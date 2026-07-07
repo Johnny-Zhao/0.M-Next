@@ -7,6 +7,7 @@ import type {
   ViewClient,
 } from "@m-next/views";
 
+import { fieldLabel } from "../display-labels";
 import { useToast } from "../toast";
 
 const outputFormats: readonly OutputFormat[] = ["markdown", "docx", "pdf"];
@@ -31,10 +32,10 @@ const mediaTypes: Readonly<Record<OutputFormat, string>> = {
 
 const technicalDocumentSectionMapping = {
   fieldLabels: {
-    conclusion: "结论",
-    power_budget_w: "功耗预算(W)",
-    power_w: "功耗(W)",
-    score: "评分",
+    conclusion: fieldLabel("conclusion"),
+    power_budget_w: fieldLabel("power_budget_w"),
+    power_w: fieldLabel("power_w"),
+    score: fieldLabel("score"),
   },
   fieldRoles: {
     description: "paragraph",

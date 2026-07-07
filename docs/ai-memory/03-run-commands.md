@@ -41,12 +41,12 @@ node scripts/check-no-skipped.mjs
 
 ## 重启速查（按改动位置选）
 
-| 改了什么 | 怎么重启 |
-|---|---|
-| Java（server/kernel/engines） | dev:down → run-maven package → dev:up（旧前端窗口先关） |
-| packages/web | 热更新自动；异常时重启 vite + 浏览器硬刷新 |
+| 改了什么                               | 怎么重启                                                                                                                                                          |
+| -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Java（server/kernel/engines）          | dev:down → run-maven package → dev:up（旧前端窗口先关）                                                                                                           |
+| packages/web                           | 热更新自动；异常时重启 vite + 浏览器硬刷新                                                                                                                        |
 | packages/views（组件库，**不热更新**） | `corepack pnpm --filter @m-next/views build` → 删 `packages\web\node_modules\.vite`（vite 依赖缓存）→ 重启 vite → 硬刷新；验证法：看 Network 请求载荷是否为新行为 |
-| 不确定 | dev:down → package → views build → dev:up → 硬刷新 |
+| 不确定                                 | dev:down → package → views build → dev:up → 硬刷新                                                                                                                |
 
 ## 已踩过的坑
 
