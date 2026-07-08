@@ -110,7 +110,6 @@ export function WorkbenchShellChrome({
       items: [
         { label: "搜索 / 命令", tag: "Ctrl K", run: onOpenCommandPalette },
         { label: "选择工具", tag: "默认", disabled: true },
-        { label: "连线工具", tag: "画布拖拽", disabled: true },
       ],
     },
     {
@@ -219,15 +218,13 @@ export function WorkbenchShellChrome({
           <Icon name="cursor" />
           <span>选择</span>
         </button>
-        <button
-          className="workbench-tool-button"
-          disabled
+        <span
+          className="workbench-tool-hint"
           title="连线:在画布中从端口拖拽创建"
-          type="button"
         >
           <Icon name="link" />
-          <span>连线</span>
-        </button>
+          <span>连线:从节点端口拖拽</span>
+        </span>
         <button
           className="workbench-tool-button"
           disabled

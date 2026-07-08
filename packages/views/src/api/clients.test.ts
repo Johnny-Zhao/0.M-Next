@@ -523,6 +523,7 @@ describe("view and command clients", () => {
       relationTypeId: "rel",
       sourceId: "source",
       targetId: "target",
+      source: { type: "manual", ref: "matrix" },
     });
     expect(unlink.commandType).toBe("Unlink");
     expect(unlink.payload).toMatchObject({

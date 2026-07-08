@@ -87,9 +87,33 @@ final class DocxTreeRenderer {
             (field, value) -> {
               if (visible(field) && paragraphField(field, value, roles)) {
                 var text = RenderSupport.text(value).trim();
-                if (!text.isEmpty()) document.createParagraph().createRun().setText(text);
+                if (!text.isEmpty()) {
+                  document
+                      .createParagraph()
+                      .createRun()
+                      .setText(paragraphText(field, text, template));
+                }
               }
             });
+  }
+
+  private static String paragraphText(String field, String text, OutputTemplate template) {
+    if (!labeledParagraphField(field)) return text;
+    return paragraphLabel(field, template) + ":" + text;
+  }
+
+  private static boolean labeledParagraphField(String field) {
+    return List.of("description", "responsibility").contains(field);
+  }
+
+  private static String paragraphLabel(String field, OutputTemplate template) {
+    var label = fieldLabel(field, template);
+    if (!label.equals(field)) return label;
+    return switch (field) {
+      case "description" -> "描述";
+      case "responsibility" -> "职责";
+      default -> label;
+    };
   }
 
   private static void addParameterTable(

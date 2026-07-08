@@ -1,11 +1,13 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import type { RelationSummary, ViewObject } from "@m-next/views";
 
 import {
   buildFloorplanRooms,
-  floorplanHeatTone,
   floorplanDimensionOptions,
+  floorplanHeatTone,
+  floorplanProfileForWorkbench,
+  loadFloorplanData,
 } from "./floorplan-panel";
 
 describe("floorplan panel layout", () => {
@@ -136,6 +138,94 @@ describe("floorplan panel layout", () => {
     ).toEqual(["全部", "光", "热", "风"]);
   });
 
+  it("loads technical proposal modules and systems for layout", async () => {
+    const moduleObject = technicalObject("module-a", "编排模块", "module", 200);
+    const systemObject = technicalObject("system-a", "控制系统", "system", 50);
+    const viewClient = {
+      objects: vi.fn(async (_workspaceId: string, objectType: string) => ({
+        items:
+          objectType === "module"
+            ? [moduleObject]
+            : objectType === "system"
+              ? [systemObject]
+              : [],
+      })),
+      relations: vi.fn(async () => []),
+    };
+
+    await expect(
+      loadFloorplanData({
+        viewClient,
+        workspaceId: "workspace-1",
+        rootId: "proposal-root",
+        profile: "technical",
+      }),
+    ).resolves.toEqual({
+      objects: [moduleObject, systemObject],
+      relations: [],
+    });
+    expect(viewClient.objects).toHaveBeenCalledWith(
+      "workspace-1",
+      "module",
+      0,
+      100,
+    );
+    expect(viewClient.objects).toHaveBeenCalledWith(
+      "workspace-1",
+      "system",
+      0,
+      100,
+    );
+    expect(viewClient.relations).not.toHaveBeenCalled();
+  });
+
+  it("lays out technical proposal blocks from power and rule status", () => {
+    const layout = buildFloorplanRooms(
+      [
+        technicalObject("module-small", "适配模块", "module", 0, "OK"),
+        technicalObject("module-large", "编排模块", "module", 200, "BLOCK"),
+        technicalObject("system-a", "控制系统", "system", undefined, "WARN"),
+      ],
+      [],
+      "module-large",
+      "all",
+      "technical",
+    );
+
+    const small = layout.rooms.find((block) => block.id === "module-small");
+    const large = layout.rooms.find((block) => block.id === "module-large");
+    const system = layout.rooms.find((block) => block.id === "system-a");
+
+    expect(large?.width).toBeGreaterThan(small?.width ?? 0);
+    expect(small?.areaChip).toMatchObject({
+      label: "功率",
+      value: "0",
+      unit: "W",
+    });
+    expect(system?.areaChip).toMatchObject({
+      label: "功率",
+      value: "0",
+      unit: "W",
+    });
+    expect(large?.tone).toBe("block");
+    expect(system?.tone).toBe("warn");
+    expect(large?.selected).toBe(true);
+  });
+
+  it("offers technical proposal dimensions and detects the profile", () => {
+    expect(
+      floorplanDimensionOptions("technical").map(
+        (dimension) => dimension.label,
+      ),
+    ).toEqual(["全部", "能量", "功率"]);
+    expect(
+      floorplanProfileForWorkbench({
+        objectType: "module",
+        relationType: "proposal_contains_module",
+      }),
+    ).toBe("technical");
+  });
+
   it("maps loaded time-series values to semantic heat tones", () => {
     expect(floorplanHeatTone(18, 18, 30)).toBe("low");
     expect(floorplanHeatTone(24, 18, 30)).toBe("mid");
@@ -160,6 +250,25 @@ function room(
     version: 1,
     fields: { name, ...fields },
     derived: Number.isFinite(length * width) ? { area_fx: length * width } : {},
+    updatedAt: "2026-06-21T00:00:00Z",
+    source: "manual",
+    ruleStatus,
+  };
+}
+
+function technicalObject(
+  objectId: string,
+  name: string,
+  objectType: string,
+  power: number | undefined,
+  ruleStatus: ViewObject["ruleStatus"] = "OK",
+): ViewObject {
+  return {
+    objectId,
+    objectType,
+    status: "ACTIVE",
+    version: 1,
+    fields: power === undefined ? { name } : { name, power_w: power },
     updatedAt: "2026-06-21T00:00:00Z",
     source: "manual",
     ruleStatus,

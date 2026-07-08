@@ -1,4 +1,10 @@
-import { useCallback, useEffect, useState, type ReactElement } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactElement,
+} from "react";
 
 import type {
   CheckResultItem,
@@ -53,6 +59,13 @@ export function ruleStatusLabel(status: RuleStatus): string {
   if (status === "WARN") return "告警";
   if (status === "OK") return "通过";
   return "未知";
+}
+
+export function shouldRunInitialValidation(
+  validatedWorkspaceId: string | null,
+  workspaceId: string,
+): boolean {
+  return validatedWorkspaceId !== workspaceId;
 }
 
 /**
@@ -112,6 +125,7 @@ export function ValidatePanel(): ReactElement {
   const [loadingSummary, setLoadingSummary] = useState(true);
   const [running, setRunning] = useState(false);
   const [message, setMessage] = useState("");
+  const initialValidationWorkspace = useRef<string | null>(null);
 
   const loadSummary = useCallback(async (): Promise<void> => {
     setLoadingSummary(true);
@@ -130,7 +144,7 @@ export function ValidatePanel(): ReactElement {
     void loadSummary();
   }, [refreshVersion, loadSummary]);
 
-  async function revalidate(): Promise<void> {
+  const revalidate = useCallback(async (): Promise<void> => {
     setRunning(true);
     setMessage("");
     try {
@@ -146,7 +160,20 @@ export function ValidatePanel(): ReactElement {
     } finally {
       setRunning(false);
     }
-  }
+  }, [actorId, loadSummary, reportError, viewClient, workspaceId]);
+
+  useEffect(() => {
+    if (
+      !shouldRunInitialValidation(
+        initialValidationWorkspace.current,
+        workspaceId,
+      )
+    ) {
+      return;
+    }
+    initialValidationWorkspace.current = workspaceId;
+    void revalidate();
+  }, [revalidate, workspaceId]);
 
   return (
     <section aria-label="校验" className="validate-panel">

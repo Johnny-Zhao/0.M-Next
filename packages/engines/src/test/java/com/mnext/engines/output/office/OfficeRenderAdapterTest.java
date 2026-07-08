@@ -51,15 +51,16 @@ class OfficeRenderAdapterTest {
               .filter(paragraph -> paragraph.getStyle().startsWith("Heading"))
               .toList();
       assertEquals(
-          List.of("技术方案 Demo", "协作系统", "供电模块"),
+          List.of("技术方案 Demo", "协作系统", "供电模块", "电芯单元"),
           headings.stream().map(paragraph -> paragraph.getText()).toList());
       assertEquals(
-          List.of("Heading1", "Heading2", "Heading3"),
+          List.of("Heading1", "Heading2", "Heading3", "Heading4"),
           headings.stream().map(paragraph -> paragraph.getStyle()).toList());
       assertHeadingOutlineStyles(document);
-      assertTrue(
-          document.getParagraphs().stream()
-              .anyMatch(paragraph -> "负责技术方案的供电预算。".equals(paragraph.getText())));
+      assertTrue(hasParagraph(document, "描述:负责技术方案的供电预算。"));
+      assertTrue(hasParagraph(document, "职责:负责电芯单元供电。"));
+      assertFalse(hasParagraph(document, "负责技术方案的供电预算。"));
+      assertFalse(hasParagraph(document, "负责电芯单元供电。"));
       assertTrue(
           document.getParagraphs().stream()
               .anyMatch(
@@ -293,6 +294,18 @@ class OfficeRenderAdapterTest {
                     "_tree",
                     Map.of("depth", 2, "order", 2, "ruleStatus", "OK")),
                 "ACTIVE",
+                1),
+            new DataObject(
+                "cell",
+                "module",
+                Map.of(
+                    "name",
+                    "电芯单元",
+                    "responsibility",
+                    "负责电芯单元供电。",
+                    "_tree",
+                    Map.of("depth", 3, "order", 3, "ruleStatus", "OK")),
+                "ACTIVE",
                 1)),
         List.of());
   }
@@ -340,6 +353,11 @@ class OfficeRenderAdapterTest {
                 row.getTableCells().size() >= 2
                     && firstCell.equals(row.getCell(0).getText())
                     && secondCell.equals(row.getCell(1).getText()));
+  }
+
+  private static boolean hasParagraph(XWPFDocument document, String text) {
+    return document.getParagraphs().stream()
+        .anyMatch(paragraph -> text.equals(paragraph.getText()));
   }
 
   private static void assertOfficePackagePure() throws Exception {

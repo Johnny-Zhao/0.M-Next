@@ -12,6 +12,7 @@ vi.mock("./ports", () => ({
 }));
 
 const baseData: ObjectNodeData = {
+  objectId: "object-1",
   title: "供电子系统",
   objectType: "分系统",
   status: "ACTIVE",
@@ -79,6 +80,8 @@ describe("ObjectNode", () => {
 
   it("renders type variants and rule lamp states", () => {
     for (const typeVariant of [
+      "system",
+      "module",
       "subsystem",
       "component",
       "interface",

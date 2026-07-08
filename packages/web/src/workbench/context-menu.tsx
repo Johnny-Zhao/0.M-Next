@@ -25,10 +25,10 @@ export interface DiagramContextMenuProps {
 }
 
 const menuStyle: CSSProperties = {
-  background: "#ffffff",
-  border: "1px solid #9aa6b2",
+  background: "var(--mn-surface)",
+  border: "1px solid var(--mn-border-2)",
   borderRadius: 6,
-  boxShadow: "0 10px 28px rgb(25 36 54 / 18%)",
+  boxShadow: "var(--mn-shadow-popover)",
   display: "grid",
   gap: 2,
   minWidth: 156,
@@ -41,7 +41,7 @@ const buttonStyle: CSSProperties = {
   background: "transparent",
   border: 0,
   borderRadius: 4,
-  color: "#18212f",
+  color: "var(--mn-ink)",
   cursor: "pointer",
   padding: "0.42rem 0.55rem",
   textAlign: "left",

@@ -189,13 +189,14 @@ export class CommandClient {
     relationType: string,
     sourceId: string,
     targetId: string,
+    ref = "matrix",
   ): Promise<RelationCommandResult | void> {
     return this.post("CreateRelation", workspaceId, {
       relationTypeId: relationType,
       sourceId,
       targetId,
       relationFields: {},
-      source: { type: "manual", ref: "matrix" },
+      source: { type: "manual", ref },
     });
   }
 

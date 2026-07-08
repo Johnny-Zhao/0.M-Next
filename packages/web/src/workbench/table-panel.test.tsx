@@ -9,9 +9,11 @@ const mocks = vi.hoisted(() => ({
     readonly refreshVersion: number;
     readonly reportError: (message: string) => void;
     readonly selection: unknown;
+    readonly templateCode?: string | null;
     readonly viewClient: unknown;
     readonly workspaceId: string;
   },
+  fieldSummaryRendered: false,
   tableProps: null as null | {
     readonly onSaved?: () => void;
     readonly refreshKey?: number;
@@ -20,6 +22,13 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("./workbench", () => ({
   useWorkbenchContext: () => mocks.context,
+}));
+
+vi.mock("./field-summary-panel", () => ({
+  FieldSummaryPanel: () => {
+    mocks.fieldSummaryRendered = true;
+    return null;
+  },
 }));
 
 vi.mock("@m-next/views", () => ({
@@ -41,6 +50,7 @@ describe("TablePanel", () => {
       refreshVersion: 7,
       reportError: vi.fn(),
       selection: {},
+      templateCode: "interior_design",
       viewClient: {},
       workspaceId: "workspace-1",
     };
@@ -50,5 +60,26 @@ describe("TablePanel", () => {
 
     expect(autoCheckAfterSave).toHaveBeenCalledTimes(1);
     expect(mocks.tableProps?.refreshKey).toBe(7);
+  });
+
+  it("uses the field summary table for technical proposal workspaces", () => {
+    mocks.tableProps = null;
+    mocks.fieldSummaryRendered = false;
+    mocks.context = {
+      autoCheckAfterSave: vi.fn().mockResolvedValue(undefined),
+      commandClient: {},
+      objectType: "module",
+      refreshVersion: 2,
+      reportError: vi.fn(),
+      selection: {},
+      templateCode: "technical_proposal",
+      viewClient: {},
+      workspaceId: "workspace-1",
+    };
+
+    renderToStaticMarkup(<TablePanel />);
+
+    expect(mocks.fieldSummaryRendered).toBe(true);
+    expect(mocks.tableProps).toBeNull();
   });
 });

@@ -6,6 +6,7 @@ import {
   runValidation,
   severityLabel,
   severityTone,
+  shouldRunInitialValidation,
   summarizeRuleStatus,
 } from "./validate-panel";
 
@@ -22,6 +23,12 @@ describe("validate-panel", () => {
     expect(severityLabel("WARN")).toBe("告警");
     expect(severityLabel("INFO")).toBe("提示");
     expect(severityLabel("X")).toBe("未知");
+  });
+
+  it("runs initial validation once per opened workspace", () => {
+    expect(shouldRunInitialValidation(null, "ws-1")).toBe(true);
+    expect(shouldRunInitialValidation("ws-1", "ws-1")).toBe(false);
+    expect(shouldRunInitialValidation("ws-1", "ws-2")).toBe(true);
   });
 
   it("summarizes object rule lamps for the initial panel state", () => {

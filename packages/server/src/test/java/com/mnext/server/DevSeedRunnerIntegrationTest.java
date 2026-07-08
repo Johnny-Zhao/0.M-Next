@@ -66,19 +66,19 @@ class DevSeedRunnerIntegrationTest {
 
     assertEquals(1, objectCount(TECHNICAL_WORKSPACE, "proposal"));
     assertEquals(2, objectCount(TECHNICAL_WORKSPACE, "system"));
-    assertEquals(4, objectCount(TECHNICAL_WORKSPACE, "module"));
+    assertEquals(6, objectCount(TECHNICAL_WORKSPACE, "module"));
     assertEquals(3, objectCount(TECHNICAL_WORKSPACE, "alternative"));
     assertEquals(2, objectCount(TECHNICAL_WORKSPACE, "interface"));
     assertEquals(2, objectCount(TECHNICAL_WORKSPACE, "requirement"));
-    assertEquals(4, readModelCount(TECHNICAL_WORKSPACE, "module"));
+    assertEquals(6, readModelCount(TECHNICAL_WORKSPACE, "module"));
     assertEquals(3, readModelCount(TECHNICAL_WORKSPACE, "alternative"));
 
     var proposal = firstObjectId(TECHNICAL_WORKSPACE, "proposal");
     assertDecimal(
-        "820", derivedEvaluator.evaluate(TECHNICAL_WORKSPACE, proposal, "total_power_fx"));
-    var orchestration = objectIdByField(TECHNICAL_WORKSPACE, "module", "name", "方案编排模块");
+        "840", derivedEvaluator.evaluate(TECHNICAL_WORKSPACE, proposal, "total_power_fx"));
+    var powerSubsystem = objectIdByField(TECHNICAL_WORKSPACE, "module", "name", "电源分系统");
     assertDecimal(
-        "1", derivedEvaluator.evaluate(TECHNICAL_WORKSPACE, orchestration, "child_count_fx"));
+        "2", derivedEvaluator.evaluate(TECHNICAL_WORKSPACE, powerSubsystem, "child_count_fx"));
 
     assertEquals(1, checkResultCount(TECHNICAL_WORKSPACE, "R-TD-PWR"));
     assertEquals(1, checkResultCount(TECHNICAL_WORKSPACE, "R-TD-RESP"));
@@ -201,14 +201,14 @@ class DevSeedRunnerIntegrationTest {
     assertTrue(fieldDefExists(TECHNICAL_WORKSPACE, "proposal", "body"), "proposal 应声明 body 字段");
     assertTrue(fieldDefExists(TECHNICAL_WORKSPACE, "module", "body"), "module 应声明 body 字段");
 
-    // seed 留样:编排模块预置一段合法 Tiptap 正文(段落 + 无序列表)。
-    var orchestration = objectIdByField(TECHNICAL_WORKSPACE, "module", "name", "方案编排模块");
+    // seed 留样:电源分系统预置一段合法 Tiptap 正文(段落 + 无序列表)。
+    var powerSubsystem = objectIdByField(TECHNICAL_WORKSPACE, "module", "name", "电源分系统");
     var body =
         jdbc.queryForObject(
             "SELECT fields->>'body' FROM rm_object WHERE workspace_id = ? AND object_id = ?",
             String.class,
             TECHNICAL_WORKSPACE,
-            orchestration);
+            powerSubsystem);
     var doc = mapper.readTree(body);
     assertEquals("doc", doc.get("type").asText());
     var blockTypes = new java.util.ArrayList<String>();
@@ -245,12 +245,12 @@ class DevSeedRunnerIntegrationTest {
 
     assertEquals("proposal", modulePayload.objects().getFirst().objectTypeCode());
     assertEquals(0, treeDepth(modulePayload.objects().getFirst()));
-    assertEquals(5, modulePayload.objects().size());
-    assertEquals(4, modulePayload.relations().size());
+    assertEquals(7, modulePayload.objects().size());
+    assertEquals(6, modulePayload.relations().size());
     assertTrue(
         modulePayload.objects().stream()
             .anyMatch(
-                object -> "module".equals(object.objectTypeCode()) && treeDepth(object) == 2));
+                object -> "module".equals(object.objectTypeCode()) && treeDepth(object) == 3));
     assertTrue(
         modulePayload.relations().stream()
             .allMatch(relation -> "proposal_contains_module".equals(relation.relationTypeCode())));

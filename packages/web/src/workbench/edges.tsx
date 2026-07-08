@@ -71,6 +71,23 @@ export function relationEdgeVisual(
   if (normalized.includes("decompose") || normalized.includes("contain")) {
     return edgeVisual("var(--mn-border-3)", 2.2, "diagram-edge-hierarchy");
   }
+  if (normalized.includes("interface")) {
+    return edgeVisual(
+      "var(--mnext-type-interface)",
+      1.9,
+      "diagram-edge-interface",
+      {
+        strokeDasharray: "5 3",
+      },
+    );
+  }
+  if (normalized.includes("satisf")) {
+    return edgeVisual(
+      "var(--mnext-type-requirement)",
+      1.9,
+      "diagram-edge-requirement",
+    );
+  }
   if (normalized.includes("depend") || normalized.includes("require")) {
     return edgeVisual("var(--mn-warn)", 2, "diagram-edge-dependency", {
       strokeDasharray: "9 4",

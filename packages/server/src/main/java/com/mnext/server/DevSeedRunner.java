@@ -49,12 +49,12 @@ class DevSeedRunner implements ApplicationRunner {
   private static final String MODULE_BODY_SAMPLE =
       "{\"type\":\"doc\",\"content\":["
           + "{\"type\":\"paragraph\",\"content\":["
-          + "{\"type\":\"text\",\"text\":\"方案编排模块负责组织系统、模块、接口与需求。\"}]},"
+          + "{\"type\":\"text\",\"text\":\"电源分系统负责组织太阳阵、蓄电池组与电源负载。\"}]},"
           + "{\"type\":\"bulletList\",\"content\":["
           + "{\"type\":\"listItem\",\"content\":[{\"type\":\"paragraph\",\"content\":["
-          + "{\"type\":\"text\",\"text\":\"组织章节结构\"}]}]},"
+          + "{\"type\":\"text\",\"text\":\"汇总叶子模块功耗\"}]}]},"
           + "{\"type\":\"listItem\",\"content\":[{\"type\":\"paragraph\",\"content\":["
-          + "{\"type\":\"text\",\"text\":\"驱动导出与评审\"}]}]}]}]}";
+          + "{\"type\":\"text\",\"text\":\"支撑能源预算校核\"}]}]}]}]}";
 
   private final ProfileLoader profileLoader;
   private final TemplateLifecycleService lifecycle;
@@ -452,19 +452,29 @@ class DevSeedRunner implements ApplicationRunner {
             systemType,
             "system-integration",
             Map.of("name", "集成接入系统", "responsibility", "连接文档、模型与导出服务"));
-    var orchestration =
+    var powerSubsystem =
         createTechnicalObject(
             moduleType,
-            "module-orchestration",
-            technicalModuleFields("方案编排模块", "组织系统、模块、接口与需求", "技术方案核心模块"));
-    var generation =
+            "module-power-subsystem",
+            technicalModuleFields("电源分系统", "负责卫星电源生成、存储与分配", "卫星电源系统顶层模块"));
+    var batteryPack =
         createTechnicalObject(
             moduleType,
-            "module-generation",
-            technicalModuleFields("章节生成模块", "生成方案章节与摘要", "由编排模块下钻"));
-    var adapter =
+            "module-battery-pack",
+            technicalModuleFields("蓄电池组", "负责轨道阴影期储能与放电", "电源分系统储能组件"));
+    var cellUnit =
         createTechnicalObject(
-            moduleType, "module-adapter", technicalModuleFields("适配接入模块", "同步模型与文档制品", "集成接入"));
+            moduleType, "module-cell-unit", technicalModuleFields("电芯单元", "提供基础储能单元", "蓄电池组叶子模块"));
+    var solarArraySubsystem =
+        createTechnicalObject(
+            moduleType,
+            "module-solar-array-subsystem",
+            technicalModuleFields("太阳阵分系统", "负责在光照段发电并给蓄电池充电", "电源分系统发电子系统"));
+    var solarPanel =
+        createTechnicalObject(
+            moduleType,
+            "module-solar-panel",
+            technicalModuleFields("太阳电池板", "完成光电转换并输出母线功率", "太阳阵叶子模块"));
     var undecided =
         createTechnicalObject(
             moduleType, "module-undecided", Map.of("name", "待明确模块", "description", "触发职责规则"));
@@ -503,14 +513,19 @@ class DevSeedRunner implements ApplicationRunner {
 
     relateTechnical(containsSystemType, proposal, platformSystem, "contains-platform-system");
     relateTechnical(containsSystemType, proposal, integrationSystem, "contains-integration-system");
-    relateTechnical(containsModuleType, proposal, orchestration, "proposal-contains-orchestration");
-    relateTechnical(containsModuleType, proposal, adapter, "proposal-contains-adapter");
+    relateTechnical(
+        containsModuleType, proposal, powerSubsystem, "proposal-contains-power-subsystem");
+    relateTechnical(containsModuleType, powerSubsystem, batteryPack, "power-contains-battery-pack");
+    relateTechnical(containsModuleType, batteryPack, cellUnit, "battery-contains-cell-unit");
+    relateTechnical(
+        containsModuleType, powerSubsystem, solarArraySubsystem, "power-contains-solar-array");
+    relateTechnical(
+        containsModuleType, solarArraySubsystem, solarPanel, "solar-array-contains-panel");
     relateTechnical(containsModuleType, proposal, undecided, "proposal-contains-undecided");
-    relateTechnical(containsModuleType, orchestration, generation, "contains-generation");
-    relateTechnical(dependsOnType, generation, orchestration, "generation-depends-orchestration");
-    relateTechnical(interfacesWithType, orchestration, exportInterface, "orchestration-export");
-    relateTechnical(interfacesWithType, adapter, reviewInterface, "adapter-review");
-    relateTechnical(satisfiesType, orchestration, coveredRequirement, "orchestration-satisfies");
+    relateTechnical(dependsOnType, solarPanel, batteryPack, "solar-panel-depends-battery-pack");
+    relateTechnical(interfacesWithType, powerSubsystem, exportInterface, "power-subsystem-export");
+    relateTechnical(interfacesWithType, solarPanel, reviewInterface, "solar-panel-review");
+    relateTechnical(satisfiesType, powerSubsystem, coveredRequirement, "power-subsystem-satisfies");
   }
 
   private Map<String, Object> technicalModuleFields(
@@ -799,12 +814,10 @@ class DevSeedRunner implements ApplicationRunner {
     var result = new LinkedHashMap<String, Object>(fields);
     switch (keySuffix) {
       case "proposal" -> result.put("power_budget_w", 800);
-      case "module-orchestration" -> {
-        result.put("power_w", 260);
-        result.put("body", MODULE_BODY_SAMPLE); // 回归留样:富文本正文(不参与派生/规则)
-      }
-      case "module-generation" -> result.put("power_w", 190);
-      case "module-adapter" -> result.put("power_w", 210);
+      case "module-power-subsystem" ->
+          result.put("body", MODULE_BODY_SAMPLE); // 回归留样:富文本正文(不参与派生/规则)
+      case "module-cell-unit" -> result.put("power_w", 360);
+      case "module-solar-panel" -> result.put("power_w", 320);
       case "module-undecided" -> result.put("power_w", 160);
       default -> {}
     }

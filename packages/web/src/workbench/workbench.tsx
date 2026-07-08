@@ -96,6 +96,7 @@ export const workbenchPanelDefinitions: readonly WorkbenchPanelDefinition[] = [
 export interface WorkbenchContextValue {
   readonly actorId: string;
   readonly workspaceId: string;
+  readonly templateCode?: string | null;
   readonly objectType: string;
   readonly relationType: string;
   readonly rootId: string;
@@ -154,11 +155,15 @@ export function ensureWorkbenchPanels(api: DockviewApi): void {
 export function openWorkbenchPanel(
   api: DockviewApi,
   panelId: WorkbenchPanelId,
+  options: { readonly focus?: boolean } = {},
 ): void {
+  // focus:false 表示「因选择而被动揭示」某面板,只激活、不移动 DOM 焦点。
+  // 若此处抢焦点,会把用户刚点进去的输入框(如字段总表内联编辑器)blur 掉,导致打不进字。
+  const shouldFocus = options.focus ?? true;
   const existing = api.getPanel(panelId);
   if (existing) {
     existing.api.setActive();
-    api.focus();
+    if (shouldFocus) api.focus();
     return;
   }
   const definition = workbenchPanelDefinitions.find(
@@ -167,7 +172,7 @@ export function openWorkbenchPanel(
   if (!definition) return;
   const panel = api.addPanel(definition);
   panel.api.setActive();
-  api.focus();
+  if (shouldFocus) api.focus();
 }
 
 export function shouldOpenInspectorForSelection(
@@ -232,7 +237,7 @@ export function workbenchDefaultsForTemplate(
       objectType: "module",
       relationType: "proposal_contains_module",
       rootId: "",
-      activePanel: "document",
+      activePanel: "tree",
       startupPanels: ["table", "validate", "document"],
       rootObjectType: "proposal",
     };
@@ -241,7 +246,7 @@ export function workbenchDefaultsForTemplate(
     objectType: defaultObjectType,
     relationType: defaultRelationType,
     rootId: defaultRootId,
-    activePanel: "diagram",
+    activePanel: "tree",
     startupPanels: [],
   };
 }
@@ -323,15 +328,24 @@ export function Workbench({
     },
     [dockviewApi],
   );
+  // 因选择而被动揭示面板:激活但不抢 DOM 焦点,避免 blur 掉正在编辑的输入框。
+  const revealShellPanel = useCallback(
+    (panelId: WorkbenchPanelId) => {
+      if (!dockviewApi) return;
+      openWorkbenchPanel(dockviewApi, panelId, { focus: false });
+      setActivePanel(panelId);
+    },
+    [dockviewApi],
+  );
 
   useEffect(
     () =>
       selection.subscribe((selected) => {
         if (shouldOpenInspectorForSelection(selected)) {
-          openShellPanel("inspector");
+          revealShellPanel("inspector");
         }
       }),
-    [openShellPanel, selection],
+    [revealShellPanel, selection],
   );
 
   const generateOutput = useCallback(
@@ -404,6 +418,7 @@ export function Workbench({
     () => ({
       actorId,
       workspaceId,
+      templateCode,
       objectType,
       relationType,
       rootId,
@@ -432,6 +447,7 @@ export function Workbench({
       setObjectType,
       setRelationType,
       setRootId,
+      templateCode,
       viewClient,
       workspaceId,
     ],
@@ -541,6 +557,7 @@ export function Workbench({
               defaults.startupPanels.forEach((panel) =>
                 openWorkbenchPanel(event.api, panel),
               );
+              openWorkbenchPanel(event.api, defaults.activePanel);
               setActivePanel(defaults.activePanel);
             }}
           />

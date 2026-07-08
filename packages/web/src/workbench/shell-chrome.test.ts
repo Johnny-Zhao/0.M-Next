@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 
 import {
+  WorkbenchShellChrome,
   shellDimensionLabels,
   shellMenuLabels,
   shellToolbarViewLabels,
@@ -28,5 +31,28 @@ describe("WorkbenchShellChrome", () => {
       "光",
       "风",
     ]);
+  });
+
+  it("shows connection guidance without a disabled connection button", () => {
+    const html = renderToStaticMarkup(
+      createElement(WorkbenchShellChrome, {
+        activePanel: "tree",
+        advancedOpen: false,
+        documentOutputAction: null,
+        themeLabel: "亮色",
+        onGenerateOutput: () => undefined,
+        onOpenCommandPalette: () => undefined,
+        onOpenPanel: () => undefined,
+        onRefreshViews: () => undefined,
+        onRevalidate: () => undefined,
+        onToggleAdvanced: () => undefined,
+        onToggleTheme: () => undefined,
+      }),
+    );
+
+    expect(html).toContain("连线:从节点端口拖拽");
+    expect(html).not.toContain(
+      'title="连线:在画布中从端口拖拽创建" type="button"',
+    );
   });
 });

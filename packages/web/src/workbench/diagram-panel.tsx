@@ -17,6 +17,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent as ReactMouseEvent,
@@ -107,6 +108,7 @@ export interface DiagramCommandClient {
     relationType: string,
     sourceId: string,
     targetId: string,
+    ref?: string,
   ): Promise<unknown>;
   unlink(
     workspaceId: string,
@@ -178,6 +180,12 @@ export function objectTypeVariant(objectType: string): ObjectTypeVariant {
   const normalized = objectType.toLowerCase();
   if (normalized === "room" || objectType.includes("房间")) {
     return "room";
+  }
+  if (normalized === "system" || normalized.includes("system")) {
+    return "system";
+  }
+  if (normalized === "module" || normalized.includes("module")) {
+    return "module";
   }
   if (normalized.includes("subsystem") || objectType.includes("分系统")) {
     return "subsystem";
@@ -287,6 +295,7 @@ export function objectNodeData(
     ? objectDimensionTone(object.ruleStatus, fields)
     : undefined;
   return {
+    objectId: object.objectId,
     title: objectTitle(object),
     objectType: object.objectType,
     status: statusLabel(object.status),
@@ -529,14 +538,62 @@ export const defaultDiagramObjectFields = {
 
 const diagramCreateResolveAttempts = 5;
 const diagramCreateResolveDelayMs = 350;
+const diagramRelationRefreshDelayMs = 400;
 const proposalContainsRelationByObjectType: Readonly<Record<string, string>> = {
   module: "proposal_contains_module",
   system: "proposal_contains_system",
+};
+const diagramRelationByEndpoint: Readonly<Record<string, string>> = {
+  "module->module": "proposal_depends_on",
+  "module->interface": "proposal_interfaces_with",
+  "module->requirement": "proposal_satisfies",
+  "proposal->module": "proposal_contains_module",
+  "proposal_node->module": "proposal_contains_module",
+  "proposal->system": "proposal_contains_system",
 };
 
 interface LineageTarget {
   readonly object: ViewObject;
   readonly fieldCode: string;
+}
+
+interface DiagramConnectionEndpoint {
+  readonly objectId: string;
+  readonly objectType: string;
+}
+
+export function resolveDiagramConnectionEndpoints(params: {
+  readonly objects: readonly ViewObject[];
+  readonly nodes: readonly DiagramNode[];
+  readonly connection: Connection;
+}): {
+  readonly source: DiagramConnectionEndpoint;
+  readonly target: DiagramConnectionEndpoint;
+} | null {
+  if (!params.connection.source || !params.connection.target) return null;
+  const objectsById = new Map(
+    params.objects.map((object) => [object.objectId, object]),
+  );
+  const nodesById = new Map(params.nodes.map((node) => [node.id, node]));
+  const endpoint = (objectId: string): DiagramConnectionEndpoint | null => {
+    const nodeData = nodesById.get(objectId)?.data;
+    if (
+      typeof nodeData?.objectId === "string" &&
+      nodeData.objectId.trim() !== "" &&
+      typeof nodeData.objectType === "string" &&
+      nodeData.objectType.trim() !== ""
+    ) {
+      return {
+        objectId: nodeData.objectId,
+        objectType: nodeData.objectType,
+      };
+    }
+    const object = objectsById.get(objectId);
+    return object ? { objectId, objectType: object.objectType } : null;
+  };
+  const source = endpoint(params.connection.source);
+  const target = endpoint(params.connection.target);
+  return source && target ? { source, target } : null;
 }
 
 export async function connectDiagramObjects(
@@ -551,6 +608,7 @@ export async function connectDiagramObjects(
     relationType,
     connection.source,
     connection.target,
+    "diagram",
   );
   return true;
 }
@@ -571,6 +629,28 @@ export async function unlinkDiagramEdges(
   await Promise.all(
     versionedEdges.map((edge) =>
       commandClient.unlink(workspaceId, edge.id, edge.version as number),
+    ),
+  );
+}
+
+export async function unlinkSelectedRelations(
+  commandClient: Pick<DiagramCommandClient, "unlink">,
+  workspaceId: string,
+  relations: readonly Pick<RelationSummary, "relationId" | "version">[],
+): Promise<void> {
+  // 删关系走乐观锁:expectedVersion 必须是关系的真实当前版本
+  // (与 inspector-panel / unlinkDiagramEdges 一致)。此处曾写死 1,
+  // 导致版本≠1 时内核版本冲突、右键“删除关系”删不掉、看似无响应。
+  const missingVersion = relations.find(
+    (relation) =>
+      !(typeof relation.version === "number" && relation.version > 0),
+  );
+  if (missingVersion) {
+    throw new Error("TODO(view-API): 删除关系需要关系版本投影");
+  }
+  await Promise.all(
+    relations.map((relation) =>
+      commandClient.unlink(workspaceId, relation.relationId, relation.version),
     ),
   );
 }
@@ -600,6 +680,236 @@ export function pickCreatedDiagramObjectId(params: {
       )
     : undefined;
   return named?.objectId ?? fresh[0]?.objectId ?? null;
+}
+
+export type DiagramRelationInference =
+  | {
+      readonly kind: "match";
+      readonly relationTypeCode: string;
+      readonly relationTypeId: string;
+      // 仅反向端点映射命中时为 true;调用方据此交换 source/target。
+      readonly reversed?: true;
+    }
+  | { readonly kind: "none" }
+  | { readonly kind: "ambiguous" };
+
+export function inferDiagramRelationType(params: {
+  readonly relationTypes: readonly RelationType[];
+  readonly sourceObjectType: string;
+  readonly targetObjectType: string;
+}): DiagramRelationInference {
+  const forwardCode =
+    diagramRelationByEndpoint[
+      `${params.sourceObjectType}->${params.targetObjectType}`
+    ];
+  const reverseCode =
+    diagramRelationByEndpoint[
+      `${params.targetObjectType}->${params.sourceObjectType}`
+    ];
+  const code = forwardCode ?? reverseCode;
+  if (!code) return { kind: "none" };
+  const matches = params.relationTypes.filter((type) => type.code === code);
+  if (matches.length === 0) return { kind: "none" };
+  if (matches.length > 1) return { kind: "ambiguous" };
+  const match = {
+    kind: "match" as const,
+    relationTypeCode: matches[0]!.code,
+    relationTypeId: matches[0]!.id,
+  };
+  // 关系是有向的:只有反向端点映射命中时标记 reversed,
+  // 让“反着拖”也能建出方向正确的关系(而非报“没有可建的关系”)。
+  return forwardCode ? match : { ...match, reversed: true };
+}
+
+export function diagramConnectionRejection(params: {
+  readonly sourceId: string;
+  readonly targetId: string;
+  readonly relationTypeCode: string;
+  readonly relations: readonly Pick<
+    RelationSummary,
+    "relationType" | "sourceId" | "targetId"
+  >[];
+}): "self" | "duplicate" | null {
+  if (params.sourceId === params.targetId) return "self";
+  const duplicate = params.relations.some(
+    (relation) =>
+      relation.relationType === params.relationTypeCode &&
+      relation.sourceId === params.sourceId &&
+      relation.targetId === params.targetId,
+  );
+  return duplicate ? "duplicate" : null;
+}
+
+export function diagramRelationCodesForVisibleObjects(params: {
+  readonly objects: readonly ViewObject[];
+  readonly relationType: string;
+  readonly relationTypes: readonly RelationType[];
+}): readonly string[] {
+  const availableCodes = new Set(params.relationTypes.map((type) => type.code));
+  const endpointCodes = params.objects.flatMap((source) =>
+    params.objects.flatMap((target) => {
+      const code =
+        diagramRelationByEndpoint[`${source.objectType}->${target.objectType}`];
+      return code ? [code] : [];
+    }),
+  );
+  return [params.relationType, ...endpointCodes].filter(
+    (code, index, codes): code is string =>
+      Boolean(code) &&
+      codes.indexOf(code) === index &&
+      availableCodes.has(code),
+  );
+}
+
+function uniqueDiagramRelations(
+  relations: readonly RelationSummary[],
+): readonly RelationSummary[] {
+  return Array.from(
+    new Map(
+      relations.map((relation) => [relation.relationId, relation]),
+    ).values(),
+  );
+}
+
+export async function loadDiagramRelations(params: {
+  readonly viewClient: Pick<ViewClient, "relationTypes" | "relations">;
+  readonly workspaceId: string;
+  readonly relationType: string;
+  readonly rootId?: string;
+  readonly objects: readonly ViewObject[];
+}): Promise<readonly RelationSummary[]> {
+  const relationTypes = await params.viewClient.relationTypes(
+    params.workspaceId,
+  );
+  const relationCodes = diagramRelationCodesForVisibleObjects({
+    objects: params.objects,
+    relationType: params.relationType,
+    relationTypes,
+  });
+  const sourceIds = Array.from(
+    new Set(params.objects.map((object) => object.objectId)),
+  );
+  const visibleRelations =
+    sourceIds.length === 0 || relationCodes.length === 0
+      ? []
+      : await Promise.all(
+          sourceIds.flatMap((sourceId) =>
+            relationCodes.map((code) =>
+              params.viewClient.relations(
+                params.workspaceId,
+                code,
+                "out",
+                sourceId,
+                1,
+              ),
+            ),
+          ),
+        );
+  const rootRelations =
+    params.rootId && relationCodes.includes(params.relationType)
+      ? await params.viewClient.relations(
+          params.workspaceId,
+          params.relationType,
+          "out",
+          params.rootId,
+          2,
+        )
+      : [];
+  return uniqueDiagramRelations([...visibleRelations.flat(), ...rootRelations]);
+}
+
+export function refreshDiagramAfterRelationCreated(params: {
+  readonly refreshViews: () => void;
+  readonly scheduleRefresh: (callback: () => void, delayMs: number) => void;
+}): void {
+  params.refreshViews();
+  params.scheduleRefresh(params.refreshViews, diagramRelationRefreshDelayMs);
+}
+
+export function optimisticDiagramObject(params: {
+  readonly objectId: string;
+  readonly objectType: string;
+  readonly fields: Readonly<Record<string, unknown>>;
+}): ViewObject {
+  return {
+    objectId: params.objectId,
+    objectType: params.objectType,
+    status: "DRAFT",
+    version: 1,
+    fields: { ...params.fields },
+    updatedAt: new Date(0).toISOString(),
+    source: null,
+    ruleStatus: "OK",
+  };
+}
+
+export function optimisticDiagramRelation(params: {
+  readonly relationType: string;
+  readonly sourceId: string;
+  readonly targetId: string;
+}): RelationSummary {
+  // 乐观关系:临时 relationId 前缀,避免与后端真实 id 冲突。
+  // 刷新回读会整体替换 data.relations,故此关系为短命过渡态。
+  return {
+    relationId: `optimistic-rel:${params.sourceId}->${params.targetId}:${params.relationType}`,
+    relationType: params.relationType,
+    sourceId: params.sourceId,
+    targetId: params.targetId,
+    version: 1,
+  };
+}
+
+export function mergeOptimisticDiagramObjects(
+  reloaded: readonly ViewObject[],
+  current: readonly ViewObject[],
+): ViewObject[] {
+  // 回读后合并:保留本地有、后端分页还没返回的乐观对象(按 objectId)。
+  const reloadedIds = new Set(reloaded.map((object) => object.objectId));
+  return [
+    ...reloaded,
+    ...current.filter((object) => !reloadedIds.has(object.objectId)),
+  ];
+}
+
+export function mergeOptimisticDiagramRelations(
+  reloaded: readonly RelationSummary[],
+  current: readonly RelationSummary[],
+): RelationSummary[] {
+  // 按“源->靶:类型”去重:真实关系已回读时丢弃同键的乐观临时关系,
+  // 否则保留尚未同步的乐观关系,既不冲掉连线又不产生重复边。
+  const relationKey = (
+    relation: Pick<RelationSummary, "sourceId" | "targetId" | "relationType">,
+  ): string =>
+    `${relation.sourceId}->${relation.targetId}:${relation.relationType}`;
+  const reloadedKeys = new Set(reloaded.map(relationKey));
+  return [
+    ...reloaded,
+    ...current.filter((relation) => !reloadedKeys.has(relationKey(relation))),
+  ];
+}
+
+export function upsertOptimisticDiagramNode(params: {
+  readonly nodes: readonly DiagramNode[];
+  readonly object: ViewObject;
+  readonly activeDimension: ActiveDimensionId;
+}): DiagramNode[] {
+  const existing = params.nodes.find(
+    (node) => node.id === params.object.objectId,
+  );
+  const index = existing ? params.nodes.indexOf(existing) : params.nodes.length;
+  const next: DiagramNode = {
+    id: params.object.objectId,
+    type: "object",
+    position: existing?.position ?? {
+      x: 80 + (index % 4) * 240,
+      y: 80 + Math.floor(index / 4) * 160,
+    },
+    selected: existing?.selected,
+    data: objectNodeData(params.object, params.activeDimension),
+  };
+  return existing
+    ? params.nodes.map((node) => (node.id === next.id ? next : node))
+    : [...params.nodes, next];
 }
 
 async function resolveCreatedDiagramObjectId(params: {
@@ -686,6 +996,8 @@ export function DiagramPanel(): ReactElement {
   const [menu, setMenu] = useState<DiagramContextMenuState | null>(null);
   const [nodes, setNodes, onNodesChange] = useNodesState<DiagramNode>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<DiagramEdge>([]);
+  const dataRef = useRef<DiagramData>(data);
+  const nodesRef = useRef<readonly DiagramNode[]>(nodes);
   const [gridEnabled, setGridEnabled] = useState(true);
   const [gridVariant, setGridVariant] = useState<BackgroundVariant>(
     BackgroundVariant.Dots,
@@ -696,6 +1008,14 @@ export function DiagramPanel(): ReactElement {
   const [lineageTarget, setLineageTarget] = useState<LineageTarget | null>(
     null,
   );
+
+  useEffect(() => {
+    dataRef.current = data;
+  }, [data]);
+
+  useEffect(() => {
+    nodesRef.current = nodes;
+  }, [nodes]);
 
   useEffect(
     () =>
@@ -714,16 +1034,13 @@ export function DiagramPanel(): ReactElement {
     async function load(): Promise<void> {
       try {
         const page = await viewClient.objects(workspaceId, objectType, 0, 100);
-        const sourceId = rootId || page.items[0]?.objectId;
-        const relations = sourceId
-          ? await viewClient.relations(
-              workspaceId,
-              relationType,
-              "out",
-              sourceId,
-              2,
-            )
-          : [];
+        const relations = await loadDiagramRelations({
+          viewClient,
+          workspaceId,
+          relationType,
+          rootId,
+          objects: page.items,
+        });
         if (!disposed) setData({ objects: page.items, relations });
       } catch (error) {
         if (!disposed) {
@@ -944,6 +1261,36 @@ export function DiagramPanel(): ReactElement {
         expectedName:
           typeof fields.name === "string" ? fields.name.trim() : undefined,
       });
+      if (objectId) {
+        const optimisticObject = optimisticDiagramObject({
+          objectId,
+          objectType: context.objectType,
+          fields,
+        });
+        setData((current) => {
+          const next = {
+            ...current,
+            objects: current.objects.some(
+              (object) => object.objectId === objectId,
+            )
+              ? current.objects.map((object) =>
+                  object.objectId === objectId ? optimisticObject : object,
+                )
+              : [...current.objects, optimisticObject],
+          };
+          dataRef.current = next;
+          return next;
+        });
+        setNodes((currentNodes) => {
+          const next = upsertOptimisticDiagramNode({
+            nodes: currentNodes,
+            object: optimisticObject,
+            activeDimension,
+          });
+          nodesRef.current = next;
+          return next;
+        });
+      }
       await attachCreatedObjectToRoot({
         viewClient: context.viewClient,
         commandClient: context.commandClient,
@@ -990,13 +1337,11 @@ export function DiagramPanel(): ReactElement {
   async function deleteSelection(): Promise<void> {
     if (selectedObjects.length === 0 && selectedRelations.length === 0) return;
     try {
-      for (const relation of selectedRelations) {
-        await context.commandClient.unlink(
-          context.workspaceId,
-          relation.relationId,
-          1,
-        );
-      }
+      await unlinkSelectedRelations(
+        context.commandClient,
+        context.workspaceId,
+        selectedRelations,
+      );
       for (const object of selectedObjects) {
         await softDeleteObjectByCommand(
           context.commandClient,
@@ -1053,13 +1398,116 @@ export function DiagramPanel(): ReactElement {
 
   async function connectObjects(connection: Connection): Promise<void> {
     try {
+      let endpoints = resolveDiagramConnectionEndpoints({
+        objects: dataRef.current.objects,
+        nodes: nodesRef.current,
+        connection,
+      });
+      if (!endpoints) {
+        const page = await context.viewClient.objects(
+          context.workspaceId,
+          context.objectType,
+          0,
+          100,
+        );
+        // E: 合并本地乐观对象(后端回读尚未返回的刚建对象),避免连线回读冲掉节点。
+        const objects = mergeOptimisticDiagramObjects(
+          page.items,
+          dataRef.current.objects,
+        );
+        const reloadedRelations = await loadDiagramRelations({
+          viewClient: context.viewClient,
+          workspaceId: context.workspaceId,
+          relationType: context.relationType,
+          rootId: context.rootId,
+          objects,
+        });
+        const relations = mergeOptimisticDiagramRelations(
+          reloadedRelations,
+          dataRef.current.relations,
+        );
+        const nextData = { objects, relations };
+        dataRef.current = nextData;
+        setData(nextData);
+        endpoints = resolveDiagramConnectionEndpoints({
+          objects,
+          nodes: nodesRef.current,
+          connection,
+        });
+      }
+      const source = endpoints?.source ?? null;
+      const target = endpoints?.target ?? null;
+      if (!source || !target) {
+        toast.info("对象未就绪，请稍候再连");
+        return;
+      }
+      const inference = inferDiagramRelationType({
+        relationTypes: await context.viewClient.relationTypes(
+          context.workspaceId,
+        ),
+        sourceObjectType: source.objectType,
+        targetObjectType: target.objectType,
+      });
+      if (inference.kind === "none") {
+        toast.info("这两类对象之间没有可建的关系");
+        return;
+      }
+      if (inference.kind === "ambiguous") {
+        // TODO: 若后续同一对象类型对允许多种关系,在这里弹出关系类型选择器。
+        toast.info("这两类对象之间有多个候选关系，暂不能自动建关系");
+        return;
+      }
+      const oriented = inference.reversed
+        ? { fromId: target.objectId, toId: source.objectId }
+        : { fromId: source.objectId, toId: target.objectId };
+      const rejection = diagramConnectionRejection({
+        sourceId: oriented.fromId,
+        targetId: oriented.toId,
+        relationTypeCode: inference.relationTypeCode,
+        relations: dataRef.current.relations,
+      });
+      if (rejection === "self") {
+        toast.info("不能把对象连到它自己");
+        return;
+      }
+      if (rejection === "duplicate") {
+        toast.info("这两个对象之间已存在该关系");
+        return;
+      }
+      // D: 用解析出的真实对象 id 建关系(而非 ReactFlow 的节点 id);
+      // B: reversed 时已交换端点,保证关系方向正确。
       const connected = await connectDiagramObjects(
         context.commandClient,
         context.workspaceId,
-        context.relationType,
-        connection,
+        inference.relationTypeId,
+        { ...connection, source: oriented.fromId, target: oriented.toId },
       );
-      if (connected) context.refreshViews();
+      if (connected) {
+        // A: 立即把新关系塞进 data.relations,连线即时显示,再由刷新对齐后端。
+        const optimistic = optimisticDiagramRelation({
+          relationType: inference.relationTypeCode,
+          sourceId: oriented.fromId,
+          targetId: oriented.toId,
+        });
+        setData((current) => {
+          const next = {
+            ...current,
+            relations: [
+              ...current.relations.filter(
+                (relation) => relation.relationId !== optimistic.relationId,
+              ),
+              optimistic,
+            ],
+          };
+          dataRef.current = next;
+          return next;
+        });
+        refreshDiagramAfterRelationCreated({
+          refreshViews: context.refreshViews,
+          scheduleRefresh: (callback, delayMs) =>
+            window.setTimeout(callback, delayMs),
+        });
+      }
     } catch (error) {
       context.reportError(
         error instanceof Error ? error.message : "创建关系失败",
@@ -1197,6 +1645,7 @@ export function DiagramPanel(): ReactElement {
         fitView
         nodeTypes={nodeTypes}
         nodes={nodes}
+        nodesConnectable
         onConnect={(connection) => void connectObjects(connection)}
         onEdgeContextMenu={onEdgeContextMenu}
         onEdgesDelete={(deletedEdges) => void deleteRelations(deletedEdges)}

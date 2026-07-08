@@ -25,7 +25,14 @@ import { LineageView } from "./lineage-view";
 import { FxChip, RuleLamp } from "./widgets";
 import { useWorkbenchContext } from "./workbench";
 
-export type FloorplanDimensionId = "all" | "light" | "thermal" | "wind";
+export type FloorplanDimensionId =
+  | "all"
+  | "light"
+  | "thermal"
+  | "wind"
+  | "energy"
+  | "power";
+export type FloorplanProfile = "interior" | "technical";
 export type FloorplanTone = "ok" | "warn" | "block" | "normal" | "empty";
 export type FloorplanHeatTone = "low" | "mid" | "high" | "flat";
 
@@ -83,6 +90,11 @@ const roomMinWidth = 108;
 const roomMinHeight = 78;
 const roomMaxWidth = 230;
 const roomMaxHeight = 172;
+const powerScale = 7.5;
+const powerMinWidth = 118;
+const powerMinHeight = 82;
+const powerMaxWidth = 238;
+const powerMaxHeight = 168;
 const timeSeriesPageSize = 240;
 const timeSeriesDownsample = 4;
 const playbackTickMs = 280;
@@ -109,17 +121,61 @@ const fallbackDimensions: readonly FloorplanDimensionOption[] = [
   },
 ];
 
-export function floorplanDimensionOptions(): readonly FloorplanDimensionOption[] {
+const technicalPowerDimension: FloorplanDimensionOption = {
+  id: "power",
+  label: "功率",
+  description: "按功率字段显示布局块",
+  match: (code) => /^power[_-]?w$|功率|power/i.test(code),
+};
+
+export function floorplanProfileForWorkbench(params: {
+  readonly objectType: string;
+  readonly relationType: string;
+}): FloorplanProfile {
+  const objectType = params.objectType.toLowerCase();
+  const relationType = params.relationType.toLowerCase();
+  return objectType === "module" ||
+    objectType === "system" ||
+    objectType === "proposal" ||
+    relationType.startsWith("proposal_")
+    ? "technical"
+    : "interior";
+}
+
+export function floorplanDimensionOptions(
+  profile: FloorplanProfile = "interior",
+): readonly FloorplanDimensionOption[] {
   const registered = new Map<string, DimensionDefinition>(
     listDimensions().map((dimension) => [dimension.id, dimension]),
   );
+  const allOption: FloorplanDimensionOption = {
+    id: "all",
+    label: "全部",
+    description: "按规则状态综合着色",
+    match: () => true,
+  };
+  if (profile === "technical") {
+    const energy = registered.get("energy");
+    return [
+      allOption,
+      energy
+        ? {
+            id: "energy",
+            label: energy.label,
+            description: energy.description,
+            match: energy.match,
+          }
+        : {
+            id: "energy",
+            label: "能量",
+            description: "按能量与功率相关字段着色",
+            match: (code) => /energy|power|功率|能量/i.test(code),
+          },
+      technicalPowerDimension,
+    ];
+  }
   return [
-    {
-      id: "all",
-      label: "全部",
-      description: "按规则状态综合着色",
-      match: () => true,
-    },
+    allOption,
     ...fallbackDimensions.map((fallback) => {
       const dimension = registered.get(fallback.id);
       return dimension
@@ -134,11 +190,60 @@ export function floorplanDimensionOptions(): readonly FloorplanDimensionOption[]
   ];
 }
 
+interface ViewClientLike {
+  readonly objects: (
+    workspaceId: string,
+    objectType: string,
+    page: number,
+    size: number,
+  ) => Promise<{ readonly items: readonly ViewObject[] }>;
+  readonly relations: (
+    workspaceId: string,
+    relationType: string,
+    direction: "out" | "in",
+    sourceId: string,
+    depth: number,
+  ) => Promise<readonly RelationSummary[]>;
+}
+
+export async function loadFloorplanData(params: {
+  readonly viewClient: Pick<ViewClientLike, "objects" | "relations">;
+  readonly workspaceId: string;
+  readonly rootId: string;
+  readonly profile: FloorplanProfile;
+}): Promise<FloorplanData> {
+  if (params.profile === "technical") {
+    const [modules, systems] = await Promise.all([
+      params.viewClient.objects(params.workspaceId, "module", 0, 100),
+      params.viewClient.objects(params.workspaceId, "system", 0, 100),
+    ]);
+    return { objects: [...modules.items, ...systems.items], relations: [] };
+  }
+  const page = await params.viewClient.objects(
+    params.workspaceId,
+    "room",
+    0,
+    100,
+  );
+  const sourceId = params.rootId || page.items[0]?.objectId;
+  const relations = sourceId
+    ? await params.viewClient.relations(
+        params.workspaceId,
+        "adjacent",
+        "out",
+        sourceId,
+        2,
+      )
+    : [];
+  return { objects: page.items, relations };
+}
+
 export function buildFloorplanRooms(
   objects: readonly ViewObject[],
   relations: readonly RelationSummary[],
   selectedObjectId: string | null,
   activeDimension: FloorplanDimensionId,
+  profile: FloorplanProfile = "interior",
 ): {
   readonly rooms: readonly FloorplanRoomBlock[];
   readonly width: number;
@@ -146,13 +251,16 @@ export function buildFloorplanRooms(
   readonly mode: FloorplanLayoutMode;
 } {
   const ordered = orderRoomsByAdjacency(objects, relations);
-  const coordinateLayout = buildCoordinateFloorplanRooms(
-    ordered,
-    selectedObjectId,
-    activeDimension,
-  );
+  const coordinateLayout =
+    profile === "interior"
+      ? buildCoordinateFloorplanRooms(
+          ordered,
+          selectedObjectId,
+          activeDimension,
+        )
+      : null;
   if (coordinateLayout) return coordinateLayout;
-  const options = floorplanDimensionOptions();
+  const options = floorplanDimensionOptions(profile);
   const activeOption = options.find((option) => option.id === activeDimension);
   let x = floorplanInset;
   let y = floorplanInset + 44;
@@ -160,7 +268,7 @@ export function buildFloorplanRooms(
   let canvasWidth = floorplanRowWidth;
 
   const rooms = ordered.map((object) => {
-    const size = roomSize(object);
+    const size = roomSize(object, profile);
     if (x > floorplanInset && x + size.width > floorplanRowWidth) {
       x = floorplanInset;
       y += rowHeight + floorplanGap;
@@ -173,8 +281,8 @@ export function buildFloorplanRooms(
       y,
       width: size.width,
       height: size.height,
-      areaChip: areaChip(object),
-      tone: floorplanTone(object, activeOption),
+      areaChip: areaChip(object, profile),
+      tone: floorplanTone(object, activeOption, profile),
       selected: object.objectId === selectedObjectId,
       object,
     };
@@ -218,7 +326,7 @@ function buildCoordinateFloorplanRooms(
   const scale = 56;
   const planWidth = Math.max(1, maxX - minX);
   const planHeight = Math.max(1, maxY - minY);
-  const options = floorplanDimensionOptions();
+  const options = floorplanDimensionOptions("interior");
   const activeOption = options.find((option) => option.id === activeDimension);
 
   return {
@@ -231,8 +339,8 @@ function buildCoordinateFloorplanRooms(
         Math.round((maxY - coordinate.y - coordinate.width) * scale),
       width: Math.round(coordinate.length * scale),
       height: Math.round(coordinate.width * scale),
-      areaChip: areaChip(coordinate.object),
-      tone: floorplanTone(coordinate.object, activeOption),
+      areaChip: areaChip(coordinate.object, "interior"),
+      tone: floorplanTone(coordinate.object, activeOption, "interior"),
       selected: coordinate.object.objectId === selectedObjectId,
       object: coordinate.object,
     })),
@@ -319,10 +427,29 @@ function compareRoomIds(
   return leftTitle.localeCompare(rightTitle, "zh-Hans-CN");
 }
 
-function roomSize(object: ViewObject): {
+function roomSize(
+  object: ViewObject,
+  profile: FloorplanProfile,
+): {
   readonly width: number;
   readonly height: number;
 } {
+  if (profile === "technical") {
+    const power = positiveOrZeroNumber(object.fields.power_w) ?? 0;
+    const scaled = Math.sqrt(power) * powerScale;
+    return {
+      width: clamp(
+        Math.round(powerMinWidth + scaled),
+        powerMinWidth,
+        powerMaxWidth,
+      ),
+      height: clamp(
+        Math.round(powerMinHeight + scaled * 0.55),
+        powerMinHeight,
+        powerMaxHeight,
+      ),
+    };
+  }
   const length = positiveNumber(object.fields.length_m) ?? 3.2;
   const width = positiveNumber(object.fields.width_m) ?? 2.8;
   return {
@@ -331,7 +458,19 @@ function roomSize(object: ViewObject): {
   };
 }
 
-function areaChip(object: ViewObject): FloorplanAreaChip | null {
+function areaChip(
+  object: ViewObject,
+  profile: FloorplanProfile,
+): FloorplanAreaChip | null {
+  if (profile === "technical") {
+    const power = positiveOrZeroNumber(object.fields.power_w) ?? 0;
+    return {
+      fieldCode: "power_w",
+      label: "功率",
+      value: formatNumber(power, 0),
+      unit: "W",
+    };
+  }
   const areaChip = objectDerivedChips(object).find(
     (chip) => chip.label === "面积",
   );
@@ -350,8 +489,17 @@ function areaChip(object: ViewObject): FloorplanAreaChip | null {
 function floorplanTone(
   object: ViewObject,
   dimension: FloorplanDimensionOption | undefined,
+  profile: FloorplanProfile,
 ): FloorplanTone {
   if (!dimension || dimension.id === "all") return ruleTone(object.ruleStatus);
+  if (profile === "technical") {
+    const values = { ...object.fields, ...(object.derived ?? {}) };
+    const hasMatchingValue = Object.entries(values).some(
+      ([code, value]) =>
+        dimension.match(code) && positiveOrZeroNumber(value) !== undefined,
+    );
+    return hasMatchingValue ? ruleTone(object.ruleStatus) : "empty";
+  }
   const matchingValues = Object.entries({
     ...object.fields,
     ...(object.derived ?? {}),
@@ -464,7 +612,9 @@ function formatSeriesValue(value: number | null | undefined): string {
 export function FloorplanPanel(): ReactElement {
   const context = useWorkbenchContext();
   const {
+    objectType,
     refreshVersion,
+    relationType,
     reportError,
     rootId,
     selection,
@@ -492,6 +642,11 @@ export function FloorplanPanel(): ReactElement {
   const [seriesLoading, setSeriesLoading] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [playing, setPlaying] = useState(false);
+  const profile = floorplanProfileForWorkbench({ objectType, relationType });
+  const dimensions = useMemo(
+    () => floorplanDimensionOptions(profile),
+    [profile],
+  );
 
   useEffect(
     () =>
@@ -507,18 +662,13 @@ export function FloorplanPanel(): ReactElement {
     let disposed = false;
     async function load(): Promise<void> {
       try {
-        const page = await viewClient.objects(workspaceId, "room", 0, 100);
-        const sourceId = rootId || page.items[0]?.objectId;
-        const relations = sourceId
-          ? await viewClient.relations(
-              workspaceId,
-              "adjacent",
-              "out",
-              sourceId,
-              2,
-            )
-          : [];
-        if (!disposed) setData({ objects: page.items, relations });
+        const loaded = await loadFloorplanData({
+          profile,
+          rootId,
+          viewClient,
+          workspaceId,
+        });
+        if (!disposed) setData(loaded);
       } catch (error) {
         if (!disposed) {
           reportError(
@@ -532,7 +682,13 @@ export function FloorplanPanel(): ReactElement {
     return () => {
       disposed = true;
     };
-  }, [refreshVersion, reportError, rootId, viewClient, workspaceId]);
+  }, [profile, refreshVersion, reportError, rootId, viewClient, workspaceId]);
+
+  useEffect(() => {
+    if (dimensions.some((dimension) => dimension.id === activeDimension))
+      return;
+    setActiveDimension("all");
+  }, [activeDimension, dimensions]);
 
   useEffect(() => {
     let disposed = false;
@@ -668,10 +824,10 @@ export function FloorplanPanel(): ReactElement {
         data.relations,
         selectedObjectId,
         activeDimension,
+        profile,
       ),
-    [activeDimension, data.objects, data.relations, selectedObjectId],
+    [activeDimension, data.objects, data.relations, profile, selectedObjectId],
   );
-  const dimensions = floorplanDimensionOptions();
   const timeDomain = useMemo(() => seriesDomain(seriesPoints), [seriesPoints]);
   const seriesValueDomain = useMemo(
     () => valueDomain(seriesPoints),
@@ -698,6 +854,14 @@ export function FloorplanPanel(): ReactElement {
         )} / ${formatNumber(timeDomain?.max ?? currentTime, 2)} · ${
           seriesPoints.length
         }/${timeSeriesPageSize} @${timeSeriesDownsample}x`;
+  const emptyText =
+    profile === "technical" ? "暂无可布局的模块" : "暂无房间对象";
+  const layoutModeText =
+    profile === "technical"
+      ? "技术方案布局 · 按功率(W)示意"
+      : layout.mode === "coordinate"
+        ? "数据坐标 · 1m≈56px"
+        : "示意平面 · 非真实坐标";
 
   function openLineage(object: ViewObject, fieldCode: string): void {
     setLineageTarget({ object, fieldCode });
@@ -728,7 +892,10 @@ export function FloorplanPanel(): ReactElement {
   }
 
   return (
-    <section className="floorplan-panel" aria-label="户型平面图">
+    <section
+      className="floorplan-panel"
+      aria-label={profile === "technical" ? "技术方案布局图" : "户型平面图"}
+    >
       <div className="floorplan-toolbar">
         <div className="floorplan-dimension-switcher" aria-label="维度切换">
           {dimensions.map((dimension) => (
@@ -744,11 +911,7 @@ export function FloorplanPanel(): ReactElement {
             </button>
           ))}
         </div>
-        <span>
-          {layout.mode === "coordinate"
-            ? "数据坐标 · 1m≈56px"
-            : "示意平面 · 非真实坐标"}
-        </span>
+        <span>{layoutModeText}</span>
       </div>
       <TimePlayhead
         currentTime={currentTime}
@@ -781,7 +944,7 @@ export function FloorplanPanel(): ReactElement {
           }}
         >
           {layout.rooms.length === 0 ? (
-            <div className="floorplan-empty">暂无房间对象</div>
+            <div className="floorplan-empty">{emptyText}</div>
           ) : (
             layout.rooms.map((room) => (
               <div

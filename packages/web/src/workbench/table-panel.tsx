@@ -1,6 +1,7 @@
 import { TableView } from "@m-next/views";
 import { useEffect, useState, type ReactElement } from "react";
 
+import { FieldSummaryPanel } from "./field-summary-panel";
 import { useWorkbenchContext } from "./workbench";
 
 /** 表格视图面板:复用 @m-next/views 的 TableView,数据/选择联动取自工作台上下文。 */
@@ -14,16 +15,20 @@ export function TablePanel(): ReactElement {
   return (
     <div className="table-panel">
       {warming ? <PanelSkeleton label="表格加载中" /> : null}
-      <TableView
-        commandClient={context.commandClient}
-        objectType={context.objectType}
-        onError={context.reportError}
-        onSaved={() => void context.autoCheckAfterSave()}
-        refreshKey={context.refreshVersion}
-        selection={context.selection}
-        viewClient={context.viewClient}
-        workspaceId={context.workspaceId}
-      />
+      {context.templateCode === "technical_proposal" ? (
+        <FieldSummaryPanel />
+      ) : (
+        <TableView
+          commandClient={context.commandClient}
+          objectType={context.objectType}
+          onError={context.reportError}
+          onSaved={() => void context.autoCheckAfterSave()}
+          refreshKey={context.refreshVersion}
+          selection={context.selection}
+          viewClient={context.viewClient}
+          workspaceId={context.workspaceId}
+        />
+      )}
     </div>
   );
 }

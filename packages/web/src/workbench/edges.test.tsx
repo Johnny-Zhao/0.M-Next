@@ -6,13 +6,26 @@ import {
   connectDiagramObjects,
   containsRelationCodesForObjectType,
   defaultDiagramObjectFields,
+  diagramConnectionRejection,
+  diagramRelationCodesForVisibleObjects,
+  inferDiagramRelationType,
+  loadDiagramRelations,
+  mergeOptimisticDiagramObjects,
+  mergeOptimisticDiagramRelations,
   objectDerivedChips,
+  optimisticDiagramObject,
+  optimisticDiagramRelation,
   objectsAndRelationsToFlow,
   pickCreatedDiagramObjectId,
   relationLabel,
+  refreshDiagramAfterRelationCreated,
+  resolveDiagramConnectionEndpoints,
   unlinkDiagramEdges,
+  unlinkSelectedRelations,
+  upsertOptimisticDiagramNode,
   type DiagramCommandClient,
   type DiagramEdge,
+  type DiagramNode,
 } from "./diagram-panel";
 import { relationEdgeVisual, relationRoute } from "./edges";
 
@@ -48,6 +61,85 @@ describe("diagram relation edges", () => {
     ).toBe("new-module");
   });
 
+  it("infers the unique technical proposal relation from endpoint types", () => {
+    const relationTypes = [
+      relationType("rel-depends", "proposal_depends_on"),
+      relationType("rel-interface", "proposal_interfaces_with"),
+      relationType("rel-satisfies", "proposal_satisfies"),
+    ];
+
+    expect(
+      inferDiagramRelationType({
+        relationTypes,
+        sourceObjectType: "module",
+        targetObjectType: "module",
+      }),
+    ).toEqual({
+      kind: "match",
+      relationTypeCode: "proposal_depends_on",
+      relationTypeId: "rel-depends",
+    });
+    expect(
+      inferDiagramRelationType({
+        relationTypes,
+        sourceObjectType: "module",
+        targetObjectType: "interface",
+      }),
+    ).toMatchObject({ kind: "match", relationTypeId: "rel-interface" });
+    expect(
+      inferDiagramRelationType({
+        relationTypes,
+        sourceObjectType: "module",
+        targetObjectType: "requirement",
+      }),
+    ).toMatchObject({ kind: "match", relationTypeId: "rel-satisfies" });
+    expect(
+      inferDiagramRelationType({
+        relationTypes: [
+          relationType("rel-contains-module", "proposal_contains_module"),
+        ],
+        sourceObjectType: "proposal_node",
+        targetObjectType: "module",
+      }),
+    ).toMatchObject({
+      kind: "match",
+      relationTypeId: "rel-contains-module",
+    });
+  });
+
+  it("rejects endpoint pairs that have no legal relation", () => {
+    expect(
+      inferDiagramRelationType({
+        relationTypes: [relationType("rel-depends", "proposal_depends_on")],
+        sourceObjectType: "interface",
+        targetObjectType: "requirement",
+      }),
+    ).toEqual({ kind: "none" });
+  });
+
+  it("marks duplicate endpoint matches as ambiguous", () => {
+    expect(
+      inferDiagramRelationType({
+        relationTypes: [
+          relationType("rel-a", "proposal_depends_on"),
+          relationType("rel-b", "proposal_depends_on"),
+        ],
+        sourceObjectType: "module",
+        targetObjectType: "module",
+      }),
+    ).toEqual({ kind: "ambiguous" });
+  });
+
+  it("refreshes immediately and once more after relation creation", () => {
+    const refreshViews = vi.fn();
+    const scheduleRefresh = vi.fn();
+
+    refreshDiagramAfterRelationCreated({ refreshViews, scheduleRefresh });
+
+    expect(refreshViews).toHaveBeenCalledTimes(1);
+    expect(scheduleRefresh).toHaveBeenCalledWith(refreshViews, 400);
+  });
+
   it("creates relations from anchored connections through CommandClient", async () => {
     const commandClient = diagramCommandClient();
 
@@ -69,7 +161,123 @@ describe("diagram relation edges", () => {
       "depends_on",
       "obj-a",
       "obj-b",
+      "diagram",
     );
+  });
+
+  it("loads dependency relations between visible module nodes", async () => {
+    const dependsOn = relation(
+      "rel-depends",
+      "proposal_depends_on",
+      "module-a",
+      "module-b",
+      1,
+    );
+    const viewClient = {
+      relationTypes: vi.fn(async () => [
+        relationType("type-contains", "proposal_contains_module"),
+        relationType("type-depends", "proposal_depends_on"),
+      ]),
+      relations: vi.fn(
+        async (
+          _workspaceId: string,
+          relationTypeCode: string,
+          _direction: string,
+          sourceId: string,
+        ) =>
+          relationTypeCode === "proposal_depends_on" && sourceId === "module-a"
+            ? [dependsOn]
+            : [],
+      ),
+    };
+
+    const loaded = await loadDiagramRelations({
+      viewClient,
+      workspaceId: "workspace-1",
+      relationType: "proposal_contains_module",
+      rootId: "proposal-root",
+      objects: [
+        typedObject("module-a", "模块A", "module"),
+        typedObject("module-b", "模块B", "module"),
+      ],
+    });
+
+    expect(loaded).toEqual([dependsOn]);
+    expect(
+      diagramRelationCodesForVisibleObjects({
+        objects: [
+          typedObject("module-a", "模块A", "module"),
+          typedObject("module-b", "模块B", "module"),
+        ],
+        relationType: "proposal_contains_module",
+        relationTypes: [
+          relationType("type-contains", "proposal_contains_module"),
+          relationType("type-depends", "proposal_depends_on"),
+        ],
+      }),
+    ).toEqual(["proposal_contains_module", "proposal_depends_on"]);
+    expect(viewClient.relations).toHaveBeenCalledWith(
+      "workspace-1",
+      "proposal_depends_on",
+      "out",
+      "module-a",
+      1,
+    );
+  });
+
+  it("resolves connection endpoints from visible nodes when object data is stale", () => {
+    expect(
+      resolveDiagramConnectionEndpoints({
+        objects: [
+          typedObject("module-a", "妯″潡A", "module"),
+          typedObject("module-new", "旧投影", "interface"),
+        ],
+        nodes: [
+          flowNode("module-a", "module"),
+          flowNode("module-new", "module", "module-new-from-node"),
+        ],
+        connection: {
+          source: "module-new",
+          sourceHandle: "source-right",
+          target: "module-a",
+          targetHandle: "target-left",
+        },
+      }),
+    ).toEqual({
+      source: { objectId: "module-new-from-node", objectType: "module" },
+      target: { objectId: "module-a", objectType: "module" },
+    });
+  });
+
+  it("adds a complete optimistic node for a freshly created object", () => {
+    const optimistic = optimisticDiagramObject({
+      objectId: "module-new",
+      objectType: "module",
+      fields: defaultDiagramObjectFields,
+    });
+    const nodes = upsertOptimisticDiagramNode({
+      nodes: [flowNode("module-a", "module")],
+      object: optimistic,
+      activeDimension: "all",
+    });
+
+    expect(nodes[1]?.data).toMatchObject({
+      objectId: "module-new",
+      objectType: "module",
+      title: "新模块",
+    });
+    expect(
+      resolveDiagramConnectionEndpoints({
+        objects: [],
+        nodes,
+        connection: {
+          source: "module-new",
+          sourceHandle: "source-right",
+          target: "module-a",
+          targetHandle: "target-left",
+        },
+      })?.source,
+    ).toEqual({ objectId: "module-new", objectType: "module" });
   });
 
   it("maps relation type to route, label, ports, and visual style", () => {
@@ -180,6 +388,184 @@ describe("diagram relation edges", () => {
     ).rejects.toThrow("TODO(view-API)");
     expect(commandClient.unlink).not.toHaveBeenCalled();
   });
+
+  it("unlinks right-click selected relations with their real version, not a hardcoded 1", async () => {
+    const commandClient = diagramCommandClient();
+
+    await unlinkSelectedRelations(commandClient, "workspace-1", [
+      relation("rel-1", "depends_on", "obj-a", "obj-b", 3),
+      relation("rel-2", "trace_to", "obj-a", "obj-c", 5),
+    ]);
+
+    expect(commandClient.unlink).toHaveBeenCalledWith("workspace-1", "rel-1", 3);
+    expect(commandClient.unlink).toHaveBeenCalledWith("workspace-1", "rel-2", 5);
+    // regression: previously deleteSelection sent expectedVersion=1 for every
+    // relation, so any relation whose real version != 1 failed the kernel's
+    // optimistic-lock check and the right-click "删除关系" appeared to do nothing.
+    expect(commandClient.unlink).not.toHaveBeenCalledWith(
+      "workspace-1",
+      expect.anything(),
+      1,
+    );
+  });
+
+  it("refuses to unlink a selected relation that lacks a usable version", async () => {
+    const commandClient = diagramCommandClient();
+
+    await expect(
+      unlinkSelectedRelations(commandClient, "workspace-1", [
+        relation("rel-1", "depends_on", "obj-a", "obj-b", 0),
+      ]),
+    ).rejects.toThrow("TODO(view-API)");
+    expect(commandClient.unlink).not.toHaveBeenCalled();
+  });
+
+  it("reverse-matches a relation when the user drags the wrong way", () => {
+    const relationTypes = [
+      relationType("rel-interface", "proposal_interfaces_with"),
+      relationType("rel-contains-module", "proposal_contains_module"),
+    ];
+
+    // forward drag module -> interface
+    expect(
+      inferDiagramRelationType({
+        relationTypes,
+        sourceObjectType: "module",
+        targetObjectType: "interface",
+      }),
+    ).toEqual({
+      kind: "match",
+      relationTypeCode: "proposal_interfaces_with",
+      relationTypeId: "rel-interface",
+    });
+
+    // reverse drag interface -> module resolves the same type, flagged reversed
+    expect(
+      inferDiagramRelationType({
+        relationTypes,
+        sourceObjectType: "interface",
+        targetObjectType: "module",
+      }),
+    ).toEqual({
+      kind: "match",
+      relationTypeCode: "proposal_interfaces_with",
+      relationTypeId: "rel-interface",
+      reversed: true,
+    });
+
+    // reverse drag module -> proposal resolves proposal_contains_module
+    expect(
+      inferDiagramRelationType({
+        relationTypes,
+        sourceObjectType: "module",
+        targetObjectType: "proposal",
+      }),
+    ).toMatchObject({
+      kind: "match",
+      relationTypeId: "rel-contains-module",
+      reversed: true,
+    });
+  });
+
+  it("rejects self-loops and duplicate relations before issuing a command", () => {
+    expect(
+      diagramConnectionRejection({
+        sourceId: "obj-a",
+        targetId: "obj-a",
+        relationTypeCode: "proposal_depends_on",
+        relations: [],
+      }),
+    ).toBe("self");
+
+    expect(
+      diagramConnectionRejection({
+        sourceId: "obj-a",
+        targetId: "obj-b",
+        relationTypeCode: "proposal_depends_on",
+        relations: [
+          relation("rel-1", "proposal_depends_on", "obj-a", "obj-b", 2),
+        ],
+      }),
+    ).toBe("duplicate");
+
+    expect(
+      diagramConnectionRejection({
+        sourceId: "obj-a",
+        targetId: "obj-b",
+        relationTypeCode: "proposal_depends_on",
+        relations: [
+          relation("rel-1", "proposal_depends_on", "obj-a", "obj-c", 2),
+        ],
+      }),
+    ).toBeNull();
+  });
+
+  it("renders an optimistic relation as an immediate edge before refresh", () => {
+    const optimistic = optimisticDiagramRelation({
+      relationType: "proposal_depends_on",
+      sourceId: "obj-a",
+      targetId: "obj-b",
+    });
+
+    const flow = objectsAndRelationsToFlow(
+      [object("obj-a", "对象A"), object("obj-b", "对象B")],
+      [optimistic],
+      null,
+    );
+
+    expect(flow.edges).toHaveLength(1);
+    expect(flow.edges[0]).toMatchObject({
+      source: "obj-a",
+      target: "obj-b",
+      type: "dataRelation",
+    });
+    expect(optimistic.relationId).toContain("optimistic-rel:");
+  });
+
+  it("keeps just-created optimistic objects when a connect reload runs", () => {
+    const reloaded = [object("obj-a", "对象A"), object("obj-b", "对象B")];
+    const current = [
+      object("obj-a", "对象A"),
+      optimisticDiagramObject({
+        objectId: "obj-new",
+        objectType: "module",
+        fields: { name: "刚建模块" },
+      }),
+    ];
+
+    expect(
+      mergeOptimisticDiagramObjects(reloaded, current).map(
+        (object) => object.objectId,
+      ),
+    ).toEqual(["obj-a", "obj-b", "obj-new"]);
+  });
+
+  it("preserves unsynced optimistic relations but drops those already reloaded", () => {
+    const reloaded = [
+      relation("rel-real", "proposal_depends_on", "obj-a", "obj-b", 4),
+    ];
+    const current = [
+      optimisticDiagramRelation({
+        relationType: "proposal_depends_on",
+        sourceId: "obj-a",
+        targetId: "obj-b",
+      }),
+      optimisticDiagramRelation({
+        relationType: "proposal_depends_on",
+        sourceId: "obj-c",
+        targetId: "obj-d",
+      }),
+    ];
+
+    expect(
+      mergeOptimisticDiagramRelations(reloaded, current).map(
+        (relation) => relation.relationId,
+      ),
+    ).toEqual([
+      "rel-real",
+      "optimistic-rel:obj-c->obj-d:proposal_depends_on",
+    ]);
+  });
 });
 
 function object(objectId: string, name: string): ViewObject {
@@ -193,6 +579,14 @@ function object(objectId: string, name: string): ViewObject {
     source: null,
     ruleStatus: "OK",
   };
+}
+
+function typedObject(
+  objectId: string,
+  name: string,
+  objectType: string,
+): ViewObject {
+  return { ...object(objectId, name), objectType };
 }
 
 function relation(
@@ -214,6 +608,10 @@ function relation(
   };
 }
 
+function relationType(id: string, code: string) {
+  return { id, code, name: code, hierarchical: false };
+}
+
 function edgeWithVersion(id: string, version: number | undefined): DiagramEdge {
   return {
     id,
@@ -225,6 +623,28 @@ function edgeWithVersion(id: string, version: number | undefined): DiagramEdge {
       relationType: "depends_on",
       route: "orthogonal",
       version,
+    },
+  };
+}
+
+function flowNode(id: string, objectType: string, objectId = id): DiagramNode {
+  return {
+    id,
+    type: "object",
+    position: { x: 0, y: 0 },
+    data: {
+      objectId,
+      title: id,
+      objectType,
+      status: "DRAFT",
+      code: objectType,
+      typeVariant: "component",
+      fields: [],
+      derivedChips: [],
+      ruleStatus: "OK",
+      provenanceText: null,
+      visualState: "default",
+      readonly: false,
     },
   };
 }
