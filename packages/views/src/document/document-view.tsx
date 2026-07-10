@@ -15,7 +15,11 @@ import type {
   ViewObject,
 } from "../api/view-client";
 import { ConflictDialog } from "../conflict/conflict-dialog";
-import { fieldLabel, objectDisplayTitle } from "../display-labels";
+import {
+  fieldLabel,
+  objectDisplayTitle,
+  objectTypeLabel,
+} from "../display-labels";
 import type { SelectionCoordinator } from "../selection/selection-coordinator";
 import type { SelectionRef } from "../selection/selection-ref";
 import { supportsTreeRelation } from "../tree/tree-view";
@@ -92,6 +96,13 @@ export const PROPOSAL_OBJECT_TYPE_CODE = "proposal";
 export const PROPOSAL_CONTAINS_MODULE_RELATION = "proposal_contains_module";
 const RESOLVE_ATTEMPTS = 10;
 const RESOLVE_DELAY_MS = 500;
+type DocumentHeadingLevel = 1 | 2 | 3 | 4;
+
+export interface DocumentDerivedField {
+  readonly code: string;
+  readonly label: string;
+  readonly value: unknown;
+}
 
 export type AddModuleResult =
   | { readonly kind: "added"; readonly moduleId: string }
@@ -319,6 +330,42 @@ export function canInlineEditDocumentField(
   commandClient?: CommandClient,
 ): boolean {
   return canEditDocumentField(section) && commandClient !== undefined;
+}
+
+export function documentHeadingLevel(depth: number): DocumentHeadingLevel {
+  if (depth <= 0) return 1;
+  if (depth === 1) return 2;
+  if (depth === 2) return 3;
+  return 4;
+}
+
+export function documentParameterFields(
+  fields: readonly DocumentField[],
+): readonly DocumentField[] {
+  return fields.filter((field) => field.definition.code !== BODY_FIELD_CODE);
+}
+
+export function documentDerivedFields(
+  object: ViewObject,
+): readonly DocumentDerivedField[] {
+  return Object.entries(object.derived ?? {}).map(([code, value]) => ({
+    code,
+    label: fieldLabel(code),
+    value,
+  }));
+}
+
+export function documentFieldDisplayValue(value: unknown): string {
+  if (value === null || value === undefined || value === "") return "—";
+  if (typeof value === "boolean") return value ? "是" : "否";
+  if (typeof value === "object") {
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return String(value);
+    }
+  }
+  return String(value);
 }
 
 export function documentEmptyMessage(
@@ -572,38 +619,42 @@ export function DocumentView(props: DocumentViewProps): ReactElement {
           {documentEmptyMessage(rootId, relationType)}
         </p>
       ) : null}
-      {sections.map((section) => (
-        <DocumentSectionView
-          key={section.object.objectId}
-          commandClient={commandClient}
-          moduleRelationTypeId={moduleRelationTypeId}
-          onArchived={() => {
-            onArchived?.();
-            reload();
-          }}
-          onEditField={onEditField}
-          onError={onError}
-          onFieldSaved={updateField}
-          onObjectRefreshed={refreshObject}
-          onModuleAdded={(moduleId) =>
-            handleModuleAdded(selection, moduleId, {
-              reload,
-              onRefresh: onArchived,
-            })
-          }
-          onModulePending={(message) => {
-            onError?.(message);
-            onArchived?.();
-            reload();
-          }}
-          section={section}
-          selected={selected}
-          selection={selection}
-          targets={targets.current}
-          viewClient={viewClient}
-          workspaceId={workspaceId}
-        />
-      ))}
+      {sections.length > 0 ? (
+        <div className="document-paper">
+          {sections.map((section) => (
+            <DocumentSectionView
+              key={section.object.objectId}
+              commandClient={commandClient}
+              moduleRelationTypeId={moduleRelationTypeId}
+              onArchived={() => {
+                onArchived?.();
+                reload();
+              }}
+              onEditField={onEditField}
+              onError={onError}
+              onFieldSaved={updateField}
+              onObjectRefreshed={refreshObject}
+              onModuleAdded={(moduleId) =>
+                handleModuleAdded(selection, moduleId, {
+                  reload,
+                  onRefresh: onArchived,
+                })
+              }
+              onModulePending={(message) => {
+                onError?.(message);
+                onArchived?.();
+                reload();
+              }}
+              section={section}
+              selected={selected}
+              selection={selection}
+              targets={targets.current}
+              viewClient={viewClient}
+              workspaceId={workspaceId}
+            />
+          ))}
+        </div>
+      ) : null}
       {sections.length === MAX_SECTIONS ? (
         <p>仅显示前 {MAX_SECTIONS} 个节段</p>
       ) : null}
@@ -779,6 +830,9 @@ function DocumentSectionView(props: {
   const [bodyDraft, setBodyDraft] = useState("");
   const canArchive =
     !props.section.terminal && props.commandClient !== undefined;
+  const headingLevel = documentHeadingLevel(props.section.depth);
+  const parameterFields = documentParameterFields(props.section.fields);
+  const derivedFields = documentDerivedFields(props.section.object);
 
   async function archive(): Promise<void> {
     if (!props.commandClient) return;
@@ -859,30 +913,39 @@ function DocumentSectionView(props: {
   return (
     <section
       aria-current={isDocumentSelection(props.selected, id) || undefined}
-      className={`document-section ${props.section.terminal ? "document-section-terminal" : ""}`}
+      className={`document-section document-section-level-${headingLevel} ${
+        props.section.terminal ? "document-section-terminal" : ""
+      }`}
       data-object-id={id}
+      data-depth={props.section.depth}
       ref={(element) => register(props.targets, id, element)}
-      style={{ marginLeft: `${props.section.depth * 24}px` }}
     >
-      <button
-        className="document-title"
-        onClick={() => selectDocumentObject(props.selection, id)}
-        type="button"
-      >
-        {props.section.title}
-      </button>
-      {props.section.terminal ? (
-        <span className="document-readonly">只读</span>
-      ) : null}
-      {canArchive ? (
-        <button
-          className="document-archive"
-          onClick={() => setConfirming(true)}
-          type="button"
-        >
-          归档
-        </button>
-      ) : null}
+      <header className="document-section-header">
+        <DocumentHeading
+          level={headingLevel}
+          onSelect={() => selectDocumentObject(props.selection, id)}
+          title={props.section.title}
+        />
+        <div className="document-section-meta" aria-label="对象元信息">
+          <span>{objectTypeLabel(props.section.object.objectType)}</span>
+          <span>{props.section.object.status}</span>
+          <span>v{props.section.object.version}</span>
+          {props.section.terminal ? (
+            <span className="document-readonly">只读</span>
+          ) : null}
+        </div>
+        <div className="document-section-actions">
+          {canArchive ? (
+            <button
+              className="document-archive"
+              onClick={() => setConfirming(true)}
+              type="button"
+            >
+              归档
+            </button>
+          ) : null}
+        </div>
+      </header>
       {confirming ? (
         <ArchiveConfirm
           busy={busy}
@@ -926,29 +989,65 @@ function DocumentSectionView(props: {
           }
         />
       ) : null}
-      {props.section.fields
-        .filter((field) => field.definition.code !== BODY_FIELD_CODE)
-        .map((field) => (
-          <DocumentFieldView
-            commandClient={props.commandClient}
-            field={field}
-            key={field.definition.code}
-            object={props.section.object}
-            objectId={id}
-            onEditField={props.onEditField}
-            onError={props.onError}
-            onFieldSaved={props.onFieldSaved}
-            onObjectRefreshed={props.onObjectRefreshed}
-            selected={props.selected}
-            selection={props.selection}
-            targets={props.targets}
-            terminal={props.section.terminal}
-            viewClient={props.viewClient}
-            workspaceId={props.workspaceId}
-          />
-        ))}
+      {parameterFields.length > 0 || derivedFields.length > 0 ? (
+        <section className="document-parameter-block" aria-label="参数表">
+          <div className="document-block-title">
+            <strong>参数表</strong>
+            <span>模型字段同源</span>
+          </div>
+          <table className="document-parameter-table">
+            <tbody>
+              {parameterFields.map((field) => (
+                <DocumentFieldView
+                  commandClient={props.commandClient}
+                  field={field}
+                  key={field.definition.code}
+                  object={props.section.object}
+                  objectId={id}
+                  onEditField={props.onEditField}
+                  onError={props.onError}
+                  onFieldSaved={props.onFieldSaved}
+                  onObjectRefreshed={props.onObjectRefreshed}
+                  selected={props.selected}
+                  selection={props.selection}
+                  targets={props.targets}
+                  terminal={props.section.terminal}
+                  viewClient={props.viewClient}
+                  workspaceId={props.workspaceId}
+                />
+              ))}
+              {derivedFields.map((field) => (
+                <DocumentDerivedFieldView
+                  field={field}
+                  key={field.code}
+                  objectId={id}
+                  selected={props.selected}
+                  selection={props.selection}
+                  targets={props.targets}
+                />
+              ))}
+            </tbody>
+          </table>
+        </section>
+      ) : null}
     </section>
   );
+}
+
+function DocumentHeading(props: {
+  readonly level: DocumentHeadingLevel;
+  readonly title: string;
+  readonly onSelect: () => void;
+}): ReactElement {
+  const content = (
+    <button className="document-title" onClick={props.onSelect} type="button">
+      {props.title}
+    </button>
+  );
+  if (props.level === 1) return <h1>{content}</h1>;
+  if (props.level === 2) return <h2>{content}</h2>;
+  if (props.level === 3) return <h3>{content}</h3>;
+  return <h4>{content}</h4>;
 }
 
 function DocumentFieldView(props: {
@@ -975,7 +1074,6 @@ function DocumentFieldView(props: {
   const code = props.field.definition.code;
   const selected = isDocumentSelection(props.selected, props.objectId, code);
   const label = fieldLabel(code, props.field.definition.name);
-  const content = `${label}: ${String(props.field.value ?? "")}`;
   const [editing, setEditing] = useState(false);
   const [conflict, setConflict] = useState<DocumentFieldConflict | null>(null);
   const [draft, setDraft] = useState("");
@@ -1040,74 +1138,151 @@ function DocumentFieldView(props: {
     }
   }
   return (
-    <div
+    <tr
       className={
         props.field.definition.dataType === "text"
-          ? "document-text"
-          : "document-field"
+          ? "document-field-row document-field-row-text"
+          : "document-field-row"
       }
     >
-      <span
-        aria-current={selected || undefined}
-        onClick={() =>
-          selectDocumentField(props.selection, props.objectId, code)
-        }
-        onKeyDown={(event) => {
-          if (event.key === "Enter")
-            selectDocumentField(props.selection, props.objectId, code);
-        }}
-        ref={(element) =>
-          register(props.targets, `${props.objectId}:${code}`, element)
-        }
-        role="button"
-        tabIndex={0}
-      >
-        {content}
-      </span>
-      {editable && editing ? (
-        <form
-          className="document-field-editor"
-          onSubmit={(event) => {
-            event.preventDefault();
-            void save(editorValue(event.currentTarget, props.field.definition));
-          }}
-        >
-          <FieldEditor field={props.field} />
-          <button type="submit">保存</button>
-          <button onClick={() => setEditing(false)} type="button">
-            取消
-          </button>
-        </form>
-      ) : null}
-      {editable && !editing ? (
-        <button onClick={() => setEditing(true)} type="button">
-          编辑 {label}
-        </button>
-      ) : null}
-      {!editable && !props.terminal && props.onEditField ? (
+      <th scope="row">
         <button
-          onClick={() => {
-            selectDocumentField(props.selection, props.objectId, code);
-            props.onEditField?.();
-          }}
+          className="document-field-label"
+          onClick={() =>
+            selectDocumentField(props.selection, props.objectId, code)
+          }
           type="button"
         >
-          在表格中编辑
+          {label}
         </button>
-      ) : null}
-      {conflict ? (
-        <ConflictDialog
-          fields={conflict.fields}
-          onClose={() => {
-            setConflict(null);
-            setEditing(false);
-          }}
-          onConfirm={(choices) =>
-            void resolveConflict(choices[code] === "mine" ? "mine" : "current")
+      </th>
+      <td>
+        <span
+          aria-current={selected || undefined}
+          className="document-field-value"
+          onClick={() =>
+            selectDocumentField(props.selection, props.objectId, code)
           }
-        />
-      ) : null}
-    </div>
+          onKeyDown={(event) => {
+            if (event.key === "Enter")
+              selectDocumentField(props.selection, props.objectId, code);
+          }}
+          ref={(element) =>
+            register(props.targets, `${props.objectId}:${code}`, element)
+          }
+          role="button"
+          tabIndex={0}
+        >
+          {documentFieldDisplayValue(props.field.value)}
+        </span>
+        {editable && editing ? (
+          <form
+            className="document-field-editor"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void save(
+                editorValue(event.currentTarget, props.field.definition),
+              );
+            }}
+          >
+            <FieldEditor field={props.field} />
+            <button type="submit">保存</button>
+            <button onClick={() => setEditing(false)} type="button">
+              取消
+            </button>
+          </form>
+        ) : null}
+        {editable && !editing ? (
+          <button
+            className="document-field-edit"
+            onClick={() => setEditing(true)}
+            type="button"
+          >
+            编辑
+          </button>
+        ) : null}
+        {!editable && !props.terminal && props.onEditField ? (
+          <button
+            className="document-field-edit"
+            onClick={() => {
+              selectDocumentField(props.selection, props.objectId, code);
+              props.onEditField?.();
+            }}
+            type="button"
+          >
+            在表格中编辑
+          </button>
+        ) : null}
+        {conflict ? (
+          <ConflictDialog
+            fields={conflict.fields}
+            onClose={() => {
+              setConflict(null);
+              setEditing(false);
+            }}
+            onConfirm={(choices) =>
+              void resolveConflict(
+                choices[code] === "mine" ? "mine" : "current",
+              )
+            }
+          />
+        ) : null}
+      </td>
+    </tr>
+  );
+}
+
+function DocumentDerivedFieldView(props: {
+  readonly field: DocumentDerivedField;
+  readonly objectId: string;
+  readonly selected: SelectionRef | null;
+  readonly selection: SelectionCoordinator;
+  readonly targets: Map<string, HTMLElement>;
+}): ReactElement {
+  const selected = isDocumentSelection(
+    props.selected,
+    props.objectId,
+    props.field.code,
+  );
+  return (
+    <tr className="document-field-row document-field-row-fx">
+      <th scope="row">
+        <span className="document-fx-mark">fx</span>
+        {props.field.label}
+      </th>
+      <td>
+        <span
+          aria-current={selected || undefined}
+          className="document-field-value document-field-value-fx"
+          onClick={() =>
+            selectDocumentField(
+              props.selection,
+              props.objectId,
+              props.field.code,
+            )
+          }
+          onKeyDown={(event) => {
+            if (event.key === "Enter")
+              selectDocumentField(
+                props.selection,
+                props.objectId,
+                props.field.code,
+              );
+          }}
+          ref={(element) =>
+            register(
+              props.targets,
+              `${props.objectId}:${props.field.code}`,
+              element,
+            )
+          }
+          role="button"
+          tabIndex={0}
+        >
+          {documentFieldDisplayValue(props.field.value)}
+        </span>
+      </td>
+    </tr>
   );
 }
 

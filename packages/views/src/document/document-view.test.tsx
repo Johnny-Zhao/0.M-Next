@@ -17,7 +17,11 @@ import {
   buildDocumentSections,
   canEditDocumentField,
   canInlineEditDocumentField,
+  documentDerivedFields,
   documentEmptyMessage,
+  documentFieldDisplayValue,
+  documentHeadingLevel,
+  documentParameterFields,
   handleModuleAdded,
   isDocumentSelection,
   replaceDocumentField,
@@ -120,6 +124,48 @@ describe("DocumentView", () => {
     expect(canInlineEditDocumentField(sections[0]!, commandClient())).toBe(
       false,
     );
+  });
+
+  it("maps tree depth to document heading levels", () => {
+    expect(documentHeadingLevel(0)).toBe(1);
+    expect(documentHeadingLevel(1)).toBe(2);
+    expect(documentHeadingLevel(2)).toBe(3);
+    expect(documentHeadingLevel(3)).toBe(4);
+    expect(documentHeadingLevel(9)).toBe(4);
+  });
+
+  it("keeps body out of the parameter table and exposes derived fields", () => {
+    const sections = buildDocumentSections(
+      "child",
+      [],
+      [
+        page({
+          ...object("child", "Child"),
+          derived: { total_power_fx: 42 },
+        }),
+      ],
+      types,
+    );
+
+    expect(
+      documentParameterFields(sections[0]!.fields).map(
+        (field) => field.definition.code,
+      ),
+    ).toEqual(["name"]);
+    expect(
+      documentDerivedFields(sections[0]!.object).map((field) => field.code),
+    ).toEqual(["total_power_fx"]);
+    expect(documentDerivedFields(sections[0]!.object)[0]?.value).toBe(42);
+  });
+
+  it("formats table values for document display", () => {
+    expect(documentFieldDisplayValue(null)).toBe("—");
+    expect(documentFieldDisplayValue(undefined)).toBe("—");
+    expect(documentFieldDisplayValue("")).toBe("—");
+    expect(documentFieldDisplayValue(true)).toBe("是");
+    expect(documentFieldDisplayValue(false)).toBe("否");
+    expect(documentFieldDisplayValue({ power: 12 })).toBe('{"power":12}');
+    expect(documentFieldDisplayValue(12)).toBe("12");
   });
 
   it("submits UpdateFields and shows the saved value in its section", async () => {
