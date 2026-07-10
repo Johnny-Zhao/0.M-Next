@@ -96,7 +96,7 @@ export function relationEdgeVisual(
   if (normalized.includes("trace") || normalized.includes("verify")) {
     return edgeVisual("var(--mn-ink-2)", 1.9, "diagram-edge-trace");
   }
-  return edgeVisual("var(--mn-ink-2)", 1.9, "diagram-edge-default");
+  return edgeVisual("var(--mn-ink-3)", 1.7, "diagram-edge-default");
 }
 
 function edgeVisual(

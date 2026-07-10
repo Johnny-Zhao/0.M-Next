@@ -60,6 +60,7 @@ class ReadModelQueryIntegrationTest {
   @BeforeEach
   void reset() {
     jdbc.update("DELETE FROM rm_consumed_event");
+    jdbc.update("DELETE FROM rm_object_history");
     jdbc.update("DELETE FROM rm_relation");
     jdbc.update("DELETE FROM rm_object");
     jdbc.update("DELETE FROM event_outbox");
@@ -109,6 +110,44 @@ class ReadModelQueryIntegrationTest {
                 + FIRST
                 + "&depth=1");
     assertEquals(2, ((Number) updatedRelations.getFirst().get("version")).longValue());
+  }
+
+  @Test
+  void projectsAndQueriesObjectChangeHistory() {
+    projection.apply(objectCreated(FIRST));
+    projection.apply(objectCreated(SECOND));
+    projection.apply(fieldChanged(FIRST, 2, "name", "第一对象"));
+    projection.apply(fieldChanged(FIRST, 3, 5)); // budget
+    projection.apply(stateChanged(FIRST, 4, "CONFIRMED"));
+    projection.apply(relationCreated()); // FIRST -> SECOND
+
+    var history = get("/views/objects/" + FIRST + "/history?page=0&size=30");
+    var items = (java.util.List<?>) history.get("items");
+    // create + 2 edits + state + link(FIRST 作为 source)= 5 行
+    assertEquals(5, ((Number) history.get("total")).intValue());
+    assertEquals("state", ((Map<?, ?>) items.getFirst()).get("kind")); // seq 4 居顶
+
+    Map<?, ?> budgetEdit = null;
+    for (var raw : items) {
+      var entry = (Map<?, ?>) raw;
+      if ("edit".equals(entry.get("kind")) && "budget".equals(entry.get("fieldCode"))) {
+        budgetEdit = entry;
+      }
+    }
+    assertTrue(budgetEdit != null, "应能查到 budget 字段的编辑历史");
+    assertEquals(5, ((Number) budgetEdit.get("after")).intValue());
+    assertEquals("user", budgetEdit.get("actorKind"));
+    assertEquals("manual", budgetEdit.get("source"));
+
+    // 关系在两端各落一行:SECOND 作为 target 也能看到该 link
+    var second = get("/views/objects/" + SECOND + "/history?page=0&size=30");
+    assertEquals(2, ((Number) second.get("total")).intValue()); // create + link
+    var secondItems = (java.util.List<?>) second.get("items");
+    var secondHasLink = false;
+    for (var raw : secondItems) {
+      if ("link".equals(((Map<?, ?>) raw).get("kind"))) secondHasLink = true;
+    }
+    assertTrue(secondHasLink, "关系应在目标对象历史中体现");
   }
 
   @Test

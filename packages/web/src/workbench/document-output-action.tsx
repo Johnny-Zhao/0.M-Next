@@ -49,9 +49,10 @@ export interface DocumentOutputActionProps {
   readonly reportError: (message: string) => void;
   readonly relationType?: string | null;
   readonly rootId?: string | null;
+  readonly rootObjectType?: string | null;
   readonly viewClient: Pick<
     ViewClient,
-    "captureSnapshot" | "createOutput" | "getOutput"
+    "captureSnapshot" | "createOutput" | "getOutput" | "objects"
   >;
   readonly workspaceId: string;
   readonly download?: (detail: OutputDetail) => void;
@@ -63,9 +64,10 @@ export interface GenerateDocumentOutputOptions {
   readonly objectType: string;
   readonly relationType?: string | null;
   readonly rootId?: string | null;
+  readonly rootObjectType?: string | null;
   readonly viewClient: Pick<
     ViewClient,
-    "captureSnapshot" | "createOutput" | "getOutput"
+    "captureSnapshot" | "createOutput" | "getOutput" | "objects"
   >;
   readonly workspaceId: string;
 }
@@ -76,11 +78,18 @@ export async function generateDocumentOutput({
   objectType,
   relationType,
   rootId,
+  rootObjectType,
   viewClient,
   workspaceId,
 }: GenerateDocumentOutputOptions): Promise<OutputDetail> {
   const scope = objectType.trim() || null;
-  const treeScope = outputTreeScope(rootId, relationType);
+  const outputRootId = await resolveOutputRootId({
+    rootId,
+    rootObjectType,
+    viewClient,
+    workspaceId,
+  });
+  const treeScope = outputTreeScope(outputRootId, relationType);
   const snapshot = treeScope
     ? await viewClient.captureSnapshot(workspaceId, actorId, null, treeScope)
     : await viewClient.captureSnapshot(workspaceId, actorId, scope);
@@ -101,6 +110,7 @@ export function DocumentOutputAction({
   relationType,
   reportError,
   rootId,
+  rootObjectType,
   viewClient,
   workspaceId,
 }: DocumentOutputActionProps): ReactElement {
@@ -119,6 +129,7 @@ export function DocumentOutputAction({
         objectType,
         relationType,
         rootId,
+        rootObjectType,
         viewClient,
         workspaceId,
       });
@@ -183,8 +194,29 @@ function outputTreeScope(
   relationType?: string | null,
 ): SnapshotTreeScope | null {
   const root = rootId?.trim() ?? "";
+  const relation = relationType?.trim() ?? "";
   if (!root) return null;
-  return { rootId: root, relationType: relationType?.trim() ?? "" };
+  if (!relation) return null;
+  return { rootId: root, relationType: relation };
+}
+
+async function resolveOutputRootId(params: {
+  readonly rootId?: string | null;
+  readonly rootObjectType?: string | null;
+  readonly viewClient: Pick<ViewClient, "objects">;
+  readonly workspaceId: string;
+}): Promise<string> {
+  const currentRoot = params.rootId?.trim() ?? "";
+  if (currentRoot) return currentRoot;
+  const rootObjectType = params.rootObjectType?.trim() ?? "";
+  if (!rootObjectType) return "";
+  const page = await params.viewClient.objects(
+    params.workspaceId,
+    rootObjectType,
+    0,
+    1,
+  );
+  return page.items[0]?.objectId ?? "";
 }
 
 function base64Bytes(value: string): Uint8Array {

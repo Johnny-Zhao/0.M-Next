@@ -111,6 +111,19 @@ public class ViewQueryController {
         detail.relations());
   }
 
+  @GetMapping("/workspaces/{workspaceId}/views/objects/{objectId}/history")
+  public PageView<ObjectHistoryView> objectHistory(
+      @PathVariable("workspaceId") UUID workspaceId,
+      @PathVariable("objectId") UUID objectId,
+      @RequestParam(value = "page", defaultValue = "0") int page,
+      @RequestParam(value = "size", defaultValue = "30") int size) {
+    authorize(workspaceId);
+    if (page < 0 || size < 1 || size > 100) {
+      throw new IllegalArgumentException("page 必须非负且 size 必须为 1..100");
+    }
+    return repository.objectHistory(workspaceId, objectId, page, size);
+  }
+
   @GetMapping("/workspaces/{workspaceId}/views/rule-status")
   public List<RuleStatusView> ruleStatus(
       @PathVariable("workspaceId") UUID workspaceId,

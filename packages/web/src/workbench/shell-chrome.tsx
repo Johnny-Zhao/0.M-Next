@@ -28,16 +28,25 @@ export const shellDimensionLabels = [
   "风",
 ] as const;
 
+const showToolbarDimensionControls = false;
+
 interface WorkbenchShellChromeProps {
   readonly activePanel: WorkbenchPanelId;
   readonly advancedOpen: boolean;
+  readonly connectionMode?: boolean;
+  readonly connectionModeAvailable?: boolean;
+  readonly createObjectAction?: ReactNode;
   readonly documentOutputAction: ReactNode;
   readonly themeLabel: string;
+  readonly visibleViewIds?: readonly WorkbenchPanelId[];
   readonly onGenerateOutput: (format: OutputFormat) => void;
   readonly onOpenCommandPalette: () => void;
   readonly onOpenPanel: (panelId: WorkbenchPanelId) => void;
   readonly onRefreshViews: () => void;
   readonly onRevalidate: () => void;
+  readonly onSelectTool?: () => void;
+  readonly onToggleConnectionMode?: () => void;
+  readonly onToggleValidate?: () => void;
   readonly onToggleAdvanced: () => void;
   readonly onToggleTheme: () => void;
 }
@@ -67,20 +76,39 @@ const viewEntries: readonly {
   { id: "floorplan", label: "平面图" },
 ];
 
+export function validateToolbarAction(
+  onRevalidate: () => void,
+  onToggleValidate?: () => void,
+): () => void {
+  return onToggleValidate ?? onRevalidate;
+}
+
 export function WorkbenchShellChrome({
   activePanel,
   advancedOpen,
+  connectionMode = false,
+  connectionModeAvailable = false,
+  createObjectAction,
   documentOutputAction,
   themeLabel,
+  visibleViewIds,
   onGenerateOutput,
   onOpenCommandPalette,
   onOpenPanel,
   onRefreshViews,
   onRevalidate,
+  onSelectTool,
+  onToggleConnectionMode,
+  onToggleValidate,
   onToggleAdvanced,
   onToggleTheme,
 }: WorkbenchShellChromeProps): ReactElement {
   const [openMenu, setOpenMenu] = useState<string | null>(null);
+  const toolbarViewEntries = visibleViewIds
+    ? viewEntries.filter((view) => visibleViewIds.includes(view.id))
+    : viewEntries;
+  const canToggleConnectionMode =
+    connectionModeAvailable && Boolean(onToggleConnectionMode);
 
   const runMenuItem = (item: MenuItem): void => {
     if (item.disabled || !item.run) return;
@@ -139,7 +167,6 @@ export function WorkbenchShellChrome({
         { label: "装配目录", run: () => onOpenPanel("assembly") },
         { label: "AI 提议", run: () => onOpenPanel("ai") },
         { label: "自动布局", tag: "待接入", disabled: true },
-        { label: "新建对象", tag: "待接入", disabled: true },
       ],
     },
     {
@@ -210,21 +237,30 @@ export function WorkbenchShellChrome({
         role="toolbar"
       >
         <button
-          aria-pressed="true"
+          aria-pressed={!connectionMode}
           className="workbench-tool-button"
+          onClick={onSelectTool}
           title="选择"
           type="button"
         >
           <Icon name="cursor" />
           <span>选择</span>
         </button>
-        <span
-          className="workbench-tool-hint"
-          title="连线:在画布中从端口拖拽创建"
+        <button
+          aria-pressed={connectionMode}
+          className="workbench-tool-button"
+          disabled={!canToggleConnectionMode}
+          onClick={onToggleConnectionMode}
+          title={
+            connectionModeAvailable
+              ? "连线:在画布中从端口拖拽创建"
+              : "请切到图视图后进入连线模式"
+          }
+          type="button"
         >
           <Icon name="link" />
-          <span>连线:从节点端口拖拽</span>
-        </span>
+          <span>连线</span>
+        </button>
         <button
           className="workbench-tool-button"
           disabled
@@ -235,8 +271,12 @@ export function WorkbenchShellChrome({
           <span>自动布局</span>
         </button>
         <span className="workbench-toolbar-separator" />
+        {createObjectAction}
+        {createObjectAction ? (
+          <span className="workbench-toolbar-separator" />
+        ) : null}
         <div aria-label="视图入口" className="workbench-view-switcher">
-          {viewEntries.map((view) => (
+          {toolbarViewEntries.map((view) => (
             <button
               aria-pressed={activePanel === view.id}
               key={view.id}
@@ -247,22 +287,26 @@ export function WorkbenchShellChrome({
             </button>
           ))}
         </div>
-        <span className="workbench-toolbar-separator" />
-        <div aria-label="维度" className="workbench-dimension-segments">
-          {shellDimensionLabels.map((label, index) => (
-            <button
-              aria-pressed={index === 0}
-              disabled={index > 0}
-              key={label}
-              title={
-                index > 0 ? "顶栏维度动作待接入,请用视图内维度切换" : "全部"
-              }
-              type="button"
-            >
-              {label}
-            </button>
-          ))}
-        </div>
+        {showToolbarDimensionControls ? (
+          <>
+            <span className="workbench-toolbar-separator" />
+            <div aria-label="维度" className="workbench-dimension-segments">
+              {shellDimensionLabels.map((label, index) => (
+                <button
+                  aria-pressed={index === 0}
+                  disabled={index > 0}
+                  key={label}
+                  title={
+                    index > 0 ? "顶栏维度动作待接入,请用视图内维度切换" : "全部"
+                  }
+                  type="button"
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </>
+        ) : null}
         <span className="workbench-toolbar-spacer" />
         <button
           className="workbench-action-button"
@@ -298,7 +342,7 @@ export function WorkbenchShellChrome({
         </button>
         <button
           className="workbench-action-button"
-          onClick={onRevalidate}
+          onClick={validateToolbarAction(onRevalidate, onToggleValidate)}
           type="button"
         >
           <Icon name="refresh" />

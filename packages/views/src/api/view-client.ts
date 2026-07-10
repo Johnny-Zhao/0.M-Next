@@ -67,6 +67,38 @@ export interface ObjectDetail {
   readonly relations: readonly RelationSummary[];
 }
 
+export type ObjectHistoryKind =
+  | "create"
+  | "edit"
+  | "state"
+  | "archive"
+  | "delete"
+  | "link"
+  | "unlink";
+
+export interface ObjectHistoryEntry {
+  readonly eventId: string;
+  readonly seq: number;
+  readonly kind: ObjectHistoryKind;
+  readonly fieldCode: string | null;
+  readonly before: unknown;
+  readonly after: unknown;
+  readonly actorKind: string;
+  readonly actorId: string | null;
+  readonly actorDisplay: string | null;
+  readonly source: string;
+  readonly objectVersion: number;
+  readonly correlationId: string | null;
+  readonly occurredAt: string;
+}
+
+export interface ObjectHistoryPage {
+  readonly items: readonly ObjectHistoryEntry[];
+  readonly page: number;
+  readonly pageSize: number;
+  readonly total: number;
+}
+
 export interface SyncStatus {
   readonly pendingEvents: number;
   readonly caughtUp: boolean;
@@ -733,6 +765,24 @@ export class ViewClient {
 
   object(workspaceId: string, objectId: string): Promise<ObjectDetail> {
     return this.get(`/workspaces/${workspaceId}/views/objects/${objectId}`);
+  }
+
+  /** 对象变更历史(分页,seq 降序)。支撑属性栏「历史」与「版本·护照·来源链」。 */
+  objectHistory(
+    workspaceId: string,
+    objectId: string,
+    page = 0,
+    size = 30,
+  ): Promise<ObjectHistoryPage> {
+    if (page < 0 || size < 1 || size > 100) {
+      throw new Error(
+        "object history page must be non-negative and size 1..100",
+      );
+    }
+    const query = new URLSearchParams({ page: `${page}`, size: `${size}` });
+    return this.get(
+      `/workspaces/${workspaceId}/views/objects/${objectId}/history?${query}`,
+    );
   }
 
   ruleStatus(

@@ -96,6 +96,79 @@ describe("document output action", () => {
     );
   });
 
+  it("resolves the proposal root before exporting a new technical project", async () => {
+    const viewClient = outputClient({
+      objects: vi.fn().mockResolvedValue({
+        items: [{ objectId: "proposal-new" }],
+        page: 0,
+        pageSize: 1,
+        total: 1,
+      }),
+    });
+
+    await generateDocumentOutput({
+      actorId: "alice",
+      format: "docx",
+      objectType: "module",
+      relationType: "proposal_contains_module",
+      rootId: "",
+      rootObjectType: "proposal",
+      viewClient,
+      workspaceId: "workspace-1",
+    });
+
+    expect(viewClient.objects).toHaveBeenCalledWith(
+      "workspace-1",
+      "proposal",
+      0,
+      1,
+    );
+    expect(viewClient.captureSnapshot).toHaveBeenCalledWith(
+      "workspace-1",
+      "alice",
+      null,
+      {
+        rootId: "proposal-new",
+        relationType: "proposal_contains_module",
+      },
+    );
+    expect(viewClient.createOutput).toHaveBeenCalledWith(
+      "workspace-1",
+      "alice",
+      expect.objectContaining({
+        format: "docx",
+        sectionMapping: expect.any(Object),
+      }),
+    );
+  });
+
+  it("falls back to object scoped output when a tree relation is not configured", async () => {
+    const viewClient = outputClient();
+
+    await generateDocumentOutput({
+      actorId: "alice",
+      format: "docx",
+      objectType: "module",
+      relationType: "",
+      rootId: "proposal-1",
+      viewClient,
+      workspaceId: "workspace-1",
+    });
+
+    expect(viewClient.captureSnapshot).toHaveBeenCalledWith(
+      "workspace-1",
+      "alice",
+      "module",
+    );
+    expect(viewClient.createOutput).toHaveBeenCalledWith(
+      "workspace-1",
+      "alice",
+      expect.not.objectContaining({
+        sectionMapping: expect.any(Object),
+      }),
+    );
+  });
+
   it("uses stable file extensions for supported formats", () => {
     expect(filename("markdown", "one")).toBe("mnext-output-one.md");
     expect(filename("docx", "two")).toBe("mnext-output-two.docx");
@@ -103,7 +176,16 @@ describe("document output action", () => {
   });
 });
 
-function outputClient() {
+type OutputClientMock = {
+  readonly captureSnapshot: ReturnType<typeof vi.fn>;
+  readonly createOutput: ReturnType<typeof vi.fn>;
+  readonly getOutput: ReturnType<typeof vi.fn>;
+  readonly objects: ReturnType<typeof vi.fn>;
+};
+
+function outputClient(
+  overrides: Partial<OutputClientMock> = {},
+): OutputClientMock {
   return {
     captureSnapshot: vi.fn().mockResolvedValue({ snapshotId: "snap-1" }),
     createOutput: vi.fn().mockResolvedValue({
@@ -114,5 +196,12 @@ function outputClient() {
       meta: { outputId: "out-1", format: "markdown" },
       artifact: "IyBPdXRwdXQ=",
     }),
+    objects: vi.fn().mockResolvedValue({
+      items: [],
+      page: 0,
+      pageSize: 1,
+      total: 0,
+    }),
+    ...overrides,
   };
 }

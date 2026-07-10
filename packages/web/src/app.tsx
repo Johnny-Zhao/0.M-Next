@@ -111,11 +111,15 @@ function AppContent({
     <main className="workbench">
       <header>
         <strong>M-Next</strong>
+        <span className="workbench-brand-tag">制图工作台</span>
         <button onClick={() => setWorkspace(null)} type="button">
           返回项目
         </button>
         <span aria-label="当前项目">{workspaceLabel(workspace)}</span>
         <SyncBadge sync={sync} />
+        <span aria-hidden="true" className="workbench-avatar">
+          {actorInitial(actorId)}
+        </span>
       </header>
       <div className="workbench-body">
         <Workbench
@@ -140,6 +144,12 @@ function AppContent({
 export function workspaceLabel(workspace: OpenWorkspaceRequest): string {
   const value = workspace.name?.trim();
   return value && value.length > 0 ? value : "当前项目";
+}
+
+export function actorInitial(actorId: string | null): string {
+  const trimmed = actorId?.trim() ?? "";
+  const first = [...trimmed].find((ch) => /\p{L}|\p{N}/u.test(ch));
+  return first ? first.toUpperCase() : "叶";
 }
 
 export function syncLabel(sync: SyncStatus | "error"): string {

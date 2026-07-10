@@ -43,7 +43,7 @@ describe("App", () => {
     expect(workbenchDefaultsForTemplate("technical_proposal")).toMatchObject({
       objectType: "module",
       relationType: "proposal_contains_module",
-      activePanel: "tree",
+      activePanel: "diagram",
       rootObjectType: "proposal",
     });
     expect(workbenchDefaultsForTemplate("interior_design")).toMatchObject({

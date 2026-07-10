@@ -6,12 +6,14 @@ import {
 } from "dockview";
 import {
   createContext,
+  type Dispatch,
   useCallback,
   useContext,
   useEffect,
   useMemo,
   useState,
   type ReactElement,
+  type SetStateAction,
 } from "react";
 
 import {
@@ -30,7 +32,9 @@ import type {
   CommandPanelId,
   CommandRegistry,
 } from "./commands";
+import { CreateObjectForm } from "./create-object-form";
 import { DiagramPanel } from "./diagram-panel";
+import { DiagramToolsPanel } from "./diagram-tools-panel";
 import {
   DocumentOutputAction,
   downloadOutput,
@@ -50,7 +54,10 @@ import { SnapshotPanel } from "./snapshot-panel";
 import { TablePanel } from "./table-panel";
 import { TreePanel } from "./tree-panel";
 import { ValidatePanel } from "./validate-panel";
+import { ValidationDrawer } from "./validation-drawer";
 import { VerificationDashboardPanel } from "./verification-dashboard-panel";
+import { ViewTreePanel } from "./view-tree-panel";
+import { nextConnectionMode } from "./diagram-tool-model";
 
 export type WorkbenchPanelId =
   | "diagram"
@@ -68,6 +75,8 @@ export type WorkbenchPanelId =
   | "assembly"
   | "exchange"
   | "snapshot";
+
+export type LeftPaneMode = "view-tree" | "diagram-tools";
 
 export interface WorkbenchPanelDefinition {
   readonly id: WorkbenchPanelId;
@@ -101,6 +110,7 @@ export interface WorkbenchContextValue {
   readonly relationType: string;
   readonly rootId: string;
   readonly refreshVersion: number;
+  readonly connectionMode: boolean;
   readonly viewClient: ViewClient;
   readonly commandClient: CommandClient;
   readonly selection: SelectionCoordinator;
@@ -108,6 +118,7 @@ export interface WorkbenchContextValue {
   readonly setRelationType: (value: string) => void;
   readonly setRootId: (value: string) => void;
   readonly refreshViews: () => void;
+  readonly setConnectionMode: Dispatch<SetStateAction<boolean>>;
   readonly autoCheckAfterSave: () => Promise<void>;
   readonly reportError: (message: string) => void;
 }
@@ -120,12 +131,24 @@ export function useWorkbenchContext(): WorkbenchContextValue {
   return context;
 }
 
-export function ensureWorkbenchPanels(api: DockviewApi): void {
+export function ensureWorkbenchPanels(
+  api: DockviewApi,
+  templateCode?: string | null,
+): void {
   if (api.panels.length > 0) return;
   const byId = (id: WorkbenchPanelId): WorkbenchPanelDefinition =>
     workbenchPanelDefinitions.find((panel) => panel.id === id) ??
     workbenchPanelDefinitions[0];
   api.addPanel(byId("diagram"));
+  if (templateCode === "technical_proposal") {
+    api.addPanel({
+      ...byId("inspector"),
+      inactive: true,
+      initialWidth: 320,
+      position: { direction: "right", referencePanel: "diagram" },
+    });
+    return;
+  }
   // 平面图 / 表格 / 矩阵 / 文档 与「图」同组,呈现为视图切换标签页
   api.addPanel({ ...byId("floorplan"), inactive: true });
   api.addPanel({ ...byId("table"), inactive: true });
@@ -183,6 +206,35 @@ export function shouldOpenInspectorForSelection(
   );
 }
 
+export function leftPaneModeForPanel(panelId: WorkbenchPanelId): LeftPaneMode {
+  return panelId === "diagram" ? "diagram-tools" : "view-tree";
+}
+
+export function isPrimaryView(panelId: WorkbenchPanelId): boolean {
+  return (
+    panelId === "diagram" ||
+    panelId === "table" ||
+    panelId === "matrix" ||
+    panelId === "document"
+  );
+}
+
+export function controlledPanelAction(panelId: WorkbenchPanelId): {
+  readonly activePanel?: WorkbenchPanelId;
+  readonly leftPaneMode?: LeftPaneMode;
+  readonly inspectorOpen?: true;
+  readonly validateOpen?: true;
+} {
+  if (panelId === "inspector") return { inspectorOpen: true };
+  if (panelId === "validate") return { validateOpen: true };
+  const nextPanel = panelId === "tree" ? "diagram" : panelId;
+  if (!isPrimaryView(nextPanel)) return {};
+  return {
+    activePanel: nextPanel,
+    leftPaneMode: leftPaneModeForPanel(nextPanel),
+  };
+}
+
 export interface WorkbenchProps {
   readonly actorId: string;
   readonly workspaceId: string;
@@ -216,6 +268,14 @@ const dockviewComponents: Record<
   exchange: () => <ExchangePanel />,
   snapshot: () => <SnapshotPanel />,
 };
+
+export function renderPrimaryView(panelId: WorkbenchPanelId): ReactElement {
+  if (panelId === "table") return <TablePanel />;
+  if (panelId === "matrix") return <MatrixPanel />;
+  if (panelId === "document") return <DocumentPanel />;
+  return <DiagramPanel />;
+}
+
 const defaultObjectType = "room";
 const defaultRelationType = "adjacent";
 const defaultRootId = "";
@@ -237,8 +297,8 @@ export function workbenchDefaultsForTemplate(
       objectType: "module",
       relationType: "proposal_contains_module",
       rootId: "",
-      activePanel: "tree",
-      startupPanels: ["table", "validate", "document"],
+      activePanel: "diagram",
+      startupPanels: [],
       rootObjectType: "proposal",
     };
   }
@@ -284,6 +344,11 @@ export function Workbench({
     defaults.activePanel,
   );
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [leftPaneMode, setLeftPaneMode] = useState<LeftPaneMode>("view-tree");
+  const [connectionMode, setConnectionMode] = useState(false);
+  const [inspectorOpen, setInspectorOpen] = useState(false);
+  const [validateOpen, setValidateOpen] = useState(false);
+  const isTechnicalProposal = templateCode === "technical_proposal";
 
   const refreshViews = useCallback(
     () => setRefreshVersion((value) => value + 1),
@@ -314,38 +379,78 @@ export function Workbench({
 
   const activatePanel = useCallback(
     (panelId: CommandPanelId) => {
+      if (isTechnicalProposal) {
+        const action = controlledPanelAction(panelId);
+        if (action.inspectorOpen) setInspectorOpen(true);
+        if (action.validateOpen) setValidateOpen(true);
+        if (action.activePanel) {
+          setActivePanel(action.activePanel);
+          if (action.activePanel !== "diagram") {
+            setConnectionMode((current) =>
+              nextConnectionMode(current, "viewChanged"),
+            );
+          }
+        }
+        if (action.leftPaneMode) setLeftPaneMode(action.leftPaneMode);
+        return;
+      }
       if (!dockviewApi) return;
       openWorkbenchPanel(dockviewApi, panelId);
       setActivePanel(panelId);
     },
-    [dockviewApi],
+    [dockviewApi, isTechnicalProposal],
   );
   const openShellPanel = useCallback(
     (panelId: WorkbenchPanelId) => {
+      if (isTechnicalProposal) {
+        const action = controlledPanelAction(panelId);
+        if (action.inspectorOpen) setInspectorOpen(true);
+        if (action.validateOpen) setValidateOpen(true);
+        if (action.activePanel) {
+          setActivePanel(action.activePanel);
+          if (action.activePanel !== "diagram") {
+            setConnectionMode((current) =>
+              nextConnectionMode(current, "viewChanged"),
+            );
+          }
+        }
+        if (action.leftPaneMode) setLeftPaneMode(action.leftPaneMode);
+        return;
+      }
       if (!dockviewApi) return;
       openWorkbenchPanel(dockviewApi, panelId);
       setActivePanel(panelId);
     },
-    [dockviewApi],
+    [dockviewApi, isTechnicalProposal],
   );
   // 因选择而被动揭示面板:激活但不抢 DOM 焦点,避免 blur 掉正在编辑的输入框。
   const revealShellPanel = useCallback(
     (panelId: WorkbenchPanelId) => {
+      if (isTechnicalProposal) {
+        if (panelId === "inspector") setInspectorOpen(true);
+        if (panelId === "validate") setValidateOpen(true);
+        return;
+      }
       if (!dockviewApi) return;
       openWorkbenchPanel(dockviewApi, panelId, { focus: false });
       setActivePanel(panelId);
     },
-    [dockviewApi],
+    [dockviewApi, isTechnicalProposal],
   );
 
   useEffect(
     () =>
       selection.subscribe((selected) => {
-        if (shouldOpenInspectorForSelection(selected)) {
+        const shouldOpen = shouldOpenInspectorForSelection(selected);
+        if (isTechnicalProposal) {
+          setInspectorOpen(shouldOpen);
+          return;
+        }
+        if (shouldOpen) {
           revealShellPanel("inspector");
         }
       }),
-    [revealShellPanel, selection],
+    [isTechnicalProposal, revealShellPanel, selection],
   );
 
   const generateOutput = useCallback(
@@ -356,12 +461,21 @@ export function Workbench({
         objectType,
         relationType,
         rootId,
+        rootObjectType: defaults.rootObjectType,
         viewClient,
         workspaceId,
       });
       downloadOutput(detail);
     },
-    [actorId, objectType, relationType, rootId, viewClient, workspaceId],
+    [
+      actorId,
+      defaults.rootObjectType,
+      objectType,
+      relationType,
+      rootId,
+      viewClient,
+      workspaceId,
+    ],
   );
   const generateOutputSafely = useCallback(
     (format: OutputFormat): void => {
@@ -423,6 +537,7 @@ export function Workbench({
       relationType,
       rootId,
       refreshVersion,
+      connectionMode,
       viewClient,
       commandClient,
       selection,
@@ -430,6 +545,7 @@ export function Workbench({
       setRelationType,
       setRootId,
       refreshViews,
+      setConnectionMode,
       autoCheckAfterSave,
       reportError: onError,
     }),
@@ -437,6 +553,7 @@ export function Workbench({
       actorId,
       autoCheckAfterSave,
       commandClient,
+      connectionMode,
       objectType,
       onError,
       refreshVersion,
@@ -445,6 +562,7 @@ export function Workbench({
       rootId,
       selection,
       setObjectType,
+      setConnectionMode,
       setRelationType,
       setRootId,
       templateCode,
@@ -495,6 +613,15 @@ export function Workbench({
         <WorkbenchShellChrome
           activePanel={activePanel}
           advancedOpen={settingsOpen}
+          connectionMode={connectionMode}
+          connectionModeAvailable={
+            isTechnicalProposal && activePanel === "diagram"
+          }
+          createObjectAction={
+            templateCode === "technical_proposal" ? (
+              <CreateObjectForm onOpenPanel={openShellPanel} />
+            ) : null
+          }
           documentOutputAction={
             <DocumentOutputAction
               actorId={actorId}
@@ -502,15 +629,36 @@ export function Workbench({
               relationType={relationType}
               reportError={onError}
               rootId={rootId}
+              rootObjectType={defaults.rootObjectType}
               viewClient={viewClient}
               workspaceId={workspaceId}
             />
+          }
+          visibleViewIds={
+            templateCode === "technical_proposal"
+              ? ["diagram", "table", "matrix", "document"]
+              : undefined
           }
           onGenerateOutput={generateOutputSafely}
           onOpenCommandPalette={() => setCommandPaletteOpen(true)}
           onOpenPanel={openShellPanel}
           onRefreshViews={refreshViews}
           onRevalidate={revalidate}
+          onSelectTool={() =>
+            setConnectionMode((current) =>
+              nextConnectionMode(current, "selectTool"),
+            )
+          }
+          onToggleConnectionMode={
+            isTechnicalProposal
+              ? () => setConnectionMode((current) => !current)
+              : undefined
+          }
+          onToggleValidate={
+            isTechnicalProposal
+              ? () => setValidateOpen((value) => !value)
+              : undefined
+          }
           onToggleAdvanced={() => setSettingsOpen((value) => !value)}
           onToggleTheme={onToggleTheme}
           themeLabel={themeLabel}
@@ -518,15 +666,19 @@ export function Workbench({
         {templateCode === "technical_proposal" ? <ProposalSummaryBar /> : null}
         {settingsOpen ? (
           <div className="workbench-controls" aria-label="高级视图设置">
-            <label>
-              对象类型
-              <input
-                onChange={(event) =>
-                  setDraftObjectType(event.currentTarget.value)
-                }
-                value={draftObjectType}
-              />
-            </label>
+            {templateCode === "technical_proposal" ? (
+              <span>新增模块/需求请使用顶栏表单</span>
+            ) : (
+              <label>
+                对象类型
+                <input
+                  onChange={(event) =>
+                    setDraftObjectType(event.currentTarget.value)
+                  }
+                  value={draftObjectType}
+                />
+              </label>
+            )}
             <label>
               关系类型
               <input
@@ -548,20 +700,66 @@ export function Workbench({
             </button>
           </div>
         ) : null}
-        <div className="dockview-theme-light mnext-dockview-theme workbench-dock">
-          <DockviewReact
-            components={dockviewComponents}
-            onReady={(event: DockviewReadyEvent) => {
-              setDockviewApi(event.api);
-              ensureWorkbenchPanels(event.api);
-              defaults.startupPanels.forEach((panel) =>
-                openWorkbenchPanel(event.api, panel),
-              );
-              openWorkbenchPanel(event.api, defaults.activePanel);
-              setActivePanel(defaults.activePanel);
-            }}
-          />
-        </div>
+        {isTechnicalProposal ? (
+          <div className="workbench-main workbench-main-controlled">
+            <div className="workbench-controlled-row">
+              <div className="workbench-left-pane">
+                {leftPaneMode === "view-tree" ? (
+                  <ViewTreePanel
+                    activatePanel={openShellPanel}
+                    setLeftPaneMode={setLeftPaneMode}
+                  />
+                ) : (
+                  <DiagramToolsPanel
+                    onBack={() => setLeftPaneMode("view-tree")}
+                    setLeftPaneMode={setLeftPaneMode}
+                  />
+                )}
+              </div>
+              <div className="workbench-primary-view">
+                {renderPrimaryView(activePanel)}
+              </div>
+              {inspectorOpen ? (
+                <aside className="workbench-inspector-column">
+                  <section className="workbench-side-panel">
+                    <header>
+                      <strong>属性 / 校验</strong>
+                      <button
+                        onClick={() => setInspectorOpen(false)}
+                        type="button"
+                      >
+                        关闭
+                      </button>
+                    </header>
+                    <InspectorPanel />
+                  </section>
+                </aside>
+              ) : null}
+            </div>
+            <ValidationDrawer
+              onClose={() => setValidateOpen(false)}
+              onToggle={() => setValidateOpen((value) => !value)}
+              open={validateOpen}
+            />
+          </div>
+        ) : (
+          <div className="workbench-main">
+            <div className="dockview-theme-light mnext-dockview-theme workbench-dock">
+              <DockviewReact
+                components={dockviewComponents}
+                onReady={(event: DockviewReadyEvent) => {
+                  setDockviewApi(event.api);
+                  ensureWorkbenchPanels(event.api, templateCode);
+                  defaults.startupPanels.forEach((panel) =>
+                    openWorkbenchPanel(event.api, panel),
+                  );
+                  openWorkbenchPanel(event.api, defaults.activePanel);
+                  setActivePanel(defaults.activePanel);
+                }}
+              />
+            </div>
+          </div>
+        )}
         <CommandPalette
           context={commandContext}
           isOpen={commandPaletteOpen}

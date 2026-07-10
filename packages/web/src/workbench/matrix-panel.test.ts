@@ -1,8 +1,12 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import type { ObjectType } from "@m-next/views";
 
-import { inferMatrixConfig, relationOptionsForTypes } from "./matrix-panel";
+import {
+  createAutoCheckingMatrixCommandClient,
+  inferMatrixConfig,
+  relationOptionsForTypes,
+} from "./matrix-panel";
 
 const objectType = (code: string, name = code): ObjectType => ({
   id: code,
@@ -54,5 +58,35 @@ describe("MatrixPanel configuration", () => {
       rowType: "module",
       colType: "interface",
     });
+  });
+
+  it("refreshes and revalidates after creating a coverage relation", async () => {
+    const createRelation = vi.fn().mockResolvedValue({ relationId: "rel-1" });
+    const unlink = vi.fn().mockResolvedValue(undefined);
+    const runRuleCheck = vi.fn().mockResolvedValue("run-1");
+    const refreshViews = vi.fn();
+    const client = createAutoCheckingMatrixCommandClient({
+      commandClient: { createRelation, unlink },
+      actorId: "actor-1",
+      workspaceId: "ws",
+      viewClient: { runRuleCheck },
+      refreshViews,
+    });
+
+    await client.createRelation(
+      "ws",
+      "proposal_satisfies",
+      "module-1",
+      "req-1",
+    );
+
+    expect(createRelation).toHaveBeenCalledWith(
+      "ws",
+      "proposal_satisfies",
+      "module-1",
+      "req-1",
+    );
+    expect(runRuleCheck).toHaveBeenCalledWith("ws", "actor-1", null);
+    expect(refreshViews).toHaveBeenCalledTimes(2);
   });
 });

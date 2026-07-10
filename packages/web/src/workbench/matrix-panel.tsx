@@ -1,6 +1,23 @@
-import { MatrixView, type ObjectType } from "@m-next/views";
-import { useEffect, useMemo, useState, type ReactElement } from "react";
+import {
+  MatrixView,
+  type MatrixCommandClient,
+  type ObjectType,
+  type ViewClient,
+} from "@m-next/views";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactElement,
+} from "react";
 
+import {
+  collectRequirementCoverage,
+  RequirementCoverageSummaryView,
+  type RequirementCoverageSummary,
+} from "./coverage-summary";
+import { runSaveAutoCheck } from "./save-auto-check";
 import { useWorkbenchContext } from "./workbench";
 
 interface MatrixRelationOption {
@@ -94,15 +111,52 @@ export function inferMatrixConfig(
   return { rowType: firstType, colType: firstType, relationType: relation };
 }
 
+export function createAutoCheckingMatrixCommandClient(params: {
+  readonly commandClient: MatrixCommandClient;
+  readonly actorId: string;
+  readonly workspaceId: string;
+  readonly viewClient: Pick<ViewClient, "runRuleCheck">;
+  readonly refreshViews: () => void;
+}): MatrixCommandClient {
+  return {
+    createRelation: async (
+      targetWorkspaceId,
+      targetRelationType,
+      rowObjectId,
+      colObjectId,
+    ) => {
+      const result = await params.commandClient.createRelation(
+        targetWorkspaceId,
+        targetRelationType,
+        rowObjectId,
+        colObjectId,
+      );
+      await runSaveAutoCheck(params);
+      return result;
+    },
+    unlink: async (targetWorkspaceId, relationId, expectedVersion) => {
+      await params.commandClient.unlink(
+        targetWorkspaceId,
+        relationId,
+        expectedVersion,
+      );
+      await runSaveAutoCheck(params);
+    },
+  };
+}
+
 export function MatrixPanel(): ReactElement {
   const context = useWorkbenchContext();
   const {
+    actorId,
     commandClient,
     objectType,
+    refreshViews,
     refreshVersion,
     relationType,
     reportError,
     selection,
+    templateCode,
     viewClient,
     workspaceId,
   } = context;
@@ -112,7 +166,11 @@ export function MatrixPanel(): ReactElement {
     colType: objectType,
     relationType,
   }));
+  const [coverage, setCoverage] = useState<RequirementCoverageSummary | null>(
+    null,
+  );
   const [loadingTypes, setLoadingTypes] = useState(true);
+  const [loadingCoverage, setLoadingCoverage] = useState(false);
 
   useEffect(() => {
     let disposed = false;
@@ -146,6 +204,40 @@ export function MatrixPanel(): ReactElement {
     viewClient,
     workspaceId,
   ]);
+
+  const loadCoverage = useCallback(async (): Promise<void> => {
+    if (templateCode !== "technical_proposal") {
+      setCoverage(null);
+      return;
+    }
+    setLoadingCoverage(true);
+    try {
+      setCoverage(
+        await collectRequirementCoverage({ viewClient, workspaceId }),
+      );
+    } catch (error) {
+      reportError(error instanceof Error ? error.message : "需求覆盖读取失败");
+      setCoverage(null);
+    } finally {
+      setLoadingCoverage(false);
+    }
+  }, [reportError, templateCode, viewClient, workspaceId]);
+
+  useEffect(() => {
+    void loadCoverage();
+  }, [loadCoverage, refreshVersion]);
+
+  const matrixCommandClient = useMemo<MatrixCommandClient>(
+    () =>
+      createAutoCheckingMatrixCommandClient({
+        commandClient,
+        actorId,
+        workspaceId,
+        viewClient,
+        refreshViews,
+      }),
+    [actorId, commandClient, refreshViews, viewClient, workspaceId],
+  );
 
   const relationOptions = useMemo(
     () => relationOptionsForTypes(objectTypes),
@@ -218,10 +310,19 @@ export function MatrixPanel(): ReactElement {
       {!hasTypes && !loadingTypes ? (
         <p className="view-empty-state">当前工作空间没有可用对象类型。</p>
       ) : null}
+      {templateCode === "technical_proposal" ? (
+        <RequirementCoverageSummaryView
+          loading={loadingCoverage}
+          onSelectRequirement={(requirementId) =>
+            selection.select({ entityType: "object", entityId: requirementId })
+          }
+          summary={coverage}
+        />
+      ) : null}
       {hasTypes ? (
         <MatrixView
           colType={config.colType}
-          commandClient={commandClient}
+          commandClient={matrixCommandClient}
           onError={reportError}
           refreshKey={refreshVersion}
           relationType={config.relationType}

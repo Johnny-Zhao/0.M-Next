@@ -358,6 +358,118 @@ class ReadModelRepository {
     return new ObjectDetailView(object, relations);
   }
 
+  void insertHistory(
+      UUID workspaceId,
+      UUID objectId,
+      long seq,
+      String eventId,
+      String kind,
+      String fieldCode,
+      Object before,
+      Object after,
+      String actorKind,
+      String actorId,
+      String actorDisplay,
+      String source,
+      long objectVersion,
+      UUID correlationId,
+      Instant occurredAt) {
+    jdbc.update(
+        """
+        INSERT INTO rm_object_history
+          (workspace_id, object_id, seq, event_id, kind, field_code, before_val, after_val,
+           actor_kind, actor_id, actor_display, source, object_version, correlation_id, occurred_at)
+        VALUES (?, ?, ?, ?, ?, ?, CAST(? AS jsonb), CAST(? AS jsonb), ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT (workspace_id, object_id, event_id) DO NOTHING
+        """,
+        workspaceId,
+        objectId,
+        seq,
+        eventId,
+        kind,
+        fieldCode,
+        before == null ? null : json(before),
+        after == null ? null : json(after),
+        actorKind,
+        actorId,
+        actorDisplay,
+        source,
+        objectVersion,
+        correlationId,
+        java.sql.Timestamp.from(occurredAt));
+  }
+
+  PageView<ObjectHistoryView> objectHistory(
+      UUID workspaceId, UUID objectId, int page, int pageSize) {
+    var total =
+        jdbc.queryForObject(
+            "SELECT count(*) FROM rm_object_history WHERE workspace_id = ? AND object_id = ?",
+            Long.class,
+            workspaceId,
+            objectId);
+    var items =
+        jdbc.query(
+            """
+            SELECT event_id, seq, kind, field_code, before_val::text, after_val::text,
+                   actor_kind, actor_id, actor_display, source, object_version, correlation_id,
+                   occurred_at
+            FROM rm_object_history
+            WHERE workspace_id = ? AND object_id = ?
+            ORDER BY seq DESC, occurred_at DESC LIMIT ? OFFSET ?
+            """,
+            (row, index) -> objectHistoryRow(row),
+            workspaceId,
+            objectId,
+            pageSize,
+            page * pageSize);
+    return new PageView<>(items, page, pageSize, total);
+  }
+
+  /** 关系两端(供关系历史在两端对象各落一行)。关系不存在返回 null。 */
+  RelationEndpoints relationEndpoints(UUID workspaceId, UUID relationId) {
+    return jdbc.query(
+        """
+        SELECT source_id, target_id, relation_type_code
+        FROM rm_relation WHERE workspace_id = ? AND relation_id = ?
+        """,
+        result ->
+            result.next()
+                ? new RelationEndpoints(
+                    UUID.fromString(result.getString(1)),
+                    UUID.fromString(result.getString(2)),
+                    result.getString(3))
+                : null,
+        workspaceId,
+        relationId);
+  }
+
+  private ObjectHistoryView objectHistoryRow(java.sql.ResultSet row) throws java.sql.SQLException {
+    var correlation = row.getString("correlation_id");
+    return new ObjectHistoryView(
+        row.getString("event_id"),
+        row.getLong("seq"),
+        row.getString("kind"),
+        row.getString("field_code"),
+        jsonValue(row.getString("before_val")),
+        jsonValue(row.getString("after_val")),
+        row.getString("actor_kind"),
+        row.getString("actor_id"),
+        row.getString("actor_display"),
+        row.getString("source"),
+        row.getLong("object_version"),
+        correlation == null ? null : UUID.fromString(correlation),
+        row.getTimestamp("occurred_at").toInstant());
+  }
+
+  private Object jsonValue(String value) {
+    if (value == null) return null;
+    try {
+      return mapper.readValue(value, Object.class);
+    } catch (com.fasterxml.jackson.core.JsonProcessingException failure) {
+      return value;
+    }
+  }
+
   List<RelationView> relations(
       UUID workspaceId, String relationType, String direction, UUID sourceId, int depth) {
     var endpoint = "out".equals(direction) ? "source_id" : "target_id";
@@ -1065,6 +1177,8 @@ class ReadModelRepository {
   }
 
   record RelationTypeProjection(String code, boolean hierarchical) {}
+
+  record RelationEndpoints(UUID sourceId, UUID targetId, String relationTypeCode) {}
 
   record MappingCorrespondenceType(
       String relationTypeCode, String sourceTypeCode, String targetTypeCode) {}

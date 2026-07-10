@@ -7,6 +7,7 @@ import {
   shellDimensionLabels,
   shellMenuLabels,
   shellToolbarViewLabels,
+  validateToolbarAction,
 } from "./shell-chrome";
 
 describe("WorkbenchShellChrome", () => {
@@ -33,13 +34,71 @@ describe("WorkbenchShellChrome", () => {
     ]);
   });
 
-  it("shows connection guidance without a disabled connection button", () => {
+  it("enables the connection toolbar action when diagram view is active", () => {
     const html = renderToStaticMarkup(
       createElement(WorkbenchShellChrome, {
-        activePanel: "tree",
+        activePanel: "diagram",
+        advancedOpen: false,
+        connectionMode: true,
+        connectionModeAvailable: true,
+        createObjectAction: createElement(
+          "span",
+          null,
+          "+ 新增模块 + 新增需求",
+        ),
+        documentOutputAction: null,
+        themeLabel: "亮色",
+        onGenerateOutput: () => undefined,
+        onOpenCommandPalette: () => undefined,
+        onOpenPanel: () => undefined,
+        onRefreshViews: () => undefined,
+        onRevalidate: () => undefined,
+        onToggleConnectionMode: () => undefined,
+        onToggleAdvanced: () => undefined,
+        onToggleTheme: () => undefined,
+      }),
+    );
+
+    expect(html).toContain("连线");
+    expect(html).toContain('aria-pressed="true"');
+    expect(html).not.toContain("请切到图视图后进入连线模式");
+    expect(html).toContain("+ 新增模块 + 新增需求");
+    expect(html).not.toContain("新建对象");
+  });
+
+  it("disables the connection toolbar action outside diagram view", () => {
+    const html = renderToStaticMarkup(
+      createElement(WorkbenchShellChrome, {
+        activePanel: "table",
+        advancedOpen: false,
+        connectionMode: false,
+        connectionModeAvailable: false,
+        documentOutputAction: null,
+        themeLabel: "亮色",
+        onGenerateOutput: () => undefined,
+        onOpenCommandPalette: () => undefined,
+        onOpenPanel: () => undefined,
+        onRefreshViews: () => undefined,
+        onRevalidate: () => undefined,
+        onToggleConnectionMode: () => undefined,
+        onToggleAdvanced: () => undefined,
+        onToggleTheme: () => undefined,
+      }),
+    );
+
+    expect(html).toContain("连线");
+    expect(html).toContain("请切到图视图后进入连线模式");
+    expect(html).toContain("disabled");
+  });
+
+  it("filters toolbar view entries when visibleViewIds is provided", () => {
+    const html = renderToStaticMarkup(
+      createElement(WorkbenchShellChrome, {
+        activePanel: "diagram",
         advancedOpen: false,
         documentOutputAction: null,
         themeLabel: "亮色",
+        visibleViewIds: ["diagram", "table", "matrix", "document"],
         onGenerateOutput: () => undefined,
         onOpenCommandPalette: () => undefined,
         onOpenPanel: () => undefined,
@@ -50,9 +109,21 @@ describe("WorkbenchShellChrome", () => {
       }),
     );
 
-    expect(html).toContain("连线:从节点端口拖拽");
-    expect(html).not.toContain(
-      'title="连线:在画布中从端口拖拽创建" type="button"',
-    );
+    expect(html).toContain("图");
+    expect(html).toContain("表");
+    expect(html).toContain("矩阵");
+    expect(html).toContain("文档");
+    expect(html).not.toContain("映射</button>");
+    expect(html).not.toContain("平面图</button>");
+  });
+});
+
+describe("validateToolbarAction", () => {
+  it("uses the validation drawer toggle when provided", () => {
+    const revalidate = () => undefined;
+    const toggle = () => undefined;
+
+    expect(validateToolbarAction(revalidate)).toBe(revalidate);
+    expect(validateToolbarAction(revalidate, toggle)).toBe(toggle);
   });
 });

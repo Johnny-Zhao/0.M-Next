@@ -1,4 +1,4 @@
-import {
+﻿import {
   Background,
   BackgroundVariant,
   Controls,
@@ -88,6 +88,7 @@ import {
   type ActiveDimensionId,
   type DimensionDefinition,
 } from "./dimensions";
+import { nextConnectionMode } from "./diagram-tool-model";
 import { portHandleId, relationPortSides, type PortSide } from "./ports";
 import { useWorkbenchContext } from "./workbench";
 
@@ -539,16 +540,24 @@ export const defaultDiagramObjectFields = {
 const diagramCreateResolveAttempts = 5;
 const diagramCreateResolveDelayMs = 350;
 const diagramRelationRefreshDelayMs = 400;
+const technicalDiagramObjectTypes = [
+  "system",
+  "module",
+  "interface",
+  "requirement",
+] as const;
 const proposalContainsRelationByObjectType: Readonly<Record<string, string>> = {
   module: "proposal_contains_module",
   system: "proposal_contains_system",
 };
+const showDiagramDimensionControls = false;
 const diagramRelationByEndpoint: Readonly<Record<string, string>> = {
   "module->module": "proposal_depends_on",
   "module->interface": "proposal_interfaces_with",
   "module->requirement": "proposal_satisfies",
   "proposal->module": "proposal_contains_module",
   "proposal_node->module": "proposal_contains_module",
+  "system->module": "proposal_contains_module",
   "proposal->system": "proposal_contains_system",
 };
 
@@ -560,6 +569,33 @@ interface LineageTarget {
 interface DiagramConnectionEndpoint {
   readonly objectId: string;
   readonly objectType: string;
+}
+
+export function diagramObjectTypesForTemplate(
+  templateCode: string | null | undefined,
+  objectTypeCode: string,
+): readonly string[] {
+  return templateCode === "technical_proposal"
+    ? technicalDiagramObjectTypes
+    : [objectTypeCode];
+}
+
+export async function loadDiagramObjects(params: {
+  readonly viewClient: Pick<ViewClient, "objects">;
+  readonly workspaceId: string;
+  readonly templateCode?: string | null;
+  readonly objectType: string;
+}): Promise<readonly ViewObject[]> {
+  const objectTypes = diagramObjectTypesForTemplate(
+    params.templateCode,
+    params.objectType,
+  );
+  const pages = await Promise.all(
+    objectTypes.map((type) =>
+      params.viewClient.objects(params.workspaceId, type, 0, 100),
+    ),
+  );
+  return pages.flatMap((page) => page.items);
 }
 
 export function resolveDiagramConnectionEndpoints(params: {
@@ -613,6 +649,23 @@ export async function connectDiagramObjects(
   return true;
 }
 
+export async function connectDiagramObjectsInMode(
+  commandClient: Pick<DiagramCommandClient, "createRelation">,
+  workspaceId: string,
+  relationType: string,
+  connection: Connection,
+  connectionMode: boolean,
+): Promise<"connected" | "disabled" | "invalid"> {
+  if (!connectionMode) return "disabled";
+  const connected = await connectDiagramObjects(
+    commandClient,
+    workspaceId,
+    relationType,
+    connection,
+  );
+  return connected ? "connected" : "invalid";
+}
+
 export async function unlinkDiagramEdges(
   commandClient: Pick<DiagramCommandClient, "unlink">,
   workspaceId: string,
@@ -655,15 +708,31 @@ export async function unlinkSelectedRelations(
   );
 }
 
+export function resolveEdgeDeletionTarget(
+  edgeId: string,
+  relations: readonly Pick<RelationSummary, "relationId" | "version">[],
+  edges: readonly DiagramEdge[],
+): { readonly relationId: string; readonly version: number } | null {
+  const relation = relations.find(
+    (item) =>
+      item.relationId === edgeId &&
+      typeof item.version === "number" &&
+      item.version > 0,
+  );
+  if (relation) {
+    return { relationId: relation.relationId, version: relation.version };
+  }
+  const version = edges.find((edge) => edge.id === edgeId)?.data?.version;
+  return typeof version === "number" && version > 0
+    ? { relationId: edgeId, version }
+    : null;
+}
+
 export function containsRelationCodesForObjectType(
   objectTypeCode: string,
 ): readonly string[] {
-  return [
-    `proposal_contains_${objectTypeCode}`,
-    proposalContainsRelationByObjectType[objectTypeCode],
-  ].filter((code, index, codes): code is string =>
-    Boolean(code && codes.indexOf(code) === index),
-  );
+  const code = proposalContainsRelationByObjectType[objectTypeCode];
+  return code ? [code] : [];
 }
 
 export function pickCreatedDiagramObjectId(params: {
@@ -826,6 +895,36 @@ export function refreshDiagramAfterRelationCreated(params: {
   params.scheduleRefresh(params.refreshViews, diagramRelationRefreshDelayMs);
 }
 
+export function removeDiagramRelationsLocally<
+  TRelation extends { readonly relationId: string },
+  TEdge extends { readonly id: string },
+>(params: {
+  readonly relations: readonly TRelation[];
+  readonly edges: readonly TEdge[];
+  readonly selectedEdgeIds: readonly string[];
+  readonly relationIds: readonly string[];
+}): {
+  readonly relations: readonly TRelation[];
+  readonly edges: readonly TEdge[];
+  readonly selectedEdgeIds: readonly string[];
+} {
+  const deletedIds = new Set(params.relationIds);
+  if (deletedIds.size === 0) {
+    return {
+      relations: params.relations,
+      edges: params.edges,
+      selectedEdgeIds: params.selectedEdgeIds,
+    };
+  }
+  return {
+    relations: params.relations.filter(
+      (relation) => !deletedIds.has(relation.relationId),
+    ),
+    edges: params.edges.filter((edge) => !deletedIds.has(edge.id)),
+    selectedEdgeIds: params.selectedEdgeIds.filter((id) => !deletedIds.has(id)),
+  };
+}
+
 export function optimisticDiagramObject(params: {
   readonly objectId: string;
   readonly objectType: string;
@@ -982,6 +1081,7 @@ export function DiagramPanel(): ReactElement {
     relationType,
     reportError,
     rootId,
+    templateCode,
     viewClient,
     workspaceId,
   } = context;
@@ -998,6 +1098,7 @@ export function DiagramPanel(): ReactElement {
   const [edges, setEdges, onEdgesChange] = useEdgesState<DiagramEdge>([]);
   const dataRef = useRef<DiagramData>(data);
   const nodesRef = useRef<readonly DiagramNode[]>(nodes);
+  const panelRef = useRef<HTMLElement | null>(null);
   const [gridEnabled, setGridEnabled] = useState(true);
   const [gridVariant, setGridVariant] = useState<BackgroundVariant>(
     BackgroundVariant.Dots,
@@ -1008,6 +1109,12 @@ export function DiagramPanel(): ReactElement {
   const [lineageTarget, setLineageTarget] = useState<LineageTarget | null>(
     null,
   );
+  const connectionMode = context.connectionMode;
+  const setConnectionMode = context.setConnectionMode;
+
+  useEffect(() => {
+    if (connectionMode) panelRef.current?.focus();
+  }, [connectionMode]);
 
   useEffect(() => {
     dataRef.current = data;
@@ -1033,15 +1140,20 @@ export function DiagramPanel(): ReactElement {
     let disposed = false;
     async function load(): Promise<void> {
       try {
-        const page = await viewClient.objects(workspaceId, objectType, 0, 100);
+        const objects = await loadDiagramObjects({
+          viewClient,
+          workspaceId,
+          templateCode,
+          objectType,
+        });
         const relations = await loadDiagramRelations({
           viewClient,
           workspaceId,
           relationType,
           rootId,
-          objects: page.items,
+          objects,
         });
-        if (!disposed) setData({ objects: page.items, relations });
+        if (!disposed) setData({ objects, relations });
       } catch (error) {
         if (!disposed) {
           reportError(
@@ -1061,6 +1173,7 @@ export function DiagramPanel(): ReactElement {
     relationType,
     reportError,
     rootId,
+    templateCode,
     viewClient,
     workspaceId,
   ]);
@@ -1334,9 +1447,82 @@ export function DiagramPanel(): ReactElement {
     await pasteClipboard();
   }
 
+  function removeRelationsFromCurrentDiagram(
+    relationIds: readonly string[],
+  ): void {
+    setData((current) => {
+      const next = {
+        ...current,
+        relations: removeDiagramRelationsLocally({
+          relations: current.relations,
+          edges: [],
+          selectedEdgeIds: [],
+          relationIds,
+        }).relations,
+      };
+      dataRef.current = next;
+      return next;
+    });
+    setEdges(
+      (current) =>
+        removeDiagramRelationsLocally({
+          relations: [],
+          edges: current,
+          selectedEdgeIds: [],
+          relationIds,
+        }).edges as DiagramEdge[],
+    );
+    setSelectedEdgeIds(
+      (current) =>
+        removeDiagramRelationsLocally({
+          relations: [],
+          edges: [],
+          selectedEdgeIds: current,
+          relationIds,
+        }).selectedEdgeIds,
+    );
+  }
+
+  function refreshDiagramAfterRelationDeleted(): void {
+    context.refreshViews();
+    window.setTimeout(context.refreshViews, diagramRelationRefreshDelayMs);
+  }
+
   async function deleteSelection(): Promise<void> {
+    const contextEdgeId =
+      menu?.context.kind === "edge" ? menu.context.edgeId : null;
+    if (contextEdgeId) {
+      const target = resolveEdgeDeletionTarget(
+        contextEdgeId,
+        dataRef.current.relations,
+        edges,
+      );
+      if (!target) {
+        toast.info("找不到该关系，请刷新后重试");
+        setMenu(null);
+        return;
+      }
+      try {
+        await context.commandClient.unlink(
+          context.workspaceId,
+          target.relationId,
+          target.version,
+        );
+        removeRelationsFromCurrentDiagram([target.relationId]);
+        refreshDiagramAfterRelationDeleted();
+        toast.success("连线已删除");
+      } catch (error) {
+        context.reportError(errorMessage(error, "删除关系失败"));
+      } finally {
+        setMenu(null);
+      }
+      return;
+    }
     if (selectedObjects.length === 0 && selectedRelations.length === 0) return;
     try {
+      const deletedRelationIds = selectedRelations.map(
+        (relation) => relation.relationId,
+      );
       await unlinkSelectedRelations(
         context.commandClient,
         context.workspaceId,
@@ -1349,8 +1535,9 @@ export function DiagramPanel(): ReactElement {
           object,
         );
       }
+      removeRelationsFromCurrentDiagram(deletedRelationIds);
       clearSelection();
-      context.refreshViews();
+      refreshDiagramAfterRelationDeleted();
       toast.success("已删除选择");
     } catch (error) {
       context.reportError(errorMessage(error, "删除选择失败"));
@@ -1390,6 +1577,11 @@ export function DiagramPanel(): ReactElement {
   }
 
   function handleKeyDown(event: ReactKeyboardEvent): void {
+    if (event.key === "Escape" && connectionMode) {
+      event.preventDefault();
+      setConnectionMode((current) => nextConnectionMode(current, "escape"));
+      return;
+    }
     const shortcut = diagramShortcutFromEvent(event.nativeEvent);
     if (!shortcut) return;
     event.preventDefault();
@@ -1397,6 +1589,10 @@ export function DiagramPanel(): ReactElement {
   }
 
   async function connectObjects(connection: Connection): Promise<void> {
+    if (!connectionMode) {
+      toast.info("请先进入连线模式");
+      return;
+    }
     try {
       let endpoints = resolveDiagramConnectionEndpoints({
         objects: dataRef.current.objects,
@@ -1404,15 +1600,15 @@ export function DiagramPanel(): ReactElement {
         connection,
       });
       if (!endpoints) {
-        const page = await context.viewClient.objects(
-          context.workspaceId,
-          context.objectType,
-          0,
-          100,
-        );
+        const reloadedObjects = await loadDiagramObjects({
+          viewClient: context.viewClient,
+          workspaceId: context.workspaceId,
+          templateCode: context.templateCode,
+          objectType: context.objectType,
+        });
         // E: 合并本地乐观对象(后端回读尚未返回的刚建对象),避免连线回读冲掉节点。
         const objects = mergeOptimisticDiagramObjects(
-          page.items,
+          reloadedObjects,
           dataRef.current.objects,
         );
         const reloadedRelations = await loadDiagramRelations({
@@ -1476,13 +1672,18 @@ export function DiagramPanel(): ReactElement {
       }
       // D: 用解析出的真实对象 id 建关系(而非 ReactFlow 的节点 id);
       // B: reversed 时已交换端点,保证关系方向正确。
-      const connected = await connectDiagramObjects(
+      const connectResult = await connectDiagramObjectsInMode(
         context.commandClient,
         context.workspaceId,
         inference.relationTypeId,
         { ...connection, source: oriented.fromId, target: oriented.toId },
+        connectionMode,
       );
-      if (connected) {
+      if (connectResult === "disabled") {
+        toast.info("请先进入连线模式");
+        return;
+      }
+      if (connectResult === "connected") {
         // A: 立即把新关系塞进 data.relations,连线即时显示,再由刷新对齐后端。
         const optimistic = optimisticDiagramRelation({
           relationType: inference.relationTypeCode,
@@ -1507,6 +1708,9 @@ export function DiagramPanel(): ReactElement {
           scheduleRefresh: (callback, delayMs) =>
             window.setTimeout(callback, delayMs),
         });
+        setConnectionMode((current) =>
+          nextConnectionMode(current, "connected"),
+        );
       }
     } catch (error) {
       context.reportError(
@@ -1522,7 +1726,8 @@ export function DiagramPanel(): ReactElement {
         context.workspaceId,
         deletedEdges,
       );
-      context.refreshViews();
+      removeRelationsFromCurrentDiagram(deletedEdges.map((edge) => edge.id));
+      refreshDiagramAfterRelationDeleted();
       toast.success("连线已删除");
     } catch (error) {
       context.reportError(
@@ -1536,47 +1741,59 @@ export function DiagramPanel(): ReactElement {
       aria-label="图面板"
       className="diagram-panel"
       onKeyDown={handleKeyDown}
+      ref={panelRef}
       tabIndex={0}
     >
-      <div
-        aria-label="维度"
-        className="diagram-dimension-switcher"
-        role="toolbar"
-      >
-        <span>维度:</span>
-        <button
-          aria-pressed={activeDimension === "all"}
-          onClick={() => setActiveDimension("all")}
-          type="button"
-        >
-          全部
-        </button>
-        {listDimensions().map((dimension) => (
-          <button
-            aria-pressed={activeDimension === dimension.id}
-            className={`dimension-button-${dimension.id}`}
-            key={dimension.id}
-            onClick={() => setActiveDimension(dimension.id)}
-            type="button"
+      {connectionMode ? (
+        <div className="diagram-connection-mode" role="status">
+          连接模式: 请从节点端口拖拽到另一个图元，按 Esc 退出。
+        </div>
+      ) : null}
+      {showDiagramDimensionControls ? (
+        <>
+          <div
+            aria-label="维度"
+            className="diagram-dimension-switcher"
+            role="toolbar"
           >
-            {dimension.label}
-          </button>
-        ))}
-      </div>
-      <div
-        className={[
-          "diagram-dimension-legend",
-          activeDimensionDefinition
-            ? `diagram-dimension-legend-${activeDimensionDefinition.id}`
-            : "",
-        ]
-          .filter(Boolean)
-          .join(" ")}
-      >
-        <span className="dimension-legend-ramp" aria-hidden="true" />
-        <strong>{activeDimensionDefinition?.label ?? "全部"}</strong>
-        <span>{activeDimensionDefinition?.description ?? "对象字段预览"}</span>
-      </div>
+            <span>维度:</span>
+            <button
+              aria-pressed={activeDimension === "all"}
+              onClick={() => setActiveDimension("all")}
+              type="button"
+            >
+              全部
+            </button>
+            {listDimensions().map((dimension) => (
+              <button
+                aria-pressed={activeDimension === dimension.id}
+                className={`dimension-button-${dimension.id}`}
+                key={dimension.id}
+                onClick={() => setActiveDimension(dimension.id)}
+                type="button"
+              >
+                {dimension.label}
+              </button>
+            ))}
+          </div>
+          <div
+            className={[
+              "diagram-dimension-legend",
+              activeDimensionDefinition
+                ? `diagram-dimension-legend-${activeDimensionDefinition.id}`
+                : "",
+            ]
+              .filter(Boolean)
+              .join(" ")}
+          >
+            <span className="dimension-legend-ramp" aria-hidden="true" />
+            <strong>{activeDimensionDefinition?.label ?? "全部"}</strong>
+            <span>
+              {activeDimensionDefinition?.description ?? "对象字段预览"}
+            </span>
+          </div>
+        </>
+      ) : null}
       <div className="diagram-grid-controls">
         <label>
           <input

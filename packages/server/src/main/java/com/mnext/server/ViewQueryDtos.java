@@ -63,6 +63,21 @@ record SimResultSeriesPointView(
 
 record ObjectDetailView(ObjectView object, List<RelationView> relations) {}
 
+record ObjectHistoryView(
+    String eventId,
+    long seq,
+    String kind,
+    String fieldCode,
+    Object before,
+    Object after,
+    String actorKind,
+    String actorId,
+    String actorDisplay,
+    String source,
+    long objectVersion,
+    UUID correlationId,
+    Instant occurredAt) {}
+
 record TreeNodeView(
     UUID sourceId, UUID targetId, int depth, String sourceName, String targetName) {}
 

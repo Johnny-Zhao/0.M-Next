@@ -157,6 +157,15 @@
   font-weight: 600;
 }
 
+.login-form button[type="submit"]:not(:disabled):hover,
+.home-header > button:not(:disabled):hover,
+.capability-create button[type="submit"]:not(:disabled):hover,
+.wizard-actions button:last-child:not(:disabled):hover {
+  background: var(--mn-accent-d);
+  border-color: var(--mn-accent-d);
+  color: var(--mn-surface);
+}
+
 .home-shell button:disabled {
   cursor: not-allowed;
   opacity: 0.58;

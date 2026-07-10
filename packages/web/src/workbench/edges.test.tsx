@@ -4,11 +4,14 @@ import type { ViewObject } from "@m-next/views";
 
 import {
   connectDiagramObjects,
+  connectDiagramObjectsInMode,
   containsRelationCodesForObjectType,
   defaultDiagramObjectFields,
   diagramConnectionRejection,
+  diagramObjectTypesForTemplate,
   diagramRelationCodesForVisibleObjects,
   inferDiagramRelationType,
+  loadDiagramObjects,
   loadDiagramRelations,
   mergeOptimisticDiagramObjects,
   mergeOptimisticDiagramRelations,
@@ -18,8 +21,10 @@ import {
   objectsAndRelationsToFlow,
   pickCreatedDiagramObjectId,
   relationLabel,
+  removeDiagramRelationsLocally,
   refreshDiagramAfterRelationCreated,
   resolveDiagramConnectionEndpoints,
+  resolveEdgeDeletionTarget,
   unlinkDiagramEdges,
   unlinkSelectedRelations,
   upsertOptimisticDiagramNode,
@@ -27,6 +32,7 @@ import {
   type DiagramEdge,
   type DiagramNode,
 } from "./diagram-panel";
+import { nextConnectionMode, paletteObjectForm } from "./diagram-tool-model";
 import { relationEdgeVisual, relationRoute } from "./edges";
 
 describe("diagram relation edges", () => {
@@ -41,9 +47,90 @@ describe("diagram relation edges", () => {
     expect(containsRelationCodesForObjectType("system")).toEqual([
       "proposal_contains_system",
     ]);
-    expect(containsRelationCodesForObjectType("interface")).toEqual([
-      "proposal_contains_interface",
+    expect(containsRelationCodesForObjectType("interface")).toEqual([]);
+    expect(containsRelationCodesForObjectType("requirement")).toEqual([]);
+  });
+
+  it("loads all visible technical proposal object types for the diagram", async () => {
+    const objects = vi.fn(async (_workspaceId: string, objectType: string) => ({
+      items: [typedObject(`${objectType}-1`, objectType, objectType)],
+      page: 0,
+      pageSize: 100,
+      total: 1,
+    }));
+
+    const loaded = await loadDiagramObjects({
+      viewClient: { objects },
+      workspaceId: "workspace-1",
+      templateCode: "technical_proposal",
+      objectType: "module",
+    });
+
+    expect(
+      diagramObjectTypesForTemplate("technical_proposal", "module"),
+    ).toEqual(["system", "module", "interface", "requirement"]);
+    expect(loaded.map((object) => object.objectType)).toEqual([
+      "system",
+      "module",
+      "interface",
+      "requirement",
     ]);
+    expect(objects).toHaveBeenCalledTimes(4);
+    expect(objects).toHaveBeenCalledWith("workspace-1", "system", 0, 100);
+    expect(objects).toHaveBeenCalledWith("workspace-1", "module", 0, 100);
+    expect(objects).toHaveBeenCalledWith("workspace-1", "interface", 0, 100);
+    expect(objects).toHaveBeenCalledWith("workspace-1", "requirement", 0, 100);
+  });
+
+  it("keeps non technical proposal diagrams scoped to the selected object type", async () => {
+    const objects = vi.fn(async (_workspaceId: string, objectType: string) => ({
+      items: [typedObject(`${objectType}-1`, objectType, objectType)],
+      page: 0,
+      pageSize: 100,
+      total: 1,
+    }));
+
+    await loadDiagramObjects({
+      viewClient: { objects },
+      workspaceId: "workspace-1",
+      templateCode: "interior_design",
+      objectType: "room",
+    });
+
+    expect(diagramObjectTypesForTemplate("interior_design", "room")).toEqual([
+      "room",
+    ]);
+    expect(objects).toHaveBeenCalledTimes(1);
+    expect(objects).toHaveBeenCalledWith("workspace-1", "room", 0, 100);
+  });
+
+  it("builds default palette creation forms", () => {
+    expect(paletteObjectForm("system", 0)).toEqual({
+      kind: "system",
+      values: { name: "新建分系统", responsibility: "" },
+    });
+    expect(paletteObjectForm("module", 0)).toMatchObject({
+      kind: "module",
+      values: { name: "新建组件", power_w: "0" },
+    });
+    expect(paletteObjectForm("interface", 0)).toMatchObject({
+      kind: "interface",
+      values: { name: "新建接口", direction: "out" },
+    });
+    expect(paletteObjectForm("requirement", 2)).toEqual({
+      kind: "requirement",
+      values: { code: "REQ-003", text: "新建需求", priority: "MUST" },
+    });
+  });
+
+  it("toggles and exits diagram connection mode", () => {
+    expect(nextConnectionMode(false, "toggle")).toBe(true);
+    expect(nextConnectionMode(true, "toggle")).toBe(false);
+    expect(nextConnectionMode(true, "escape")).toBe(false);
+    expect(nextConnectionMode(true, "connected")).toBe(true);
+    expect(nextConnectionMode(false, "connected")).toBe(false);
+    expect(nextConnectionMode(true, "selectTool")).toBe(false);
+    expect(nextConnectionMode(true, "viewChanged")).toBe(false);
   });
 
   it("resolves the freshly created object before attaching it to the root", () => {
@@ -66,6 +153,7 @@ describe("diagram relation edges", () => {
       relationType("rel-depends", "proposal_depends_on"),
       relationType("rel-interface", "proposal_interfaces_with"),
       relationType("rel-satisfies", "proposal_satisfies"),
+      relationType("rel-contains-module", "proposal_contains_module"),
     ];
 
     expect(
@@ -95,15 +183,36 @@ describe("diagram relation edges", () => {
     ).toMatchObject({ kind: "match", relationTypeId: "rel-satisfies" });
     expect(
       inferDiagramRelationType({
-        relationTypes: [
-          relationType("rel-contains-module", "proposal_contains_module"),
-        ],
+        relationTypes,
         sourceObjectType: "proposal_node",
         targetObjectType: "module",
       }),
     ).toMatchObject({
       kind: "match",
       relationTypeId: "rel-contains-module",
+    });
+    expect(
+      inferDiagramRelationType({
+        relationTypes,
+        sourceObjectType: "system",
+        targetObjectType: "module",
+      }),
+    ).toMatchObject({
+      kind: "match",
+      relationTypeCode: "proposal_contains_module",
+      relationTypeId: "rel-contains-module",
+    });
+    expect(
+      inferDiagramRelationType({
+        relationTypes,
+        sourceObjectType: "module",
+        targetObjectType: "system",
+      }),
+    ).toMatchObject({
+      kind: "match",
+      relationTypeCode: "proposal_contains_module",
+      relationTypeId: "rel-contains-module",
+      reversed: true,
     });
   });
 
@@ -113,6 +222,15 @@ describe("diagram relation edges", () => {
         relationTypes: [relationType("rel-depends", "proposal_depends_on")],
         sourceObjectType: "interface",
         targetObjectType: "requirement",
+      }),
+    ).toEqual({ kind: "none" });
+    expect(
+      inferDiagramRelationType({
+        relationTypes: [
+          relationType("rel-contains-module", "proposal_contains_module"),
+        ],
+        sourceObjectType: "system",
+        targetObjectType: "system",
       }),
     ).toEqual({ kind: "none" });
   });
@@ -156,6 +274,52 @@ describe("diagram relation edges", () => {
     );
 
     expect(connected).toBe(true);
+    expect(commandClient.createRelation).toHaveBeenCalledWith(
+      "workspace-1",
+      "depends_on",
+      "obj-a",
+      "obj-b",
+      "diagram",
+    );
+  });
+
+  it("does not create relations when connection mode is disabled", async () => {
+    const commandClient = diagramCommandClient();
+
+    const result = await connectDiagramObjectsInMode(
+      commandClient,
+      "workspace-1",
+      "depends_on",
+      {
+        source: "obj-a",
+        sourceHandle: "source-right",
+        target: "obj-b",
+        targetHandle: "target-left",
+      },
+      false,
+    );
+
+    expect(result).toBe("disabled");
+    expect(commandClient.createRelation).not.toHaveBeenCalled();
+  });
+
+  it("creates relations when connection mode is enabled", async () => {
+    const commandClient = diagramCommandClient();
+
+    const result = await connectDiagramObjectsInMode(
+      commandClient,
+      "workspace-1",
+      "depends_on",
+      {
+        source: "obj-a",
+        sourceHandle: "source-right",
+        target: "obj-b",
+        targetHandle: "target-left",
+      },
+      true,
+    );
+
+    expect(result).toBe("connected");
     expect(commandClient.createRelation).toHaveBeenCalledWith(
       "workspace-1",
       "depends_on",
@@ -397,8 +561,16 @@ describe("diagram relation edges", () => {
       relation("rel-2", "trace_to", "obj-a", "obj-c", 5),
     ]);
 
-    expect(commandClient.unlink).toHaveBeenCalledWith("workspace-1", "rel-1", 3);
-    expect(commandClient.unlink).toHaveBeenCalledWith("workspace-1", "rel-2", 5);
+    expect(commandClient.unlink).toHaveBeenCalledWith(
+      "workspace-1",
+      "rel-1",
+      3,
+    );
+    expect(commandClient.unlink).toHaveBeenCalledWith(
+      "workspace-1",
+      "rel-2",
+      5,
+    );
     // regression: previously deleteSelection sent expectedVersion=1 for every
     // relation, so any relation whose real version != 1 failed the kernel's
     // optimistic-lock check and the right-click "删除关系" appeared to do nothing.
@@ -407,6 +579,72 @@ describe("diagram relation edges", () => {
       expect.anything(),
       1,
     );
+  });
+
+  it("removes deleted relations, edges, and selected ids locally", () => {
+    const local = removeDiagramRelationsLocally({
+      relations: [
+        relation("rel-1", "proposal_depends_on", "module-a", "module-b", 2),
+        relation("rel-2", "proposal_satisfies", "module-a", "req-a", 1),
+      ],
+      edges: [edgeWithVersion("rel-1", 2), edgeWithVersion("rel-2", 1)],
+      selectedEdgeIds: ["rel-1", "rel-2"],
+      relationIds: ["rel-1"],
+    });
+
+    expect(local.relations.map((item) => item.relationId)).toEqual(["rel-2"]);
+    expect(local.edges.map((edge) => edge.id)).toEqual(["rel-2"]);
+    expect(local.selectedEdgeIds).toEqual(["rel-2"]);
+  });
+
+  it("keeps local relations when deletion has no successful target id", () => {
+    const relations = [
+      relation("rel-1", "proposal_depends_on", "module-a", "module-b", 2),
+    ];
+    const edges = [edgeWithVersion("rel-1", 2)];
+    const local = removeDiagramRelationsLocally({
+      relations,
+      edges,
+      selectedEdgeIds: ["rel-1"],
+      relationIds: [],
+    });
+
+    expect(local.relations).toBe(relations);
+    expect(local.edges).toBe(edges);
+    expect(local.selectedEdgeIds).toEqual(["rel-1"]);
+  });
+
+  it("resolves an edge deletion target from loaded relations first", () => {
+    const target = resolveEdgeDeletionTarget(
+      "rel-1",
+      [
+        relation("rel-1", "depends_on", "obj-a", "obj-b", 7),
+        relation("rel-2", "depends_on", "obj-a", "obj-c", 2),
+      ],
+      [edgeWithVersion("rel-1", 3)],
+    );
+
+    expect(target).toEqual({ relationId: "rel-1", version: 7 });
+  });
+
+  it("falls back to the rendered edge version for context-menu deletion", () => {
+    const target = resolveEdgeDeletionTarget(
+      "rel-rendered-only",
+      [relation("rel-1", "depends_on", "obj-a", "obj-b", 7)],
+      [edgeWithVersion("rel-rendered-only", 4)],
+    );
+
+    expect(target).toEqual({ relationId: "rel-rendered-only", version: 4 });
+  });
+
+  it("returns null when a context-menu edge cannot be resolved for deletion", () => {
+    expect(
+      resolveEdgeDeletionTarget(
+        "missing-rel",
+        [relation("rel-1", "depends_on", "obj-a", "obj-b", 7)],
+        [edgeWithVersion("rel-rendered-only", undefined)],
+      ),
+    ).toBeNull();
   });
 
   it("refuses to unlink a selected relation that lacks a usable version", async () => {
@@ -561,10 +799,7 @@ describe("diagram relation edges", () => {
       mergeOptimisticDiagramRelations(reloaded, current).map(
         (relation) => relation.relationId,
       ),
-    ).toEqual([
-      "rel-real",
-      "optimistic-rel:obj-c->obj-d:proposal_depends_on",
-    ]);
+    ).toEqual(["rel-real", "optimistic-rel:obj-c->obj-d:proposal_depends_on"]);
   });
 });
 

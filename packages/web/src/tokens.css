@@ -1,15 +1,17 @@
 /*
  * M-Next design tokens — Fluent / "Office 2026" direction.
- * Ported from Claude Design handoff (docs/design/平台UI-图元与令牌-ClaudeDesign.md).
- * Legacy --mnext-* names are preserved so existing components keep working;
- * values are aligned to the design and richer nuance tokens are added.
+ * Ported from Claude Design handoff (bs-ui / M-Next 工作台.dc.html).
+ * Palette refreshed to the latest handoff: single blue accent (#0F6CBD) with a
+ * systematic type ramp (subsystem indigo / component teal / interface magenta /
+ * requirement orange). Legacy --mnext-* names are preserved so existing
+ * components keep working; values are aligned to the design.
  */
 :root {
-  --mn-accent: #5b5fc7;
-  --mn-accent-d: #4549a0;
-  --mn-accent-bg: #eeeefb;
-  --mn-accent-bd: #c4c6ee;
-  --mn-accent-ring: rgba(91, 95, 199, 0.28);
+  --mn-accent: #0f6cbd;
+  --mn-accent-d: #0a538f;
+  --mn-accent-bg: #eef5fc;
+  --mn-accent-bd: #bad7f2;
+  --mn-accent-ring: rgba(15, 108, 189, 0.32);
   --mn-bg: #eeedeb;
   --mn-bg-1: #f3f2f0;
   --mn-surface: #ffffff;
@@ -23,8 +25,9 @@
   --mn-ink: #242424;
   --mn-ink-2: #57534f;
   --mn-ink-3: #8a8886;
-  --mn-ink-4: #6b6a68;
-  --mn-ok: #107c10;
+  --mn-ink-4: #b3b0ad;
+  --mn-ok: #0e700e;
+  --mn-ok-d: #107c10;
   --mn-ok-bg: #e2f4e0;
   --mn-ok-bd: #9bd49b;
   --mn-warn: #8a5a00;
@@ -89,6 +92,7 @@
   --accent-bd: var(--mn-accent-bd);
   --accent-ring: var(--mn-accent-ring);
   --ok: var(--mn-ok);
+  --ok-d: var(--mn-ok-d);
   --ok-bg: var(--mn-ok-bg);
   --ok-bd: var(--mn-ok-bd);
   --warn: var(--mn-warn);
@@ -154,13 +158,13 @@
   --mnext-stale-border: var(--mn-stale-bd);
   --mnext-neutral-bg: var(--mn-surface-2);
 
-  /* object type colors */
+  /* object type colors — systematic ramp per the handoff */
   --mnext-type-subsystem: #5b5fc7;
   --mnext-type-system: #5b5fc7;
-  --mnext-type-component: #0f6cbd;
-  --mnext-type-module: #0f6cbd;
-  --mnext-type-interface: #0e7c7b;
-  --mnext-type-requirement: #479ef5;
+  --mnext-type-component: #0e7c7b;
+  --mnext-type-module: #0e7c7b;
+  --mnext-type-interface: #b146c2;
+  --mnext-type-requirement: #ca5010;
   --mnext-edge: #57534f;
   --type-subsystem: var(--mnext-type-subsystem);
   --type-system: var(--mnext-type-system);
@@ -196,12 +200,13 @@
   --mn-ink-2: #c8c6c4;
   --mn-ink-3: #979593;
   --mn-ink-4: #6b6a68;
-  --mn-accent: #9ea2f0;
-  --mn-accent-d: #c4c6ff;
-  --mn-accent-bg: #25264a;
-  --mn-accent-bd: #4d50a8;
-  --mn-accent-ring: rgba(158, 162, 240, 0.38);
+  --mn-accent: #479ef5;
+  --mn-accent-d: #7dbaf7;
+  --mn-accent-bg: #10283c;
+  --mn-accent-bd: #2a4b68;
+  --mn-accent-ring: rgba(71, 158, 245, 0.42);
   --mn-ok: #73c173;
+  --mn-ok-d: #57ae57;
   --mn-ok-bg: #15300f;
   --mn-ok-bd: #2e5e2a;
   --mn-warn: #e6c45c;
@@ -270,10 +275,10 @@
 
   --mnext-type-subsystem: #9ea2f0;
   --mnext-type-system: #9ea2f0;
-  --mnext-type-component: #7dbaf7;
-  --mnext-type-module: #7dbaf7;
-  --mnext-type-interface: #4fd0cf;
-  --mnext-type-requirement: #479ef5;
+  --mnext-type-component: #4fd0cf;
+  --mnext-type-module: #4fd0cf;
+  --mnext-type-interface: #db8fe0;
+  --mnext-type-requirement: #f1894f;
   --mnext-edge: #c8c6c4;
 
   --mnext-shadow-node: var(--mn-shadow-node);

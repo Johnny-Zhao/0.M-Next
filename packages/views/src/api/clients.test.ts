@@ -36,6 +36,47 @@ describe("view and command clients", () => {
     expect(() => client.objects("ws", "demo_object", 0, 201)).toThrow();
   });
 
+  it("reads paged object history scoped to an object and caps page size", async () => {
+    const fetchFn = vi.fn<FetchFn>(
+      async () =>
+        new Response(
+          JSON.stringify({
+            items: [
+              {
+                eventId: "ev-1",
+                seq: 7,
+                kind: "edit",
+                fieldCode: "budget",
+                before: 5,
+                after: 8,
+                actorKind: "user",
+                actorId: "u-1",
+                actorDisplay: "叶工程师",
+                source: "manual",
+                objectVersion: 3,
+                correlationId: "corr-1",
+                occurredAt: "2026-06-21T00:00:00Z",
+              },
+            ],
+            page: 0,
+            pageSize: 30,
+            total: 1,
+          }),
+        ),
+    );
+    const client = new ViewClient("/api", fetchFn);
+
+    const history = await client.objectHistory("ws", "obj-1");
+
+    expect(fetchFn.mock.calls[0]?.[0]).toBe(
+      "/api/workspaces/ws/views/objects/obj-1/history?page=0&size=30",
+    );
+    expect(history.items[0]?.kind).toBe("edit");
+    expect(history.items[0]?.fieldCode).toBe("budget");
+    expect(history.items[0]?.actorDisplay).toBe("叶工程师");
+    expect(() => client.objectHistory("ws", "obj-1", 0, 101)).toThrow();
+  });
+
   it("reads bounded rule statuses in batch", async () => {
     const fetchFn = vi.fn<FetchFn>(
       async () =>

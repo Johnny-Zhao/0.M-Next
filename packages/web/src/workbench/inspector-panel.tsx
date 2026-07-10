@@ -6,6 +6,8 @@ import {
   ConflictDialog,
   type ConflictField,
   type ObjectDetail,
+  type ObjectHistoryEntry,
+  type ObjectHistoryPage,
   type ObjectType,
   type RelationSummary,
   updateSingleField,
@@ -22,6 +24,11 @@ import {
 import { useToast } from "../toast";
 import { isDerivedField } from "./diagram-panel";
 import { LineageView } from "./lineage-view";
+import {
+  historyEntryText,
+  historyKindMeta,
+  provenanceChain,
+} from "./object-history";
 import { ProvenancePassport, RuleLamp } from "./widgets";
 import { useWorkbenchContext } from "./workbench";
 
@@ -163,7 +170,16 @@ export function handleInspectorFieldSaved(
   return callbacks.autoCheckAfterSave();
 }
 
-const MUTED = { opacity: 0.65, fontSize: "0.85em" } as const;
+export type InspectorTab = "props" | "passport" | "history";
+
+const inspectorTabs: readonly {
+  readonly id: InspectorTab;
+  readonly label: string;
+}[] = [
+  { id: "props", label: "属性" },
+  { id: "passport", label: "版本" },
+  { id: "history", label: "历史" },
+];
 
 export function InspectorPanel(): ReactElement {
   const context = useWorkbenchContext();
@@ -174,6 +190,8 @@ export function InspectorPanel(): ReactElement {
   const [message, setMessage] = useState("");
   const [lineageFieldCode, setLineageFieldCode] = useState<string | null>(null);
   const [objectTypes, setObjectTypes] = useState<readonly ObjectType[]>([]);
+  const [tab, setTab] = useState<InspectorTab>("props");
+  const [history, setHistory] = useState<ObjectHistoryPage | null>(null);
 
   // 字段类型定义:保存数值字段前用它把字符串转 number(见 FieldEditor / saveInspectorField)。
   useEffect(() => {
@@ -210,8 +228,13 @@ export function InspectorPanel(): ReactElement {
             .then(setDetail)
             .catch(() => setDetail(null))
             .finally(() => setLoading(false));
+          void context.viewClient
+            .objectHistory(context.workspaceId, selected.entityId)
+            .then(setHistory)
+            .catch(() => setHistory(null));
         } else {
           setDetail(null);
+          setHistory(null);
         }
       }),
     [
@@ -286,6 +309,10 @@ export function InspectorPanel(): ReactElement {
       .object(context.workspaceId, object.objectId)
       .then(setDetail)
       .catch(() => {});
+    void context.viewClient
+      .objectHistory(context.workspaceId, object.objectId)
+      .then(setHistory)
+      .catch(() => {});
   };
   const onFieldSaved = (code: string): void => {
     void handleInspectorFieldSaved(code, {
@@ -297,117 +324,202 @@ export function InspectorPanel(): ReactElement {
       autoCheckAfterSave: context.autoCheckAfterSave,
     });
   };
+  const chain = history ? provenanceChain(history.items) : [];
+  const historyRow = (item: ObjectHistoryEntry): ReactElement => {
+    const meta = historyKindMeta(item.kind);
+    return (
+      <li className="history-row" key={item.eventId}>
+        <span
+          aria-hidden="true"
+          className={`history-dot history-tone-${meta.tone}`}
+          title={meta.label}
+        >
+          {meta.glyph}
+        </span>
+        <div className="history-body">
+          <div className="history-text">
+            {historyEntryText(item, fieldLabel)}
+          </div>
+          <div className="history-meta">
+            {item.actorDisplay ?? item.actorId ?? sourceLabel(item.source)} ·{" "}
+            {relativeTime(item.occurredAt)} · v{item.objectVersion}
+          </div>
+        </div>
+      </li>
+    );
+  };
   return (
-    <aside aria-label="属性/校验面板" className="inspector-panel">
-      <h2>{objectDisplayTitle(object)}</h2>
-      <p className="inspector-passport">
-        {dataStatusLabel(object.status)} · v{object.version}
-      </p>
-      <section aria-label="来源" className="inspector-section">
-        <h3>来源 · 护照</h3>
-        <ProvenancePassport
-          downstream={detail.relations.length}
-          freshness={relativeTime(object.updatedAt)}
-          source={sourceLabel(object.source)}
-        />
-        <dl className="passport-grid">
-          <div>
-            <dt>来源</dt>
-            <dd>
-              <span
-                className={`source-badge source-${object.source ?? "unknown"}`}
-              >
-                {sourceLabel(object.source)}
-              </span>
-            </dd>
-          </div>
-          <div>
-            <dt>新鲜度</dt>
-            <dd>{relativeTime(object.updatedAt)}</dd>
-          </div>
-          <div>
-            <dt>下游</dt>
-            <dd>↓{detail.relations.length}</dd>
-          </div>
-          <div>
-            <dt>版本</dt>
-            <dd>v{object.version}</dd>
-          </div>
-        </dl>
-      </section>
-      <section aria-label="规则态" className="inspector-section">
-        <h3>校验</h3>
-        <RuleLamp status={object.ruleStatus} />
-      </section>
-      <section aria-label="字段" className="inspector-section">
-        <h3>字段</h3>
-        {stored.length === 0 && derived.length === 0 ? <p>无字段</p> : null}
-        {stored.length > 0 ? (
-          <div aria-label="存储字段">
-            <h4 style={MUTED}>存储</h4>
-            {stored.map(([code, value]) => (
-              <FieldEditor
-                fieldCode={code}
-                fieldLabel={fieldLabel(code)}
-                key={code}
-                object={object}
-                onSaved={() => onFieldSaved(code)}
-                reportError={context.reportError}
-                value={value}
-                workspaceId={context.workspaceId}
-                commandClient={context.commandClient}
-                dataType={fieldDataType(code)}
-              />
-            ))}
-          </div>
-        ) : null}
-        {derived.length > 0 ? (
-          <div aria-label="派生字段">
-            <h4 style={MUTED}>派生 (fx · 后端实时)</h4>
-            {derived.map(([code, value]) => (
-              <div className="derived-field" key={code}>
-                <FieldEditor
-                  fieldCode={code}
-                  fieldLabel={fieldLabel(code)}
-                  object={object}
-                  onSaved={() => onFieldSaved(code)}
-                  reportError={context.reportError}
-                  value={value}
-                  workspaceId={context.workspaceId}
-                  commandClient={context.commandClient}
-                  dataType={fieldDataType(code)}
-                />
-                <button
-                  className="field-lineage-toggle"
-                  onClick={() => setLineageFieldCode(code)}
-                  type="button"
-                >
-                  血缘
-                </button>
-              </div>
-            ))}
-          </div>
-        ) : null}
-      </section>
-      <section aria-label="关系" className="inspector-section">
-        <h3>关系</h3>
-        {detail.relations.length === 0 ? <p>无关系</p> : null}
-        {detail.relations.map((relation) => (
+    <aside
+      aria-label="属性/校验面板"
+      className="inspector-panel inspector-panel-tabbed"
+    >
+      <header className="inspector-head">
+        <h2>{objectDisplayTitle(object)}</h2>
+        <p className="inspector-passport">
+          {dataStatusLabel(object.status)} · v{object.version}
+        </p>
+      </header>
+      <div aria-label="属性视图" className="inspector-tabs" role="tablist">
+        {inspectorTabs.map((entry) => (
           <button
-            key={relation.relationId}
-            onClick={() =>
-              context.selection.select({
-                entityType: "relation",
-                entityId: relation.relationId,
-              })
-            }
+            aria-selected={tab === entry.id}
+            className="inspector-tab"
+            key={entry.id}
+            onClick={() => setTab(entry.id)}
+            role="tab"
             type="button"
           >
-            {safeVisibleText(relation.relationType, "关系")}:{" "}
-            {relationEndpointsLabel(relation)}
+            {entry.label}
+            {entry.id === "history" && history && history.total > 0 ? (
+              <span className="inspector-tab-count">{history.total}</span>
+            ) : null}
           </button>
         ))}
-      </section>
+      </div>
+      <div className="inspector-tab-body" role="tabpanel">
+        {tab === "props" ? (
+          <>
+            <section aria-label="规则态" className="inspector-section">
+              <h3>校验</h3>
+              <RuleLamp status={object.ruleStatus} />
+            </section>
+            <section aria-label="字段" className="inspector-section">
+              <h3>字段</h3>
+              {stored.length === 0 && derived.length === 0 ? (
+                <p>无字段</p>
+              ) : null}
+              {stored.length > 0 ? (
+                <div aria-label="存储字段">
+                  <h4>字段 · 存储值</h4>
+                  {stored.map(([code, value]) => (
+                    <FieldEditor
+                      fieldCode={code}
+                      fieldLabel={fieldLabel(code)}
+                      key={code}
+                      object={object}
+                      onSaved={() => onFieldSaved(code)}
+                      reportError={context.reportError}
+                      value={value}
+                      workspaceId={context.workspaceId}
+                      commandClient={context.commandClient}
+                      dataType={fieldDataType(code)}
+                    />
+                  ))}
+                </div>
+              ) : null}
+              {derived.length > 0 ? (
+                <div aria-label="派生字段">
+                  <h4 className="inspector-derived-head">
+                    派生值{" "}
+                    <span className="inspector-live-badge">后端实时</span>
+                  </h4>
+                  {derived.map(([code, value]) => (
+                    <div className="derived-field" key={code}>
+                      <FieldEditor
+                        fieldCode={code}
+                        fieldLabel={fieldLabel(code)}
+                        object={object}
+                        onSaved={() => onFieldSaved(code)}
+                        reportError={context.reportError}
+                        value={value}
+                        workspaceId={context.workspaceId}
+                        commandClient={context.commandClient}
+                        dataType={fieldDataType(code)}
+                      />
+                      <button
+                        className="field-lineage-toggle"
+                        onClick={() => setLineageFieldCode(code)}
+                        type="button"
+                      >
+                        血缘
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+            </section>
+            <section aria-label="关系" className="inspector-section">
+              <h3>关系</h3>
+              {detail.relations.length === 0 ? <p>无关系</p> : null}
+              {detail.relations.map((relation) => (
+                <button
+                  key={relation.relationId}
+                  onClick={() =>
+                    context.selection.select({
+                      entityType: "relation",
+                      entityId: relation.relationId,
+                    })
+                  }
+                  type="button"
+                >
+                  {safeVisibleText(relation.relationType, "关系")}:{" "}
+                  {relationEndpointsLabel(relation)}
+                </button>
+              ))}
+            </section>
+          </>
+        ) : null}
+        {tab === "passport" ? (
+          <>
+            <section aria-label="来源" className="inspector-section">
+              <h3>来源 · 护照</h3>
+              <ProvenancePassport
+                downstream={detail.relations.length}
+                freshness={relativeTime(object.updatedAt)}
+                source={sourceLabel(object.source)}
+              />
+              <dl className="passport-grid">
+                <div>
+                  <dt>来源</dt>
+                  <dd>
+                    <span
+                      className={`source-badge source-${
+                        object.source ?? "unknown"
+                      }`}
+                    >
+                      {sourceLabel(object.source)}
+                    </span>
+                  </dd>
+                </div>
+                <div>
+                  <dt>新鲜度</dt>
+                  <dd>{relativeTime(object.updatedAt)}</dd>
+                </div>
+                <div>
+                  <dt>下游</dt>
+                  <dd>↓{detail.relations.length}</dd>
+                </div>
+                <div>
+                  <dt>版本</dt>
+                  <dd>v{object.version}</dd>
+                </div>
+              </dl>
+            </section>
+            <section aria-label="来源链" className="inspector-section">
+              <h3>来源链</h3>
+              {chain.length === 0 ? (
+                <p className="inspector-empty">暂无来源里程碑记录。</p>
+              ) : (
+                <ol className="history-timeline">{chain.map(historyRow)}</ol>
+              )}
+            </section>
+          </>
+        ) : null}
+        {tab === "history" ? (
+          <section aria-label="变更历史" className="inspector-section">
+            <h3>变更历史</h3>
+            {history === null ? (
+              <p className="inspector-empty">加载中…</p>
+            ) : history.items.length === 0 ? (
+              <p className="inspector-empty">该图元暂无变更记录。</p>
+            ) : (
+              <ol className="history-timeline">
+                {history.items.map(historyRow)}
+              </ol>
+            )}
+          </section>
+        ) : null}
+      </div>
       {message ? <p role="status">{message}</p> : null}
       {lineageFieldCode ? (
         <LineageView

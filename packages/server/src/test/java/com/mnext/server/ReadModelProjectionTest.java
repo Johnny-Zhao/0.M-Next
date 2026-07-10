@@ -3,9 +3,11 @@ package com.mnext.server;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -59,6 +61,97 @@ class ReadModelProjectionTest {
             any());
     verify(repository)
         .updateRelationStatus(eq(WORKSPACE), eq(RELATION), eq("UNLINKED"), eq(2L), any());
+  }
+
+  @Test
+  void projectsObjectHistoryAlongsideReadModels() {
+    when(repository.objectTypeCode(WORKSPACE, OBJECT_TYPE)).thenReturn("requirement");
+    when(repository.relationType(WORKSPACE, RELATION_TYPE))
+        .thenReturn(new ReadModelRepository.RelationTypeProjection("decomposes", true));
+
+    projection.apply(event("e1", "ObjectCreated", "object", OBJECT, 1, objectAfter()));
+    projection.apply(event("e2", "FieldChanged", "fieldValue", OBJECT, 2, fieldAfter()));
+    projection.apply(
+        event("e3", "StateChanged", "object", OBJECT, 3, Map.of("status", "CONFIRMED")));
+    projection.apply(event("e4", "RelationCreated", "relation", RELATION, 1, relationAfter()));
+    projection.apply(
+        event("e5", "RelationUnlinked", "relation", RELATION, 2, Map.of("status", "UNLINKED")));
+
+    // create / edit / state 各落一行,归属被改对象;actor/source 来自信封
+    verify(repository)
+        .insertHistory(
+            eq(WORKSPACE),
+            eq(OBJECT),
+            anyLong(),
+            eq("e1"),
+            eq("create"),
+            any(),
+            any(),
+            any(),
+            eq("user"),
+            eq("actor"),
+            any(),
+            eq("manual"),
+            eq(1L),
+            any(),
+            any());
+    verify(repository)
+        .insertHistory(
+            eq(WORKSPACE),
+            eq(OBJECT),
+            anyLong(),
+            eq("e2"),
+            eq("edit"),
+            eq("budget"),
+            any(),
+            any(),
+            eq("user"),
+            eq("actor"),
+            any(),
+            eq("manual"),
+            eq(2L),
+            any(),
+            any());
+    verify(repository)
+        .insertHistory(
+            eq(WORKSPACE),
+            eq(OBJECT),
+            anyLong(),
+            eq("e3"),
+            eq("state"),
+            any(),
+            any(),
+            any(),
+            eq("user"),
+            eq("actor"),
+            any(),
+            eq("manual"),
+            eq(3L),
+            any(),
+            any());
+    // 关系创建在两端各落一行
+    verify(repository, times(2))
+        .insertHistory(
+            eq(WORKSPACE),
+            any(),
+            anyLong(),
+            eq("e4"),
+            eq("link"),
+            any(),
+            any(),
+            any(),
+            eq("user"),
+            eq("actor"),
+            any(),
+            eq("manual"),
+            eq(1L),
+            any(),
+            any());
+    // 解除关系:读模型未提供端点(mock 返回 null)→ 不落行,不越权臆造
+    verify(repository, never())
+        .insertHistory(
+            any(), any(), anyLong(), eq("e5"), any(), any(), any(), any(), any(), any(), any(),
+            any(), anyLong(), any(), any());
   }
 
   @Test
