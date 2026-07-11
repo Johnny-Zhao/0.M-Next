@@ -166,7 +166,7 @@ const products: readonly DataObject[] = [
     status: "dev",
     fields: {
       sku: "DL-S3-LITE",
-      name: "S3 Lite",
+      name: "门锁 S3 Lite",
       price: 899,
       battery_months: 12,
       rating: "IP54",
@@ -407,14 +407,16 @@ export const demoSeed: DemoSeed = {
       ],
       defaultViewId: "view-dashboard-bi",
       defaultForm: "bi",
+      activityMember: "wangyun",
       lastActivity: "续航 12→14 + 看板加卡",
     },
     {
       id: "exp-spec-doc",
       name: "智能门锁 S3 产品规格书",
-      viewIds: ["view-spec-doc"],
+      viewIds: ["view-spec-doc", "view-spec-grid"],
       defaultViewId: "view-spec-doc",
       defaultForm: "doc",
+      activityMember: "wangyun",
       lastActivity: "售价同步为 ¥1,199",
     },
     {
@@ -423,6 +425,7 @@ export const demoSeed: DemoSeed = {
       viewIds: ["view-agreement-doc", "view-agreement-grid"],
       defaultViewId: "view-agreement-doc",
       defaultForm: "doc",
+      activityMember: "lixiao",
       lastActivity: "AI 导入新增报价合同",
     },
     {
@@ -431,6 +434,7 @@ export const demoSeed: DemoSeed = {
       viewIds: ["view-weekly-doc", "view-weekly-bi"],
       defaultViewId: "view-weekly-doc",
       defaultForm: "doc",
+      activityMember: "chenmo",
       lastActivity: "渠道销量缓存待修复",
     },
     {
@@ -439,6 +443,7 @@ export const demoSeed: DemoSeed = {
       viewIds: ["view-portal-canvas"],
       defaultViewId: "view-portal-canvas",
       defaultForm: "canvas",
+      activityMember: "chenmo",
       lastActivity: "S3 与 G2 建立互联",
     },
     {
@@ -447,6 +452,7 @@ export const demoSeed: DemoSeed = {
       viewIds: ["view-inventory-matrix"],
       defaultViewId: "view-inventory-matrix",
       defaultForm: "matrix",
+      activityMember: "wangyun",
       lastActivity: "停产列透明显示",
     },
   ],
@@ -476,6 +482,7 @@ export const demoSeed: DemoSeed = {
       config: {},
     },
     { id: "view-spec-doc", exprId: "exp-spec-doc", kind: "doc", config: {} },
+    { id: "view-spec-grid", exprId: "exp-spec-doc", kind: "grid", config: {} },
     {
       id: "view-agreement-doc",
       exprId: "exp-agreement",

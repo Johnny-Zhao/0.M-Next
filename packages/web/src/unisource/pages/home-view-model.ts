@@ -1,4 +1,5 @@
 import type { ChangeSetState } from "../state/changeset-store";
+import type { Member } from "../model/view-layer";
 import type { UsFormKind } from "../routes-paths";
 import type { SessionState } from "../state/session-store";
 import type { WorkspaceState } from "../state/workspace-store";
@@ -10,6 +11,7 @@ export interface HomeExprCardVm {
   readonly defaultForm: string;
   readonly lastActivity: string;
   readonly avatarLabel: string;
+  readonly activityAvatar: Member["avatar"];
 }
 
 export interface HomeSourceTileVm {
@@ -50,21 +52,26 @@ export function deriveHomeVm(
     pendingAiCount: pending.filter((changeSet) => changeSet.source === "ai")
       .length,
     fieldRefCount: workspace.fieldRefs.length,
-    expressions: workspace.expressions.map((expression) => ({
-      id: expression.id,
-      name: expression.name,
-      forms: expression.viewIds
+    expressions: workspace.expressions.map((expression) => {
+      const forms = expression.viewIds
         .map(
           (viewId) => workspace.views.find((view) => view.id === viewId)?.kind,
         )
-        .filter((form): form is UsFormKind => form !== undefined),
-      defaultForm: expression.defaultForm,
-      lastActivity: expression.lastActivity,
-      avatarLabel:
-        workspace.members
-          .find((candidate) => candidate.id === "wangyun")
-          ?.name.slice(0, 1) ?? "王",
-    })),
+        .filter((form): form is UsFormKind => form !== undefined);
+      const activityMember =
+        workspace.members.find(
+          (candidate) => candidate.id === expression.activityMember,
+        ) ?? workspace.members[0];
+      return {
+        id: expression.id,
+        name: expression.name,
+        forms: preferDefaultForm(forms, expression.defaultForm),
+        defaultForm: expression.defaultForm,
+        lastActivity: expression.lastActivity,
+        avatarLabel: activityMember?.name.slice(0, 1) ?? "?",
+        activityAvatar: activityMember?.avatar ?? "ai",
+      };
+    }),
     sources: workspace.objectTypes.map((type) => {
       const objects = workspace.objects.filter(
         (object) => object.objectTypeCode === type.code,
@@ -84,6 +91,17 @@ export function deriveHomeVm(
       };
     }),
   };
+}
+
+function preferDefaultForm(
+  forms: readonly UsFormKind[],
+  defaultForm: UsFormKind,
+): readonly UsFormKind[] {
+  const unique = Array.from(new Set(forms));
+  return [
+    defaultForm,
+    ...unique.filter((candidate) => candidate !== defaultForm),
+  ];
 }
 
 function sourceStatus(code: string): {

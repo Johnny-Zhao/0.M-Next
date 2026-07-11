@@ -1,15 +1,24 @@
+import { useMemo, useState } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 
+import { DataGrid } from "../grid/data-grid";
+import { GridStatusBar } from "../grid/grid-status-bar";
+import { GridToolbar } from "../grid/grid-toolbar";
+import { buildGridViewModel } from "../grid/grid-view-model";
 import { parseFormParam } from "../routes-paths";
 import { FormRow, nextFormSearch } from "../shell/form-row";
 import { WorkspaceLayout } from "../shell/layouts";
+import { useSelectionSnapshot } from "../state/selection-store";
 import { useWorkspaceSnapshot } from "../state/workspace-store";
 import { PageSkeleton } from "./page-skeleton";
 
 export function SourcePage() {
   const { sourceId } = useParams<{ sourceId: string }>();
   const [search, setSearch] = useSearchParams();
+  const [query, setQuery] = useState("");
+  const [hideEol, setHideEol] = useState(false);
   const snapshot = useWorkspaceSnapshot();
+  const selection = useSelectionSnapshot();
   const objectType = snapshot.objectTypes.find(
     (type) => type.code === sourceId,
   );
@@ -22,6 +31,26 @@ export function SourcePage() {
     title: member.name,
   }));
   const form = parseFormParam(search, "grid");
+  const selectedIds = useMemo(
+    () =>
+      new Set(
+        selection.selected
+          .filter((item) => item.entityType === "object")
+          .map((item) => item.entityId),
+      ),
+    [selection.selected],
+  );
+  const status =
+    objectType === undefined
+      ? null
+      : buildGridViewModel({
+          objectType,
+          objects,
+          selectedIds,
+          fieldRefs: snapshot.fieldRefs,
+          search: query,
+          hideEol,
+        }).status;
   return (
     <WorkspaceLayout
       sidebarTab="data"
@@ -48,11 +77,29 @@ export function SourcePage() {
         </FormRow>
       }
     >
-      <PageSkeleton
-        kicker="GRID · v3"
-        title={`表格视图 · ${objectType?.name ?? "未知库"}`}
-        desc="P1 实现:HOW 形式行、工具栏(记录集/筛选/排序/分组)、DataGrid(选中青绿左沿/编辑琥珀描边/字段类型表头)与底部统计条。"
-      />
+      {objectType ? (
+        <section className="us-grid-shell">
+          <GridToolbar
+            hideEol={hideEol}
+            onSearch={setQuery}
+            onToggleHideEol={() => setHideEol((value) => !value)}
+            search={query}
+          />
+          <DataGrid
+            hideEol={hideEol}
+            objectType={objectType}
+            objects={objects}
+            search={query}
+          />
+          {status ? <GridStatusBar status={status} /> : null}
+        </section>
+      ) : (
+        <PageSkeleton
+          kicker="GRID"
+          title="找不到数据源"
+          desc="请从左侧数据源重新打开。"
+        />
+      )}
     </WorkspaceLayout>
   );
 }

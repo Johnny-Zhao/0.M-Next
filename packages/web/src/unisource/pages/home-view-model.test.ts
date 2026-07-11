@@ -23,6 +23,11 @@ describe("deriveHomeVm", () => {
     expect(
       vm.sources.find((source) => source.code === "product_specs")?.count,
     ).toBe(8);
+    expect(vm.expressions[0]?.forms[0]).toBe("bi");
+    expect(
+      vm.expressions.find((expression) => expression.id === "exp-agreement")
+        ?.activityAvatar,
+    ).toBe("li");
   });
 
   it("uses the current session member for the greeting", () => {

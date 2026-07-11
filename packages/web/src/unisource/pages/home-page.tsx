@@ -91,7 +91,7 @@ export function HomePage() {
                   <span className="us-home-expr__foot">
                     <UsAvatar
                       label={expression.avatarLabel}
-                      member="wang"
+                      member={expression.activityAvatar}
                       size="sm"
                     />
                     {expression.lastActivity}

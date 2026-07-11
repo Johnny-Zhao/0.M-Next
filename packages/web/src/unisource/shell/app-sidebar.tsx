@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { NavLink } from "react-router-dom";
+import { NavLink, useLocation } from "react-router-dom";
 
 import { UsInput, UsSegmented } from "../primitives";
 import { usPaths } from "../routes-paths";
@@ -25,6 +25,7 @@ export function AppSidebar({
 }) {
   const [tab, setTab] = useState<SidebarTab>(defaultTab);
   const snapshot = useWorkspaceSnapshot();
+  const location = useLocation();
   const centerOrder = Array.from(
     new Set(snapshot.objectTypes.map((type) => type.group)),
   );
@@ -84,16 +85,23 @@ export function AppSidebar({
               <div className="us-sidebar__section">{center}</div>
               {snapshot.objectTypes
                 .filter((type) => type.group === center)
-                .map((type) => (
-                  <NavLink
-                    key={type.code}
-                    to={usPaths.source(type.code)}
-                    className="us-navitem us-navitem--indent"
-                  >
-                    <span className="us-navitem__dot" aria-hidden />
-                    <span className="us-navitem__label">{type.name}</span>
-                  </NavLink>
-                ))}
+                .map((type) => {
+                  const isOpen =
+                    location.pathname === usPaths.source(type.code);
+                  return (
+                    <NavLink
+                      key={type.code}
+                      to={usPaths.source(type.code)}
+                      className="us-navitem us-navitem--indent"
+                    >
+                      <span className="us-navitem__dot" aria-hidden />
+                      <span className="us-navitem__label">{type.name}</span>
+                      {isOpen ? (
+                        <span className="us-navitem__tag">打开中</span>
+                      ) : null}
+                    </NavLink>
+                  );
+                })}
             </div>
           ))
         )}

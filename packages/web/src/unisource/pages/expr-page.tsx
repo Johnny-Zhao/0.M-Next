@@ -3,8 +3,10 @@ import { useParams, useSearchParams } from "react-router-dom";
 import { UsMonoTag } from "../primitives";
 import { parseFormParam } from "../routes-paths";
 import { FormRow, nextFormSearch } from "../shell/form-row";
+import { LayoutToggle, nextLayoutSearch } from "../shell/layout-toggle";
 import { UsInspector } from "../shell/inspector";
 import { WorkspaceLayout } from "../shell/layouts";
+import { SplitDocument, SplitView } from "../split/split-view";
 import { useWorkspaceSnapshot } from "../state/workspace-store";
 import { PageSkeleton } from "./page-skeleton";
 
@@ -29,6 +31,7 @@ export function ExprPage() {
     (candidate) => candidate.id === exprId,
   );
   const form = parseFormParam(search, expr?.defaultForm ?? "doc");
+  const split = search.get("layout") === "split";
   const forms = Array.from(
     new Set(
       expr?.viewIds
@@ -45,6 +48,13 @@ export function ExprPage() {
     label: member.name.slice(0, 1),
     title: member.name,
   }));
+  const canSplit = forms.includes("doc") && forms.includes("grid");
+  const syncedRefs =
+    exprId === undefined
+      ? 0
+      : snapshot.fieldRefs.filter(
+          (ref) => ref.exprId === exprId && ref.state === "justSynced",
+        ).length;
 
   const inspector =
     form === "canvas" ? (
@@ -95,7 +105,13 @@ export function ExprPage() {
           { label: "表达" },
           { label: expr?.name ?? exprId ?? "未知表达" },
         ],
-        sync: { state: "ok", label: expr?.lastActivity ?? "已同步" },
+        sync: {
+          state: syncedRefs > 0 ? "change" : "ok",
+          label:
+            syncedRefs > 0
+              ? `刚刚同步 ${syncedRefs} 处引用`
+              : (expr?.lastActivity ?? "已同步"),
+        },
         people,
       }}
       inspector={inspector}
@@ -106,19 +122,36 @@ export function ExprPage() {
           onFormChange={(next) =>
             setSearch(nextFormSearch(search.toString(), next))
           }
-        />
+        >
+          {canSplit && form === "doc" ? (
+            <LayoutToggle
+              onToggle={(next) =>
+                setSearch(nextLayoutSearch(search.toString(), next))
+              }
+              split={split}
+            />
+          ) : null}
+        </FormRow>
       }
     >
-      <PageSkeleton
-        kicker={`EXPR · form=${form}`}
-        title={
-          <>
-            {expr?.name ?? "未知表达"}{" "}
-            <UsMonoTag active>{FORM_LABEL[form] ?? form}</UsMonoTag>
-          </>
-        }
-        desc="P1/P2 实现:HOW 形式行与各描述形式主区(文档/分屏/画布/矩阵/BI/分析);URL form= 与界面状态双向同步(本页已生效)。"
-      />
+      {form === "doc" && split && expr ? (
+        <SplitView exprId={expr.id} />
+      ) : form === "doc" && expr ? (
+        <section className="us-splitview us-splitview--single">
+          <SplitDocument exprId={expr.id} justSynced={syncedRefs} />
+        </section>
+      ) : (
+        <PageSkeleton
+          kicker={`EXPR · form=${form}`}
+          title={
+            <>
+              {expr?.name ?? "未知表达"}{" "}
+              <UsMonoTag active>{FORM_LABEL[form] ?? form}</UsMonoTag>
+            </>
+          }
+          desc="P1/P2 实现:HOW 形式行与各描述形式主区(文档/分屏/画布/矩阵/BI/分析);URL form= 与界面状态双向同步(本页已生效)。"
+        />
+      )}
     </WorkspaceLayout>
   );
 }

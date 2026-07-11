@@ -14,6 +14,7 @@ export interface Expression {
   readonly viewIds: readonly string[];
   readonly defaultViewId: string;
   readonly defaultForm: ViewKind;
+  readonly activityMember: MemberId;
   readonly lastActivity: string;
 }
 

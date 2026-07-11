@@ -16,7 +16,11 @@ export interface SessionState {
 }
 
 export type WriteRequestResult =
-  | { readonly queued: false; readonly eventId: string }
+  | {
+      readonly queued: false;
+      readonly eventId: string;
+      readonly syncedRefs: number;
+    }
   | { readonly queued: true; readonly changeSetId: string };
 
 type Listener = () => void;
@@ -81,7 +85,11 @@ export class SessionStore {
         params.value,
         { actor, summary: `直接写入 ${params.fieldCode}` },
       );
-      return { queued: false, eventId: result.event.id };
+      return {
+        queued: false,
+        eventId: result.event.id,
+        syncedRefs: result.syncedRefs,
+      };
     }
     const changeSet = this.createManualChangeSet(params, actor);
     this.changeSets.submit(changeSet);

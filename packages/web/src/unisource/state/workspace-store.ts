@@ -94,6 +94,7 @@ function activityId(sequence: number): string {
 export class WorkspaceStore {
   private state: WorkspaceState;
   private readonly listeners = new Set<Listener>();
+  private readonly refTimers = new Map<string, ReturnType<typeof setTimeout>>();
   private sequence = 0;
 
   constructor(seed: DemoSeed = cloneDemoSeed()) {
@@ -108,6 +109,7 @@ export class WorkspaceStore {
   getSnapshot = (): WorkspaceState => this.state;
 
   reset(seed: DemoSeed = cloneDemoSeed()): void {
+    this.clearRefTimers();
     this.sequence = 0;
     this.state = seedToState(seed);
     this.emit();
@@ -155,6 +157,10 @@ export class WorkspaceStore {
     );
   }
 
+  getFieldRefsByExpr(exprId: string): readonly FieldRef[] {
+    return this.state.fieldRefs.filter((ref) => ref.exprId === exprId);
+  }
+
   getActivity(): readonly ActivityItem[] {
     return this.state.activity;
   }
@@ -179,7 +185,9 @@ export class WorkspaceStore {
   ): FieldWriteResult {
     const current = this.requireObject(objectId);
     const previous = current.fields[fieldCode];
-    const syncedRefs = this.getFieldRefs(objectId, fieldCode).length;
+    const affectedRefs = this.getFieldRefs(objectId, fieldCode);
+    const affectedRefIds = new Set(affectedRefs.map((ref) => ref.id));
+    const syncedRefs = affectedRefs.length;
     const nextObject: DataObject = {
       ...current,
       version: current.version + 1,
@@ -204,6 +212,9 @@ export class WorkspaceStore {
       objects: this.state.objects.map((object) =>
         object.id === objectId ? nextObject : object,
       ),
+      fieldRefs: this.state.fieldRefs.map((ref) =>
+        affectedRefIds.has(ref.id) ? { ...ref, state: "justSynced" } : ref,
+      ),
       changeEvents: [event, ...this.state.changeEvents],
       activity: [
         {
@@ -218,6 +229,7 @@ export class WorkspaceStore {
         ...this.state.activity,
       ],
     };
+    this.scheduleRefFresh(affectedRefs.map((ref) => ref.id));
     this.emit();
     return { event, syncedRefs, object: nextObject };
   }
@@ -428,6 +440,33 @@ export class WorkspaceStore {
     );
     if (!relation) throw new Error(`找不到关系 ${relationId}`);
     return relation;
+  }
+
+  private scheduleRefFresh(refIds: readonly string[]): void {
+    for (const refId of refIds) {
+      const previousTimer = this.refTimers.get(refId);
+      if (previousTimer !== undefined) clearTimeout(previousTimer);
+      this.refTimers.set(
+        refId,
+        setTimeout(() => {
+          this.refTimers.delete(refId);
+          this.state = {
+            ...this.state,
+            fieldRefs: this.state.fieldRefs.map((ref) =>
+              ref.id === refId && ref.state === "justSynced"
+                ? { ...ref, state: "fresh" }
+                : ref,
+            ),
+          };
+          this.emit();
+        }, 10000),
+      );
+    }
+  }
+
+  private clearRefTimers(): void {
+    for (const timer of this.refTimers.values()) clearTimeout(timer);
+    this.refTimers.clear();
   }
 
   private emit(): void {

@@ -1,10 +1,14 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { Comment } from "../model/kernel";
 import { cloneDemoSeed } from "../seed/demo-seed";
 import { WorkspaceStore } from "./workspace-store";
 
 describe("WorkspaceStore", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("updates a field with versions, inverse event, synced refs and publish", () => {
     const store = new WorkspaceStore(cloneDemoSeed());
     const listener = vi.fn();
@@ -43,6 +47,24 @@ describe("WorkspaceStore", () => {
     expect(restored.fields.price?.value).toBe(1199);
     expect(restored.version).toBe(3);
     expect(restored.fields.price?.fieldVersion).toBe(3);
+  });
+
+  it("marks affected refs as just synced and returns them to fresh", () => {
+    vi.useFakeTimers();
+    const store = new WorkspaceStore(cloneDemoSeed());
+
+    store.updateField("prod-s3", "price", 1099, { actor: "wangyun" });
+
+    expect(
+      store.getFieldRefs("prod-s3", "price").map((ref) => ref.state),
+    ).toEqual(["justSynced", "justSynced", "justSynced"]);
+    expect(store.getFieldRefsByExpr("exp-spec-doc")).toHaveLength(2);
+
+    vi.advanceTimersByTime(10000);
+
+    expect(
+      store.getFieldRefs("prod-s3", "price").map((ref) => ref.state),
+    ).toEqual(["fresh", "fresh", "fresh"]);
   });
 
   it("updates relation-owned fields without changing endpoint object versions", () => {
