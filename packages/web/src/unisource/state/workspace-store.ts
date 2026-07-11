@@ -77,6 +77,11 @@ export interface RelationWriteResult {
   readonly relation: DataRelation;
 }
 
+export interface ViewConfigWriteResult {
+  readonly view: ViewDef;
+  readonly event: ChangeEvent;
+}
+
 type Listener = () => void;
 
 const now = "2026-07-10T10:24:00+08:00";
@@ -161,6 +166,10 @@ export class WorkspaceStore {
       (relation) =>
         relation.sourceId === objectId || relation.targetId === objectId,
     );
+  }
+
+  getView(viewId: string): ViewDef | undefined {
+    return this.state.views.find((view) => view.id === viewId);
   }
 
   getFieldRefs(objectId: string, fieldCode: FieldCode): readonly FieldRef[] {
@@ -299,6 +308,47 @@ export class WorkspaceStore {
     };
     this.emit();
     return { relation };
+  }
+
+  updateViewConfig(
+    viewId: string,
+    patch: Record<string, unknown>,
+    meta: FieldWriteMeta,
+  ): ViewConfigWriteResult {
+    const current = this.requireView(viewId);
+    const previousConfig = structuredClone(current.config) as Record<
+      string,
+      unknown
+    >;
+    const nextView: ViewDef = {
+      ...current,
+      config: { ...current.config, ...patch },
+    };
+    const event = this.createViewConfigEvent({
+      actor: meta.actor,
+      viewId,
+      previousConfig,
+      nextConfig: nextView.config,
+    });
+    this.state = {
+      ...this.state,
+      views: this.state.views.map((view) =>
+        view.id === viewId ? nextView : view,
+      ),
+      changeEvents: [event, ...this.state.changeEvents],
+      activity: [
+        {
+          id: activityId(this.sequence),
+          actor: meta.actor,
+          summary: meta.summary ?? `更新视图布局 ${viewId}`,
+          tracks: ["view"],
+          at: now,
+        },
+        ...this.state.activity,
+      ],
+    };
+    this.emit();
+    return { view: nextView, event };
   }
 
   createObject(params: {
@@ -513,6 +563,50 @@ export class WorkspaceStore {
     return { relation: nextRelation };
   }
 
+  deleteObject(objectId: string, actor: MemberId = "wangyun"): DataObject {
+    const object = this.requireObject(objectId);
+    const affectedRefIds = new Set(
+      this.state.fieldRefs
+        .filter((ref) => ref.objectId === objectId)
+        .map((ref) => ref.id),
+    );
+    const event = this.createObjectEvent(objectId, actor);
+    this.state = {
+      ...this.state,
+      objects: this.state.objects.filter(
+        (candidate) => candidate.id !== objectId,
+      ),
+      relations: this.state.relations.filter(
+        (relation) =>
+          relation.sourceId !== objectId && relation.targetId !== objectId,
+      ),
+      fieldRefs: this.state.fieldRefs.map((ref) =>
+        affectedRefIds.has(ref.id) ? { ...ref, state: "dangling" } : ref,
+      ),
+      views: this.state.views.map((view) =>
+        view.kind === "canvas"
+          ? {
+              ...view,
+              config: removeObjectFromCanvasConfig(view.config, objectId),
+            }
+          : view,
+      ),
+      changeEvents: [event, ...this.state.changeEvents],
+      activity: [
+        {
+          id: activityId(this.sequence),
+          actor,
+          summary: `删除数据源记录 ${String(object.fields.name?.value ?? objectId)}`,
+          tracks: ["data"],
+          at: now,
+        },
+        ...this.state.activity,
+      ],
+    };
+    this.emit();
+    return object;
+  }
+
   addRelationComment(relationId: string, comment: Comment): DataRelation {
     const relation = this.requireRelation(relationId);
     const nextRelation: DataRelation = {
@@ -613,6 +707,21 @@ export class WorkspaceStore {
     const event = this.state.changeEvents.find(
       (candidate) => candidate.id === eventIdToUndo,
     );
+    if (event?.inverseView) {
+      const result = this.updateViewConfig(
+        event.inverseView.viewId,
+        event.inverseView.config,
+        {
+          actor: event.actor,
+          summary: `恢复 ${event.id}`,
+        },
+      );
+      return {
+        event: result.event,
+        syncedRefs: 0,
+        object: this.state.objects[0]!,
+      };
+    }
     if (!event?.inverse) {
       throw new Error("找不到可撤销的变更");
     }
@@ -692,6 +801,30 @@ export class WorkspaceStore {
     };
   }
 
+  private createViewConfigEvent(params: {
+    readonly actor: MemberId;
+    readonly viewId: string;
+    readonly previousConfig: Record<string, unknown>;
+    readonly nextConfig: Record<string, unknown>;
+  }): ChangeEvent {
+    this.sequence += 1;
+    return {
+      id: eventId(this.sequence),
+      track: "view",
+      actor: params.actor,
+      target: { entityType: "object", entityId: params.viewId },
+      old: "视图配置",
+      next: "视图配置已更新",
+      syncedRefs: 0,
+      at: now,
+      inverse: null,
+      inverseView: {
+        viewId: params.viewId,
+        config: params.previousConfig,
+      },
+    };
+  }
+
   private createViewFieldEvent(
     objectId: string,
     fieldCode: FieldCode,
@@ -744,6 +877,12 @@ export class WorkspaceStore {
     );
     if (!relation) throw new Error(`找不到关系 ${relationId}`);
     return relation;
+  }
+
+  private requireView(viewId: string): ViewDef {
+    const view = this.getView(viewId);
+    if (!view) throw new Error(`找不到视图 ${viewId}`);
+    return view;
   }
 
   private scheduleRefFresh(refIds: readonly string[]): void {
@@ -804,6 +943,22 @@ function seedToState(seed: DemoSeed): WorkspaceState {
     plugins: seed.plugins,
     simScenarios: seed.simScenarios,
   };
+}
+
+function removeObjectFromCanvasConfig(
+  config: Record<string, unknown>,
+  objectId: string,
+): Record<string, unknown> {
+  const nodes = Array.isArray(config.nodes)
+    ? config.nodes.filter(
+        (node) =>
+          typeof node === "object" &&
+          node !== null &&
+          "objectId" in node &&
+          node.objectId !== objectId,
+      )
+    : [];
+  return { ...config, nodes };
 }
 
 export const workspaceStore = new WorkspaceStore();

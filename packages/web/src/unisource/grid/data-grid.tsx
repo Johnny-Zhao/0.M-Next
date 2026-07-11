@@ -86,6 +86,7 @@ export function DataGrid({
             <tr
               data-editing={editing?.objectId === row.objectId || undefined}
               data-selected={row.selected}
+              id={`us-row-${row.objectId}`}
               key={row.objectId}
               onClick={(event) => {
                 if (event.metaKey || event.ctrlKey || event.shiftKey) {

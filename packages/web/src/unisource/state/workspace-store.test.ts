@@ -188,6 +188,59 @@ describe("WorkspaceStore", () => {
     expect(store.getActivity()[0]?.summary).toContain("解除关系");
   });
 
+  it("updates canvas view config on the view track and restores it by undo", () => {
+    const store = new WorkspaceStore(cloneDemoSeed());
+    const before = store.getView("view-portal-canvas")!;
+
+    const result = store.updateViewConfig(
+      "view-portal-canvas",
+      { nodes: [{ objectId: "prod-s3", x: 10, y: 20 }] },
+      { actor: "wangyun", summary: "移动画布节点" },
+    );
+
+    expect(result.event.track).toBe("view");
+    expect(result.event.inverseView?.config).toEqual(before.config);
+    expect(store.getView("view-portal-canvas")?.config.nodes).toEqual([
+      { objectId: "prod-s3", x: 10, y: 20 },
+    ]);
+
+    store.undo(result.event.id);
+
+    expect(store.getView("view-portal-canvas")?.config).toEqual(before.config);
+  });
+
+  it("deletes objects, relations, field refs and canvas nodes together", () => {
+    const store = new WorkspaceStore(cloneDemoSeed());
+    const affectedRefCount = store
+      .getSnapshot()
+      .fieldRefs.filter((ref) => ref.objectId === "prod-s3").length;
+
+    store.deleteObject("prod-s3", "wangyun");
+
+    expect(store.getObject("prod-s3")).toBeUndefined();
+    expect(
+      store
+        .getRelations()
+        .some(
+          (relation) =>
+            relation.sourceId === "prod-s3" || relation.targetId === "prod-s3",
+        ),
+    ).toBe(false);
+    const refStates = store
+      .getSnapshot()
+      .fieldRefs.filter((ref) => ref.objectId === "prod-s3")
+      .map((ref) => ref.state);
+    expect(refStates).toHaveLength(affectedRefCount);
+    expect(refStates.every((state) => state === "dangling")).toBe(true);
+    expect(
+      (
+        store.getView("view-portal-canvas")?.config.nodes as {
+          objectId: string;
+        }[]
+      ).map((node) => node.objectId),
+    ).not.toContain("prod-s3");
+  });
+
   it("can attach comments to a relation", () => {
     const store = new WorkspaceStore(cloneDemoSeed());
     const comment: Comment = {

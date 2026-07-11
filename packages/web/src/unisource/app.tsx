@@ -1,5 +1,6 @@
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 
+import "@xyflow/react/dist/style.css";
 import "./us-tokens.css";
 import "./us-components.css";
 

@@ -1,9 +1,18 @@
 import { useParams, useSearchParams } from "react-router-dom";
 
 import { BiBoard } from "../bi/bi-board";
+import { CanvasView } from "../canvas/canvas-view";
+import {
+  canvasConfigWithNodes,
+  parseCanvasConfig,
+} from "../canvas/canvas-view-model";
+import { CanvasPropsPanel } from "../canvas/inspector-props-panel";
+import { CanvasStylePanel } from "../canvas/inspector-style-panel";
+import { CanvasVersionsPanel } from "../canvas/inspector-versions-panel";
 import { ChatPanel } from "../chat/chat-panel";
 import { DocView } from "../doc/doc-view";
 import { buildDocViewModel } from "../doc/doc-view-model";
+import type { CanvasNodeConfig } from "../model/view-layer";
 import { UsMonoTag } from "../primitives";
 import { parseFormParam } from "../routes-paths";
 import { FormRow, nextFormSearch } from "../shell/form-row";
@@ -11,7 +20,9 @@ import { LayoutToggle, nextLayoutSearch } from "../shell/layout-toggle";
 import { UsInspector } from "../shell/inspector";
 import { WorkspaceLayout } from "../shell/layouts";
 import { SplitView } from "../split/split-view";
-import { useWorkspaceSnapshot } from "../state/workspace-store";
+import { useSelectionSnapshot } from "../state/selection-store";
+import { sessionStore, useSessionSnapshot } from "../state/session-store";
+import { workspaceStore, useWorkspaceSnapshot } from "../state/workspace-store";
 import { PageSkeleton } from "./page-skeleton";
 
 const FORM_LABEL: Record<string, string> = {
@@ -31,12 +42,15 @@ export function ExprPage() {
   const { exprId } = useParams<{ exprId: string }>();
   const [search, setSearch] = useSearchParams();
   const snapshot = useWorkspaceSnapshot();
+  const session = useSessionSnapshot();
+  const selection = useSelectionSnapshot();
   const expr = snapshot.expressions.find(
     (candidate) => candidate.id === exprId,
   );
   const form = parseFormParam(search, expr?.defaultForm ?? "doc");
   const split = search.get("layout") === "split";
   const chatOpen = search.get("drawer") === "chat";
+  const runOpen = search.get("run") === "1";
   const forms = Array.from(
     new Set(
       expr?.viewIds
@@ -65,6 +79,51 @@ export function ExprPage() {
       ? undefined
       : snapshot.docModels.find((candidate) => candidate.exprId === exprId);
   const docVm = docModel ? buildDocViewModel(snapshot, docModel) : null;
+  const canvasView =
+    exprId === undefined
+      ? undefined
+      : snapshot.views.find(
+          (candidate) =>
+            candidate.exprId === exprId && candidate.kind === "canvas",
+        );
+  const canvasCanEdit =
+    exprId !== undefined &&
+    sessionStore.can(session.currentMemberId, exprId, "editView");
+  const selectedObjectCount = selection.selected.filter(
+    (item) => item.entityType === "object",
+  ).length;
+
+  const patchCanvasNodes = (
+    objectIds: readonly string[],
+    patch: (node: CanvasNodeConfig) => CanvasNodeConfig,
+    summary: string,
+  ) => {
+    if (!canvasView) return;
+    const targets = new Set(objectIds);
+    const nodes = parseCanvasConfig(canvasView).nodes.map((node) =>
+      targets.has(node.objectId) ? patch(node) : node,
+    );
+    workspaceStore.updateViewConfig(
+      canvasView.id,
+      canvasConfigWithNodes(canvasView, nodes),
+      { actor: session.currentMemberId, summary },
+    );
+  };
+
+  const removeCanvasNodes = (objectIds: readonly string[]) => {
+    if (!canvasView) return;
+    const targets = new Set(objectIds);
+    workspaceStore.updateViewConfig(
+      canvasView.id,
+      canvasConfigWithNodes(
+        canvasView,
+        parseCanvasConfig(canvasView).nodes.filter(
+          (node) => !targets.has(node.objectId),
+        ),
+      ),
+      { actor: session.currentMemberId, summary: "从画布移除卡片" },
+    );
+  };
 
   const inspector = chatOpen ? (
     <ChatPanel
@@ -76,16 +135,19 @@ export function ExprPage() {
     />
   ) : form === "canvas" ? (
     <UsInspector
-      aside={<span className="us-data">已选 0</span>}
+      aside={<span className="us-data">已选 {selectedObjectCount}</span>}
       tabs={[
         {
           key: "props",
           label: "属性",
           content: (
-            <PageSkeleton
-              kicker="INSPECTOR"
-              title="属性"
-              desc="P2:绑定记录、卡片显示字段、移除出视图 / 删除数据源记录。"
+            <CanvasPropsPanel
+              exprId={exprId ?? ""}
+              canEdit={canvasCanEdit}
+              onRemove={removeCanvasNodes}
+              onDelete={(objectId) =>
+                workspaceStore.deleteObject(objectId, session.currentMemberId)
+              }
             />
           ),
         },
@@ -93,23 +155,17 @@ export function ExprPage() {
           key: "style",
           label: "样式",
           content: (
-            <PageSkeleton
-              kicker="INSPECTOR"
-              title="样式"
-              desc="P2:字体/字号/颜色/填充/圆角/显示隐藏;多选时「混合」占位。"
+            <CanvasStylePanel
+              exprId={exprId ?? ""}
+              canEdit={canvasCanEdit}
+              onPatchNodes={patchCanvasNodes}
             />
           ),
         },
         {
           key: "versions",
           label: "版本",
-          content: (
-            <PageSkeleton
-              kicker="INSPECTOR"
-              title="版本"
-              desc="P2:数据轨(琥珀)与视图轨(蓝灰)分色版本流,逐条恢复。"
-            />
-          ),
+          content: <CanvasVersionsPanel exprId={exprId ?? ""} />,
         },
       ]}
     />
@@ -165,6 +221,14 @@ export function ExprPage() {
         <DocView exprId={expr.id} />
       ) : form === "bi" && expr ? (
         <BiBoard />
+      ) : form === "canvas" && expr && !runOpen ? (
+        <CanvasView exprId={expr.id} />
+      ) : form === "canvas" && runOpen ? (
+        <PageSkeleton
+          kicker="SIMULATION"
+          title="运行预览"
+          desc="P2 画布批只接入运行入口占位，正式仿真宿主留给后续批次。"
+        />
       ) : (
         <PageSkeleton
           kicker={`EXPR · form=${form}`}

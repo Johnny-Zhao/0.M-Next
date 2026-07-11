@@ -11,6 +11,7 @@ describe("SelectionStore", () => {
     const listener = vi.fn();
     selection.subscribe(listener);
     const before = workspace.getSnapshot();
+    const beforeEvents = workspace.getChangeEvents().length;
 
     selection.set({ entityType: "object", entityId: "prod-s3" });
     selection.add({
@@ -25,7 +26,7 @@ describe("SelectionStore", () => {
     selection.clear();
 
     expect(workspace.getSnapshot()).toBe(before);
-    expect(workspace.getChangeEvents()).toHaveLength(0);
+    expect(workspace.getChangeEvents()).toHaveLength(beforeEvents);
     expect(selection.getSnapshot()).toEqual({ current: null, selected: [] });
     expect(listener).toHaveBeenCalledTimes(4);
   });

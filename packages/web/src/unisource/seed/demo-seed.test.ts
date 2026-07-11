@@ -50,4 +50,35 @@ describe("demoSeed", () => {
   it("starts the activity stream with the storyline dashboard change", () => {
     expect(demoSeed.activity[0]?.summary).toBe("续航 12→14 + 看板加卡");
   });
+
+  it("seeds the portal canvas with four nodes, three edges and editable permissions", () => {
+    const canvas = demoSeed.views.find(
+      (view) => view.id === "view-portal-canvas",
+    );
+    const config = canvas?.config as {
+      nodes?: readonly { objectId: string }[];
+      edges?: readonly { relationId: string }[];
+    };
+
+    expect(config.nodes?.map((node) => node.objectId)).toEqual([
+      "prod-d2-pro",
+      "prod-s3",
+      "prod-e1",
+      "prod-g2",
+    ]);
+    expect(config.edges?.map((edge) => edge.relationId)).toEqual([
+      "rel-s3-g2-interconnect",
+      "rel-d2pro-g2-interconnect",
+      "rel-e1-g2-interconnect",
+    ]);
+    expect(demoSeed.permissions.wangyun["exp-portal"]).toBe("edit");
+    expect(demoSeed.permissions.lixiao["exp-portal"]).toBe("edit");
+    expect(demoSeed.permissions.chenmo["exp-portal"]).toBe("edit");
+    expect(demoSeed.permissions.zhouran["exp-portal"]).toBe("readonly");
+    expect(
+      demoSeed.changeEvents
+        .filter((event) => event.target.entityId === "view-portal-canvas")
+        .every((event) => event.inverseView === null),
+    ).toBe(true);
+  });
 });

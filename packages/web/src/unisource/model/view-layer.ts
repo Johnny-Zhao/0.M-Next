@@ -89,6 +89,10 @@ export interface ChangeEvent {
   readonly syncedRefs: number;
   readonly at: string;
   readonly inverse: ChangeEventInverse | null;
+  readonly inverseView?: {
+    readonly viewId: string;
+    readonly config: Record<string, unknown>;
+  } | null;
 }
 
 export interface ActivityItem {
@@ -116,6 +120,36 @@ export interface SlotBinding {
   readonly values: Record<FieldCode, DataFieldPrimitive>;
   readonly updatedBy: MemberId;
   readonly updatedAt: string;
+}
+
+export interface CanvasNodeConfig {
+  readonly objectId: DataObjectId;
+  readonly x: number;
+  readonly y: number;
+  readonly w?: number;
+  readonly h?: number;
+  readonly style?: {
+    readonly fill?: string;
+    readonly color?: string;
+    readonly fontSize?: number;
+    readonly radius?: number;
+  };
+  readonly shownFields?: readonly FieldCode[];
+  readonly visibility?: {
+    readonly sourceBadge?: boolean;
+    readonly fieldRows?: boolean;
+    readonly docBadge?: boolean;
+    readonly edgeLabels?: boolean;
+  };
+}
+
+export interface CanvasEdgeConfig {
+  readonly relationId: DataRelationId;
+}
+
+export interface CanvasConfig {
+  readonly nodes: readonly CanvasNodeConfig[];
+  readonly edges: readonly CanvasEdgeConfig[];
 }
 
 export interface PluginDef {

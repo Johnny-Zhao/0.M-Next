@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 
 import { DataGrid } from "../grid/data-grid";
@@ -8,7 +8,7 @@ import { buildGridViewModel } from "../grid/grid-view-model";
 import { parseFormParam } from "../routes-paths";
 import { FormRow, nextFormSearch } from "../shell/form-row";
 import { WorkspaceLayout } from "../shell/layouts";
-import { useSelectionSnapshot } from "../state/selection-store";
+import { selectionStore, useSelectionSnapshot } from "../state/selection-store";
 import { useWorkspaceSnapshot } from "../state/workspace-store";
 import { PageSkeleton } from "./page-skeleton";
 
@@ -31,6 +31,7 @@ export function SourcePage() {
     title: member.name,
   }));
   const form = parseFormParam(search, "grid");
+  const focusObjectId = search.get("focus");
   const selectedIds = useMemo(
     () =>
       new Set(
@@ -51,6 +52,18 @@ export function SourcePage() {
           search: query,
           hideEol,
         }).status;
+  useEffect(() => {
+    if (!focusObjectId) return;
+    selectionStore.set({ entityType: "object", entityId: focusObjectId });
+    const element = document.getElementById(`us-row-${focusObjectId}`);
+    element?.scrollIntoView({ block: "center", behavior: "smooth" });
+    element?.classList.add("us-row-flash");
+    const timer = window.setTimeout(
+      () => element?.classList.remove("us-row-flash"),
+      1200,
+    );
+    return () => window.clearTimeout(timer);
+  }, [focusObjectId]);
   return (
     <WorkspaceLayout
       sidebarTab="data"

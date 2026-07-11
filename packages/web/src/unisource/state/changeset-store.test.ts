@@ -35,6 +35,7 @@ describe("ChangeSetStore", () => {
     const seed = cloneDemoSeed();
     const workspace = new WorkspaceStore(seed);
     const store = new ChangeSetStore(seed, workspace);
+    const beforeEvents = workspace.getChangeEvents().length;
 
     const result = store.confirmAll("changeset-manual-channel");
 
@@ -42,7 +43,7 @@ describe("ChangeSetStore", () => {
     expect(
       workspace.getObject("sales-offline-dealer")?.fields.month_sales?.value,
     ).toBe(2910);
-    expect(workspace.getChangeEvents()).toHaveLength(1);
+    expect(workspace.getChangeEvents()).toHaveLength(beforeEvents + 1);
   });
 
   it("approves with a review record while keeping the write actor", () => {
@@ -68,6 +69,7 @@ describe("ChangeSetStore", () => {
     const seed = cloneDemoSeed();
     const workspace = new WorkspaceStore(seed);
     const store = new ChangeSetStore(seed, workspace);
+    const beforeEvents = workspace.getChangeEvents().length;
 
     const result = store.reject("changeset-manual-channel");
 
@@ -78,13 +80,14 @@ describe("ChangeSetStore", () => {
     expect(
       workspace.getObject("sales-offline-dealer")?.fields.month_sales?.value,
     ).toBe(2850);
-    expect(workspace.getChangeEvents()).toHaveLength(0);
+    expect(workspace.getChangeEvents()).toHaveLength(beforeEvents);
   });
 
   it("rejects with a review record and no data write", () => {
     const seed = cloneDemoSeed();
     const workspace = new WorkspaceStore(seed);
     const store = new ChangeSetStore(seed, workspace);
+    const beforeEvents = workspace.getChangeEvents().length;
 
     const result = store.rejectChangeSet("changeset-manual-channel", "wangyun");
 
@@ -93,7 +96,7 @@ describe("ChangeSetStore", () => {
       action: "reject",
       actor: "wangyun",
     });
-    expect(workspace.getChangeEvents()).toHaveLength(0);
+    expect(workspace.getChangeEvents()).toHaveLength(beforeEvents);
     expect(
       workspace.getObject("sales-offline-dealer")?.fields.month_sales?.value,
     ).toBe(2850);
@@ -103,11 +106,12 @@ describe("ChangeSetStore", () => {
     const seed = cloneDemoSeed();
     const workspace = new WorkspaceStore(seed);
     const store = new ChangeSetStore(seed, workspace);
+    const beforeEvents = workspace.getChangeEvents().length;
 
     const first = store.acceptItems("changeset-ai-quote", ["ai-price"]);
     expect(first.ok).toBe(true);
     expect(first.ok ? first.changeSet.status : null).toBe("pending");
-    expect(workspace.getChangeEvents()).toHaveLength(0);
+    expect(workspace.getChangeEvents()).toHaveLength(beforeEvents);
 
     const final = store.acceptItems("changeset-ai-quote", ["ai-launch"]);
     expect(final.ok).toBe(true);
