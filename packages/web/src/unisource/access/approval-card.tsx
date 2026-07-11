@@ -27,7 +27,7 @@ export function ApprovalCard({
         pending.map((changeSet) => (
           <article className="us-approval-card" key={changeSet.id}>
             <strong>{memberName(members, changeSet.actor)} 请求修改</strong>
-            <p>{describeChangeSet(workspace, changeSet)}</p>
+            <p className="us-data">{describeChangeSet(workspace, changeSet)}</p>
             <small>批准后按统一数据源规则同步相关字段引用。</small>
             <div>
               <UsButton

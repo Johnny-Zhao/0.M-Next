@@ -56,9 +56,9 @@ const typeMarks: Record<FieldDataType, string> = {
   text: "Aa",
   number: "#",
   enum: "Aa",
-  date: "📅",
-  person: "👤",
-  docLink: "📄",
+  date: "date",
+  person: "person",
+  docLink: "doc",
 };
 
 const statusLabels: Record<DataObject["status"], string> = {

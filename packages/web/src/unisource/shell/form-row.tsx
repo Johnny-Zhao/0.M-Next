@@ -1,7 +1,16 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 
-import { UsButton, UsMonoTag } from "../primitives";
+import {
+  IconBarChart,
+  IconDoc,
+  IconGrid,
+  IconMatrix,
+  IconNodes,
+  IconSearchCheck,
+  UsButton,
+  UsMonoTag,
+} from "../primitives";
 import { usPaths, type UsFormKind } from "../routes-paths";
 import { useWorkspaceSnapshot } from "../state/workspace-store";
 
@@ -91,6 +100,7 @@ export function FormRow({
             type="button"
           >
             <UsMonoTag active={form === activeForm}>
+              {form === activeForm ? <FormIcon form={form} /> : null}
               {formLabel(form)}
             </UsMonoTag>
           </button>
@@ -141,4 +151,14 @@ export function FormRow({
       {children ? <span className="us-formrow__aside">{children}</span> : null}
     </div>
   );
+}
+
+function FormIcon({ form }: { readonly form: string }) {
+  if (form === "grid") return <IconGrid size={12} />;
+  if (form === "doc") return <IconDoc size={12} />;
+  if (form === "canvas") return <IconNodes size={12} />;
+  if (form === "matrix") return <IconMatrix size={12} />;
+  if (form === "bi") return <IconBarChart size={12} />;
+  if (form === "ana") return <IconSearchCheck size={12} />;
+  return null;
 }

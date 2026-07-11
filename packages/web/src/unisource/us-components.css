@@ -267,6 +267,10 @@
   background: var(--us-ink);
   color: var(--us-gold);
 }
+.us-monotag--active svg {
+  flex: none;
+  stroke-width: 1.8;
+}
 .us-monotag--primary {
   background: var(--us-primary-bg);
   color: var(--us-primary-deep);
@@ -1882,9 +1886,15 @@
 }
 .us-grid__mark {
   color: var(--us-text-faint);
-  display: inline-block;
+  display: inline-flex;
   font-family: var(--us-font-data);
+  height: 12px;
   margin-right: var(--us-sp-2);
+  vertical-align: -1px;
+  width: 14px;
+}
+.us-grid__mark svg {
+  display: block;
 }
 .us-grid__cell {
   font-family: var(--us-font-data);
@@ -1897,13 +1907,48 @@
 }
 .us-grid__editor {
   background: var(--us-change-bg);
-  border: 1px solid var(--us-change-border);
+  border: 2px solid var(--us-change);
   border-radius: var(--us-radius-control);
   color: var(--us-text);
   font-family: var(--us-font-data);
   max-width: 160px;
   outline: none;
   padding: var(--us-sp-1) var(--us-sp-2);
+}
+.us-grid__editwrap {
+  display: inline-grid;
+  gap: var(--us-sp-1);
+  position: relative;
+}
+.us-grid__editbadge {
+  background: var(--us-change-bg);
+  border: 1px solid var(--us-change-border);
+  border-radius: var(--us-radius-badge);
+  color: var(--us-change-text);
+  font-size: var(--us-fs-10);
+  font-style: normal;
+  font-weight: 700;
+  justify-self: start;
+  padding: 0 var(--us-sp-2);
+}
+.us-grid__newrow td {
+  background: var(--us-surface-head);
+  padding: 0;
+}
+.us-grid__newrow button {
+  background: transparent;
+  border: 0;
+  color: var(--us-text-muted);
+  cursor: pointer;
+  display: block;
+  font-size: var(--us-fs-12);
+  padding: var(--us-sp-3) var(--us-sp-4);
+  text-align: left;
+  width: 100%;
+}
+.us-grid__newrow button:hover {
+  background: var(--us-surface-hover);
+  color: var(--us-primary-deep);
 }
 .us-grid-status {
   align-items: center;

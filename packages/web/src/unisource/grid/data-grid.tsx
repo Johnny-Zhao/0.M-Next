@@ -1,7 +1,13 @@
 import { useMemo, useState } from "react";
 
 import type { DataObject, ObjectTypeDef } from "../model/kernel";
-import { UsStatusPill } from "../primitives";
+import {
+  IconCalendar,
+  IconDoc,
+  IconPerson,
+  UsStatusPill,
+  pushToast,
+} from "../primitives";
 import { selectionStore, useSelectionSnapshot } from "../state/selection-store";
 import { useWorkspaceSnapshot } from "../state/workspace-store";
 import { commitCellEdit } from "./grid-actions";
@@ -67,7 +73,9 @@ export function DataGrid({
             <th aria-label="状态" />
             {vm.columns.map((column) => (
               <th key={column.code}>
-                <span className="us-grid__mark">{column.typeMark}</span>
+                <span className="us-grid__mark">
+                  <ColumnTypeMark mark={column.typeMark} />
+                </span>
                 {column.name}
               </th>
             ))}
@@ -132,32 +140,39 @@ export function DataGrid({
                     }
                   >
                     {active ? (
-                      <input
-                        autoFocus
-                        className="us-grid__editor"
-                        onBlur={(event) =>
-                          submit(row.objectId, cell, event.currentTarget.value)
-                        }
-                        onChange={(event) =>
-                          setEditing({
-                            objectId: row.objectId,
-                            fieldCode: cell.field.code,
-                            value: event.currentTarget.value,
-                          })
-                        }
-                        onClick={(event) => event.stopPropagation()}
-                        onKeyDown={(event) => {
-                          if (event.key === "Escape") setEditing(null);
-                          if (event.key === "Enter") {
+                      <span className="us-grid__editwrap">
+                        <em className="us-grid__editbadge">确认写入</em>
+                        <input
+                          autoFocus
+                          className="us-grid__editor"
+                          onBlur={(event) =>
                             submit(
                               row.objectId,
                               cell,
                               event.currentTarget.value,
-                            );
+                            )
                           }
-                        }}
-                        value={editing.value}
-                      />
+                          onChange={(event) =>
+                            setEditing({
+                              objectId: row.objectId,
+                              fieldCode: cell.field.code,
+                              value: event.currentTarget.value,
+                            })
+                          }
+                          onClick={(event) => event.stopPropagation()}
+                          onKeyDown={(event) => {
+                            if (event.key === "Escape") setEditing(null);
+                            if (event.key === "Enter") {
+                              submit(
+                                row.objectId,
+                                cell,
+                                event.currentTarget.value,
+                              );
+                            }
+                          }}
+                          value={editing.value}
+                        />
+                      </span>
                     ) : (
                       <span className="us-grid__cell">{cell.text}</span>
                     )}
@@ -166,8 +181,25 @@ export function DataGrid({
               })}
             </tr>
           ))}
+          <tr className="us-grid__newrow">
+            <td colSpan={vm.columns.length + 2}>
+              <button
+                onClick={() => pushToast({ title: "新建记录将在 P2 接入" })}
+                type="button"
+              >
+                + 新建记录
+              </button>
+            </td>
+          </tr>
         </tbody>
       </table>
     </div>
   );
+}
+
+function ColumnTypeMark({ mark }: { readonly mark: string }) {
+  if (mark === "date") return <IconCalendar size={12} />;
+  if (mark === "person") return <IconPerson size={12} />;
+  if (mark === "doc") return <IconDoc size={12} />;
+  return <>{mark}</>;
 }

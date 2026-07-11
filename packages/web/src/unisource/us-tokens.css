@@ -44,8 +44,8 @@
   --us-text-2: #4a473f; /* 正文次级 */
   --us-text-3: #6e6a60; /* 表头/标签 */
   --us-text-muted: #8a8578; /* 辅助文字 */
-  --us-text-faint: #98937f; /* 最弱文字/占位(08-④ 允许整体上调一档) */
-  --us-text-disabled: #b4af9f;
+  --us-text-faint: #7f7968; /* 08-④ 对比度上调:旧 #98937F → 新 #7F7968 */
+  --us-text-disabled: #958e7b; /* 08-④ 对比度上调:旧 #B4AF9F → 新 #958E7B */
   --us-text-ghost: #c9c5b8; /* 未激活点/空心圈 */
   /* color.primary 青绿 — 数据/引用/选中/确认 */
   --us-primary: #0e6e5c;

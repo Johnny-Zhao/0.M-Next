@@ -1,10 +1,17 @@
 export { cx } from "./cx";
 export {
+  IconBarChart,
+  IconCalendar,
   IconCheck,
   IconChevronRight,
   IconClose,
+  IconDoc,
   IconGrid,
+  IconMatrix,
+  IconNodes,
+  IconPerson,
   IconSearch,
+  IconSearchCheck,
   IconSpark,
   IconSync,
 } from "./icons";
