@@ -32,6 +32,7 @@ export interface FieldRef {
   readonly exprId: string;
   readonly label: string;
   readonly state: FieldRefState;
+  readonly confidence?: number;
 }
 
 export type DocInline =
@@ -120,6 +121,51 @@ export interface SimScenario {
   readonly metrics: readonly {
     readonly name: string;
     readonly value: string;
+  }[];
+}
+
+export interface KpiCardDef {
+  readonly id: string;
+  readonly label: string;
+  readonly value: string;
+  readonly delta: string;
+  readonly deltaSign: "up" | "down" | "flat";
+  readonly sourceLabel: string;
+  readonly aiAdded?: boolean;
+  readonly visible: boolean;
+}
+
+export interface BiBarDef {
+  readonly label: string;
+  readonly value: number;
+  readonly percent: number;
+  readonly tone: "high" | "mid" | "low";
+}
+
+export interface ChatMessage {
+  readonly id: string;
+  readonly role: "user" | "ai";
+  readonly text: string;
+  readonly actionCardIds?: readonly string[];
+}
+
+export interface RawImportSpan {
+  readonly start: number;
+  readonly end: number;
+  readonly tone: "primary" | "change";
+}
+
+export interface RawImport {
+  readonly text: string;
+  readonly spans: readonly RawImportSpan[];
+  readonly semanticChips: readonly {
+    readonly label: string;
+    readonly confidence: number;
+  }[];
+  readonly recent: readonly {
+    readonly id: string;
+    readonly title: string;
+    readonly at: string;
   }[];
 }
 

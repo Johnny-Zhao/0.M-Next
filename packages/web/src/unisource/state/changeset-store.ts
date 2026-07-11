@@ -113,6 +113,20 @@ export class ChangeSetStore {
   }
 
   private applyItem(changeSet: ChangeSet, item: ChangeItem): void {
+    if (item.op === "createObject") {
+      if (!item.objectTypeCode || !item.fields) {
+        throw new Error("创建对象变更缺少对象类型或字段");
+      }
+      this.workspace.createObject({
+        objectTypeCode: item.objectTypeCode,
+        fields: item.fields,
+        actor: changeSet.actor,
+        source: changeSet.source,
+        objectId: item.target.entityId,
+        summary: item.note ?? `${changeSet.title}: 创建对象`,
+      });
+      return;
+    }
     if (
       item.op !== "updateField" ||
       item.target.entityType !== "field" ||

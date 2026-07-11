@@ -96,6 +96,27 @@ describe("WorkspaceStore", () => {
     expect(store.getActivity()[0]?.tracks).toEqual(["view"]);
   });
 
+  it("creates objects and toggles KPI visibility through tracked writes", () => {
+    const store = new WorkspaceStore(cloneDemoSeed());
+
+    const object = store.createObject({
+      objectTypeCode: "contracts",
+      fields: { name: "测试合同", product: "门锁 S3" },
+      actor: "wangyun",
+      source: "ai",
+    });
+    const hidden = store.setKpiVisible("kpi-active-channels", false, "wangyun");
+
+    expect(store.getObject(object.id)?.fields.name?.value).toBe("测试合同");
+    expect(hidden.visible).toBe(false);
+    expect(
+      store
+        .getChangeEvents()
+        .slice(0, 2)
+        .map((event) => event.track),
+    ).toEqual(["view", "data"]);
+  });
+
   it("updates relation-owned fields without changing endpoint object versions", () => {
     const store = new WorkspaceStore(cloneDemoSeed());
     const sourceVersion = store.getObject("prod-s3")!.version;

@@ -22,6 +22,12 @@ describe("demoSeed", () => {
     );
 
     expect(aiChangeSet?.status).toBe("pending");
+    expect(
+      aiChangeSet?.items.find((item) => item.id === "ai-price")?.applied,
+    ).toBe(true);
+    expect(
+      aiChangeSet?.items.find((item) => item.id === "ai-contract")?.op,
+    ).toBe("createObject");
     expect(lowConfidence?.confidence).toBe(0.74);
     expect(lowConfidence?.needsConfirm).toBe(true);
     expect(

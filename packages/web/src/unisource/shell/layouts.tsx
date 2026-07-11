@@ -10,6 +10,7 @@ export interface ChromeProps {
   sync?: { state: UsSyncState; label: ReactNode };
   people?: HeaderPerson[];
   actions?: ReactNode;
+  aiHref?: string;
 }
 
 /**

@@ -55,6 +55,7 @@ export function DocView({
       doc.binding.objectId,
       field.code,
       field.name,
+      session.currentMemberId,
     );
     setInsertedRefs((current) => [...current, ref.id]);
     setInsertOpen(false);
@@ -63,7 +64,11 @@ export function DocView({
   };
   const rebind = (field: FieldDef) => {
     if (!rebindRef) return;
-    workspaceStore.rebindFieldRef(rebindRef.refId, field.code);
+    workspaceStore.rebindFieldRef(
+      rebindRef.refId,
+      field.code,
+      session.currentMemberId,
+    );
     setRebindRef(null);
     pushToast({ title: "悬空引用已重绑" });
   };

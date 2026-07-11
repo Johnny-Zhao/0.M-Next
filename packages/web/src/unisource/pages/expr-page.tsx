@@ -1,5 +1,7 @@
 import { useParams, useSearchParams } from "react-router-dom";
 
+import { BiBoard } from "../bi/bi-board";
+import { ChatPanel } from "../chat/chat-panel";
 import { DocView } from "../doc/doc-view";
 import { buildDocViewModel } from "../doc/doc-view-model";
 import { UsMonoTag } from "../primitives";
@@ -34,6 +36,7 @@ export function ExprPage() {
   );
   const form = parseFormParam(search, expr?.defaultForm ?? "doc");
   const split = search.get("layout") === "split";
+  const chatOpen = search.get("drawer") === "chat";
   const forms = Array.from(
     new Set(
       expr?.viewIds
@@ -63,47 +66,54 @@ export function ExprPage() {
       : snapshot.docModels.find((candidate) => candidate.exprId === exprId);
   const docVm = docModel ? buildDocViewModel(snapshot, docModel) : null;
 
-  const inspector =
-    form === "canvas" ? (
-      <UsInspector
-        aside={<span className="us-data">已选 0</span>}
-        tabs={[
-          {
-            key: "props",
-            label: "属性",
-            content: (
-              <PageSkeleton
-                kicker="INSPECTOR"
-                title="属性"
-                desc="P2:绑定记录、卡片显示字段、移除出视图 / 删除数据源记录。"
-              />
-            ),
-          },
-          {
-            key: "style",
-            label: "样式",
-            content: (
-              <PageSkeleton
-                kicker="INSPECTOR"
-                title="样式"
-                desc="P2:字体/字号/颜色/填充/圆角/显示隐藏;多选时「混合」占位。"
-              />
-            ),
-          },
-          {
-            key: "versions",
-            label: "版本",
-            content: (
-              <PageSkeleton
-                kicker="INSPECTOR"
-                title="版本"
-                desc="P2:数据轨(琥珀)与视图轨(蓝灰)分色版本流,逐条恢复。"
-              />
-            ),
-          },
-        ]}
-      />
-    ) : undefined;
+  const inspector = chatOpen ? (
+    <ChatPanel
+      onClose={() => {
+        const next = new URLSearchParams(search);
+        next.delete("drawer");
+        setSearch(next);
+      }}
+    />
+  ) : form === "canvas" ? (
+    <UsInspector
+      aside={<span className="us-data">已选 0</span>}
+      tabs={[
+        {
+          key: "props",
+          label: "属性",
+          content: (
+            <PageSkeleton
+              kicker="INSPECTOR"
+              title="属性"
+              desc="P2:绑定记录、卡片显示字段、移除出视图 / 删除数据源记录。"
+            />
+          ),
+        },
+        {
+          key: "style",
+          label: "样式",
+          content: (
+            <PageSkeleton
+              kicker="INSPECTOR"
+              title="样式"
+              desc="P2:字体/字号/颜色/填充/圆角/显示隐藏;多选时「混合」占位。"
+            />
+          ),
+        },
+        {
+          key: "versions",
+          label: "版本",
+          content: (
+            <PageSkeleton
+              kicker="INSPECTOR"
+              title="版本"
+              desc="P2:数据轨(琥珀)与视图轨(蓝灰)分色版本流,逐条恢复。"
+            />
+          ),
+        },
+      ]}
+    />
+  ) : undefined;
 
   return (
     <WorkspaceLayout
@@ -127,6 +137,7 @@ export function ExprPage() {
                 : (expr?.lastActivity ?? "已同步"),
         },
         people,
+        aiHref: `/expr/${expr?.id ?? exprId}?form=${form}&drawer=chat`,
       }}
       inspector={inspector}
       subHeader={
@@ -152,6 +163,8 @@ export function ExprPage() {
         <SplitView exprId={expr.id} />
       ) : form === "doc" && expr ? (
         <DocView exprId={expr.id} />
+      ) : form === "bi" && expr ? (
+        <BiBoard />
       ) : (
         <PageSkeleton
           kicker={`EXPR · form=${form}`}

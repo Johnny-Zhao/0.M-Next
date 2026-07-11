@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { Link } from "react-router-dom";
 
 import {
   UsAvatar,
@@ -6,6 +7,7 @@ import {
   UsBreadcrumb,
   UsButton,
   UsSyncDot,
+  IconSpark,
   cx,
   type UsCrumb,
   type UsMember,
@@ -31,6 +33,7 @@ export function WorkspaceHeader({
   sync,
   people,
   actions,
+  aiHref,
   className,
 }: {
   variant?: "workspace" | "full";
@@ -39,6 +42,7 @@ export function WorkspaceHeader({
   sync?: { state: UsSyncState; label: ReactNode };
   people?: HeaderPerson[];
   actions?: ReactNode;
+  aiHref?: string;
   className?: string;
 }) {
   return (
@@ -54,6 +58,11 @@ export function WorkspaceHeader({
       <span className="us-topbar__spacer" />
       <span className="us-topbar__actions">
         {sync ? <UsSyncDot state={sync.state}>{sync.label}</UsSyncDot> : null}
+        {aiHref ? (
+          <Link className="us-topbar__ai" to={aiHref} title="打开同源 AI">
+            <IconSpark size={13} />
+          </Link>
+        ) : null}
         {people && people.length > 0 ? (
           <UsAvatarGroup>
             {people.map((p) => (

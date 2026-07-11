@@ -76,7 +76,7 @@ function FieldRefRow({
       {field.state === "lowConfidence" ? (
         <UsMonoTag tone="change">{field.confidenceLabel ?? "74%"}</UsMonoTag>
       ) : field.state === "dangling" ? (
-        <UsMonoTag tone="change">悬空</UsMonoTag>
+        <UsMonoTag tone="danger">悬空</UsMonoTag>
       ) : (
         <UsMonoTag>{field.count}</UsMonoTag>
       )}

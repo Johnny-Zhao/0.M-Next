@@ -18,13 +18,17 @@ import type {
 } from "../model/kernel";
 import type {
   ActivityItem,
+  BiBarDef,
   ChangeEvent,
   ChangeEventInverse,
+  ChatMessage,
   DocModel,
   Expression,
   FieldRef,
+  KpiCardDef,
   Member,
   PluginDef,
+  RawImport,
   SimScenario,
 } from "../model/view-layer";
 import { cloneDemoSeed, type DemoSeed } from "../seed/demo-seed";
@@ -42,6 +46,10 @@ export interface WorkspaceState {
   readonly views: readonly ViewDef[];
   readonly docModels: readonly DocModel[];
   readonly fieldRefs: readonly FieldRef[];
+  readonly kpis: readonly KpiCardDef[];
+  readonly biBars: readonly BiBarDef[];
+  readonly rawImport: RawImport;
+  readonly chatMessages: readonly ChatMessage[];
   readonly checkResults: readonly CheckResult[];
   readonly changeEvents: readonly ChangeEvent[];
   readonly activity: readonly ActivityItem[];
@@ -183,6 +191,14 @@ export class WorkspaceStore {
     return this.state.changeEvents;
   }
 
+  getKpis(): readonly KpiCardDef[] {
+    return this.state.kpis;
+  }
+
+  getBiBars(): readonly BiBarDef[] {
+    return this.state.biBars;
+  }
+
   updateField(
     objectId: string,
     fieldCode: FieldCode,
@@ -279,6 +295,83 @@ export class WorkspaceStore {
     return { relation };
   }
 
+  createObject(params: {
+    readonly objectTypeCode: string;
+    readonly fields: Record<FieldCode, DataFieldPrimitive>;
+    readonly actor?: MemberId;
+    readonly source?: "manual" | "ai";
+    readonly objectId?: string;
+    readonly summary?: string;
+  }): DataObject {
+    const actor = params.actor ?? this.state.workspace.currentMemberId;
+    const object: DataObject = {
+      id:
+        params.objectId ?? `obj-${params.objectTypeCode}-${this.sequence + 1}`,
+      objectTypeCode: params.objectTypeCode,
+      status: "active",
+      version: 1,
+      fields: Object.fromEntries(
+        Object.entries(params.fields).map(([code, value]) => [
+          code,
+          valueCell(value, undefined, {
+            actor,
+            source: params.source ?? "manual",
+          }),
+        ]),
+      ),
+      createdBy: actor,
+      createdAt: now,
+      updatedBy: actor,
+      updatedAt: now,
+    };
+    const event = this.createObjectEvent(object.id, actor);
+    this.state = {
+      ...this.state,
+      objects: [object, ...this.state.objects],
+      changeEvents: [event, ...this.state.changeEvents],
+      activity: [
+        {
+          id: activityId(this.sequence),
+          actor,
+          summary: params.summary ?? `创建对象 ${params.objectTypeCode}`,
+          tracks: ["data"],
+          at: now,
+        },
+        ...this.state.activity,
+      ],
+    };
+    this.emit();
+    return object;
+  }
+
+  setKpiVisible(kpiId: string, visible: boolean, actor: MemberId): KpiCardDef {
+    const current = this.state.kpis.find((candidate) => candidate.id === kpiId);
+    if (!current) throw new Error(`找不到 KPI ${kpiId}`);
+    const next = { ...current, visible };
+    const event = this.createViewKpiEvent(kpiId, actor);
+    this.state = {
+      ...this.state,
+      kpis: this.state.kpis.map((candidate) =>
+        candidate.id === kpiId ? next : candidate,
+      ),
+      changeEvents: [event, ...this.state.changeEvents],
+      activity: [
+        {
+          id: activityId(this.sequence),
+          actor,
+          summary: visible
+            ? `显示看板卡 ${current.label}`
+            : `隐藏看板卡 ${current.label}`,
+          tracks: ["view"],
+          at: now,
+        },
+        ...this.state.activity,
+      ],
+    };
+    this.emit();
+    return next;
+  }
+
   updateRelationField(
     relationId: string,
     fieldCode: FieldCode,
@@ -359,6 +452,7 @@ export class WorkspaceStore {
     objectId: string,
     fieldCode: FieldCode,
     label: string,
+    actor: MemberId = this.state.workspace.currentMemberId,
   ): FieldRef {
     const ref: FieldRef = {
       id: `ref-${exprId}-${fieldCode}-${this.sequence + 1}`,
@@ -368,7 +462,7 @@ export class WorkspaceStore {
       label,
       state: "fresh",
     };
-    const event = this.createViewFieldEvent(objectId, fieldCode);
+    const event = this.createViewFieldEvent(objectId, fieldCode, actor);
     this.state = {
       ...this.state,
       fieldRefs: [...this.state.fieldRefs, ref],
@@ -376,7 +470,7 @@ export class WorkspaceStore {
       activity: [
         {
           id: activityId(this.sequence),
-          actor: this.state.workspace.currentMemberId,
+          actor,
           summary: `插入字段引用 ${label}`,
           tracks: ["view"],
           at: now,
@@ -388,7 +482,11 @@ export class WorkspaceStore {
     return ref;
   }
 
-  rebindFieldRef(refId: string, newFieldCode: FieldCode): FieldRef {
+  rebindFieldRef(
+    refId: string,
+    newFieldCode: FieldCode,
+    actor: MemberId = this.state.workspace.currentMemberId,
+  ): FieldRef {
     const ref = this.state.fieldRefs.find(
       (candidate) => candidate.id === refId,
     );
@@ -406,7 +504,7 @@ export class WorkspaceStore {
       label: field?.name ?? ref.label,
       state: "fresh",
     };
-    const event = this.createViewFieldEvent(ref.objectId, newFieldCode);
+    const event = this.createViewFieldEvent(ref.objectId, newFieldCode, actor);
     this.state = {
       ...this.state,
       fieldRefs: this.state.fieldRefs.map((candidate) =>
@@ -416,7 +514,7 @@ export class WorkspaceStore {
       activity: [
         {
           id: activityId(this.sequence),
-          actor: this.state.workspace.currentMemberId,
+          actor,
           summary: `重绑字段引用 ${nextRef.label}`,
           tracks: ["view"],
           at: now,
@@ -498,16 +596,43 @@ export class WorkspaceStore {
     };
   }
 
+  private createObjectEvent(objectId: string, actor: MemberId): ChangeEvent {
+    this.sequence += 1;
+    return {
+      id: eventId(this.sequence),
+      track: "data",
+      actor,
+      target: { entityType: "object", entityId: objectId },
+      syncedRefs: 0,
+      at: now,
+      inverse: null,
+    };
+  }
+
   private createViewFieldEvent(
     objectId: string,
     fieldCode: FieldCode,
+    actor: MemberId,
   ): ChangeEvent {
     this.sequence += 1;
     return {
       id: eventId(this.sequence),
       track: "view",
-      actor: this.state.workspace.currentMemberId,
+      actor,
       target: { entityType: "field", entityId: objectId, fieldCode },
+      syncedRefs: 0,
+      at: now,
+      inverse: null,
+    };
+  }
+
+  private createViewKpiEvent(kpiId: string, actor: MemberId): ChangeEvent {
+    this.sequence += 1;
+    return {
+      id: eventId(this.sequence),
+      track: "view",
+      actor,
+      target: { entityType: "object", entityId: kpiId },
       syncedRefs: 0,
       at: now,
       inverse: null,
@@ -584,6 +709,10 @@ function seedToState(seed: DemoSeed): WorkspaceState {
     views: seed.views,
     docModels: seed.docModels,
     fieldRefs: seed.fieldRefs,
+    kpis: seed.kpis,
+    biBars: seed.biBars,
+    rawImport: seed.rawImport,
+    chatMessages: seed.chatMessages,
     checkResults: seed.checkResults,
     changeEvents: seed.changeEvents,
     activity: seed.activity,

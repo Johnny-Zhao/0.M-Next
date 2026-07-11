@@ -62,7 +62,7 @@ describe("ChangeSetStore", () => {
     expect(workspace.getChangeEvents()).toHaveLength(0);
   });
 
-  it("accepts items partially and resolves after the remaining items are accepted", () => {
+  it("skips applied items and resolves after the remaining item is accepted", () => {
     const seed = cloneDemoSeed();
     const workspace = new WorkspaceStore(seed);
     const store = new ChangeSetStore(seed, workspace);
@@ -70,17 +70,48 @@ describe("ChangeSetStore", () => {
     const first = store.acceptItems("changeset-ai-quote", ["ai-price"]);
     expect(first.ok).toBe(true);
     expect(first.ok ? first.changeSet.status : null).toBe("pending");
-    expect(workspace.getChangeEvents()).toHaveLength(1);
-    expect(workspace.getActivity()[0]?.summary).toContain("供应商报价邮件解析");
+    expect(workspace.getChangeEvents()).toHaveLength(0);
 
-    const final = store.acceptItems("changeset-ai-quote", [
-      "ai-battery",
-      "ai-launch",
-    ]);
+    const final = store.acceptItems("changeset-ai-quote", ["ai-launch"]);
     expect(final.ok).toBe(true);
     expect(final.ok ? final.changeSet.status : null).toBe("resolved");
     expect(workspace.getObject("prod-s3")?.fields.launch_date?.value).toBe(
       "2026-08-18",
     );
+  });
+
+  it("applies createObject items through the workspace", () => {
+    const seed = cloneDemoSeed();
+    const workspace = new WorkspaceStore(seed);
+    const store = new ChangeSetStore(seed, workspace);
+    store.submit({
+      id: "changeset-create-contract",
+      source: "ai",
+      status: "pending",
+      title: "AI 新增合同",
+      actor: "wangyun",
+      createdAt: "2026-07-10T10:40:00+08:00",
+      items: [
+        {
+          id: "create-contract",
+          op: "createObject",
+          target: { entityType: "object", entityId: "contract-new" },
+          objectTypeCode: "contracts",
+          fields: { name: "新合同", product: "门锁 S3" },
+          confirmed: true,
+        },
+      ],
+    });
+
+    const result = store.confirmAll("changeset-create-contract");
+
+    expect(result.ok).toBe(true);
+    expect(workspace.getObject("contract-new")?.fields.name?.value).toBe(
+      "新合同",
+    );
+    expect(workspace.getChangeEvents()[0]?.target).toEqual({
+      entityType: "object",
+      entityId: "contract-new",
+    });
   });
 });

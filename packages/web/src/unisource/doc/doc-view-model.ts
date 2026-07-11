@@ -241,7 +241,10 @@ function resolveRef(workspace: WorkspaceState, ref: FieldRef): DocRefVm {
     state,
     label: ref.label,
     chipDomId: `ref-${ref.id}`,
-    confidenceLabel: state === "lowConfidence" ? "74%" : undefined,
+    confidenceLabel:
+      state === "lowConfidence" && ref.confidence !== undefined
+        ? `${Math.round(ref.confidence * 100)}%`
+        : undefined,
   };
 }
 

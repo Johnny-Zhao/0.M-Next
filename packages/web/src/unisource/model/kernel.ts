@@ -151,6 +151,8 @@ export interface ChangeItem {
   readonly id: string;
   readonly op: "updateField" | "createObject" | "createRelation";
   readonly target: SelectionRef;
+  readonly objectTypeCode?: string;
+  readonly fields?: Record<FieldCode, DataFieldPrimitive>;
   readonly oldValue?: DataFieldPrimitive;
   readonly nextValue?: DataFieldPrimitive;
   readonly confidence?: number;

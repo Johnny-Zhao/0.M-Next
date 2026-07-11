@@ -53,7 +53,7 @@ export function UsMonoTag({
   className,
 }: {
   active?: boolean;
-  tone?: "primary" | "change";
+  tone?: "primary" | "change" | "danger";
   children: ReactNode;
   className?: string;
 }) {

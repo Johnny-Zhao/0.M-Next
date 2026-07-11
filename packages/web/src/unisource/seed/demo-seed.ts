@@ -16,12 +16,16 @@ import type {
 } from "../model/kernel";
 import type {
   ActivityItem,
+  BiBarDef,
   ChangeEvent,
+  ChatMessage,
   DocModel,
   Expression,
   FieldRef,
+  KpiCardDef,
   Member,
   PluginDef,
+  RawImport,
   SimScenario,
 } from "../model/view-layer";
 
@@ -85,6 +89,10 @@ export interface DemoSeed {
   readonly views: readonly ViewDef[];
   readonly docModels: readonly DocModel[];
   readonly fieldRefs: readonly FieldRef[];
+  readonly kpis: readonly KpiCardDef[];
+  readonly biBars: readonly BiBarDef[];
+  readonly rawImport: RawImport;
+  readonly chatMessages: readonly ChatMessage[];
   readonly checkResults: readonly CheckResult[];
   readonly changeSets: readonly ChangeSet[];
   readonly changeEvents: readonly ChangeEvent[];
@@ -133,6 +141,9 @@ export const objectTypes: readonly ObjectTypeDef[] = [
     fields: [
       { code: "name", name: "合同名称", dataType: "text" },
       { code: "product", name: "产品", dataType: "text" },
+      { code: "channel", name: "渠道", dataType: "text" },
+      { code: "quote", name: "报价", dataType: "number", unit: "CNY" },
+      { code: "contact", name: "联系人", dataType: "text" },
       { code: "amount", name: "金额", dataType: "number", unit: "CNY" },
     ],
   },
@@ -280,7 +291,14 @@ const contractObjects: readonly DataObject[] = [
     id: "contract-east-s3",
     objectTypeCode: "contracts",
     source: "ai",
-    fields: { name: "华东智联·S3 报价", product: "门锁 S3", amount: 880000 },
+    fields: {
+      name: "华东智联 · S3 报价",
+      product: "门锁 S3",
+      channel: "华东经销",
+      quote: 1199,
+      contact: "老李 138****8000",
+      amount: 880000,
+    },
   }),
   dataObject({
     id: "contract-north-d2",
@@ -301,6 +319,21 @@ const customerObjects: readonly DataObject[] = [
     fields: { name: "南区渠道联合体", region: "华南" },
   }),
 ];
+
+const rawImportText =
+  "老李发来华东经销报价: 门锁 S3 建议售价 1199 元,联系人 138****8000,上市日期可能是 8 月 18 日。防护等级 IP65 不变。";
+
+function rawSpan(
+  needle: string,
+  tone: "primary" | "change",
+): {
+  readonly start: number;
+  readonly end: number;
+  readonly tone: "primary" | "change";
+} {
+  const start = rawImportText.indexOf(needle);
+  return { start, end: start + needle.length, tone };
+}
 
 export const demoSeed: DemoSeed = {
   workspace: {
@@ -701,6 +734,7 @@ export const demoSeed: DemoSeed = {
       exprId: "exp-spec-doc",
       label: "上市日期",
       state: "lowConfidence",
+      confidence: 0.74,
     },
     {
       id: "ref-weekly-presale-gift-dangling",
@@ -709,6 +743,83 @@ export const demoSeed: DemoSeed = {
       exprId: "exp-weekly",
       label: "预售权益",
       state: "dangling",
+    },
+  ],
+  kpis: [
+    {
+      id: "kpi-gmv",
+      label: "本月 GMV",
+      value: "¥2.4M",
+      delta: "+12.4%",
+      deltaSign: "up",
+      sourceLabel: "渠道销量表",
+      visible: true,
+    },
+    {
+      id: "kpi-s3-orders",
+      label: "S3 预售订单",
+      value: "8,214",
+      delta: "+38.2%",
+      deltaSign: "up",
+      sourceLabel: "产品规格库",
+      visible: true,
+    },
+    {
+      id: "kpi-aov",
+      label: "平均客单价",
+      value: "¥876",
+      delta: "-2.1%",
+      deltaSign: "down",
+      sourceLabel: "合同台账",
+      visible: true,
+    },
+    {
+      id: "kpi-active-channels",
+      label: "活跃渠道数",
+      value: "42",
+      delta: "+3",
+      deltaSign: "up",
+      sourceLabel: "渠道销量表",
+      aiAdded: true,
+      visible: true,
+    },
+  ],
+  biBars: [
+    { label: "线上直营", value: 6420, percent: 100, tone: "high" },
+    { label: "京东", value: 4180, percent: 65, tone: "mid" },
+    { label: "天猫", value: 3960, percent: 62, tone: "mid" },
+    { label: "线下经销", value: 2850, percent: 44, tone: "low" },
+    { label: "运营商", value: 1240, percent: 19, tone: "low" },
+  ],
+  rawImport: {
+    text: rawImportText,
+    spans: [
+      rawSpan("华东经销", "primary"),
+      rawSpan("门锁 S3", "primary"),
+      rawSpan("1199", "change"),
+      rawSpan("138****8000", "primary"),
+      rawSpan("8 月 18 日", "change"),
+      rawSpan("IP65", "primary"),
+    ],
+    semanticChips: [
+      { label: "意图:报价导入", confidence: 0.95 },
+      { label: "主体:智能门锁 S3", confidence: 0.92 },
+      { label: "来源:供应商邮件", confidence: 0.88 },
+    ],
+    recent: [
+      { id: "import-quote-mail", title: "供应商报价邮件", at: at.import },
+      {
+        id: "import-channel-cache",
+        title: "渠道销量缓存表",
+        at: at.validation,
+      },
+    ],
+  },
+  chatMessages: [
+    {
+      id: "chat-seed-ai",
+      role: "ai",
+      text: "可以让我改数据或改看板,所有 AI 写入都会生成可撤销的变更卡。",
     },
   ],
   checkResults: [
@@ -773,6 +884,7 @@ export const demoSeed: DemoSeed = {
           nextValue: 1199,
           confidence: 0.96,
           confirmed: true,
+          applied: true,
         },
         {
           id: "ai-battery",
@@ -786,6 +898,41 @@ export const demoSeed: DemoSeed = {
           nextValue: 14,
           confidence: 0.92,
           confirmed: true,
+          applied: true,
+        },
+        {
+          id: "ai-rating-skip",
+          op: "updateField",
+          target: {
+            entityType: "field",
+            entityId: "prod-s3",
+            fieldCode: "rating",
+          },
+          oldValue: "IP65",
+          nextValue: "IP65",
+          confidence: 0.98,
+          confirmed: true,
+          applied: true,
+        },
+        {
+          id: "ai-contract",
+          op: "createObject",
+          target: {
+            entityType: "object",
+            entityId: "contract-east-s3",
+          },
+          objectTypeCode: "contracts",
+          fields: {
+            name: "华东智联 · S3 报价",
+            product: "门锁 S3",
+            channel: "华东经销",
+            quote: 1199,
+            contact: "老李 138****8000",
+            amount: 880000,
+          },
+          confidence: 0.89,
+          confirmed: true,
+          applied: true,
         },
         {
           id: "ai-launch",
