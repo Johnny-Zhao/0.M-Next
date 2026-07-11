@@ -1,0 +1,232 @@
+/**
+ * 同源 UniSource · Design Tokens
+ * 唯一事实源:docs/design/design-new/project/交接规格 Handoff Spec.dc.html §03
+ *            + 设计系统 Design System.dc.html §01
+ * 规则(设计系统 01/交接规格 DEV NOTES):
+ *  - 禁止发明新色/新字号;扩展用 oklch 就近取色并登记到本表。
+ *  - unisource/ 内除本文件外禁止出现十六进制色值与裸 font-family
+ *    (由 scripts/check-us-tokens.mjs 门禁)。
+ */
+
+@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=Noto+Sans+SC:wght@400;500;700&family=Noto+Serif+SC:wght@400;600;700&display=swap");
+
+:root {
+  /* ===== 色 · COLOR(交接规格 03 colorTokens) ===== */
+  /* color.ink — 正文/强调按钮/Toast 底 */
+  --us-ink: #1c1b18;
+  --us-ink-hover: #3a3833; /* emphasis 按钮 hover(设计系统 02) */
+  --us-toast-bg: #201f1b; /* Toast 墨底(1c 屏) */
+  /* color.paper — 屏底/卡片 */
+  --us-paper: #fffefb;
+  --us-white: #ffffff;
+  /* color.surface.* */
+  --us-canvas: #f1efe8; /* 工作区底 */
+  --us-sidebar: #f3f1ea; /* 侧栏 */
+  --us-topbar: #fbfaf7; /* 顶栏/面板底(1a/9c 屏) */
+  --us-surface-head: #f7f6f1; /* 表头/列表头 */
+  --us-surface-nav: #f8f7f2; /* 规则组/目录栏(9c/5b) */
+  --us-surface-hover: #f6f4ec; /* 次按钮 hover/行 hover */
+  --us-surface-input: #eeece3; /* 搜索框底 */
+  --us-surface-track: #e7e4d8; /* 分段开关轨/侧栏 hover */
+  --us-surface-track-2: #eceae0; /* 分段开关轨(设计系统变体) */
+  --us-surface-selected: #e4e1d4; /* 列表选中底 */
+  --us-surface-gallery: #eceae2; /* 画廊外壳底 */
+  --us-canvas-dot: #ddd9cc; /* 画布点阵 */
+  /* color.border */
+  --us-border: #e9e6dd;
+  --us-border-soft: #f0eee6; /* 次级分隔 */
+  --us-border-strong: #e5e2d9; /* 次按钮描边/矩阵格 */
+  --us-border-dashed: #e0dcd0; /* 虚线分隔 */
+  --us-border-node: #e0dcd0; /* 默认节点卡描边 */
+  --us-border-mid: #efede5; /* 差异树/表内边 */
+  /* color.text */
+  --us-text: var(--us-ink);
+  --us-text-2: #4a473f; /* 正文次级 */
+  --us-text-3: #6e6a60; /* 表头/标签 */
+  --us-text-muted: #8a8578; /* 辅助文字 */
+  --us-text-faint: #98937f; /* 最弱文字/占位(08-④ 允许整体上调一档) */
+  --us-text-disabled: #b4af9f;
+  --us-text-ghost: #c9c5b8; /* 未激活点/空心圈 */
+  /* color.primary 青绿 — 数据/引用/选中/确认 */
+  --us-primary: #0e6e5c;
+  --us-primary-deep: #0b5b4c; /* 主色文字 */
+  --us-primary-hover: #0a5646;
+  --us-primary-bg: #e7f1eb; /* 主色底 1(激活 chip/筛选) */
+  --us-primary-bg-2: #f0f6f2; /* 主色底 2(选中行/增卡) */
+  --us-primary-bg-3: #e9f3ee; /* 主色底 3(引用芯片) */
+  --us-primary-pill-bg: #e3f0ea; /* 在售药丸底 */
+  --us-primary-border: #d7e4db; /* 增卡/绿列边 */
+  --us-bar-mid: #7fa898; /* 柱图中档(6b biBars) */
+  --us-bar-low: #b9ccc2; /* 柱图低档 */
+  /* color.change 琥珀 — 变更/待确认/运行中 */
+  --us-change: #d98a1f;
+  --us-change-text: #8f5407;
+  --us-change-text-2: #925608;
+  --us-change-icon: #b4690e;
+  --us-change-bg: #fdf6e7; /* 编辑单元格/待办横幅底 */
+  --us-change-bg-2: #fbefda; /* 预售药丸/待确认底 */
+  --us-change-bg-3: #fdf9ef; /* 变更行/改卡底 */
+  --us-change-bg-4: #fcf0db; /* 刚同步引用芯片底 */
+  --us-change-border: #ead9bc; /* 警告卡边 */
+  --us-change-border-2: #f2ebd9; /* 改卡边 */
+  /* color.danger 砖红 — 删除/错误/悬空 */
+  --us-danger: #a03d22;
+  --us-danger-2: #c2643f; /* 危险副文 */
+  --us-danger-bg: #fbf3f0;
+  --us-danger-bg-2: #f6e7e0;
+  --us-danger-border: #e8c7ba;
+  /* color.gold — 深底上的 AI/高亮 */
+  --us-gold: #f4c778;
+  /* 状态药丸 · StatusPill(设计系统 02 徽标) */
+  --us-pill-sale-bg: var(--us-primary-pill-bg);
+  --us-pill-sale-fg: var(--us-primary-deep);
+  --us-pill-presale-bg: var(--us-change-bg-2);
+  --us-pill-presale-fg: var(--us-change-text-2);
+  --us-pill-dev-bg: #e8eaf2;
+  --us-pill-dev-fg: #4a5578;
+  --us-pill-eol-bg: #eceae4;
+  --us-pill-eol-fg: var(--us-text-3);
+  /* 头像/成员色(交接规格 03 color.avatar.*) */
+  --us-avatar-wang: #0e6e5c;
+  --us-avatar-li: #5b6b9e;
+  --us-avatar-chen: #a06a1b;
+  --us-avatar-zhou: #7a5286;
+  --us-avatar-ai-bg: var(--us-ink);
+  --us-avatar-ai-fg: var(--us-gold);
+  /* 双轨变更流(首页/版本面板):数据轨=琥珀 · 表达/视图轨=蓝灰 */
+  --us-track-data: var(--us-change-text);
+  --us-track-view: #5b6b9e;
+  /* Toggle 关态轨 */
+  --us-toggle-off: #d9d5c8;
+
+  /* ===== 字体 · TYPE(font.ui / font.data / font.doc) ===== */
+  --us-font-ui: "IBM Plex Sans", "Noto Sans SC", sans-serif;
+  --us-font-data: "IBM Plex Mono", "Noto Sans SC", monospace;
+  --us-font-doc: "Source Serif 4", "Noto Serif SC", serif;
+  /* 字阶 10/11/11.5/12/12.5/13/13.5/14.5/16/20/26 · 字重 400/500/600/700 */
+  --us-fs-10: 10px;
+  --us-fs-11: 11px;
+  --us-fs-115: 11.5px;
+  --us-fs-12: 12px;
+  --us-fs-125: 12.5px;
+  --us-fs-13: 13px;
+  --us-fs-135: 13.5px;
+  --us-fs-145: 14.5px;
+  --us-fs-16: 16px;
+  --us-fs-20: 20px;
+  --us-fs-26: 26px;
+  --us-lh-ui: 1.65; /* 界面 1.6–1.7 */
+  --us-lh-doc: 2; /* 文档正文 */
+
+  /* ===== 圆角 · RADIUS ===== */
+  --us-radius-badge: 4px;
+  --us-radius-chip: 5px;
+  --us-radius-control: 6px;
+  --us-radius-panel: 8px;
+  --us-radius-card: 10px;
+  --us-radius-pill: 20px;
+
+  /* ===== 间距 · SPACE(4/6/8/10/12/14/16/20/24) ===== */
+  --us-sp-1: 4px;
+  --us-sp-2: 6px;
+  --us-sp-3: 8px;
+  --us-sp-4: 10px;
+  --us-sp-5: 12px;
+  --us-sp-6: 14px;
+  --us-sp-7: 16px;
+  --us-sp-8: 20px;
+  --us-sp-9: 24px;
+
+  /* ===== 行高/尺寸 · METRICS ===== */
+  --us-h-topbar: 48px;
+  --us-h-topbar-full: 52px; /* 设置类全宽顶栏(9c/5b/8b) */
+  --us-h-howrow: 44px;
+  --us-h-toolbar: 42px;
+  --us-h-gridrow: 40px;
+  --us-h-treerow: 27px; /* 26–28 */
+  --us-h-statusbar: 34px;
+
+  /* ===== 布局宽 · LAYOUT ===== */
+  --us-w-sidebar: 264px;
+  --us-w-inspector: 316px; /* 300–336,基准取 8c 检查器 */
+  --us-w-drawer: 360px;
+  --us-min-width: 1280px;
+
+  /* ===== 阴影/光晕 · SHADOW ===== */
+  --us-shadow-card: 0 2px 6px rgba(28, 27, 24, 0.08);
+  --us-shadow-float:
+    0 4px 12px rgba(28, 27, 24, 0.1), 0 20px 48px rgba(28, 27, 24, 0.18);
+  --us-shadow-toast: 0 8px 24px rgba(28, 27, 24, 0.35);
+  --us-shadow-seg: 0 1px 2px rgba(28, 27, 24, 0.12); /* 分段开关浮起片 */
+  --us-glow-selected: 0 0 0 3px rgba(14, 110, 92, 0.14);
+  --us-glow-change: 0 0 0 3px rgba(217, 138, 31, 0.14);
+  --us-glow-danger: 0 0 0 3px rgba(160, 61, 34, 0.08);
+  --us-overlay: rgba(28, 27, 24, 0.35); /* Modal/Drawer 遮罩 */
+  --us-toast-icon-bg: rgba(244, 199, 120, 0.16);
+  --us-toast-text-dim: rgba(255, 255, 255, 0.6);
+
+  /* ===== 动效 · MOTION(交接规格 DEV NOTES) ===== */
+  --us-dur-align: 150ms; /* 对齐归位 */
+  --us-dur-flow: 0.9s; /* FlowEdge 虚线流动 */
+  --us-dur-pulse: 1.6s; /* PulseRing 呼吸 */
+  --us-dur-fast: 120ms; /* hover/开关等通用过渡 */
+  --us-just-synced: 10s; /* RefChip 刚同步回落 */
+
+  /* ===== 层级 · Z ===== */
+  --us-z-drawer: 60;
+  --us-z-modal: 70;
+  --us-z-toast: 80;
+  --us-z-guard: 90;
+}
+
+/* 1280 最小支持宽度降档(交接规格 04) */
+@media (max-width: 1439.98px) {
+  :root {
+    --us-w-sidebar: 240px;
+    --us-w-inspector: 280px;
+    --us-w-drawer: 320px;
+  }
+}
+
+/* ===== 基础层(仅同源壳挂载时生效,boot 为 body 加 .us-body) ===== */
+body.us-body {
+  margin: 0;
+  background: var(--us-canvas);
+  color: var(--us-text);
+  font-family: var(--us-font-ui);
+  font-size: var(--us-fs-13);
+  line-height: var(--us-lh-ui);
+  -webkit-font-smoothing: antialiased;
+}
+
+body.us-body a {
+  color: var(--us-primary);
+  text-decoration: none;
+}
+
+body.us-body a:hover {
+  color: var(--us-primary-hover);
+  text-decoration: underline;
+}
+
+/* 键盘焦点:2px primary 外描边,offset 2px,全控件统一(交接规格 08-⑤) */
+body.us-body :focus-visible {
+  outline: 2px solid var(--us-primary);
+  outline-offset: 2px;
+}
+
+/* 数据字体强规则:一切数值/ID/日期/金额必须 font.data */
+.us-data {
+  font-family: var(--us-font-data);
+}
+
+/* prefers-reduced-motion:全部动效降为静态(交接规格 DEV NOTES) */
+@media (prefers-reduced-motion: reduce) {
+  body.us-body *,
+  body.us-body *::before,
+  body.us-body *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

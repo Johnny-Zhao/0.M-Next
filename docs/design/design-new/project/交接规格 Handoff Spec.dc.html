@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&amp;family=IBM+Plex+Mono:wght@400;500;600&amp;family=Noto+Sans+SC:wght@400;500;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#ECEAE2;font-family:"IBM Plex Sans","Noto Sans SC",sans-serif;color:#1C1B18;-webkit-font-smoothing:antialiased}
+a{color:#0E6E5C;text-decoration:none}
+a:hover{color:#0A5646;text-decoration:underline}
+</style>
+</helmet>
+<div style="min-height:100vh;display:flex;flex-direction:column">
+<div style="height:46px;flex:none;display:flex;align-items:center;gap:12px;padding:0 18px;background:#1C1B18;color:#fff;position:sticky;top:0;z-index:50">
+  <svg width="20" height="20" viewBox="0 0 24 24"><rect x="1" y="1" width="22" height="22" rx="6" fill="#0E6E5C"></rect><rect x="5.5" y="6" width="3" height="3" rx="0.8" fill="#fff"></rect><rect x="5.5" y="11" width="3" height="3" rx="0.8" fill="#fff"></rect><rect x="5.5" y="16" width="3" height="3" rx="0.8" fill="#fff" opacity="0.55"></rect><rect x="11" y="6.6" width="8" height="1.8" rx="0.9" fill="#fff"></rect><rect x="11" y="11.6" width="8" height="1.8" rx="0.9" fill="#fff"></rect><rect x="11" y="16.6" width="5" height="1.8" rx="0.9" fill="#fff" opacity="0.55"></rect></svg>
+  <span style="font-size:13px;font-weight:700">同源 UniSource · 前端交接规格</span>
+  <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:600;background:rgba(255,255,255,.14);padding:2px 8px;border-radius:4px">HANDOFF · 2026-07-10</span>
+  <span style="margin-left:auto;display:flex;gap:16px;font-size:12px"><a href="同源 主版本页面集.dc.html" style="color:#F4C778;text-decoration:none">主版本页面集 →</a><a href="设计系统 Design System.dc.html" style="color:rgba(255,255,255,.65);text-decoration:none">设计系统 →</a></span>
+</div>
+<div style="width:1120px;margin:0 auto;padding:28px 0 80px;display:flex;flex-direction:column;gap:32px">
+
+<div style="background:#fff;border:1px solid #E9E6DD;border-radius:10px;padding:16px 20px;font-size:12.5px;line-height:2;color:#4A473F">
+<strong style="color:#1C1B18">00 · 交接范围。</strong>本次交接 = <a href="同源 主版本页面集.dc.html">主版本页面集</a> 全部 14 页（版本号见 01）+ <a href="设计系统 Design System.dc.html">设计系统 v1</a>（Token/组件/状态矩阵/术语）。<strong style="color:#A03D22">不交接：</strong>「同源 UniSource 关键屏」为探索归档（1a–9c 迭代过程稿），其中旧侧栏、头部胶囊视图切换器、「原生表格」概念、仿真作为形式 等结构均已废止。设计稿基准 1440×900，仅桌面端。本文件只含规格，不含实现代码。
+</div>
+
+<div>
+  <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:10px"><span style="font-size:19px;font-weight:700">01 · 页面地图</span><span style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.1em;color:#98937F">PAGE MAP · 14</span></div>
+  <div style="background:#fff;border:1px solid #E9E6DD;border-radius:10px;overflow:hidden">
+    <div style="display:grid;grid-template-columns:150px 60px 190px 1fr 190px;background:#F7F6F1;font-size:11px;color:#6E6A60;font-weight:600"><span style="padding:9px 14px">页面（唯一 ID）</span><span style="padding:9px 6px">版本</span><span style="padding:9px 8px">路由建议</span><span style="padding:9px 8px">入口 / 出口</span><span style="padding:9px 14px">读写数据</span></div>
+    <sc-for list="{{ pageMap }}" as="p" hint-placeholder-count="14">
+      <div style="display:grid;grid-template-columns:150px 60px 190px 1fr 190px;border-top:1px solid #F0EEE6;font-size:12px">
+        <span style="padding:9px 14px"><span style="display:block;font-weight:600">{{ p.n }}</span><span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#98937F">{{ p.id }}</span></span>
+        <span style="padding:9px 6px;font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:#0B5B4C">{{ p.v }}</span>
+        <span style="padding:9px 8px;font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:#4A473F">{{ p.route }}</span>
+        <span style="padding:9px 8px;color:#4A473F;line-height:1.7;font-size:11.5px">{{ p.io }}</span>
+        <span style="padding:9px 14px;color:#8A8578;font-size:11px;line-height:1.7">{{ p.data }}</span>
+      </div>
+    </sc-for>
+  </div>
+</div>
+
+<div>
+  <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:10px"><span style="font-size:19px;font-weight:700">02 · 组件清单与命名</span><span style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.1em;color:#98937F">COMPONENTS</span></div>
+  <div style="font-size:12px;color:#6E6A60;margin-bottom:10px;line-height:1.9">命名法：组件 PascalCase 英文名为唯一标识；状态用固定词表 <span style="font-family:'IBM Plex Mono',monospace;font-size:11px">default / hover / pressed / selected / editing / justSynced / lowConfidence / dangling / running / violated / pending / readonly / disabled</span>（详见 05）。层级：<strong>G 全局</strong>（跨 ≥3 页复用）· <strong>B 业务</strong>（绑定同源领域语义）· <strong>P 页面私有</strong>。</div>
+  <div style="background:#fff;border:1px solid #E9E6DD;border-radius:10px;overflow:hidden">
+    <div style="display:grid;grid-template-columns:210px 40px 1fr 220px;background:#F7F6F1;font-size:11px;color:#6E6A60;font-weight:600"><span style="padding:9px 14px">组件 / 家族</span><span style="padding:9px 4px">层级</span><span style="padding:9px 8px">状态与要点</span><span style="padding:9px 14px">出现页面</span></div>
+    <sc-for list="{{ comps }}" as="c" hint-placeholder-count="30">
+      <div style="display:grid;grid-template-columns:210px 40px 1fr 220px;border-top:1px solid #F0EEE6;font-size:11.5px">
+        <span style="padding:8px 14px"><span style="display:block;font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;color:#1C1B18">{{ c.en }}</span><span style="color:#8A8578;font-size:11px">{{ c.cn }}</span></span>
+        <span style="padding:8px 4px"><span style="font-family:'IBM Plex Mono',monospace;font-size:10px;padding:1px 6px;border-radius:4px;background:{{ c.tBg }};color:{{ c.tFg }};font-weight:700">{{ c.t }}</span></span>
+        <span style="padding:8px 8px;color:#4A473F;line-height:1.7">{{ c.s }}</span>
+        <span style="padding:8px 14px;color:#8A8578;font-size:10.5px;line-height:1.7">{{ c.pages }}</span>
+      </div>
+    </sc-for>
+  </div>
+</div>
+
+<div>
+  <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:10px"><span style="font-size:19px;font-weight:700">03 · 设计 Token</span><span style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.1em;color:#98937F">TOKENS</span></div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+    <div style="background:#fff;border:1px solid #E9E6DD;border-radius:10px;padding:14px 16px">
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.1em;color:#98937F;margin-bottom:8px">颜色 · COLOR</div>
+      <sc-for list="{{ colorTokens }}" as="ct" hint-placeholder-count="14">
+        <div style="display:flex;align-items:center;gap:10px;padding:5px 0;border-bottom:1px dashed #F0EEE6;font-size:11.5px">
+          <span style="width:16px;height:16px;border-radius:5px;flex:none;background:{{ ct.hex }};border:1px solid rgba(28,27,24,.12)"></span>
+          <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;width:196px;flex:none;color:#1C1B18">{{ ct.tk }}</span>
+          <span style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:#98937F;width:66px;flex:none">{{ ct.hex }}</span>
+          <span style="color:#6E6A60;flex:1">{{ ct.use }}</span>
+        </div>
+      </sc-for>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div style="background:#fff;border:1px solid #E9E6DD;border-radius:10px;padding:14px 16px;font-size:11.5px;line-height:2;color:#4A473F">
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.1em;color:#98937F;margin-bottom:6px">字体 · TYPE</div>
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:11px">font.ui</span> = IBM Plex Sans + Noto Sans SC（界面）<br>
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:11px">font.data</span> = IBM Plex Mono（<strong>一切数值/ID/日期/代码，无例外</strong>）<br>
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:11px">font.doc</span> = Source Serif 4 + Noto Serif SC（仅文档正文）<br>
+        字阶 <span style="font-family:'IBM Plex Mono',monospace;font-size:11px">10/11/11.5/12/12.5/13/13.5/14.5/16/20/26</span> · 字重 400/500/600/700 · 文档正文行高 2.0，界面 1.6–1.7
+      </div>
+      <div style="background:#fff;border:1px solid #E9E6DD;border-radius:10px;padding:14px 16px;font-size:11.5px;line-height:2;color:#4A473F">
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.1em;color:#98937F;margin-bottom:6px">圆角 / 间距 / 阴影 / 布局 · METRICS</div>
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:11px">radius</span>：badge 4 · chip 5 · control 6 · panel 8 · card 10 · pill 20 · avatar 50%<br>
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:11px">space</span>：4/6/8/10/12/14/16/20/24 · 行高：topbar 48 · howRow 44 · toolbar 42 · gridRow 40 · treeRow 26–28 · statusBar 34<br>
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:11px">shadow.card</span> 0 2 6 ink/8% · <span style="font-family:'IBM Plex Mono',monospace;font-size:11px">shadow.float</span>（菜单/弹层）0 4 12 ink/10% + 0 20 48 ink/18% · <span style="font-family:'IBM Plex Mono',monospace;font-size:11px">shadow.toast</span> 0 8 24 ink/35% · <span style="font-family:'IBM Plex Mono',monospace;font-size:11px">glow.selected</span> 0 0 0 3–4px primary/12–14%（琥珀/砖红同构）<br>
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:11px">layout</span>：sidebar 264 · inspector 300–336 · chatDrawer 360 · 画布屏 1440×900
+      </div>
+    </div>
+  </div>
+</div>
+
+<div>
+  <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:10px"><span style="font-size:19px;font-weight:700">04 · 响应式规则（仅桌面端）</span><span style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.1em;color:#98937F">1440 / 1280</span></div>
+  <div style="background:#fff;border:1px solid #E9E6DD;border-radius:10px;overflow:hidden">
+    <div style="display:grid;grid-template-columns:180px 1fr 1fr;background:#F7F6F1;font-size:11px;color:#6E6A60;font-weight:600"><span style="padding:9px 14px">区域</span><span style="padding:9px 8px">1440（基准，设计稿尺寸）</span><span style="padding:9px 14px">1280（最小支持宽度）</span></div>
+    <sc-for list="{{ responsive }}" as="r" hint-placeholder-count="7">
+      <div style="display:grid;grid-template-columns:180px 1fr 1fr;border-top:1px solid #F0EEE6;font-size:11.5px">
+        <span style="padding:9px 14px;font-weight:600">{{ r.n }}</span>
+        <span style="padding:9px 8px;color:#4A473F;line-height:1.7">{{ r.a }}</span>
+        <span style="padding:9px 14px;color:#4A473F;line-height:1.7">{{ r.b }}</span>
+      </div>
+    </sc-for>
+  </div>
+  <div style="font-size:11.5px;color:#8A8578;margin-top:8px">&lt;1280：显示「请加宽窗口」占位页（本期不做移动端/平板）。&gt;1440：内容区居中，画布类页面画布随宽扩展。</div>
+</div>
+
+<div>
+  <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:10px"><span style="font-size:19px;font-weight:700">05 · 状态清单</span><span style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.1em;color:#98937F">STATES</span></div>
+  <div style="background:#fff;border:1px solid #E9E6DD;border-radius:10px;overflow:hidden">
+    <div style="display:grid;grid-template-columns:160px 1fr;background:#F7F6F1;font-size:11px;color:#6E6A60;font-weight:600"><span style="padding:9px 14px">界面 / 对象</span><span style="padding:9px 14px">空 · 加载 · 错误 · 无权限 · 只读 · 禁用 · 冲突</span></div>
+    <sc-for list="{{ states }}" as="st" hint-placeholder-count="10">
+      <div style="display:grid;grid-template-columns:160px 1fr;border-top:1px solid #F0EEE6;font-size:11.5px">
+        <span style="padding:9px 14px;font-weight:600">{{ st.n }}</span>
+        <span style="padding:9px 14px;color:#4A473F;line-height:1.8">{{ st.s }}</span>
+      </div>
+    </sc-for>
+  </div>
+</div>
+
+<div>
+  <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:10px"><span style="font-size:19px;font-weight:700">06 · 交互规则（控件 → 结果 → 反馈）</span><span style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.1em;color:#98937F">INTERACTIONS</span></div>
+  <div style="background:#fff;border:1px solid #E9E6DD;border-radius:10px;overflow:hidden">
+    <div style="display:grid;grid-template-columns:200px 130px 1fr 210px;background:#F7F6F1;font-size:11px;color:#6E6A60;font-weight:600"><span style="padding:9px 14px">控件</span><span style="padding:9px 6px">位置</span><span style="padding:9px 8px">结果</span><span style="padding:9px 14px">反馈</span></div>
+    <sc-for list="{{ interactions }}" as="ix" hint-placeholder-count="30">
+      <div style="display:grid;grid-template-columns:200px 130px 1fr 210px;border-top:1px solid #F0EEE6;font-size:11.5px">
+        <span style="padding:8px 14px;font-weight:600">{{ ix.n }}</span>
+        <span style="padding:8px 6px;color:#8A8578;font-size:10.5px">{{ ix.at }}</span>
+        <span style="padding:8px 8px;color:#4A473F;line-height:1.7">{{ ix.r }}</span>
+        <span style="padding:8px 14px;color:#8A8578;font-size:10.5px;line-height:1.7">{{ ix.f }}</span>
+      </div>
+    </sc-for>
+  </div>
+  <div style="font-size:11.5px;color:#8A8578;margin-top:8px">浮层清单：ContextMenu（7a）· GotoSubmenu（7a）· AddFormMenu（HOW 行）· RefInsertPopover（1b @）· ChatDrawer 360px（6b）· Toast 右下（1c/全局）· DeleteConfirmModal 与 ShareDialog <strong style="color:#A03D22">未设计</strong>（见 08）。</div>
+</div>
+
+<div>
+  <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:10px"><span style="font-size:19px;font-weight:700">07 · 数据与 Mock 边界</span><span style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.1em;color:#98937F">DATA / MOCK</span></div>
+  <div style="background:#fff;border:1px solid #E9E6DD;border-radius:10px;overflow:hidden">
+    <div style="display:grid;grid-template-columns:170px 1fr 1fr;background:#F7F6F1;font-size:11px;color:#6E6A60;font-weight:600"><span style="padding:9px 14px">模块</span><span style="padding:9px 8px">首版可 Mock（演示剧本见备注）</span><span style="padding:9px 14px">需真实实现</span></div>
+    <sc-for list="{{ mock }}" as="m" hint-placeholder-count="8">
+      <div style="display:grid;grid-template-columns:170px 1fr 1fr;border-top:1px solid #F0EEE6;font-size:11.5px">
+        <span style="padding:9px 14px;font-weight:600">{{ m.n }}</span>
+        <span style="padding:9px 8px;color:#0B5B4C;line-height:1.7">{{ m.a }}</span>
+        <span style="padding:9px 14px;color:#4A473F;line-height:1.7">{{ m.b }}</span>
+      </div>
+    </sc-for>
+  </div>
+  <div style="font-size:11.5px;color:#8A8578;margin-top:8px">演示剧本（种子数据一致性基准）：09:12 基线（S3 ¥1,299）→ 10:18 AI 解析报价邮件（改2/增1/待确认1）→ 10:24 确认写入 ¥1,199 同步 3 篇文档 → AI 对话改续航 12→14 个月 + 看板加卡 → 10:32 校验发现销量表缓存 ¥1,299 ≠ 权威 ¥1,199。所有 Mock 数据必须服从此时间线。</div>
+</div>
+
+<div>
+  <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:10px"><span style="font-size:19px;font-weight:700">08 · 未解决 / 有歧义</span><span style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.1em;color:#98937F">OPEN ISSUES</span></div>
+  <div style="background:#fff;border:1px solid #E9E6DD;border-radius:10px;padding:6px 16px">
+    <sc-for list="{{ issues }}" as="q" hint-placeholder-count="10">
+      <div style="display:flex;gap:10px;padding:8px 0;border-bottom:1px dashed #F0EEE6;font-size:12px;line-height:1.8">
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:#fff;background:{{ q.c }};border-radius:4px;padding:1px 7px;flex:none;align-self:flex-start;margin-top:3px;font-weight:700">{{ q.k }}</span>
+        <span style="color:#4A473F">{{ q.s }}</span>
+      </div>
+    </sc-for>
+  </div>
+</div>
+
+<div>
+  <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:10px"><span style="font-size:19px;font-weight:700">09 · 前端实现注意事项</span><span style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.1em;color:#98937F">DEV NOTES</span></div>
+  <div style="background:#fff;border:1px solid #E9E6DD;border-radius:10px;padding:6px 16px">
+    <sc-for list="{{ notes }}" as="nt" hint-placeholder-count="10">
+      <div style="display:flex;gap:10px;padding:8px 0;border-bottom:1px dashed #F0EEE6;font-size:12px;line-height:1.8">
+        <span style="width:5px;height:5px;border-radius:50%;background:#0E6E5C;flex:none;margin-top:9px"></span>
+        <span style="color:#4A473F">{{ nt.s }}</span>
+      </div>
+    </sc-for>
+  </div>
+</div>
+
+</div>
+<div style="padding:18px;text-align:center;font-size:11px;color:#98937F;border-top:1px solid #E0DCD0">同源 UniSource 前端交接规格 · 2026-07-10 · 配套：主版本页面集（14 屏）+ 设计系统 v1 · 归档稿不交接</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  renderVals() {
+    const pageMap = [
+      { id: 'home', n: '首页总览', v: 'v2', route: '/home', io: '入口：登录后默认 / 侧栏 HomeLink。出口：表达卡→对应表达；数据源卡→grid；待办「去确认」→aiimp；变更流条目→定位到对应页', data: '全部数据源（只读汇总）+ 活动流' },
+      { id: 'grid', n: '表格视图', v: 'v3', route: '/source/:sourceId', io: '入口：DATA 树点库 / 首页数据源卡 / GotoMenu。出口：HOW 行换形式；关联文档列→doc', data: '产品规格库 读写（字段级鉴权）' },
+      { id: 'doc', n: '文档视图', v: 'v3', route: '/expr/:exprId?form=doc', io: '入口：WHAT 列表 / 首页表达卡 / GotoMenu。出口：数据面板「定位到显示处」；引用芯片点击→弹出源记录', data: '产品规格库 读（经引用写回）' },
+      { id: 'split', n: '分屏联动', v: 'v3', route: '/expr/:exprId?form=doc&layout=split', io: '入口：doc 页 LayoutToggle 开。出口：关 Toggle 回单形式', data: '产品规格库 读写 + 文档引用' },
+      { id: 'canvas', n: '视图（画布）', v: 'v3', route: '/expr/:exprId?form=canvas', io: '入口：WHAT 列表 / GotoMenu。出口：RunButton→sim；右键菜单 GotoMenu→grid/doc/bi', data: '产品规格库 读 + 互联关系/视图配置 写' },
+      { id: 'matrix', n: '矩阵', v: 'v3', route: '/expr/:exprId?form=matrix', io: '入口：WHAT 列表。出口：卡片点击→源记录', data: '产品规格库 读写（拖卡改状态字段）' },
+      { id: 'tpl', n: '模板与实例化', v: 'v3', route: '/expr/:exprId?form=canvas&tpl=:tplId', io: '入口：WHAT 列表（装机空间）。出口：「生成配置单 DOC」→新表达', data: '硬件产品库 读 + 槽位绑定 写' },
+      { id: 'aiimp', n: 'AI 导入', v: 'v2', route: '/import', io: '入口：首页「AI 导入」/ 待办卡。出口：确认写入→Toast+回来源页；「在左树拖选目标」', data: '任意库 增/改/删（提案→人工确认）' },
+      { id: 'aichat', n: 'AI 对话', v: 'v2', route: '任意表达页 + drawer=chat', io: '入口：顶栏 AI 图标（全部工作区页可唤起）。出口：操作卡「查看 diff」→版本页签', data: '数据源 + 表达配置 读写（随发起人权限）' },
+      { id: 'ana', n: '分析', v: 'v3', route: '/expr/:exprId?form=ana', io: '入口：HOW 行。出口：「生成子看板」→新 BI 形式；「钉到看板」→bi', data: '渠道销量表 + 产品规格库 读' },
+      { id: 'sim', n: '仿真（运行态）', v: 'v3', route: '/expr/:exprId?form=canvas&run=1', io: '入口：canvas RunButton ▶。出口：「停止」回 canvas', data: '节点字段（协议/延迟/功耗）读' },
+      { id: 'val', n: '校验中心', v: 'v1', route: '/source/validate', io: '入口：校验错误 Toast / 9c 直达（全局入口见 08-③）。出口：「定位到文档/表格」', data: '全部数据源 读 + 修复写' },
+      { id: 'plug', n: '插件中心', v: 'v1', route: '/settings/plugins', io: '入口：AddFormMenu「管理插件」/ 设置。出口：启用后回 AddFormMenu', data: '插件注册表' },
+      { id: 'perm', n: '权限模型', v: 'v1', route: '/settings/access', io: '入口：设置 / 审批通知。出口：审批卡→写入+活动流', data: '成员/角色配置 读写' }
+    ];
+    const G = { t: 'G', tBg: '#1C1B18', tFg: '#F4C778' }, B = { t: 'B', tBg: '#E7F1EB', tFg: '#0B5B4C' }, P = { t: 'P', tBg: '#F1EFE8', tFg: '#6E6A60' };
+    const comps = [
+      { en: 'AppShell / TopBar', cn: '应用壳 / 顶栏', s: 'Breadcrumb（根可点回上级）+ SyncDot（青绿/琥珀/砖红 + 文字）+ AvatarGroup + ShareButton', pages: '全部 14 页', ...G },
+      { en: 'AppSidebar', cn: '侧栏（264px）', s: 'Logo + HomeLink + SidebarTabs（WHAT/DATA 互斥）+ SearchInput + 列表区 + 脚注；hover 米底', pages: '10 个工作区页', ...G },
+      { en: 'ExprListItem', cn: '表达列表项', s: 'default/hover/selected（米底+青绿点+600 字重）；右侧 MonoTag 显示已挂形式', pages: '侧栏 WHAT 页签', ...G },
+      { en: 'DataTreeRow', cn: '数据树行', s: 'default/hover/selected（teal inset）/携带 DiffBadge 计数；可拖出（DragGhost -2°）；层级缩进 16px', pages: '侧栏 DATA 页签 · aiimp', ...G },
+      { en: 'FormRow / FormTag', cn: '描述形式行 / 形式标签', s: 'FormTag：active（墨底金图标）/inactive（描边）；单选，split 布局下允许双 active；AddFormButton 虚线', pages: '全部表达页 + grid', ...G },
+      { en: 'LayoutToggle', cn: '布局开关（分屏对照）', s: '仅当 ≥2 形式 active 时出现；含 mini Toggle；与 FormTag 用分隔线隔开', pages: 'split', ...G },
+      { en: 'Button', cn: '按钮', s: 'primary（青绿）/emphasis（墨）/secondary（描边）/danger（砖红，仅全库动作）/disabled 40%；hover 加深 8%', pages: '全部', ...G },
+      { en: 'SegmentedControl / UnderlineTabs', cn: '段控 / 下划线页签', s: '段控=互斥小切换（网络：正常/弱网）；页签=面板内（属性/样式/版本）', pages: 'canvas · sim · perm', ...G },
+      { en: 'Badge 家族', cn: 'StatusPill / DiffBadge / MonoTag / AiBadge', s: 'StatusPill=数据枚举（在售/预售/研发中/停产）；DiffBadge=增(青绿)/改(琥珀)/删(砖红)/跳过(灰)，方角、色义锁定；AiBadge「AI 改」', pages: '全部', ...G },
+      { en: 'RefChip', cn: '字段引用芯片', s: 'fresh（青绿）/justSynced（琥珀+✓，10s 后回落 fresh）/inserting（@琥珀描边）/lowConfidence（琥珀+%）/dangling（砖红删除线，点击重绑）', pages: 'doc · split', ...G },
+      { en: 'Toggle / Checkbox / RadioDot', cn: '开关 / 复选 / 单选', s: 'on=青绿；禁用 40%；显示/隐藏行配眼睛图标', pages: '全部', ...G },
+      { en: 'AiPromptBar', cn: 'AI 指令条', s: '墨色 1.5px 描边 + 星标；提交→解析中骨架；AI 产出一律 ActionCard 可撤销', pages: 'aiimp · aichat · ana', ...G },
+      { en: 'Toast', cn: '通知（右下）', s: '墨底 + 金图标 + 「查看/撤销」；写入类 5s 自动消失，含撤销的 8s', pages: '全局', ...G },
+      { en: 'ContextMenu + GotoSubmenu', cn: '右键菜单 + 定位子菜单', s: '定位到显示处：列全部引用点（来源+形式+处数），点击跳转并高亮目标 2 次闪烁；危险项红字+影响说明', pages: 'canvas（模式通用于 grid/doc 行）', ...G },
+      { en: 'DataGrid', cn: '数据表格', s: 'GridRow：default/hover/selected（青绿左沿3px）/editing（琥珀左沿+单元格2px琥珀内描边+协作者名牌）；表头字段类型图标；底部统计栏', pages: 'grid · split', ...B },
+      { en: 'DocEditor + DataTableBlock + DataPanel', cn: '文档编辑器 + 数据表格块 + 数据面板', s: '衬线正文；@ 触发 RefInsertPopover（↑↓选 ↵插入 esc取消）；DataTableBlock 头部标注来源+同步态；DataPanel 列字段引用计数 + GotoButton', pages: 'doc · split', ...B },
+      { en: 'NodeCard / SlotCard / EdgeLayer', cn: '节点卡 / 槽位卡 / 连线层', s: 'NodeCard：default/selected（2px青绿+glow+手柄）/eventSource/running（琥珀+PulseRing）；SlotCard：abstract（虚线）/instantiating（拖入高亮）/instantiated/violated（琥珀警示）；Edge 标签取协议字段', pages: 'canvas · sim · tpl', ...B },
+      { en: 'AlignToolbar + SelectionBox', cn: '对齐浮条 + 多选框', s: '多选 ≥2 出现；左/右/顶对齐 · 水平居中 · 等宽/等高/等大小 · 移除；只写视图布局', pages: 'canvas', ...B },
+      { en: 'InspectorPanel', cn: '检查器（属性/样式/版本）', s: '属性=绑定记录+显示字段+移除/删除；样式=字体/字号/颜色/填充/圆角/显示隐藏（多选时「混合」占位）；版本=数据轨(琥珀)与视图轨(蓝灰)分色，可恢复', pages: 'canvas', ...B },
+      { en: 'MatrixBoard + RecordCard', cn: '矩阵 + 记录卡', s: '行×列=两个枚举字段；拖卡跨列=写字段；列头计数；停产列卡片 75% 透明', pages: 'matrix', ...B },
+      { en: 'KpiCard / BarChartCard / TrendCard', cn: 'BI 卡族', s: 'KpiCard 标注来源库图标；AI 新增=琥珀描边+AiBadge；DropZone 虚线接收树字段', pages: 'aichat(BI) · ana', ...B },
+      { en: 'ImportSteps + SemanticMatchChips + TargetDiffList', cn: '导入步骤条 + 语义匹配 + 增删改清单', s: '4 步：输入→语义匹配→定位增删改→写入；匹配 chips 带置信度；DiffList 按树分组，lowConfidence 必须人工确认后「确认写入」才可用', pages: 'aiimp', ...B },
+      { en: 'ChatDrawer + ActionCard', cn: '对话抽屉 + 操作卡', s: 'ActionCard：增（青绿底）/改（琥珀底）统一结构（目标路径+旧→新值+影响）；pending（越权转审批）；撤销全部/保留/查看 diff', pages: 'aichat', ...B },
+      { en: 'RunButton + PlayBar + EventTimeline + MetricTile', cn: '运行按钮 + 播放条 + 事件时间线 + 指标', s: 'RunButton=画布右下墨色胶囊▶；PlayBar：播放/暂停/进度标记/倍速/循环；当前事件行琥珀高亮与画布同步', pages: 'canvas → sim', ...B },
+      { en: 'RuleNav + ValidationCard + CompareDiff + FixActions', cn: '规则组 + 校验卡 + 权威/缓存对比 + 修复', s: 'ValidationCard：error（阻断分享导出）/warning/passed（折叠）/selected（2px描边+glow）；FixActions 首选项 primary', pages: 'val', ...B },
+      { en: 'PluginCard + PluginDetail + ContractChips', cn: '插件卡 + 详情 + 数据契约', s: '启用 Toggle / 安装按钮 / 可更新徽标；契约声明读取/写回字段类型；停用不删数据', pages: 'plug', ...B },
+      { en: 'PermissionMatrix + CapabilityList + ApprovalCard', cn: '权限矩阵 + 能力清单 + 审批卡', s: '权限值：管理(墨)/编辑(青绿)/只读(灰)/无(浅灰)；AI 行说明「随发起人权限，越权转审批」；审批卡=批准并写入/拒绝', pages: 'perm', ...B },
+      { en: 'ActivityFeed + TodoBanner', cn: '变更流 + 待办横幅', s: '数据轨(琥珀)/表达轨(蓝灰)标注；待办=琥珀横幅+「去确认」', pages: 'home', ...B },
+      { en: 'LibraryPanel', cn: '实例库面板', s: '约束过滤 chips（符合约束 N）；列表卡拖入 SlotCard；拖拽中项青绿描边', pages: 'tpl', ...B },
+      { en: 'HomeExprCard / HomeSourceTile / GreetingHeader', cn: '首页卡片族', s: '表达卡=名称+形式 MonoTag 组+最近动态；数据源瓦片=记录数+被引数+健康点；未被引用库 75% 透明', pages: 'home', ...P },
+      { en: 'EmailHighlighter', cn: '原文实体高亮', s: '青绿=已识别实体，琥珀=将产生变更的值；与右侧清单一一对应', pages: 'aiimp', ...P },
+      { en: 'CanvasDotGrid / PulseRing / FlowEdge', cn: '画布点阵 / 脉冲环 / 流动连线', s: '点阵 22px；FlowEdge=虚线 dashoffset 动画 0.9s linear infinite；PulseRing 1.6s；prefers-reduced-motion 时静态', pages: 'canvas · sim · tpl', ...P }
+    ];
+    const colorTokens = [
+      { tk: 'color.ink', hex: '#1C1B18', use: '正文/强调按钮/Toast底' },
+      { tk: 'color.paper', hex: '#FFFEFB', use: '屏底/卡片' },
+      { tk: 'color.surface.canvas', hex: '#F1EFE8', use: '工作区底' },
+      { tk: 'color.surface.sidebar', hex: '#F3F1EA', use: '侧栏' },
+      { tk: 'color.border', hex: '#E9E6DD', use: '边框（次级 #F0EEE6）' },
+      { tk: 'color.text.muted', hex: '#8A8578', use: '辅助文字' },
+      { tk: 'color.text.faint', hex: '#98937F', use: '最弱文字/占位（复核对比度，见 08）' },
+      { tk: 'color.primary', hex: '#0E6E5C', use: '数据/引用/选中/确认（文字用 #0B5B4C，底 #E7F1EB/#F0F6F2/#E9F3EE）' },
+      { tk: 'color.change', hex: '#D98A1F', use: '变更/待确认/运行中（文字 #8F5407·#925608，底 #FDF6E7/#FBEFDA/#FDF9EF/#FCF0DB）' },
+      { tk: 'color.danger', hex: '#A03D22', use: '删除/错误/悬空（底 #FBF3F0/#F6E7E0，边 #E8C7BA）' },
+      { tk: 'color.gold', hex: '#F4C778', use: '深底上的 AI/高亮' },
+      { tk: 'color.avatar.*', hex: '#5B6B9E', use: '王#0E6E5C 李#5B6B9E 陈#A06A1B 周#7A5286 AI=墨底金字' }
+    ];
+    const responsive = [
+      { n: 'AppSidebar', a: '264px 固定', b: '240px；条目文本省略号；可折叠为 56px 图标栏（悬停展开）' },
+      { n: '右侧面板', a: 'Inspector 300–336 · ChatDrawer 360', b: 'Inspector 280 · ChatDrawer 320（overlay 模式，不挤压画布）' },
+      { n: '表格类', a: '列宽如设计稿', b: '横向滚动 + 首列（名称）sticky + 底栏行数统计常驻' },
+      { n: '文档页', a: '纸面 768px 居中', b: '672px；页边距 72→52' },
+      { n: '画布类', a: '1440 内全量布局', b: '画布平移/缩放，不重排节点；浮动工具条吸附可视区' },
+      { n: 'BI / 首页网格', a: 'KPI 4 列 · 表达卡 3 列', b: 'KPI 4 列压缩（数值 26→23px）· 表达卡 3 列 gap 12' },
+      { n: '顶栏 / HOW 行', a: '搜索 260px', b: '搜索 200px；HOW 行标签不换行，超出横向滚动' }
+    ];
+    const states = [
+      { n: 'DataGrid', s: '空=居中引导「还没有记录」+ 新建记录/AI 导入；加载=8 行骨架条；错误=行内红条+重试；无权限列=值「···」+锁图标 tooltip；只读=编辑控件禁用、行可选可引用；禁用（源被归档）=整表 60%+横幅；冲突=单元格砖红描边+「缓存≠权威」链接到 val；>50 行虚拟滚动' },
+      { n: 'RefChip（文档）', s: '加载=灰块闪烁占位；dangling=砖红删除线，点击开重绑弹层；lowConfidence=琥珀+置信%；无权限=「···」脱敏且不可展开；justSynced 10s 计时回落' },
+      { n: '画布 / 节点', s: '空=虚线中央提示「从数据源添加节点」；节点数据加载=卡片骨架；violated（槽位约束）=琥珀警示+原因；只读=画布可平移、工具条禁用、右键仅「定位到显示处」' },
+      { n: 'AI 导入', s: '解析中=右栏骨架+逐行流入；解析失败=红条「解析失败，原文已保留」+重试；lowConfidence 未确认时「确认写入」禁用并注明原因；无写权限=按钮变「提交审批」' },
+      { n: 'AI 对话', s: '发送中=打字点气泡；失败=气泡内重试；越权=ActionCard pending 态（琥珀边+「待王芸批准」）；离线=输入条禁用+提示' },
+      { n: '校验中心', s: '全通过=青绿空态「0 个问题 · 上次运行时间」；运行中=顶部细进度条+按钮 spinner；规则组禁用=灰行+关闭的 Toggle' },
+      { n: '插件中心', s: '安装中=按钮 spinner；不兼容=灰卡+原因行；更新失败=琥珀横幅+回滚为上一版本' },
+      { n: '权限 / 审批', s: '保存中=行尾 spinner；他人同时改权限=琥珀提示「刚被 王芸 更新，点击刷新」；审批过期=灰卡「已由发起人撤回」' },
+      { n: '全局 · 网络与冲突', s: '断网=顶栏灰点「离线 · 改动已排队」，恢复后重放并 Toast；版本冲突（同字段并发写）=后提交者弹对比框（我的值/对方值/合并），任何选择都记入版本历史；会话过期=居中重新登录卡' },
+      { n: '通用控件', s: '禁用=40% 不透明+not-allowed；键盘焦点=2px primary 外描边（offset 2px，全控件统一，见 08-⑤）' }
+    ];
+    const interactions = [
+      { n: 'SidebarTabs 表达⇄数据源', at: '侧栏', r: '切换列表内容，不影响右侧内容区', f: '白底浮起页签' },
+      { n: 'HomeLink 首页总览', at: '侧栏顶', r: '路由 /home', f: 'hover 米底' },
+      { n: 'ExprListItem 点击', at: 'WHAT 列表', r: '打开该表达（记住上次形式，默认第一个）', f: '选中态+面包屑更新' },
+      { n: 'DataTreeRow 点击 / 拖拽', at: 'DATA 树', r: '点库=打开表格；拖字段/记录到内容区=插入引用/节点/指标卡', f: 'DragGhost -2°，落点虚线高亮' },
+      { n: 'FormTag 点击', at: 'HOW 行', r: '切换当前描述形式（URL form= 同步）', f: '墨底为当前' },
+      { n: 'AddFormButton', at: 'HOW 行', r: '打开 AddFormMenu：内置形式 + 已启用插件形式 + 「管理插件→/settings/plugins」', f: 'shadow.float 菜单' },
+      { n: 'LayoutToggle 分屏对照', at: 'HOW 行右', r: '开=表格+文档双栏；关=回单形式满宽', f: '滑块动画' },
+      { n: '单元格编辑提交', at: 'grid/split', r: '写数据源 → 广播全部引用', f: 'Toast「已更新·N 处引用已同步·撤销」+ 引用 justSynced 10s' },
+      { n: '新建记录', at: 'grid 工具栏', r: '表尾插入空行进入 editing', f: '琥珀描边+聚焦首列' },
+      { n: 'RecordSetSelect 记录集', at: 'grid 工具栏', r: '切换保存的筛选集（非形式切换）', f: '下拉菜单' },
+      { n: '矩阵卡拖过列', at: 'matrix', r: '写「状态」字段=目标列值', f: '卡片落位动画+Toast 可撤销' },
+      { n: '画布框选/Shift 点选', at: 'canvas', r: '≥2 节点出 SelectionBox + AlignToolbar', f: '虚线选框+四角手柄' },
+      { n: '对齐/等宽/等高/等大小', at: 'AlignToolbar', r: '仅写视图布局（不动数据）', f: '节点 150ms 动画归位+版本(视图轨)记一条' },
+      { n: '定位到显示处 ›', at: 'ContextMenu', r: '子菜单列全部引用点；点击跳转对应页并滚动到目标', f: '目标高亮闪烁 2 次' },
+      { n: '移除出视图', at: 'ContextMenu/属性', r: '仅移出当前视图，数据保留', f: 'Toast 含撤销' },
+      { n: '删除数据源记录', at: 'ContextMenu/属性', r: '打开 DeleteConfirmModal（列受影响表达清单+输入名称确认）→ 全库删除，引用转 dangling', f: '红色确认；完成 Toast+活动流（弹窗未设计，见 08-①）' },
+      { n: 'InspectorTabs 属性/样式/版本', at: 'canvas 右栏', r: '切面板内容；多选时样式值显示「混合」', f: '下划线页签' },
+      { n: '版本条目「恢复」', at: '版本页签', r: '回滚该条；数据轨恢复=一次新写入走同步管线', f: '确认后 Toast' },
+      { n: 'RunButton ▶ 运行仿真', at: 'canvas 右下', r: '进入运行态（form=canvas&run=1）：FlowEdge 动画+PlayBar+参数面板', f: '按钮态→HOW 右「仿真·运行中」' },
+      { n: 'PlayBar 播放/暂停/倍速/循环 · 停止', at: 'sim', r: '控制回放；停止=退出运行态回 canvas', f: '进度、事件行、画布状态三处同步' },
+      { n: '解析 Parse', at: 'aiimp', r: '生成语义匹配 + 树上增删改清单；左树同步 DiffBadge', f: '骨架→结果流入' },
+      { n: '逐项审核 / 确认写入', at: 'aiimp', r: '低置信项确认后按钮解锁；写入→数据源+活动流，树徽标清零', f: 'Toast+受影响表达数' },
+      { n: '聊天发送', at: 'ChatDrawer', r: 'AI 返回 ActionCard（默认已应用，可撤销；越权→pending 审批）', f: '打字点→卡片' },
+      { n: '撤销全部 / 保留 / 查看 diff', at: 'ActionCard', r: '回滚全部操作 / 固化 / 打开版本对比', f: '—' },
+      { n: '立即运行（校验）', at: 'val', r: '全量跑规则；写入时自动增量跑', f: '进度条→计数刷新' },
+      { n: 'FixActions 同步/例外/忽略', at: 'val 详情', r: '同步=写数据源走管线；例外/忽略=记审计不再报', f: 'Toast；错误清除后解除分享阻断' },
+      { n: '插件 启用/安装/更新/停用', at: 'plug', r: '形式出现在/移出 AddFormMenu；停用置灰使用中表达的形式标签', f: 'Toggle+可更新徽标' },
+      { n: '批准并写入 / 拒绝', at: 'perm 审批卡', r: '批准=以审批人身份写入并同步；拒绝=通知发起人', f: 'Toast+活动流' },
+      { n: '分享 Share', at: '顶栏', r: 'ShareDialog（未设计，见 08-②）；有校验错误时禁用并提示', f: '—' },
+      { n: '待办「去确认」', at: 'home', r: '跳 aiimp 并定位到该低置信项', f: '目标行高亮' }
+    ];
+    const mock = [
+      { n: '种子数据', a: '产品库 8 记录 / 渠道销量 42 / 成员 4+AI / 表达 6 — 静态 JSON，服从演示剧本时间线', b: '—' },
+      { n: '引用同步引擎', a: '内存 pub/sub：写字段→广播 RefChip/表格/看板刷新 + justSynced 计时', b: '服务端事务 + 冲突检测 + 离线队列重放' },
+      { n: 'AI 解析 / 对话', a: '按剧本的脚本化响应（报价邮件→固定清单；对话→固定 ActionCard）', b: 'Claude API + 语义匹配置信度 + 流式输出' },
+      { n: '权限鉴权', a: '前端角色切换开关模拟四种身份 + AI 代理', b: '服务端强制鉴权 + 字段级脱敏 + 审批流' },
+      { n: '校验规则', a: '前端对 Mock 数据跑 11 条规则', b: '规则 DSL + 写入触发的增量校验 + 审计日志' },
+      { n: '协同在场 / 名牌', a: '定时器模拟「王芸 · 确认写入」名牌', b: 'WebSocket presence + 单元格软锁' },
+      { n: '仿真 / 插件 / 活动流', a: '全部 Mock：固定事件时序 · 静态插件注册表 · 由 Mock 写入事件生成活动流', b: '插件远端市场与数据契约校验（后期）' },
+      { n: '文件解析（xlsx/pdf/img）', a: '仅粘贴文本路径可用，文件页签置灰', b: '服务端文件解析管线' }
+    ];
+    const issues = [
+      { k: '①', c: '#A03D22', s: 'DeleteConfirmModal 未设计：需含受影响表达清单、输入名称确认、不可撤销声明 — 开发前需补稿' },
+      { k: '②', c: '#A03D22', s: 'ShareDialog / 协作邀请流未设计（顶栏「分享」现为死端）；且有校验错误时应禁用分享' },
+      { k: '③', c: '#D98A1F', s: '校验中心与插件中心缺全局常驻入口 — 建议顶栏溢出菜单或侧栏底部工具区，待定' },
+      { k: '④', c: '#D98A1F', s: '对比度：#98937F/#B4AF9F 小字约 3:1，10px 以下 mono 标签低于 WCAG AA — 实现时允许整体上调一档' },
+      { k: '⑤', c: '#D98A1F', s: '键盘导航与焦点顺序未在稿中表达：按 2px primary 外描边实现，画布节点需方向键微调（4px/次，Shift=1px）' },
+      { k: '⑥', c: '#D98A1F', s: 'AI 导入第 4 步「写入成功」仅文字承接，无独立成功态视图 — 首版用 Toast+跳转，后续补稿' },
+      { k: '⑦', c: '#98937F', s: '表格虚拟滚动阈值（50 行）与树深折叠（3 层）为建议值，需按真实数据量复核' },
+      { k: '⑧', c: '#98937F', s: '并发编辑锁策略：目前仅协作者名牌提示，未定软锁/强锁 — 首版软锁（可看不可同时提交）' },
+      { k: '⑨', c: '#98937F', s: '模板槽位约束校验时机：实例化时即时校验 + 保存时全量，双触发待产品确认' },
+      { k: '⑩', c: '#98937F', s: '移动端/平板明确不在本期范围；1280 以下仅占位页' }
+    ];
+    const notes = [
+      { s: '设计稿为内联样式的静态 DC，实现时一律映射为 03 的 Token 与 02 的组件，不复制像素值散写' },
+      { s: '字体经 Google Fonts 引入（IBM Plex Sans/Mono、Noto Sans SC、Source Serif 4、Noto Serif SC），font-display: swap；中文回退顺序 UI→Noto Sans SC，文档→Noto Serif SC' },
+      { s: '所有数值/ID/日期/金额必须 font.data（IBM Plex Mono）— 这是本设计最强的识别规则，代码评审需检查' },
+      { s: '动效：FlowEdge stroke-dashoffset 0.9s linear infinite、PulseRing 1.6s、对齐归位 150ms、justSynced 10s 回落；prefers-reduced-motion 时全部降为静态' },
+      { s: '状态色永远伴随文字或图标（增/改/删字样、✓、删除线），不允许仅用颜色传达 — 已在设计中执行，实现勿丢' },
+      { s: '选中/编辑的表格行用 inset box-shadow 左沿 3px 实现，避免 border 造成布局抖动' },
+      { s: 'DragGhost 统一 rotate(-2deg) + shadow.float；拖拽走 HTML5 DnD 或 pointer 方案均可，但落点高亮样式统一虚线青绿' },
+      { s: '画布首版可用绝对定位 + SVG 连线（与稿一致）；自动布局、缩放手势可后置' },
+      { s: 'RefChip 是行内元素：不得破坏文档行高（14px 字号、padding 0 6px），悬空态要可聚焦可回车触发重绑' },
+      { s: '删除 vs 移除的文案与颜色（danger vs secondary）在任何新界面中不得混用；AI 的一切写操作必须产生可撤销的 ActionCard 与活动流记录' }
+    ];
+    return { pageMap, comps, colorTokens, responsive, states, interactions, mock, issues, notes };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&amp;family=IBM+Plex+Mono:wght@400;500;600&amp;family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&amp;family=Noto+Sans+SC:wght@400;500;700&amp;family=Noto+Serif+SC:wght@400;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#ECEAE2;font-family:"IBM Plex Sans","Noto Sans SC",sans-serif;color:#1C1B18;-webkit-font-smoothing:antialiased}
+a{color:#0E6E5C;text-decoration:none}
+a:hover{color:#0A5646;text-decoration:underline}
+</style>
+</helmet>
+<div style="min-height:100vh;display:flex;flex-direction:column">
+<div style="height:46px;flex:none;display:flex;align-items:center;gap:12px;padding:0 18px;background:#1C1B18;color:#fff;position:sticky;top:0;z-index:50">
+  <svg width="20" height="20" viewBox="0 0 24 24"><rect x="1" y="1" width="22" height="22" rx="6" fill="#0E6E5C"></rect><rect x="5.5" y="6" width="3" height="3" rx="0.8" fill="#fff"></rect><rect x="5.5" y="11" width="3" height="3" rx="0.8" fill="#fff"></rect><rect x="5.5" y="16" width="3" height="3" rx="0.8" fill="#fff" opacity="0.55"></rect><rect x="11" y="6.6" width="8" height="1.8" rx="0.9" fill="#fff"></rect><rect x="11" y="11.6" width="8" height="1.8" rx="0.9" fill="#fff"></rect><rect x="11" y="16.6" width="5" height="1.8" rx="0.9" fill="#fff" opacity="0.55"></rect></svg>
+  <span style="font-size:13px;font-weight:700">同源 UniSource · 设计系统</span>
+  <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:600;background:rgba(255,255,255,.14);padding:2px 8px;border-radius:4px">DS · v1</span>
+  <span style="margin-left:auto;display:flex;gap:16px;font-size:12px"><a href="同源 主版本页面集.dc.html" style="color:#F4C778;text-decoration:none">主版本页面集 →</a><a href="交接规格 Handoff Spec.dc.html" style="color:rgba(255,255,255,.9);text-decoration:none">交接规格 →</a><a href="同源 UniSource 关键屏.dc.html" style="color:rgba(255,255,255,.65);text-decoration:none">探索历史 →</a></span>
+</div>
+<div style="width:1080px;margin:0 auto;padding:32px 0 80px;display:flex;flex-direction:column;gap:36px">
+
+<div>
+  <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:4px"><span style="font-size:19px;font-weight:700">01 · 设计 Token</span><span style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.1em;color:#98937F">TOKENS</span></div>
+  <div style="font-size:12px;color:#6E6A60;margin-bottom:14px">禁止发明新色/新字号；扩展时用 oklch 就近取色并登记到本表。</div>
+  <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px">
+    <sc-for list="{{ tokens }}" as="t" hint-placeholder-count="10">
+      <div style="display:flex;align-items:center;gap:12px;background:#fff;border:1px solid #E9E6DD;border-radius:8px;padding:10px 13px">
+        <span style="width:34px;height:34px;border-radius:8px;flex:none;background:{{ t.hex }};border:1px solid rgba(28,27,24,.12)"></span>
+        <span style="flex:1;min-width:0"><span style="display:block;font-size:12.5px;font-weight:600">{{ t.n }}</span><span style="display:block;font-size:11px;color:#8A8578;margin-top:1px">{{ t.use }}</span></span>
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#4A473F;flex:none">{{ t.hex }}</span>
+      </div>
+    </sc-for>
+  </div>
+  <div style="display:grid;grid-template-columns:1.2fr 1fr;gap:8px;margin-top:8px">
+    <div style="background:#fff;border:1px solid #E9E6DD;border-radius:8px;padding:12px 14px">
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.1em;color:#98937F;margin-bottom:8px">字体 · TYPE</div>
+      <sc-for list="{{ typeRows }}" as="ty" hint-placeholder-count="4">
+        <div style="display:flex;align-items:baseline;gap:10px;padding:6px 0;border-bottom:1px dashed #F0EEE6">
+          <span style="width:150px;font-size:11.5px;color:#6E6A60;flex:none">{{ ty.n }}</span>
+          <span style="flex:1;font-family:{{ ty.ff }};font-size:{{ ty.fs }};font-weight:{{ ty.fw }}">{{ ty.demo }}</span>
+          <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#98937F;flex:none">{{ ty.spec }}</span>
+        </div>
+      </sc-for>
+    </div>
+    <div style="background:#fff;border:1px solid #E9E6DD;border-radius:8px;padding:12px 14px">
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.1em;color:#98937F;margin-bottom:8px">尺寸 · METRICS</div>
+      <div style="font-size:12px;line-height:2.1;color:#4A473F">
+        圆角：卡片 <span style="font-family:'IBM Plex Mono',monospace">10px</span> · 面板 <span style="font-family:'IBM Plex Mono',monospace">8px</span> · 控件 <span style="font-family:'IBM Plex Mono',monospace">6px</span> · 徽标 <span style="font-family:'IBM Plex Mono',monospace">4px / 胶囊 10–20px</span><br>
+        间距：页面留白 <span style="font-family:'IBM Plex Mono',monospace">16–24px</span> · 卡片内 <span style="font-family:'IBM Plex Mono',monospace">11–16px</span> · 元素 gap <span style="font-family:'IBM Plex Mono',monospace">6/8/12px</span><br>
+        描边：分隔 <span style="font-family:'IBM Plex Mono',monospace">#E9E6DD 1px</span> · 选中 <span style="font-family:'IBM Plex Mono',monospace">主色 1.5–2px</span> · 抽象槽位 <span style="font-family:'IBM Plex Mono',monospace">dashed 1.5–2px</span><br>
+        画布屏：<span style="font-family:'IBM Plex Mono',monospace">1440×900</span> · 侧栏 <span style="font-family:'IBM Plex Mono',monospace">210–264px</span> · 检查器 <span style="font-family:'IBM Plex Mono',monospace">300–336px</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div>
+  <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:4px"><span style="font-size:19px;font-weight:700">02 · 全局组件库</span><span style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.1em;color:#98937F">COMPONENTS</span></div>
+  <div style="font-size:12px;color:#6E6A60;margin-bottom:14px">按钮示例带真实 hover 态（悬停试试）。改任一组件定义 = 全局规则变更，须按 07 的流程走。</div>
+  <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px">
+
+    <div style="background:#fff;border:1px solid #E9E6DD;border-radius:10px;padding:14px 16px">
+      <div style="font-size:13px;font-weight:700">按钮 <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#98937F;font-weight:400">BUTTON</span></div>
+      <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;align-items:center">
+        <span style="background:#0E6E5C;color:#fff;padding:6px 14px;border-radius:6px;font-size:12.5px;font-weight:600;cursor:pointer" style-hover="background:#0A5646">主操作</span>
+        <span style="background:#1C1B18;color:#fff;padding:6px 14px;border-radius:6px;font-size:12.5px;font-weight:600;cursor:pointer" style-hover="background:#3A3833">强调</span>
+        <span style="border:1px solid #E5E2D9;color:#4A473F;padding:6px 14px;border-radius:6px;font-size:12.5px;cursor:pointer;background:#fff" style-hover="background:#F6F4EC">次操作</span>
+        <span style="border:1px solid #E8C7BA;color:#A03D22;background:#FBF3F0;padding:6px 14px;border-radius:6px;font-size:12.5px;font-weight:600;cursor:pointer" style-hover="background:#F6E7E0">危险</span>
+        <span style="background:#0E6E5C;color:#fff;padding:6px 14px;border-radius:6px;font-size:12.5px;font-weight:600;opacity:0.4">禁用</span>
+      </div>
+      <div style="font-size:10.5px;color:#98937F;margin-top:9px">危险按钮仅用于「删除数据源记录」类全库动作；「移除出视图」用次操作。</div>
+    </div>
+
+    <div style="background:#fff;border:1px solid #E9E6DD;border-radius:10px;padding:14px 16px">
+      <div style="font-size:13px;font-weight:700">视图切换器 / 页签 <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#98937F;font-weight:400">SEGMENTED · TABS</span></div>
+      <div style="display:flex;gap:14px;margin-top:10px;align-items:center;flex-wrap:wrap">
+        <span style="display:flex;gap:2px;background:#ECEAE0;padding:3px;border-radius:8px;font-size:12px"><span style="padding:4px 12px;border-radius:6px;background:#fff;box-shadow:0 1px 2px rgba(28,27,24,.12);font-weight:600">表格</span><span style="padding:4px 12px;border-radius:6px;color:#6E6A60">文档</span><span style="padding:4px 12px;border-radius:6px;color:#6E6A60">分屏</span></span>
+        <span style="display:flex;font-size:12.5px"><span style="padding:6px 12px;font-weight:700;border-bottom:2px solid #1C1B18">属性</span><span style="padding:6px 12px;color:#8A8578">样式</span><span style="padding:6px 12px;color:#8A8578">版本</span></span>
+      </div>
+      <div style="font-size:10.5px;color:#98937F;margin-top:9px">胶囊型 = 互斥视图切换；下划线型 = 面板内页签。描述形式标签为独立组件（深底 = 当前）。</div>
+    </div>
+
+    <div style="background:#fff;border:1px solid #E9E6DD;border-radius:10px;padding:14px 16px">
+      <div style="font-size:13px;font-weight:700">徽标 <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#98937F;font-weight:400">BADGES</span></div>
+      <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap;align-items:center">
+        <span style="padding:2px 8px;border-radius:20px;background:#E3F0EA;color:#0B5B4C;font-size:11.5px;font-weight:500">在售</span>
+        <span style="padding:2px 8px;border-radius:20px;background:#FBEFDA;color:#925608;font-size:11.5px;font-weight:500">预售</span>
+        <span style="padding:2px 8px;border-radius:20px;background:#E8EAF2;color:#4A5578;font-size:11.5px;font-weight:500">研发中</span>
+        <span style="padding:2px 8px;border-radius:20px;background:#ECEAE4;color:#6E6A60;font-size:11.5px;font-weight:500">停产</span>
+        <span style="width:1px;height:16px;background:#E9E6DD"></span>
+        <span style="font-size:9.5px;padding:1px 6px;border-radius:4px;background:#0E6E5C;color:#fff;font-weight:700">增</span>
+        <span style="font-size:9.5px;padding:1px 6px;border-radius:4px;background:#D98A1F;color:#fff;font-weight:700">改</span>
+        <span style="font-size:9.5px;padding:1px 6px;border-radius:4px;background:#A03D22;color:#fff;font-weight:700">删</span>
+        <span style="font-size:9.5px;padding:1px 6px;border-radius:4px;background:#F1EFE8;color:#98937F;font-weight:600">跳过</span>
+        <span style="font-size:9px;background:#D98A1F;color:#fff;padding:1px 5px;border-radius:3px">AI 改</span>
+      </div>
+      <div style="font-size:10.5px;color:#98937F;margin-top:9px">状态胶囊 = 数据枚举值；方角 增/改/删 = 对数据源的 diff 动作，色义固定不得混用。</div>
+    </div>
+
+    <div style="background:#fff;border:1px solid #E9E6DD;border-radius:10px;padding:14px 16px">
+      <div style="font-size:13px;font-weight:700">字段引用芯片 <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#98937F;font-weight:400">REF CHIP</span></div>
+      <div style="display:flex;gap:10px;margin-top:10px;flex-wrap:wrap;align-items:center;font-size:14px">
+        <span style="padding:0 6px;border-radius:5px;background:#E9F3EE;color:#0B5B4C;font-family:'IBM Plex Mono','Noto Sans SC',monospace;border-bottom:1px dashed rgba(14,110,92,.5)">¥1,199</span>
+        <span style="padding:0 6px;border-radius:5px;background:#FCF0DB;color:#8F5407;font-family:'IBM Plex Mono','Noto Sans SC',monospace;border-bottom:1px dashed rgba(180,105,14,.6);box-shadow:0 0 0 3px rgba(217,138,31,.14)">¥1,199<svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="#B4690E" stroke-width="2.4" style="margin-left:4px;vertical-align:-1px"><path d="M3 8.5 6.5 12 13 4.5"></path></svg></span>
+        <span style="padding:0 4px;border-radius:4px;background:#FDF6E7;box-shadow:inset 0 0 0 1.5px #D98A1F;font-family:'IBM Plex Mono',monospace;color:#8F5407">@防</span>
+        <span style="padding:0 6px;border-radius:5px;background:#F6E7E0;color:#A03D22;font-family:'IBM Plex Mono','Noto Sans SC',monospace;text-decoration:line-through;border-bottom:1px dashed rgba(160,61,34,.6)">预售赠品</span>
+      </div>
+      <div style="font-size:10.5px;color:#98937F;margin-top:9px">态：最新（青绿）→ 刚同步（琥珀+勾，10s 后回落）→ 插入中（@琥珀描边）→ 悬空（砖红删除线，点击重绑）。</div>
+    </div>
+
+    <div style="background:#fff;border:1px solid #E9E6DD;border-radius:10px;padding:14px 16px">
+      <div style="font-size:13px;font-weight:700">开关 / 选择 <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#98937F;font-weight:400">TOGGLE · CHECK</span></div>
+      <div style="display:flex;gap:14px;margin-top:10px;align-items:center;flex-wrap:wrap">
+        <span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;color:#4A473F"><span style="width:26px;height:15px;border-radius:8px;background:#0E6E5C;position:relative"><span style="position:absolute;right:1.5px;top:1.5px;width:12px;height:12px;border-radius:50%;background:#fff"></span></span>开</span>
+        <span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;color:#98937F"><span style="width:26px;height:15px;border-radius:8px;background:#D9D5C8;position:relative"><span style="position:absolute;left:1.5px;top:1.5px;width:12px;height:12px;border-radius:50%;background:#fff"></span></span>关</span>
+        <span style="display:inline-flex;align-items:center;gap:6px;font-size:12px"><span style="width:13px;height:13px;background:#0E6E5C;border-radius:4px;display:inline-flex;align-items:center;justify-content:center"><svg width="9" height="9" viewBox="0 0 16 16" fill="none" stroke="#fff" stroke-width="2.6"><path d="M3 8.5 6.5 12 13 4.5"></path></svg></span>已选</span>
+        <span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;color:#8A8578"><span style="width:13px;height:13px;border:1.5px solid #C9C5B8;border-radius:4px"></span>未选</span>
+        <span style="display:inline-flex;align-items:center;gap:6px;font-size:12px"><span style="width:13px;height:13px;border-radius:50%;border:4.5px solid #0E6E5C"></span>单选</span>
+      </div>
+      <div style="font-size:10.5px;color:#98937F;margin-top:9px">开 = 主色青绿；不用蓝色系。显示/隐藏行左侧配眼睛图标。</div>
+    </div>
+
+    <div style="background:#fff;border:1px solid #E9E6DD;border-radius:10px;padding:14px 16px">
+      <div style="font-size:13px;font-weight:700">AI 指令条 <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#98937F;font-weight:400">AI PROMPT BAR</span></div>
+      <div style="display:flex;align-items:center;gap:9px;border:1.5px solid #1C1B18;border-radius:8px;padding:8px 12px;margin-top:10px">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#0E6E5C" stroke-width="1.5"><path d="M8 1.5l1.4 3.6 3.6 1.4-3.6 1.4L8 11.5 6.6 7.9 3 6.5l3.6-1.4z"></path></svg>
+        <span style="flex:1;font-size:12.5px;color:#98937F">说点什么，改数据或改看板…</span>
+        <span style="background:#1C1B18;color:#fff;padding:4px 12px;border-radius:6px;font-size:11.5px;font-weight:600">解析</span>
+      </div>
+      <div style="font-size:10.5px;color:#98937F;margin-top:9px">墨色 1.5px 描边 + 星标图标为 AI 入口统一识别；AI 产出一律以 增/改 操作卡呈现，可撤销。</div>
+    </div>
+
+    <div style="background:#fff;border:1px solid #E9E6DD;border-radius:10px;padding:14px 16px">
+      <div style="font-size:13px;font-weight:700">数据表行 <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#98937F;font-weight:400">GRID ROW</span></div>
+      <div style="border:1px solid #EFEDE5;border-radius:8px;overflow:hidden;margin-top:10px;font-size:12px">
+        <div style="display:grid;grid-template-columns:1fr 90px 90px;background:#F7F6F1;color:#6E6A60;font-size:11px"><span style="padding:7px 12px">默认行</span><span style="padding:7px 12px">状态</span><span style="padding:7px 12px;text-align:right">售价</span></div>
+        <div style="display:grid;grid-template-columns:1fr 90px 90px;border-top:1px solid #F0EEE6"><span style="padding:8px 12px;font-weight:500">智能门铃 D2</span><span style="padding:8px 12px"><span style="padding:1px 7px;border-radius:20px;background:#E3F0EA;color:#0B5B4C;font-size:10.5px">在售</span></span><span style="padding:8px 12px;text-align:right;font-family:'IBM Plex Mono',monospace">¥399</span></div>
+        <div style="display:grid;grid-template-columns:1fr 90px 90px;border-top:1px solid #E5EBE3;background:#F0F6F2;box-shadow:inset 3px 0 0 #0E6E5C"><span style="padding:8px 12px;font-weight:600">智能门锁 S3 · 选中</span><span style="padding:8px 12px"><span style="padding:1px 7px;border-radius:20px;background:#FBEFDA;color:#925608;font-size:10.5px">预售</span></span><span style="padding:8px 12px;text-align:right;font-family:'IBM Plex Mono',monospace;font-weight:600">¥1,199</span></div>
+        <div style="display:grid;grid-template-columns:1fr 90px 90px;border-top:1px solid #F2EBD9;background:#FDF9EF;box-shadow:inset 3px 0 0 #D98A1F"><span style="padding:8px 12px;font-weight:600">编辑/变更中 · 琥珀</span><span style="padding:8px 12px"></span><span style="padding:8px 12px;text-align:right;font-family:'IBM Plex Mono',monospace;background:#FDF6E7;box-shadow:inset 0 0 0 2px #D98A1F">¥1,199</span></div>
+      </div>
+      <div style="font-size:10.5px;color:#98937F;margin-top:9px">选中 = 青绿左沿 3px + 淡青底；编辑/AI 变更 = 琥珀左沿 + 单元格 2px 琥珀内描边。</div>
+    </div>
+
+    <div style="background:#fff;border:1px solid #E9E6DD;border-radius:10px;padding:14px 16px">
+      <div style="font-size:13px;font-weight:700">节点卡 / 槽位卡 <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#98937F;font-weight:400">NODE · SLOT</span></div>
+      <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+        <span style="width:150px;background:#fff;border:1px solid #E0DCD0;border-radius:10px;padding:8px 10px;box-shadow:0 2px 6px rgba(28,27,24,.08)"><span style="display:block;font-size:9.5px;color:#98937F;font-family:'IBM Plex Mono',monospace">#005 默认</span><span style="display:block;font-size:12px;font-weight:600;margin-top:3px">网关 G2</span></span>
+        <span style="width:150px;background:#fff;border:2px solid #0E6E5C;border-radius:10px;padding:8px 10px;box-shadow:0 0 0 3px rgba(14,110,92,.14)"><span style="display:block;font-size:9.5px;color:#98937F;font-family:'IBM Plex Mono',monospace">#001 选中/事件源</span><span style="display:block;font-size:12px;font-weight:700;margin-top:3px">智能门锁 S3</span></span>
+        <span style="width:150px;background:rgba(231,241,235,.55);border:2px dashed #0E6E5C;border-radius:10px;padding:8px 10px"><span style="display:block;font-size:9.5px;color:#0B5B4C;font-family:'IBM Plex Mono',monospace">槽位 · 待实例化</span><span style="display:block;font-size:12px;font-weight:700;margin-top:3px;color:#0B5B4C">抽象：主板</span></span>
+        <span style="width:150px;background:#fff;border:1.5px solid #D98A1F;border-radius:10px;padding:8px 10px;box-shadow:0 0 0 3px rgba(217,138,31,.14)"><span style="display:block;font-size:9.5px;color:#98937F;font-family:'IBM Plex Mono',monospace">#004 进行中</span><span style="display:block;font-size:12px;font-weight:600;margin-top:3px;color:#8F5407">猫眼 E1 录像…</span></span>
+      </div>
+      <div style="font-size:10.5px;color:#98937F;margin-top:9px">节点 = 绑定记录（实线）；槽位 = 抽象占位（虚线）。仿真进行中 = 琥珀描边 + 光晕。</div>
+    </div>
+
+    <div style="background:#fff;border:1px solid #E9E6DD;border-radius:10px;padding:14px 16px">
+      <div style="font-size:13px;font-weight:700">校验结果卡 <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#98937F;font-weight:400">VALIDATION</span></div>
+      <div style="display:flex;flex-direction:column;gap:6px;margin-top:10px;font-size:11.5px">
+        <span style="display:flex;align-items:center;gap:8px;border:1px solid #E8C7BA;border-radius:8px;padding:7px 10px"><span style="width:16px;height:16px;border-radius:50%;background:#A03D22;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:9.5px;font-weight:700">!</span>错误 · 阻断分享/导出</span>
+        <span style="display:flex;align-items:center;gap:8px;border:1px solid #EAD9BC;border-radius:8px;padding:7px 10px"><span style="width:16px;height:16px;border-radius:50%;background:#D98A1F;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:9.5px;font-weight:700">⚠</span>警告 · 不阻断，随文档标注</span>
+        <span style="display:flex;align-items:center;gap:8px;border:1px dashed #C9C5B8;border-radius:8px;padding:7px 10px;color:#6E6A60"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="#0B5B4C" stroke-width="2"><path d="M3 8.5 6.5 12 13 4.5"></path></svg>通过 · 折叠展示</span>
+      </div>
+      <div style="font-size:10.5px;color:#98937F;margin-top:9px">选中卡加 2px 同色描边 + 8% 光晕；修复动作 = 数据源写入，走权限与同步管线。</div>
+    </div>
+
+    <div style="background:#fff;border:1px solid #E9E6DD;border-radius:10px;padding:14px 16px">
+      <div style="font-size:13px;font-weight:700">Toast / 操作卡 <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#98937F;font-weight:400">TOAST · ACTION CARD</span></div>
+      <div style="display:flex;gap:10px;margin-top:10px;align-items:flex-start;flex-wrap:wrap">
+        <span style="width:230px;background:#201F1B;border-radius:10px;padding:9px 12px;display:flex;gap:9px"><span style="width:22px;height:22px;border-radius:50%;background:rgba(244,199,120,.16);display:inline-flex;align-items:center;justify-content:center;flex:none"><svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="#F4C778" stroke-width="1.8"><path d="M2.5 5.5h9L9 3M13.5 10.5h-9L7 13"></path></svg></span><span style="flex:1"><span style="display:block;font-size:11.5px;font-weight:600;color:#fff">「售价」已更新</span><span style="display:block;font-size:10px;color:rgba(255,255,255,.6);margin-top:2px">2 处引用已同步 · <span style="color:#F4C778">查看</span> / 撤销</span></span></span>
+        <span style="width:230px;border:1px solid #F2EBD9;background:#FDF9EF;border-radius:8px;padding:8px 10px"><span style="display:flex;align-items:center;gap:6px;font-size:10.5px;color:#8F5407;font-weight:700"><span style="font-size:9px;padding:1px 5px;border-radius:3px;background:#D98A1F;color:#fff">改</span>数据源 · 产品规格库</span><span style="display:block;font-family:'IBM Plex Mono','Noto Sans SC',monospace;font-size:10.5px;color:#4A473F;margin-top:3px">售价：<span style="text-decoration:line-through;color:#B4AF9F">¥1,299</span> → ¥1,199</span></span>
+      </div>
+      <div style="font-size:10.5px;color:#98937F;margin-top:9px">Toast 墨底右下角，含撤销；AI/审批操作卡 = 增（青绿底）/ 改（琥珀底）统一结构。</div>
+    </div>
+
+  </div>
+</div>
+
+<div>
+  <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:4px"><span style="font-size:19px;font-weight:700">03 · 交互状态矩阵</span><span style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.1em;color:#98937F">STATES</span></div>
+  <div style="background:#fff;border:1px solid #E9E6DD;border-radius:10px;overflow:hidden">
+    <div style="display:grid;grid-template-columns:170px 1fr;background:#F7F6F1;font-size:11px;color:#6E6A60"><span style="padding:9px 14px;font-weight:600">组件</span><span style="padding:9px 14px;font-weight:600">状态与规则</span></div>
+    <sc-for list="{{ states }}" as="st" hint-placeholder-count="9">
+      <div style="display:grid;grid-template-columns:170px 1fr;border-top:1px solid #F0EEE6;font-size:12px">
+        <span style="padding:9px 14px;font-weight:600">{{ st.n }}</span>
+        <span style="padding:9px 14px;color:#4A473F;line-height:1.7">{{ st.s }}</span>
+      </div>
+    </sc-for>
+  </div>
+</div>
+
+<div>
+  <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:4px"><span style="font-size:19px;font-weight:700">04 · 术语表</span><span style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.1em;color:#98937F">GLOSSARY</span></div>
+  <div style="background:#fff;border:1px solid #E9E6DD;border-radius:10px;overflow:hidden">
+    <sc-for list="{{ glossary }}" as="g" hint-placeholder-count="12">
+      <div style="display:grid;grid-template-columns:130px 150px 1fr;border-top:1px solid #F0EEE6;font-size:12px">
+        <span style="padding:9px 14px;font-weight:700">{{ g.n }}</span>
+        <span style="padding:9px 14px;font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:#98937F">{{ g.en }}</span>
+        <span style="padding:9px 14px;color:#4A473F;line-height:1.7">{{ g.d }}</span>
+      </div>
+    </sc-for>
+  </div>
+</div>
+
+<div>
+  <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:4px"><span style="font-size:19px;font-weight:700">05 · 页面集与复用关系</span><span style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.1em;color:#98937F">PAGES · REUSE</span></div>
+  <div style="font-size:12px;color:#6E6A60;margin-bottom:14px">主版本 14 屏（见 <a href="同源 主版本页面集.dc.html">主版本页面集</a>）。改组件时按「使用组件」列反查受影响页面。</div>
+  <div style="background:#fff;border:1px solid #E9E6DD;border-radius:10px;overflow:hidden">
+    <div style="display:grid;grid-template-columns:150px 70px 1fr 190px;background:#F7F6F1;font-size:11px;color:#6E6A60"><span style="padding:9px 14px;font-weight:600">页面</span><span style="padding:9px 8px;font-weight:600">版本</span><span style="padding:9px 8px;font-weight:600">使用组件（复用关系）</span><span style="padding:9px 14px;font-weight:600">读写数据</span></div>
+    <sc-for list="{{ pageReg }}" as="pg" hint-placeholder-count="14">
+      <div style="display:grid;grid-template-columns:150px 70px 1fr 190px;border-top:1px solid #F0EEE6;font-size:12px">
+        <span style="padding:9px 14px;font-weight:600">{{ pg.n }}</span>
+        <span style="padding:9px 8px;font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:#0B5B4C">{{ pg.v }}</span>
+        <span style="padding:9px 8px;color:#4A473F;line-height:1.7">{{ pg.comps }}</span>
+        <span style="padding:9px 14px;color:#8A8578;font-size:11px;line-height:1.7">{{ pg.data }}</span>
+      </div>
+    </sc-for>
+  </div>
+</div>
+
+<div>
+  <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:4px"><span style="font-size:19px;font-weight:700">06 · 全局规则变更协议</span><span style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.1em;color:#98937F">CHANGE PROTOCOL</span></div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+    <div style="background:#fff;border:1px solid #E9E6DD;border-radius:10px;padding:14px 16px;font-size:12.5px;line-height:2;color:#4A473F">
+      <strong style="color:#1C1B18">流程：</strong><br>
+      ① 更新本文件中的 Token / 组件 / 状态定义<br>
+      ② 按 05 复用矩阵反查受影响页面<br>
+      ③ 在主版本页面集内<strong>原地更新</strong>这些页面，版本号 +1<br>
+      ④ 输出受影响页面清单（右侧格式）<br>
+      ⑤ 探索历史归档不回改
+    </div>
+    <div style="background:#1C1B18;border-radius:10px;padding:14px 16px;font-family:'IBM Plex Mono','Noto Sans SC',monospace;font-size:11px;line-height:2;color:rgba(255,255,255,.8)">
+      <span style="color:#F4C778">## 受影响页面清单（示例）</span><br>
+      变更：主色 #0E6E5C → oklch 微调<br>
+      <span style="color:#7FA898">✦ 表格视图 v1→v2 · 选中行/徽标</span><br>
+      <span style="color:#7FA898">✦ 文档视图 v1→v2 · 引用芯片</span><br>
+      <span style="color:#7FA898">✦ …（共 N 页）</span><br>
+      <span style="color:rgba(255,255,255,.45)">未受影响：权限模型（无主色控件）</span>
+    </div>
+  </div>
+</div>
+
+</div>
+<div style="padding:18px;text-align:center;font-size:11px;color:#98937F;border-top:1px solid #E0DCD0">同源 UniSource 设计系统 v1 · 维护规则见项目 CLAUDE.md · 修改任何全局规则请从本文件开始</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  renderVals() {
+    const tokens = [
+      { n: '墨 Ink', hex: '#1C1B18', use: '正文、强调按钮、Toast 底' },
+      { n: '纸白 Paper', hex: '#FFFEFB', use: '屏幕底色、卡片' },
+      { n: '画布灰 Canvas', hex: '#F1EFE8', use: '工作区底、分区背景' },
+      { n: '侧栏米 Sidebar', hex: '#F3F1EA', use: '侧栏、面板底' },
+      { n: '分隔线 Border', hex: '#E9E6DD', use: '边框、分隔（次级 #F0EEE6）' },
+      { n: '次要字 Muted', hex: '#8A8578', use: '辅助文字（弱 #98937F）' },
+      { n: '青绿 Primary', hex: '#0E6E5C', use: '数据/引用/选中/确认；文字深青 #0B5B4C' },
+      { n: '琥珀 Change', hex: '#D98A1F', use: '变更/同步中/待确认；文字 #8F5407' },
+      { n: '砖红 Danger', hex: '#A03D22', use: '删除/错误/悬空引用' },
+      { n: '点缀金 Gold', hex: '#F4C778', use: '深底上的 AI/高亮元素' }
+    ];
+    const typeRows = [
+      { n: '界面 UI', ff: "'IBM Plex Sans','Noto Sans SC',sans-serif", fs: '13px', fw: 500, demo: '统一数据源 Unified Source', spec: '11–14px' },
+      { n: '数据/代码 Data', ff: "'IBM Plex Mono',monospace", fs: '12.5px', fw: 500, demo: '¥1,199 · 2026-08-18 · IP65', spec: '10–13px · 一律等宽' },
+      { n: '文档正文 Doc', ff: "'Source Serif 4','Noto Serif SC',serif", fs: '15px', fw: 400, demo: '产品规格书正文使用衬线。', spec: '14.5–16px / 行高 2' },
+      { n: '文档标题 Doc H', ff: "'Source Serif 4','Noto Serif SC',serif", fs: '17px', fw: 700, demo: '一、定位与定价', spec: 'H1 25–32 · H2 17–20' }
+    ];
+    const states = [
+      { n: '按钮', s: '默认 → 悬停（加深 8%）→ 按下（再深）→ 禁用（40% 不透明）；危险态仅全库动作' },
+      { n: '表格行', s: '默认 → 悬停淡米底 → 选中（青绿左沿 3px + 淡青底）→ 编辑/变更（琥珀左沿 + 单元格琥珀内描边 + 协作者名牌）' },
+      { n: '引用芯片', s: '最新（青绿）→ 刚同步（琥珀 + 勾，约 10s 回落青绿）→ 低置信（琥珀 + 置信%）→ 悬空（砖红删除线，点击重绑）' },
+      { n: '节点卡', s: '默认 → 悬停投影加深 → 选中（2px 青绿 + 光晕 + 手柄）→ 多选（共享虚线选框 + 浮动对齐条）→ 仿真进行中（琥珀 + 脉冲）' },
+      { n: '槽位卡', s: '抽象（青绿虚线）→ 拖入悬停（底色加深 + 光晕）→ 已实例化（实线卡 + 来源徽标）→ 约束不满足（琥珀警告）' },
+      { n: '树行', s: '默认 → 悬停 → 选中（米底加深/青绿内描边）→ 携带 diff 徽标（增/改 计数）→ 拖出（浮标跟随，-2° 旋转）' },
+      { n: '同步状态点', s: '青绿 = 已同步 · 琥珀 = 刚变更/待确认 · 砖红 = 冲突/悬空；始终配文字说明' },
+      { n: 'AI 操作', s: '提案（可逐项审核）→ 已应用（增/改卡 + 撤销）→ 越权（转待审批卡：批准并写入 / 拒绝）' },
+      { n: '校验项', s: '错误（砖红，阻断分享导出）→ 警告（琥珀，随文档标注）→ 通过（折叠）；选中卡 2px 描边 + 光晕' },
+      { n: '空 / 加载', s: '空态给一句引导 + 主操作（如「从数据源添加」）；加载用骨架条，不用转圈占满屏' },
+      { n: '无权限 / 只读', s: '只读 = 灰锁徽标 + 禁用编辑控件；无权限字段值显示「···」脱敏；写请求转待审批卡' },
+      { n: '大数据量', s: '表格 > 50 行虚拟滚动 + 底栏行数统计；树 > 3 层默认折叠，搜索直达节点' }
+    ];
+    const glossary = [
+      { n: '表达', en: 'Expression', d: '一次「要说的事」，组织单位；决定内容与受众，可挂多种描述形式。' },
+      { n: '统一数据源', en: 'Unified Source', d: '树状组织（中心 › 库 › 记录 › 字段）的唯一权威数据；所有表达读写同一份。' },
+      { n: '描述形式', en: 'Form', d: '回答「怎么描述」：表格/文档/分屏/视图/矩阵/BI/分析/仿真/校验…开放集合，插件可扩。表格也是描述形式之一 — 数据永远只有一份本源，一切呈现皆是它的投影。' },
+      { n: '字段引用', en: 'Field Ref', d: '文档等表达中绑定数据源单元格的活值；双向同步，按数据源权限鉴权。' },
+      { n: '槽位 / 实例化', en: 'Slot / Instantiate', d: '模板中的抽象占位（主板、CPU）+ 约束；拖入具体记录即绑定，换库整图复用。' },
+      { n: '增 / 改 / 删', en: 'Diff Badge', d: '对数据源的三种写入动作；移除（仅出视图）≠ 删除（动数据源，需二次确认）。' },
+      { n: '语义匹配', en: 'Semantic Match', d: 'AI 导入第一步：识别意图、主体、来源并对齐到已有记录，带置信度。' },
+      { n: '写入定位', en: 'Target Mapping', d: 'AI 导入第二步：把提取值落到数据源树的具体位置，以增/改/删清单呈现。' },
+      { n: '同步', en: 'Sync', d: '数据源写入后向所有引用广播；界面以琥珀高亮 + Toast 呈现，可撤销。' },
+      { n: '校验规则', en: 'Rule', d: '跑在数据源上的约束：字段/跨源一致性/引用完整性/模板约束；错误阻断分享。' },
+      { n: '仿真', en: 'Simulate', d: '视图的运行功能（画布右下角 ▶），非描述形式；点击后进入运行态：连线流动、事件回放、指标面板。' },
+      { n: '定位到显示处', en: 'Go to', d: '从任一处跳到同一数据的其他显示位置（表格/文档/BI…）；双向通用，菜单列出全部引用点。' },
+      { n: '插件', en: 'Plugin', d: '行业描述形式包，声明数据契约（读取/写回字段）；安装后进入「添加形式」。' },
+      { n: '审批', en: 'Approval', d: '只读成员或越权 AI 的写请求 → 待审批卡；批准后走同一同步管线。' }
+    ];
+    const pageReg = [
+      { n: '首页总览', v: 'v2', comps: '顶栏 · 按钮 · 表达卡 · 数据源卡 · 变更流 · 待办卡 · 徽标', data: '全部数据源（只读汇总）' },
+      { n: '表格视图', v: 'v3', comps: '侧栏 · 视图切换器 · 工具条 · 数据表行 · 状态徽标 · 头像组', data: '产品规格库 读写' },
+      { n: '文档视图', v: 'v3', comps: '侧栏 · 引用芯片 · @插入弹层 · 数据表格块 · 数据面板 · 工具条', data: '产品规格库 读（经引用写）' },
+      { n: '分屏联动', v: 'v3', comps: '数据表行（编辑态）· 引用芯片（刚同步）· 变更记录 · Toast', data: '产品规格库 读写' },
+      { n: '视图（画布）', v: 'v3', comps: '节点卡 · 对齐工具条 · 右键菜单 · 检查器页签 · 开关 · 色板', data: '产品规格库 读 + 互联关系 写回' },
+      { n: '矩阵', v: 'v3', comps: '矩阵网格 · 记录卡 · 状态徽标 · 视图切换器', data: '产品规格库 读写（拖卡改字段）' },
+      { n: '模板与实例化', v: 'v3', comps: '槽位卡 · 节点卡 · 库列表卡 · 拖拽浮标 · 按钮', data: '硬件产品库 读 + 绑定关系 写' },
+      { n: 'AI 导入', v: 'v2', comps: 'AI 指令条 · 步骤条 · 语义匹配 chips · diff 徽标 + 树 · 置信度', data: '任意库 增/改/删（提案→确认）' },
+      { n: 'AI 对话', v: 'v2', comps: '聊天气泡 · 操作卡（增/改）· AI 指令条 · KPI 卡 · 徽标', data: '数据源 + 表达配置 读写' },
+      { n: '分析', v: 'v3', comps: '问题卡 · 贡献度条 · 洞察卡 · 下钻表 · 描述形式标签', data: '渠道销量表 + 产品规格库 读' },
+      { n: '仿真（运行态）', v: 'v3', comps: '节点卡（事件源/进行中）· 流动连线 · 播放条 · 参数段控 · 指标卡 · 运行按钮', data: '节点字段（协议/延迟/功耗）读' },
+      { n: '校验中心', v: 'v1', comps: '规则组导航 · 校验结果卡 · 权威/缓存 diff · 修复按钮组', data: '全部数据源 读 + 修复写' },
+      { n: '插件中心', v: 'v1', comps: '插件卡 · 开关 · 详情面板 · 数据契约 chips · 单选', data: '插件注册表' },
+      { n: '权限模型', v: 'v1', comps: '权限矩阵表 · 角色徽标 · 能力清单 · 审批卡 · 头像组', data: '成员/角色配置 读写' }
+    ];
+    return { tokens, typeRows, states, glossary, pageReg };
+  }
+}
+</script>
+</body>
+</html>
