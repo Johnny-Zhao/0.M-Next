@@ -11,6 +11,7 @@ import type {
   MemberId,
   ObjectTypeDef,
   OutputSnapshot,
+  PermissionMatrix,
   RelationType,
   ViewDef,
   Workspace,
@@ -35,6 +36,7 @@ export interface WorkspaceState {
   readonly relationTypes: readonly RelationType[];
   readonly relations: readonly DataRelation[];
   readonly comments: readonly Comment[];
+  readonly permissions: PermissionMatrix;
   readonly expressions: readonly Expression[];
   readonly views: readonly ViewDef[];
   readonly fieldRefs: readonly FieldRef[];
@@ -161,6 +163,10 @@ export class WorkspaceStore {
     return this.state.checkResults;
   }
 
+  getPermissions(): PermissionMatrix {
+    return this.state.permissions;
+  }
+
   getChangeEvents(): readonly ChangeEvent[] {
     return this.state.changeEvents;
   }
@@ -221,9 +227,12 @@ export class WorkspaceStore {
     readonly sourceId: string;
     readonly targetId: string;
     readonly fields?: Record<FieldCode, DataFieldValue>;
+    readonly actor?: MemberId;
+    readonly summary?: string;
   }): RelationWriteResult {
+    const relationId = `rel-${params.sourceId}-${params.targetId}-${this.sequence + 1}`;
     const relation: DataRelation = {
-      id: `rel-${params.sourceId}-${params.targetId}-${this.sequence + 1}`,
+      id: relationId,
       relationTypeCode: params.relationTypeCode,
       sourceId: params.sourceId,
       targetId: params.targetId,
@@ -232,9 +241,21 @@ export class WorkspaceStore {
       version: 1,
       annotationIds: [],
     };
+    const event = this.createRelationEvent(
+      relation.id,
+      params.actor ?? "wangyun",
+    );
     this.state = {
       ...this.state,
       relations: [relation, ...this.state.relations],
+      changeEvents: [event, ...this.state.changeEvents],
+      activity: [
+        this.relationActivity(
+          params.actor ?? "wangyun",
+          params.summary ?? `创建关系 ${params.relationTypeCode}`,
+        ),
+        ...this.state.activity,
+      ],
     };
     this.emit();
     return { relation };
@@ -256,28 +277,43 @@ export class WorkspaceStore {
         [fieldCode]: valueCell(value, previous, meta),
       },
     };
+    const event = this.createRelationEvent(relationId, meta.actor);
     this.state = {
       ...this.state,
       relations: this.state.relations.map((candidate) =>
         candidate.id === relationId ? nextRelation : candidate,
       ),
+      changeEvents: [event, ...this.state.changeEvents],
+      activity: [
+        this.relationActivity(meta.actor, `更新关系字段 ${fieldCode}`),
+        ...this.state.activity,
+      ],
     };
     this.emit();
     return { relation: nextRelation };
   }
 
-  unlinkRelation(relationId: string): RelationWriteResult {
+  unlinkRelation(
+    relationId: string,
+    actor: MemberId = "wangyun",
+  ): RelationWriteResult {
     const relation = this.requireRelation(relationId);
     const nextRelation: DataRelation = {
       ...relation,
       status: "unlinked",
       version: relation.version + 1,
     };
+    const event = this.createRelationEvent(relationId, actor);
     this.state = {
       ...this.state,
       relations: this.state.relations.map((candidate) =>
         candidate.id === relationId ? nextRelation : candidate,
       ),
+      changeEvents: [event, ...this.state.changeEvents],
+      activity: [
+        this.relationActivity(actor, `解除关系 ${relation.relationTypeCode}`),
+        ...this.state.activity,
+      ],
     };
     this.emit();
     return { relation: nextRelation };
@@ -354,6 +390,32 @@ export class WorkspaceStore {
     };
   }
 
+  private createRelationEvent(
+    relationId: string,
+    actor: MemberId,
+  ): ChangeEvent {
+    this.sequence += 1;
+    return {
+      id: eventId(this.sequence),
+      track: "data",
+      actor,
+      target: { entityType: "relation", entityId: relationId },
+      syncedRefs: 0,
+      at: now,
+      inverse: null,
+    };
+  }
+
+  private relationActivity(actor: MemberId, summary: string): ActivityItem {
+    return {
+      id: activityId(this.sequence),
+      actor,
+      summary,
+      tracks: ["data"],
+      at: now,
+    };
+  }
+
   private requireObject(objectId: string): DataObject {
     const object = this.getObject(objectId);
     if (!object) throw new Error(`找不到对象 ${objectId}`);
@@ -382,6 +444,7 @@ function seedToState(seed: DemoSeed): WorkspaceState {
     relationTypes: seed.relationTypes,
     relations: seed.relations,
     comments: seed.comments,
+    permissions: seed.permissions,
     expressions: seed.expressions,
     views: seed.views,
     fieldRefs: seed.fieldRefs,

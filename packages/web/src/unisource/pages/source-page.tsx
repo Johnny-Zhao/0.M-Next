@@ -1,11 +1,14 @@
-import { useParams } from "react-router-dom";
+import { useParams, useSearchParams } from "react-router-dom";
 
+import { parseFormParam } from "../routes-paths";
+import { FormRow, nextFormSearch } from "../shell/form-row";
 import { WorkspaceLayout } from "../shell/layouts";
 import { useWorkspaceSnapshot } from "../state/workspace-store";
 import { PageSkeleton } from "./page-skeleton";
 
 export function SourcePage() {
   const { sourceId } = useParams<{ sourceId: string }>();
+  const [search, setSearch] = useSearchParams();
   const snapshot = useWorkspaceSnapshot();
   const objectType = snapshot.objectTypes.find(
     (type) => type.code === sourceId,
@@ -18,6 +21,7 @@ export function SourcePage() {
     label: member.name.slice(0, 1),
     title: member.name,
   }));
+  const form = parseFormParam(search, "grid");
   return (
     <WorkspaceLayout
       sidebarTab="data"
@@ -32,6 +36,17 @@ export function SourcePage() {
         },
         people,
       }}
+      subHeader={
+        <FormRow
+          activeForm={form}
+          forms={["grid"]}
+          onFormChange={(next) =>
+            setSearch(nextFormSearch(search.toString(), next))
+          }
+        >
+          同一份数据,换任意形式描述
+        </FormRow>
+      }
     >
       <PageSkeleton
         kicker="GRID · v3"

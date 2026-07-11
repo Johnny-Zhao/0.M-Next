@@ -8,6 +8,7 @@ import type {
   DataRelation,
   ObjectTypeDef,
   OutputSnapshot,
+  PermissionMatrix,
   RelationType,
   SceneTemplate,
   ViewDef,
@@ -77,6 +78,7 @@ export interface DemoSeed {
   readonly relationTypes: readonly RelationType[];
   readonly relations: readonly DataRelation[];
   readonly comments: readonly Comment[];
+  readonly permissions: PermissionMatrix;
   readonly sceneTemplates: readonly SceneTemplate[];
   readonly expressions: readonly Expression[];
   readonly views: readonly ViewDef[];
@@ -352,6 +354,33 @@ export const demoSeed: DemoSeed = {
       resolved: false,
     },
   ],
+  permissions: {
+    wangyun: {
+      product_specs: "admin",
+      channel_sales: "admin",
+      "exp-dashboard": "edit",
+      "exp-spec-doc": "owner",
+    },
+    lixiao: {
+      product_specs: "edit",
+      channel_sales: "readonly",
+      "exp-dashboard": "readonly",
+      "exp-spec-doc": "edit",
+    },
+    chenmo: {
+      product_specs: "readonly",
+      channel_sales: "edit",
+      "exp-dashboard": "edit",
+      "exp-spec-doc": "readonly",
+    },
+    zhouran: {
+      product_specs: "readonly",
+      channel_sales: "none",
+      "exp-dashboard": "none",
+      "exp-spec-doc": "readonly",
+    },
+    ai: {},
+  },
   sceneTemplates: [
     {
       id: "tpl-install-v1",

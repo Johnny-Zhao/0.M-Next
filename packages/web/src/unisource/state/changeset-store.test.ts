@@ -18,6 +18,19 @@ describe("ChangeSetStore", () => {
     expect(workspace.getObject("prod-s3")?.version).toBe(1);
   });
 
+  it("returns ok:false for unknown change set ids", () => {
+    const seed = cloneDemoSeed();
+    const workspace = new WorkspaceStore(seed);
+    const store = new ChangeSetStore(seed, workspace);
+
+    expect(store.confirmAll("missing")).toEqual({
+      ok: false,
+      reason: "找不到变更集 missing",
+    });
+    expect(store.reject("missing").ok).toBe(false);
+    expect(store.acceptItems("missing", ["item"]).ok).toBe(false);
+  });
+
   it("confirms a manual change set through the workspace write path", () => {
     const seed = cloneDemoSeed();
     const workspace = new WorkspaceStore(seed);

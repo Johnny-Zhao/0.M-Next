@@ -2,6 +2,7 @@ import { useParams, useSearchParams } from "react-router-dom";
 
 import { UsMonoTag } from "../primitives";
 import { parseFormParam } from "../routes-paths";
+import { FormRow, nextFormSearch } from "../shell/form-row";
 import { UsInspector } from "../shell/inspector";
 import { WorkspaceLayout } from "../shell/layouts";
 import { useWorkspaceSnapshot } from "../state/workspace-store";
@@ -22,12 +23,23 @@ const FORM_LABEL: Record<string, string> = {
  */
 export function ExprPage() {
   const { exprId } = useParams<{ exprId: string }>();
-  const [search] = useSearchParams();
+  const [search, setSearch] = useSearchParams();
   const snapshot = useWorkspaceSnapshot();
   const expr = snapshot.expressions.find(
     (candidate) => candidate.id === exprId,
   );
   const form = parseFormParam(search, expr?.defaultForm ?? "doc");
+  const forms = Array.from(
+    new Set(
+      expr?.viewIds
+        .map(
+          (viewId) => snapshot.views.find((view) => view.id === viewId)?.kind,
+        )
+        .filter((value): value is NonNullable<typeof value> =>
+          Boolean(value),
+        ) ?? ["doc"],
+    ),
+  );
   const people = snapshot.members.slice(0, 2).map((member) => ({
     member: member.avatar,
     label: member.name.slice(0, 1),
@@ -87,6 +99,15 @@ export function ExprPage() {
         people,
       }}
       inspector={inspector}
+      subHeader={
+        <FormRow
+          activeForm={form}
+          forms={forms}
+          onFormChange={(next) =>
+            setSearch(nextFormSearch(search.toString(), next))
+          }
+        />
+      }
     >
       <PageSkeleton
         kicker={`EXPR · form=${form}`}

@@ -49,6 +49,7 @@ describe("WorkspaceStore", () => {
     const store = new WorkspaceStore(cloneDemoSeed());
     const sourceVersion = store.getObject("prod-s3")!.version;
     const targetVersion = store.getObject("prod-g2")!.version;
+    const beforeEvents = store.getChangeEvents().length;
 
     const result = store.updateRelationField(
       "rel-s3-g2-interconnect",
@@ -58,9 +59,40 @@ describe("WorkspaceStore", () => {
     );
 
     expect(result.relation.version).toBe(2);
+    expect(store.getChangeEvents()).toHaveLength(beforeEvents + 1);
+    expect(store.getChangeEvents()[0]?.target).toEqual({
+      entityType: "relation",
+      entityId: "rel-s3-g2-interconnect",
+    });
+    expect(store.getChangeEvents()[0]?.inverse).toBeNull();
+    expect(store.getActivity()[0]?.summary).toContain("更新关系字段");
     expect(result.relation.fields.protocol?.value).toBe("Matter + BLE + Wi-Fi");
     expect(store.getObject("prod-s3")?.version).toBe(sourceVersion);
     expect(store.getObject("prod-g2")?.version).toBe(targetVersion);
+  });
+
+  it("creates and unlinks relations with data events and activity", () => {
+    const store = new WorkspaceStore(cloneDemoSeed());
+
+    const created = store.createRelation({
+      relationTypeCode: "interconnects_with",
+      sourceId: "prod-s3",
+      targetId: "prod-m1",
+      actor: "lixiao",
+    });
+    const unlinked = store.unlinkRelation(created.relation.id, "lixiao");
+
+    expect(created.relation.version).toBe(1);
+    expect(unlinked.relation.status).toBe("unlinked");
+    expect(unlinked.relation.version).toBe(2);
+    expect(
+      store
+        .getChangeEvents()
+        .slice(0, 2)
+        .map((event) => event.target.entityType),
+    ).toEqual(["relation", "relation"]);
+    expect(store.getChangeEvents()[0]?.inverse).toBeNull();
+    expect(store.getActivity()[0]?.summary).toContain("解除关系");
   });
 
   it("can attach comments to a relation", () => {

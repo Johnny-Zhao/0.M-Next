@@ -4,6 +4,8 @@ export type DataRelationId = string;
 export type FieldCode = string;
 export type MemberId = "wangyun" | "lixiao" | "chenmo" | "zhouran" | "ai";
 export type DataSource = "manual" | "ai";
+export type PermLevel = "admin" | "edit" | "owner" | "readonly" | "none";
+export type PermissionMatrix = Record<MemberId, Record<string, PermLevel>>;
 
 export interface Workspace {
   readonly id: WorkspaceId;

@@ -54,7 +54,8 @@ export class ChangeSetStore {
   }
 
   confirmAll(changeSetId: string): ChangeSetResult {
-    const changeSet = this.requireChangeSet(changeSetId);
+    const changeSet = this.findChangeSet(changeSetId);
+    if (!changeSet) return missingChangeSet(changeSetId);
     const blocked = changeSet.items.find(
       (item) =>
         (item.needsConfirm === true || (item.confidence ?? 1) < 0.8) &&
@@ -75,7 +76,8 @@ export class ChangeSetStore {
   }
 
   reject(changeSetId: string): ChangeSetResult {
-    const changeSet = this.requireChangeSet(changeSetId);
+    const changeSet = this.findChangeSet(changeSetId);
+    if (!changeSet) return missingChangeSet(changeSetId);
     const rejected = { ...changeSet, status: "rejected" as const };
     this.replace(rejected);
     return { ok: true, changeSet: rejected };
@@ -85,7 +87,8 @@ export class ChangeSetStore {
     changeSetId: string,
     itemIds: readonly string[],
   ): ChangeSetResult {
-    const changeSet = this.requireChangeSet(changeSetId);
+    const changeSet = this.findChangeSet(changeSetId);
+    if (!changeSet) return missingChangeSet(changeSetId);
     return this.applyItems(changeSet, itemIds);
   }
 
@@ -130,12 +133,10 @@ export class ChangeSetStore {
     );
   }
 
-  private requireChangeSet(changeSetId: string): ChangeSet {
-    const changeSet = this.state.changeSets.find(
+  private findChangeSet(changeSetId: string): ChangeSet | undefined {
+    return this.state.changeSets.find(
       (candidate) => candidate.id === changeSetId,
     );
-    if (!changeSet) throw new Error(`找不到变更集 ${changeSetId}`);
-    return changeSet;
   }
 
   private replace(changeSet: ChangeSet): void {
@@ -153,6 +154,10 @@ export class ChangeSetStore {
 }
 
 export const changeSetStore = new ChangeSetStore();
+
+function missingChangeSet(changeSetId: string): ChangeSetResult {
+  return { ok: false, reason: `找不到变更集 ${changeSetId}` };
+}
 
 export function useChangeSetSnapshot(): ChangeSetState {
   return useSyncExternalStore(
