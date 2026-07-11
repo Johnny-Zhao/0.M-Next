@@ -30,6 +30,8 @@ export function AppSidebar({
   const currentExpr = snapshot.expressions.find(
     (expression) => expression.id === currentExprId,
   );
+  const currentForm = new URLSearchParams(location.search).get("form");
+  const runOpen = new URLSearchParams(location.search).get("run") === "1";
   const activeSpace = currentExpr?.space === "workshop" ? "workshop" : "main";
   const visibleExpressions = snapshot.expressions.filter((expression) =>
     activeSpace === "workshop"
@@ -143,9 +145,15 @@ export function AppSidebar({
         )}
       </div>
       <div className="us-sidebar__foot">
-        {activeSpace === "workshop" && tab === "what"
-          ? "模板只保存抽象槽位；实例化后可换一套数据源整图复用。"
-          : FOOTNOTES[tab]}
+        {runOpen && currentForm === "canvas"
+          ? "仿真读取节点字段(协议、延迟、功耗)— 数据一改,回放结果随之变化。"
+          : currentForm === "matrix"
+            ? "矩阵把状态字段变成看板列,拖动即写回数据源。"
+            : currentForm === "ana"
+              ? "分析结论可固化为洞察卡,钉回看板或写入周报。"
+              : activeSpace === "workshop" && tab === "what"
+                ? "模板只保存抽象槽位；实例化后可换一套数据源整图复用。"
+                : FOOTNOTES[tab]}
       </div>
     </nav>
   );

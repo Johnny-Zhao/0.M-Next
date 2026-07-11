@@ -117,6 +117,18 @@ describe("WorkspaceStore", () => {
     ).toEqual(["view", "data"]);
   });
 
+  it("can undo KPI visibility changes through the view track", () => {
+    const store = new WorkspaceStore(cloneDemoSeed());
+
+    const shown = store.setKpiVisible("kpi-ana-aov-net", true, "wangyun");
+    store.undo(store.getChangeEvents()[0]!.id);
+
+    expect(shown.visible).toBe(true);
+    expect(
+      store.getKpis().find((kpi) => kpi.id === "kpi-ana-aov-net")?.visible,
+    ).toBe(false);
+  });
+
   it("records review actions and binds slots", () => {
     const store = new WorkspaceStore(cloneDemoSeed());
 

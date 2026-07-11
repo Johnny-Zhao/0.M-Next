@@ -94,6 +94,10 @@ export interface ChangeEvent {
     readonly viewId: string;
     readonly config: Record<string, unknown>;
   } | null;
+  readonly inverseKpi?: {
+    readonly kpiId: string;
+    readonly visible: boolean;
+  } | null;
 }
 
 export interface ActivityItem {
@@ -166,10 +170,6 @@ export interface SimScenario {
   readonly name: string;
   readonly duration: number;
   readonly events: readonly SimEvent[];
-  readonly metrics: readonly {
-    readonly name: string;
-    readonly value: string;
-  }[];
 }
 
 export interface SimEvent {
@@ -229,4 +229,32 @@ export interface RawImport {
 export interface RelationCommentRef {
   readonly relationId: DataRelationId;
   readonly commentId: string;
+}
+
+export interface AnaReport {
+  readonly id: string;
+  readonly viewId: string;
+  readonly scopeLabel: string;
+  readonly question: string;
+  readonly sourcesLabel: string;
+  readonly factors: readonly {
+    readonly label: string;
+    readonly deltaText: string;
+    readonly widthPct: number;
+    readonly tone: "change" | "change-soft" | "primary" | "ink";
+  }[];
+  readonly drillRows: readonly {
+    readonly channel: string;
+    readonly deltaText: string;
+    readonly accessoryShare: string;
+  }[];
+  readonly insights: readonly {
+    readonly title: string;
+    readonly segments: readonly {
+      readonly text: string;
+      readonly mono?: boolean;
+    }[];
+  }[];
+  readonly pinKpiId: string;
+  readonly childKpiIds: readonly string[];
 }

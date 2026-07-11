@@ -16,6 +16,7 @@ import type {
 } from "../model/kernel";
 import type {
   ActivityItem,
+  AnaReport,
   BiBarDef,
   ChangeEvent,
   ChatMessage,
@@ -92,6 +93,7 @@ export interface DemoSeed {
   readonly fieldRefs: readonly FieldRef[];
   readonly kpis: readonly KpiCardDef[];
   readonly biBars: readonly BiBarDef[];
+  readonly anaReports: readonly AnaReport[];
   readonly rawImport: RawImport;
   readonly chatMessages: readonly ChatMessage[];
   readonly reviewRecords: readonly ReviewRecord[];
@@ -112,6 +114,7 @@ export const productType: ObjectTypeDef = {
     { code: "sku", name: "产品编号", dataType: "text" },
     { code: "name", name: "名称", dataType: "text" },
     { code: "price", name: "权威售价", dataType: "number", unit: "CNY" },
+    { code: "owner", name: "负责人", dataType: "person" },
     { code: "battery_months", name: "续航(月)", dataType: "number" },
     { code: "rating", name: "防护等级", dataType: "text" },
     { code: "launch_date", name: "上市日期", dataType: "date" },
@@ -119,7 +122,7 @@ export const productType: ObjectTypeDef = {
       code: "lifecycle",
       name: "状态",
       dataType: "enum",
-      enumValues: ["预售", "研发中", "在售", "停产"],
+      enumValues: ["研发中", "预售", "在售", "停产"],
     },
   ],
 };
@@ -196,6 +199,7 @@ const products: readonly DataObject[] = [
       sku: "DL-S3-2026",
       name: "门锁 S3",
       price: 1199,
+      owner: "wangyun",
       battery_months: 14,
       rating: "IP65",
       launch_date: "2026-08-18",
@@ -210,6 +214,7 @@ const products: readonly DataObject[] = [
       sku: "DL-S3-LITE",
       name: "门锁 S3 Lite",
       price: 899,
+      owner: "lixiao",
       battery_months: 12,
       rating: "IP54",
       launch_date: null,
@@ -224,6 +229,7 @@ const products: readonly DataObject[] = [
       sku: "DB-D2-PRO",
       name: "门铃 D2 Pro",
       price: 599,
+      owner: "chenmo",
       battery_months: 8,
       rating: "IP54",
       launch_date: "2026-09-10",
@@ -238,6 +244,7 @@ const products: readonly DataObject[] = [
       sku: "DB-D2",
       name: "门铃 D2",
       price: 399,
+      owner: "chenmo",
       battery_months: 6,
       rating: "IP54",
       launch_date: "2025-11-02",
@@ -252,6 +259,7 @@ const products: readonly DataObject[] = [
       sku: "EYE-E1",
       name: "猫眼 E1",
       price: 699,
+      owner: "wangyun",
       battery_months: 10,
       rating: "IP54",
       launch_date: "2026-03-20",
@@ -266,6 +274,7 @@ const products: readonly DataObject[] = [
       sku: "GW-G2",
       name: "网关 G2",
       price: 199,
+      owner: "wangyun",
       battery_months: 0,
       rating: "Indoor",
       launch_date: "2025-08-18",
@@ -280,6 +289,7 @@ const products: readonly DataObject[] = [
       sku: "MAG-M1",
       name: "门磁 M1",
       price: 79,
+      owner: "lixiao",
       battery_months: 18,
       rating: "IP54",
       launch_date: "2025-05-12",
@@ -294,6 +304,7 @@ const products: readonly DataObject[] = [
       sku: "LOCK-P1",
       name: "挂锁 P1",
       price: 299,
+      owner: "zhouran",
       battery_months: 10,
       rating: "IP54",
       launch_date: "2024-09-01",
@@ -890,7 +901,7 @@ export const demoSeed: DemoSeed = {
       id: "view-dashboard-ana",
       exprId: "exp-dashboard",
       kind: "ana",
-      config: {},
+      config: { reportId: "ana-aov-july" },
     },
     { id: "view-spec-doc", exprId: "exp-spec-doc", kind: "doc", config: {} },
     { id: "view-spec-grid", exprId: "exp-spec-doc", kind: "grid", config: {} },
@@ -1000,7 +1011,13 @@ export const demoSeed: DemoSeed = {
       id: "view-inventory-matrix",
       exprId: "exp-inventory",
       kind: "matrix",
-      config: {},
+      config: {
+        sourceTypeCode: "product_specs",
+        rowField: "owner",
+        colField: "lifecycle",
+        cardFields: ["price", "docRefs"],
+        summary: "count",
+      },
     },
   ],
   docModels: [
@@ -1293,6 +1310,36 @@ export const demoSeed: DemoSeed = {
       aiAdded: true,
       visible: true,
     },
+    {
+      id: "kpi-ana-aov-net",
+      label: "客单价 Δ(净)",
+      value: "-2.1%",
+      delta: "近 30 天",
+      deltaSign: "down",
+      sourceLabel: "分析",
+      aiAdded: true,
+      visible: false,
+    },
+    {
+      id: "kpi-ana-host",
+      label: "主机口径",
+      value: "+3.1%",
+      delta: "子看板",
+      deltaSign: "up",
+      sourceLabel: "分析",
+      aiAdded: true,
+      visible: false,
+    },
+    {
+      id: "kpi-ana-accessory",
+      label: "配件口径",
+      value: "-5.3%",
+      delta: "子看板",
+      deltaSign: "down",
+      sourceLabel: "分析",
+      aiAdded: true,
+      visible: false,
+    },
   ],
   biBars: [
     { label: "线上直营", value: 6420, percent: 100, tone: "high" },
@@ -1300,6 +1347,68 @@ export const demoSeed: DemoSeed = {
     { label: "天猫", value: 3960, percent: 62, tone: "mid" },
     { label: "线下经销", value: 2850, percent: 44, tone: "low" },
     { label: "运营商", value: 1240, percent: 19, tone: "low" },
+  ],
+  anaReports: [
+    {
+      id: "ana-aov-july",
+      viewId: "view-dashboard-ana",
+      scopeLabel: "近 30 天 · 全部渠道",
+      question: "为什么 7 月平均客单价下降 2.1%?",
+      sourcesLabel: "渠道销量表 + 产品规格库",
+      factors: [
+        {
+          label: "配件占比下降",
+          deltaText: "-3.4%",
+          widthPct: 88,
+          tone: "change",
+        },
+        {
+          label: "S3 报价同步",
+          deltaText: "-1.2%",
+          widthPct: 42,
+          tone: "change-soft",
+        },
+        {
+          label: "主机单价上移",
+          deltaText: "+2.5%",
+          widthPct: 64,
+          tone: "primary",
+        },
+        {
+          label: "合计净变化",
+          deltaText: "-2.1%",
+          widthPct: 56,
+          tone: "ink",
+        },
+      ],
+      drillRows: [
+        { channel: "线上直营", deltaText: "-5.2%", accessoryShare: "31%" },
+        { channel: "京东", deltaText: "-1.8%", accessoryShare: "24%" },
+        { channel: "线下经销", deltaText: "+0.9%", accessoryShare: "12%" },
+      ],
+      insights: [
+        {
+          title: "主因",
+          segments: [
+            { text: "配件包客单价由 " },
+            { text: "¥210", mono: true },
+            { text: " 下探,抵消了主机口径 " },
+            { text: "+3.1%", mono: true },
+            { text: " 的抬升。" },
+          ],
+        },
+        {
+          title: "佐证",
+          segments: [
+            { text: "S3 权威售价从 " },
+            { text: "¥1,299 → ¥1,199", mono: true },
+            { text: ",同步后拉低 7 月均值。" },
+          ],
+        },
+      ],
+      pinKpiId: "kpi-ana-aov-net",
+      childKpiIds: ["kpi-ana-host", "kpi-ana-accessory"],
+    },
   ],
   rawImport: {
     text: rawImportText,
@@ -1672,10 +1781,6 @@ export const demoSeed: DemoSeed = {
           label: "联动录像",
           kind: "action",
         },
-      ],
-      metrics: [
-        { name: "平均延迟", value: "220ms" },
-        { name: "成功率", value: "99.2%" },
       ],
     },
   ],

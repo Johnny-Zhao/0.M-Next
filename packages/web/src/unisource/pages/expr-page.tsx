@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 
 import { BiBoard } from "../bi/bi-board";
+import { AnaView } from "../ana/ana-view";
 import { CanvasView } from "../canvas/canvas-view";
 import {
   canvasConfigWithNodes,
@@ -13,6 +14,7 @@ import { CanvasVersionsPanel } from "../canvas/inspector-versions-panel";
 import { ChatPanel } from "../chat/chat-panel";
 import { DocView } from "../doc/doc-view";
 import { buildDocViewModel } from "../doc/doc-view-model";
+import { MatrixBoard } from "../matrix/matrix-board";
 import type { CanvasNodeConfig } from "../model/view-layer";
 import { UsMonoTag } from "../primitives";
 import { parseFormParam } from "../routes-paths";
@@ -86,6 +88,17 @@ export function ExprPage() {
       : snapshot.fieldRefs.filter(
           (ref) => ref.exprId === exprId && ref.state === "justSynced",
         ).length;
+  const inventoryDocRefs = new Set(
+    snapshot.fieldRefs
+      .filter((ref) =>
+        snapshot.objects.some(
+          (object) =>
+            object.id === ref.objectId &&
+            object.objectTypeCode === "product_specs",
+        ),
+      )
+      .map((ref) => ref.exprId),
+  ).size;
   const docModel =
     exprId === undefined
       ? undefined
@@ -269,11 +282,13 @@ export function ExprPage() {
                 : "ok",
           label: isSimulationOpen
             ? "仿真 · 运行中"
-            : form === "doc" && docVm
-              ? docVm.howLabel
-              : syncedRefs > 0
-                ? `刚刚同步 ${syncedRefs} 处引用`
-                : (expr?.lastActivity ?? "已同步"),
+            : form === "matrix" && exprId === "exp-inventory"
+              ? `已同步 · ${inventoryDocRefs} 篇关联文档`
+              : form === "doc" && docVm
+                ? docVm.howLabel
+                : syncedRefs > 0
+                  ? `刚刚同步 ${syncedRefs} 处引用`
+                  : (expr?.lastActivity ?? "已同步"),
         },
         people,
         aiHref: `/expr/${expr?.id ?? exprId}?form=${form}&drawer=chat`,
@@ -311,6 +326,10 @@ export function ExprPage() {
         <DocView exprId={expr.id} />
       ) : form === "bi" && expr ? (
         <BiBoard />
+      ) : form === "matrix" && expr ? (
+        <MatrixBoard exprId={expr.id} />
+      ) : form === "ana" && expr ? (
+        <AnaView exprId={expr.id} />
       ) : form === "canvas" && expr && isTemplateCanvas && !runOpen ? (
         <TemplateCanvas exprId={expr.id} />
       ) : form === "canvas" && expr && isSimulationOpen && simTimeline ? (

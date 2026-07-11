@@ -18,6 +18,7 @@ describe("buildGridViewModel", () => {
     });
 
     expect(vm.columns.map((column) => column.typeMark)).toContain("#");
+    expect(vm.columns.map((column) => column.code)).toContain("owner");
     expect(vm.rows).toHaveLength(8);
     expect(vm.rows[0]?.selected).toBe(true);
     expect(vm.rows[0]?.statusTone).toBe("presale");

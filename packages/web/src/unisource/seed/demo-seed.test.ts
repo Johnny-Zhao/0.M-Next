@@ -86,6 +86,38 @@ describe("demoSeed", () => {
     ).toBe(true);
   });
 
+  it("seeds inventory matrix owners, config and analysis report", () => {
+    const ownerById = Object.fromEntries(
+      demoSeed.objects
+        .filter((object) => object.objectTypeCode === "product_specs")
+        .map((object) => [object.id, object.fields.owner?.value]),
+    );
+    const matrixView = demoSeed.views.find(
+      (view) => view.id === "view-inventory-matrix",
+    );
+
+    expect(ownerById).toMatchObject({
+      "prod-s3": "wangyun",
+      "prod-s3-lite": "lixiao",
+      "prod-d2-pro": "chenmo",
+      "prod-d2": "chenmo",
+      "prod-e1": "wangyun",
+      "prod-g2": "wangyun",
+      "prod-m1": "lixiao",
+      "prod-p1": "zhouran",
+    });
+    expect(matrixView?.config).toMatchObject({
+      sourceTypeCode: "product_specs",
+      rowField: "owner",
+      colField: "lifecycle",
+      summary: "count",
+    });
+    expect(demoSeed.anaReports[0]?.id).toBe("ana-aov-july");
+    expect(
+      demoSeed.kpis.filter((kpi) => kpi.sourceLabel === "分析" && !kpi.visible),
+    ).toHaveLength(3);
+  });
+
   it("seeds workshop expressions, hardware products and object slot bindings", () => {
     expect(
       demoSeed.expressions.filter(

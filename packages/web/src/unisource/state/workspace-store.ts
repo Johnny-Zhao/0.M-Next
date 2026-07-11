@@ -19,6 +19,7 @@ import type {
 } from "../model/kernel";
 import type {
   ActivityItem,
+  AnaReport,
   BiBarDef,
   ChangeEvent,
   ChangeEventInverse,
@@ -51,6 +52,7 @@ export interface WorkspaceState {
   readonly fieldRefs: readonly FieldRef[];
   readonly kpis: readonly KpiCardDef[];
   readonly biBars: readonly BiBarDef[];
+  readonly anaReports: readonly AnaReport[];
   readonly rawImport: RawImport;
   readonly chatMessages: readonly ChatMessage[];
   readonly reviewRecords: readonly ReviewRecord[];
@@ -214,6 +216,10 @@ export class WorkspaceStore {
 
   getBiBars(): readonly BiBarDef[] {
     return this.state.biBars;
+  }
+
+  getAnaReports(): readonly AnaReport[] {
+    return this.state.anaReports;
   }
 
   updateField(
@@ -406,7 +412,7 @@ export class WorkspaceStore {
     const current = this.state.kpis.find((candidate) => candidate.id === kpiId);
     if (!current) throw new Error(`找不到 KPI ${kpiId}`);
     const next = { ...current, visible };
-    const event = this.createViewKpiEvent(kpiId, actor);
+    const event = this.createViewKpiEvent(kpiId, actor, current.visible);
     this.state = {
       ...this.state,
       kpis: this.state.kpis.map((candidate) =>
@@ -777,6 +783,18 @@ export class WorkspaceStore {
         object: this.state.objects[0]!,
       };
     }
+    if (event?.inverseKpi) {
+      this.setKpiVisible(
+        event.inverseKpi.kpiId,
+        event.inverseKpi.visible,
+        event.actor,
+      );
+      return {
+        event: this.state.changeEvents[0]!,
+        syncedRefs: 0,
+        object: this.state.objects[0]!,
+      };
+    }
     if (!event?.inverse) {
       throw new Error("找不到可撤销的变更");
     }
@@ -917,7 +935,11 @@ export class WorkspaceStore {
     };
   }
 
-  private createViewKpiEvent(kpiId: string, actor: MemberId): ChangeEvent {
+  private createViewKpiEvent(
+    kpiId: string,
+    actor: MemberId,
+    previousVisible: boolean,
+  ): ChangeEvent {
     this.sequence += 1;
     return {
       id: eventId(this.sequence),
@@ -927,6 +949,7 @@ export class WorkspaceStore {
       syncedRefs: 0,
       at: now,
       inverse: null,
+      inverseKpi: { kpiId, visible: previousVisible },
     };
   }
 
@@ -1024,6 +1047,7 @@ function seedToState(seed: DemoSeed): WorkspaceState {
     fieldRefs: seed.fieldRefs,
     kpis: seed.kpis,
     biBars: seed.biBars,
+    anaReports: seed.anaReports,
     rawImport: seed.rawImport,
     chatMessages: seed.chatMessages,
     reviewRecords: seed.reviewRecords,
