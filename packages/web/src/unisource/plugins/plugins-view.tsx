@@ -46,6 +46,14 @@ export function PluginsView() {
       desc: "停用不删除数据,已挂载形式将置灰。",
     });
   };
+  const enable = (pluginId: string) => {
+    workspaceStore.setPluginState(
+      pluginId,
+      { enabled: true },
+      session.currentMemberId,
+    );
+    pushToast({ title: "插件已启用" });
+  };
   const update = (pluginId: string, version: string | null) => {
     if (!version) return;
     workspaceStore.setPluginState(
@@ -144,6 +152,9 @@ export function PluginsView() {
           detail={vm.selected}
           onDisable={() => {
             if (selectedIdOrNull) disable(selectedIdOrNull);
+          }}
+          onEnable={() => {
+            if (selectedIdOrNull) enable(selectedIdOrNull);
           }}
           onInstall={() => {
             if (selectedIdOrNull) install(selectedIdOrNull);

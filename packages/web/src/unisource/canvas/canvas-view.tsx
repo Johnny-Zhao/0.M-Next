@@ -375,6 +375,7 @@ export function CanvasView({ exprId }: { exprId: string }) {
             setMenu(null);
           }}
           onSelectionChange={onSelectionChange}
+          proOptions={{ hideAttribution: true }}
         >
           <Background color="var(--us-border-soft)" gap={24} />
         </ReactFlow>

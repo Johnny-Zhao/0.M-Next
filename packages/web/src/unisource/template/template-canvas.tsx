@@ -222,6 +222,7 @@ export function TemplateCanvas({ exprId }: { exprId: string }) {
             nodesDraggable={canEdit}
             onNodeClick={onNodeClick}
             onNodeDragStop={onNodeDragStop}
+            proOptions={{ hideAttribution: true }}
           >
             <Background color="var(--us-border-soft)" gap={24} />
           </ReactFlow>

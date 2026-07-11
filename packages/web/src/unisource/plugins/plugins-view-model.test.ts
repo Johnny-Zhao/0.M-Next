@@ -63,5 +63,14 @@ describe("plugins view model", () => {
     expect(
       buildPluginFormOptions(store.getPlugins()).map((option) => option.label),
     ).not.toContain("三维架构图 · 爆炸图");
+    expect(
+      buildPluginsViewModel(store.getSnapshot(), {
+        selectedId: "plug-3d-assembly",
+      }).selected,
+    ).toMatchObject({ installed: true, enabled: false });
+    store.setPluginState("plug-3d-assembly", { enabled: true }, "wangyun");
+    expect(
+      buildPluginFormOptions(store.getPlugins()).map((option) => option.label),
+    ).toContain("三维架构图 · 爆炸图");
   });
 });

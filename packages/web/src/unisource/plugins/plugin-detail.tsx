@@ -6,12 +6,14 @@ import type { PluginDetailVm } from "./plugins-view-model";
 export function PluginDetail({
   detail,
   onDisable,
+  onEnable,
   onInstall,
   onScope,
   onUpdate,
 }: {
   readonly detail: PluginDetailVm | null;
   readonly onDisable: () => void;
+  readonly onEnable: () => void;
   readonly onInstall: () => void;
   readonly onScope: (scope: PluginDetailVm["scope"]) => void;
   readonly onUpdate: () => void;
@@ -84,9 +86,13 @@ export function PluginDetail({
       </Section>
 
       <div className="us-plugin-actions">
-        {detail.installed ? (
+        {detail.enabled ? (
           <UsButton onClick={onDisable} variant="secondary">
             停用
+          </UsButton>
+        ) : detail.installed ? (
+          <UsButton onClick={onEnable} variant="primary">
+            启用
           </UsButton>
         ) : (
           <UsButton onClick={onInstall} variant="primary">

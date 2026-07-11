@@ -36,7 +36,7 @@ export function LibraryPanel({
           aria-pressed={chipset === null}
           onClick={() => setChipset(null)}
         >
-          符合约束 {library.matching}
+          符合约束 <span className="us-data">{library.matching}</span>
         </button>
         {library.chipsetCounts.map((item) => (
           <button
@@ -45,7 +45,7 @@ export function LibraryPanel({
             aria-pressed={chipset === item.chipset}
             onClick={() => setChipset(item.chipset)}
           >
-            {item.chipset} · {item.count}
+            {item.chipset} · <span className="us-data">{item.count}</span>
           </button>
         ))}
       </div>

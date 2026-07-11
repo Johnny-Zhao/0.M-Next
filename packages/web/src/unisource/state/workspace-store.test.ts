@@ -141,6 +141,7 @@ describe("WorkspaceStore", () => {
       "wangyun",
     );
     store.setPluginState("plug-3d-assembly", { enabled: false }, "wangyun");
+    store.setPluginState("plug-3d-assembly", { enabled: true }, "wangyun");
     store.setPluginState(
       "plug-3d-assembly",
       { version: "2.4", updateTo: null, scope: "group" },
@@ -153,7 +154,7 @@ describe("WorkspaceStore", () => {
     expect(
       store.getPlugins().find((plugin) => plugin.id === "plug-3d-assembly"),
     ).toMatchObject({
-      enabled: false,
+      enabled: true,
       version: "2.4",
       scope: "group",
     });

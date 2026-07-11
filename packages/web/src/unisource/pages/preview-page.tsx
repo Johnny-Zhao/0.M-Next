@@ -347,28 +347,20 @@ export function PreviewPage() {
 
         <UsPanel title="P2 组件" kicker="SLOT · PLAY · MATRIX · ANA · PLUGIN">
           <div className="us-preview__p2">
-            {(["instantiated", "activated", "violated"] as const).map(
-              (state) => (
-                <article
-                  className="us-slot-card"
-                  data-state={state}
-                  key={state}
-                >
-                  <header>
-                    <span>{state === "activated" ? "主板槽位" : "CPU"}</span>
-                    <UsMonoTag
-                      tone={state === "violated" ? "change" : "primary"}
-                    >
-                      {state}
-                    </UsMonoTag>
-                  </header>
-                  <strong>
-                    {state === "activated" ? "抽象:主板槽位" : "Core Ultra"}
-                  </strong>
-                  <p className="us-data">硬件产品库 · preview</p>
-                </article>
-              ),
-            )}
+            {(["instantiated", "activated", "empty"] as const).map((state) => (
+              <article className="us-slot-card" data-state={state} key={state}>
+                <header>
+                  <span>{state === "activated" ? "主板槽位" : "CPU"}</span>
+                  <UsMonoTag tone={state === "empty" ? undefined : "primary"}>
+                    {state}
+                  </UsMonoTag>
+                </header>
+                <strong>
+                  {state === "instantiated" ? "Core Ultra" : "抽象:主板槽位"}
+                </strong>
+                <p className="us-data">硬件产品库 · preview</p>
+              </article>
+            ))}
           </div>
           <PlayBar
             duration={10}

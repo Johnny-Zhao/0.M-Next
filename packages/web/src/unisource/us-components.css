@@ -194,8 +194,13 @@
   box-shadow: var(--us-shadow-card);
   font-size: var(--us-node-font, var(--us-fs-125));
   color: var(--us-text);
+  transition:
+    border-color var(--us-dur-fast),
+    box-shadow var(--us-dur-fast),
+    transform var(--us-dur-align);
 }
 .us-nodecard[data-selected="true"] {
+  border-width: 2px;
   box-shadow: var(--us-glow-selected), var(--us-shadow-card);
   border-color: var(--us-primary);
 }
@@ -269,8 +274,8 @@
   bottom: -4px;
 }
 .us-canvas-edge {
-  stroke: var(--us-primary);
-  stroke-width: 1.8;
+  stroke: var(--us-border-strong);
+  stroke-width: 1.7;
 }
 .us-canvas-edge__label {
   padding: 3px 8px;
@@ -286,6 +291,10 @@
   stroke-width: 2.4;
   stroke-dasharray: 7 8;
   animation: us-flow-edge var(--us-dur-flow) linear infinite;
+}
+.us-canvas-edge[data-flowing="true"] + .react-flow__edge-text,
+.us-canvas-edge[data-flowing="true"] ~ .us-canvas-edge__label {
+  color: var(--us-change-text);
 }
 .us-nodecard[data-sim-phase="running"] {
   border-color: var(--us-change);
@@ -699,10 +708,14 @@
   min-height: 142px;
   padding: var(--us-sp-4);
   border-radius: var(--us-radius-card);
-  border: 1px dashed var(--us-border-strong);
+  border: 1.5px dashed var(--us-border-strong);
   background: var(--us-paper);
   box-shadow: var(--us-shadow-card);
   color: var(--us-text);
+  transition:
+    border-color var(--us-dur-fast),
+    box-shadow var(--us-dur-fast),
+    background var(--us-dur-fast);
 }
 .us-slot-card[data-state="activated"] {
   border: 2px dashed var(--us-primary);
@@ -714,6 +727,11 @@
 }
 .us-slot-card[data-state="instantiated"] {
   border-style: solid;
+  border-color: var(--us-primary-border);
+  background: var(--us-primary-bg-2);
+}
+.us-slot-card[data-state="empty"] {
+  color: var(--us-text-3);
 }
 .us-slot-card[data-state="violated"] {
   border-style: solid;
@@ -1013,6 +1031,7 @@
   justify-content: space-between;
 }
 .us-matrix-colhead[data-dragover="true"] {
+  background: var(--us-primary-bg-2);
   box-shadow: inset 0 0 0 2px var(--us-primary);
 }
 .us-matrix-rowhead {
@@ -1045,6 +1064,15 @@
   background: var(--us-paper);
   box-shadow: var(--us-shadow-card);
   cursor: grab;
+  transition:
+    border-color var(--us-dur-align),
+    box-shadow var(--us-dur-align),
+    transform var(--us-dur-align);
+}
+.us-matrix-card:hover {
+  border-color: var(--us-primary);
+  box-shadow: var(--us-glow-selected), var(--us-shadow-card);
+  transform: translateY(-1px);
 }
 .us-matrix-card[data-dim="true"] {
   opacity: 0.75;
@@ -1158,6 +1186,9 @@
 }
 .us-ana-table td[data-negative="true"] {
   color: var(--us-danger);
+}
+.us-ana-table td[data-positive="true"] {
+  color: var(--us-primary-deep);
 }
 .us-ana-insights {
   grid-row: span 2;

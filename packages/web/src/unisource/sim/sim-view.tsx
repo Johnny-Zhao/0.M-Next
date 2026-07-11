@@ -111,6 +111,7 @@ export function SimView({
           nodesConnectable={false}
           nodesDraggable={false}
           panOnDrag
+          proOptions={{ hideAttribution: true }}
           zoomOnScroll
         >
           <Background color="var(--us-border-soft)" gap={24} />

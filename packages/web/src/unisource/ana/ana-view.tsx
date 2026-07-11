@@ -103,6 +103,7 @@ export function AnaView({ exprId }: { readonly exprId: string }) {
                     <td
                       className="us-data"
                       data-negative={row.deltaText.startsWith("-")}
+                      data-positive={row.deltaText.startsWith("+")}
                     >
                       {row.deltaText}
                     </td>
