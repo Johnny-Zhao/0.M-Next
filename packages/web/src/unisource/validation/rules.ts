@@ -304,8 +304,15 @@ function ref002(state: WorkspaceState): RuleOutcome {
 }
 
 function tpl001(state: WorkspaceState): RuleOutcome {
-  const invalid = state.slotBindings.find(
-    (binding) => !binding.objectId || !binding.values.form_factor,
+  const requiredBindings = state.sceneTemplates.flatMap((template) =>
+    template.slots.map((slot) => ({ template, slot })),
+  );
+  const invalid = requiredBindings.find(
+    ({ template, slot }) =>
+      !state.slotBindings.some(
+        (binding) =>
+          binding.templateId === template.id && binding.slotId === slot.id,
+      ),
   );
   if (!invalid) return pass("TPL-001", "模板约束", "槽位约束字段齐备");
   return {
@@ -313,26 +320,31 @@ function tpl001(state: WorkspaceState): RuleOutcome {
     group: "模板约束",
     level: "error",
     title: "槽位约束字段不完整",
-    detail: `${invalid.id} 缺少必要约束字段。`,
-    target: { entityType: "object", entityId: invalid.objectId },
-    impact: ["全屋智能门户方案"],
+    detail: `${invalid.template.name} · ${invalid.slot.label} 缺少槽位绑定记录。`,
+    target: { entityType: "object", entityId: invalid.slot.id },
+    impact: ["装机方案"],
     fixes: [],
   };
 }
 
 function tpl003(state: WorkspaceState): RuleOutcome {
-  const invalid = state.slotBindings.find(
-    (binding) => binding.values.form_factor !== "ATX",
-  );
+  const invalid = state.slotBindings.find((binding) => {
+    const slot = findSlot(state, binding.templateId, binding.slotId);
+    if (slot?.abstractType !== "mainboard" || !binding.objectId) return false;
+    return fieldValue(state, binding.objectId, "form_factor")?.value !== "ATX";
+  });
   if (!invalid) return pass("TPL-003", "模板约束", "主板槽位版型必须 ATX");
+  const formFactor = invalid.objectId
+    ? fieldValue(state, invalid.objectId, "form_factor")?.value
+    : null;
   return {
     ruleCode: "TPL-003",
     group: "模板约束",
     level: "warning",
     title: "主板槽位版型不是 ATX",
-    detail: `${objectName(state, invalid.objectId)} 绑定为 ${invalid.values.form_factor},建议换用 ATX 型号。`,
-    target: { entityType: "object", entityId: invalid.objectId },
-    impact: ["全屋智能门户方案"],
+    detail: `${objectName(state, invalid.objectId ?? invalid.id)} 绑定为 ${formFactor},建议换用 ATX 型号。`,
+    target: { entityType: "object", entityId: invalid.objectId ?? invalid.id },
+    impact: ["装机方案"],
     fixes: [
       {
         id: "relax-template",
@@ -343,6 +355,12 @@ function tpl003(state: WorkspaceState): RuleOutcome {
       { id: "use-atx", label: "换用 ATX 型号", tone: "primary" },
     ],
   };
+}
+
+function findSlot(state: WorkspaceState, templateId: string, slotId: string) {
+  return state.sceneTemplates
+    .find((template) => template.id === templateId)
+    ?.slots.find((slot) => slot.id === slotId);
 }
 
 export const validationRules: readonly RuleFn[] = [

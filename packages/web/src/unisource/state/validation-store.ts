@@ -118,11 +118,29 @@ export class ValidationStore {
       return { kind: "fixed", message: "已同步缓存售价" };
     }
     if (ruleCode === "TPL-003") {
-      this.workspace.updateSlotBinding(
-        "binding-mainboard-s3",
-        { form_factor: "ATX" },
-        { actor, summary: "换用 ATX 型号" },
+      const state = this.workspace.getSnapshot();
+      const invalid = state.slotBindings.find((binding) => {
+        const object = binding.objectId
+          ? this.workspace.getObject(binding.objectId)
+          : undefined;
+        return (
+          binding.slotId.includes("mainboard") &&
+          object !== undefined &&
+          object?.fields.form_factor?.value !== "ATX"
+        );
+      });
+      const replacement = state.objects.find(
+        (object) =>
+          object.objectTypeCode === "hardware_products" &&
+          object.fields.part_type?.value === "主板" &&
+          object.fields.form_factor?.value === "ATX",
       );
+      if (invalid && replacement) {
+        this.workspace.bindSlot({ bindingId: invalid.id }, replacement.id, {
+          actor,
+          summary: "换用 ATX 型号",
+        });
+      }
       return { kind: "fixed", message: "已换用 ATX 型号" };
     }
     if (ruleCode === "REF-002") {

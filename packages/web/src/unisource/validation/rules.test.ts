@@ -30,9 +30,9 @@ describe("validation rules", () => {
     store.updateField("sales-offline-dealer", "cached_price", 1199, {
       actor: "wangyun",
     });
-    store.updateSlotBinding(
-      "binding-mainboard-s3",
-      { form_factor: "ATX" },
+    store.bindSlot(
+      { bindingId: "binding-b860-mainboard" },
+      "hw-mb-prime-z890-p",
       { actor: "wangyun" },
     );
     store.rebindFieldRef(

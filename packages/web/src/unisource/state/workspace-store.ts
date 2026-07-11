@@ -13,6 +13,7 @@ import type {
   PermissionMatrix,
   RelationType,
   ReviewRecord,
+  SceneTemplate,
   ViewDef,
   Workspace,
 } from "../model/kernel";
@@ -43,6 +44,7 @@ export interface WorkspaceState {
   readonly relations: readonly DataRelation[];
   readonly comments: readonly Comment[];
   readonly permissions: PermissionMatrix;
+  readonly sceneTemplates: readonly SceneTemplate[];
   readonly expressions: readonly Expression[];
   readonly views: readonly ViewDef[];
   readonly docModels: readonly DocModel[];
@@ -428,33 +430,86 @@ export class WorkspaceStore {
     return next;
   }
 
-  updateSlotBinding(
-    bindingId: string,
-    values: Record<FieldCode, DataFieldPrimitive>,
+  bindSlot(
+    target:
+      | { readonly bindingId: string }
+      | { readonly exprId: string; readonly slotId: string },
+    objectId: string,
     meta: FieldWriteMeta,
   ): SlotBinding {
-    const current = this.state.slotBindings.find(
-      (candidate) => candidate.id === bindingId,
-    );
-    if (!current) throw new Error(`找不到槽位绑定 ${bindingId}`);
+    const object = this.requireObject(objectId);
+    const current = this.requireSlotBinding(target);
     const next: SlotBinding = {
       ...current,
-      values: { ...current.values, ...values },
+      objectId,
       updatedBy: meta.actor,
       updatedAt: now,
     };
-    const event = this.createViewKpiEvent(bindingId, meta.actor);
+    const event = this.createSlotBindingEvent(
+      current.id,
+      meta.actor,
+      current.objectId,
+      objectId,
+    );
     this.state = {
       ...this.state,
       slotBindings: this.state.slotBindings.map((candidate) =>
-        candidate.id === bindingId ? next : candidate,
+        candidate.id === current.id ? next : candidate,
       ),
       changeEvents: [event, ...this.state.changeEvents],
       activity: [
         {
           id: activityId(this.sequence),
           actor: meta.actor,
-          summary: meta.summary ?? `更新槽位绑定 ${bindingId}`,
+          summary:
+            meta.summary ??
+            `实例化槽位 ${current.slotId} → ${String(object.fields.name?.value ?? objectId)}`,
+          tracks: ["data"],
+          at: now,
+        },
+        ...this.state.activity,
+      ],
+    };
+    this.emit();
+    return next;
+  }
+
+  unbindSlot(
+    target:
+      | { readonly bindingId: string }
+      | { readonly exprId: string; readonly slotId: string },
+    meta: FieldWriteMeta,
+  ): SlotBinding {
+    const current = this.state.slotBindings.find((candidate) =>
+      "bindingId" in target
+        ? candidate.id === target.bindingId
+        : candidate.exprId === target.exprId &&
+          candidate.slotId === target.slotId,
+    );
+    if (!current) throw new Error("找不到槽位绑定");
+    const next: SlotBinding = {
+      ...current,
+      objectId: null,
+      updatedBy: meta.actor,
+      updatedAt: now,
+    };
+    const event = this.createSlotBindingEvent(
+      current.id,
+      meta.actor,
+      current.objectId,
+      null,
+    );
+    this.state = {
+      ...this.state,
+      slotBindings: this.state.slotBindings.map((candidate) =>
+        candidate.id === current.id ? next : candidate,
+      ),
+      changeEvents: [event, ...this.state.changeEvents],
+      activity: [
+        {
+          id: activityId(this.sequence),
+          actor: meta.actor,
+          summary: meta.summary ?? `清空槽位 ${current.slotId}`,
           tracks: ["data"],
           at: now,
         },
@@ -801,6 +856,26 @@ export class WorkspaceStore {
     };
   }
 
+  private createSlotBindingEvent(
+    bindingId: string,
+    actor: MemberId,
+    oldValue: string | null,
+    nextValue: string | null,
+  ): ChangeEvent {
+    this.sequence += 1;
+    return {
+      id: eventId(this.sequence),
+      track: "data",
+      actor,
+      target: { entityType: "object", entityId: bindingId },
+      old: oldValue,
+      next: nextValue,
+      syncedRefs: 0,
+      at: now,
+      inverse: null,
+    };
+  }
+
   private createViewConfigEvent(params: {
     readonly actor: MemberId;
     readonly viewId: string;
@@ -879,6 +954,21 @@ export class WorkspaceStore {
     return relation;
   }
 
+  private requireSlotBinding(
+    target:
+      | { readonly bindingId: string }
+      | { readonly exprId: string; readonly slotId: string },
+  ): SlotBinding {
+    const binding = this.state.slotBindings.find((candidate) =>
+      "bindingId" in target
+        ? candidate.id === target.bindingId
+        : candidate.exprId === target.exprId &&
+          candidate.slotId === target.slotId,
+    );
+    if (!binding) throw new Error("找不到槽位绑定");
+    return binding;
+  }
+
   private requireView(viewId: string): ViewDef {
     const view = this.getView(viewId);
     if (!view) throw new Error(`找不到视图 ${viewId}`);
@@ -927,6 +1017,7 @@ function seedToState(seed: DemoSeed): WorkspaceState {
     relations: seed.relations,
     comments: seed.comments,
     permissions: seed.permissions,
+    sceneTemplates: seed.sceneTemplates,
     expressions: seed.expressions,
     views: seed.views,
     docModels: seed.docModels,

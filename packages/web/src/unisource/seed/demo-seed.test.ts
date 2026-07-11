@@ -44,7 +44,11 @@ describe("demoSeed", () => {
     expect(results.filter((result) => result.level === "passed")).toHaveLength(
       8,
     );
-    expect(demoSeed.slotBindings[0]?.values.form_factor).toBe("mATX");
+    expect(
+      demoSeed.slotBindings.find(
+        (binding) => binding.id === "binding-b860-mainboard",
+      )?.objectId,
+    ).toBe("hw-mb-prime-b860m-a");
   });
 
   it("starts the activity stream with the storyline dashboard change", () => {
@@ -80,5 +84,30 @@ describe("demoSeed", () => {
         .filter((event) => event.target.entityId === "view-portal-canvas")
         .every((event) => event.inverseView === null),
     ).toBe(true);
+  });
+
+  it("seeds workshop expressions, hardware products and object slot bindings", () => {
+    expect(
+      demoSeed.expressions.filter(
+        (expression) => expression.space === "workshop",
+      ),
+    ).toHaveLength(3);
+    expect(
+      demoSeed.objects.filter(
+        (object) => object.objectTypeCode === "hardware_products",
+      ),
+    ).toHaveLength(10);
+    expect(demoSeed.sceneTemplates[0]?.slots.map((slot) => slot.id)).toEqual([
+      "slot-cpu",
+      "slot-psu",
+      "slot-mainboard",
+      "slot-memory",
+      "slot-gpu",
+    ]);
+    expect(
+      demoSeed.slotBindings.find(
+        (binding) => binding.id === "binding-z890-mainboard",
+      )?.objectId,
+    ).toBeNull();
   });
 });

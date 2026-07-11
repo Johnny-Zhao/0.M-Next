@@ -11,6 +11,7 @@ import type {
 export interface Expression {
   readonly id: string;
   readonly name: string;
+  readonly space?: "main" | "workshop";
   readonly viewIds: readonly string[];
   readonly defaultViewId: string;
   readonly defaultForm: ViewKind;
@@ -116,8 +117,8 @@ export interface SlotBinding {
   readonly id: string;
   readonly templateId: string;
   readonly slotId: string;
-  readonly objectId: DataObjectId;
-  readonly values: Record<FieldCode, DataFieldPrimitive>;
+  readonly exprId: string;
+  readonly objectId: DataObjectId | null;
   readonly updatedBy: MemberId;
   readonly updatedAt: string;
 }

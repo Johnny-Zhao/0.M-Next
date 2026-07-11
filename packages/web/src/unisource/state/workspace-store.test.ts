@@ -117,7 +117,7 @@ describe("WorkspaceStore", () => {
     ).toEqual(["view", "data"]);
   });
 
-  it("records review actions and updates slot bindings", () => {
+  it("records review actions and binds slots", () => {
     const store = new WorkspaceStore(cloneDemoSeed());
 
     const review = store.addReviewRecord({
@@ -126,16 +126,34 @@ describe("WorkspaceStore", () => {
       actor: "wangyun",
       note: "忽略校验项 XSRC-001",
     });
-    const binding = store.updateSlotBinding(
-      "binding-mainboard-s3",
-      { form_factor: "ATX" },
+    const binding = store.bindSlot(
+      { bindingId: "binding-z890-mainboard" },
+      "hw-mb-prime-z890-p",
       { actor: "wangyun" },
     );
 
     expect(review.id).toContain("review-");
     expect(store.getReviewRecords()[0]?.note).toBe("忽略校验项 XSRC-001");
-    expect(binding.values.form_factor).toBe("ATX");
-    expect(store.getSlotBindings()[0]?.values.form_factor).toBe("ATX");
+    expect(binding.objectId).toBe("hw-mb-prime-z890-p");
+    expect(
+      store
+        .getSlotBindings()
+        .find((item) => item.id === "binding-z890-mainboard")?.objectId,
+    ).toBe("hw-mb-prime-z890-p");
+  });
+
+  it("unbinds slots through data-track events", () => {
+    const store = new WorkspaceStore(cloneDemoSeed());
+    const before = store.getChangeEvents().length;
+
+    const binding = store.unbindSlot(
+      { bindingId: "binding-b860-mainboard" },
+      { actor: "wangyun" },
+    );
+
+    expect(binding.objectId).toBeNull();
+    expect(store.getChangeEvents()).toHaveLength(before + 1);
+    expect(store.getChangeEvents()[0]?.track).toBe("data");
   });
 
   it("updates relation-owned fields without changing endpoint object versions", () => {

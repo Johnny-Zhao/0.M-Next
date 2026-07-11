@@ -17,7 +17,17 @@ export interface Workspace {
 export interface SlotDef {
   readonly id: string;
   readonly abstractType: string;
-  readonly constraints: readonly string[];
+  readonly label: string;
+  readonly constraints: readonly SlotConstraint[];
+  readonly constraintLabels?: readonly string[];
+  readonly shownFields: readonly FieldCode[];
+  readonly connectsTo?: readonly string[];
+}
+
+export interface SlotConstraint {
+  readonly field: FieldCode;
+  readonly op: "eq" | "gte" | "lte";
+  readonly value: DataFieldPrimitive;
 }
 
 export interface SceneTemplate {

@@ -26,6 +26,25 @@ export function AppSidebar({
   const [tab, setTab] = useState<SidebarTab>(defaultTab);
   const snapshot = useWorkspaceSnapshot();
   const location = useLocation();
+  const currentExprId = location.pathname.match(/\/expr\/([^/?]+)/)?.[1];
+  const currentExpr = snapshot.expressions.find(
+    (expression) => expression.id === currentExprId,
+  );
+  const activeSpace = currentExpr?.space === "workshop" ? "workshop" : "main";
+  const visibleExpressions = snapshot.expressions.filter((expression) =>
+    activeSpace === "workshop"
+      ? expression.space === "workshop"
+      : (expression.space ?? "main") === "main",
+  );
+  const usedTemplateIds = new Set(
+    snapshot.slotBindings
+      .filter((binding) =>
+        activeSpace === "workshop"
+          ? visibleExpressions.some((expr) => expr.id === binding.exprId)
+          : false,
+      )
+      .map((binding) => binding.templateId),
+  );
   const centerOrder = Array.from(
     new Set(snapshot.objectTypes.map((type) => type.group)),
   );
@@ -56,7 +75,7 @@ export function AppSidebar({
       <div className="us-sidebar__list">
         {tab === "what" ? (
           <>
-            {snapshot.expressions.map((expression) => {
+            {visibleExpressions.map((expression) => {
               const formsLabel = expression.viewIds
                 .map(
                   (viewId) =>
@@ -77,6 +96,23 @@ export function AppSidebar({
                 </NavLink>
               );
             })}
+            {activeSpace === "workshop" ? (
+              <div>
+                <div className="us-sidebar__section">模板 TEMPLATES</div>
+                {snapshot.sceneTemplates.map((template) => (
+                  <span
+                    className="us-navitem us-navitem--indent"
+                    key={template.id}
+                  >
+                    <span className="us-navitem__dot" aria-hidden />
+                    <span className="us-navitem__label">{template.name}</span>
+                    {usedTemplateIds.has(template.id) ? (
+                      <span className="us-navitem__tag">使用中</span>
+                    ) : null}
+                  </span>
+                ))}
+              </div>
+            ) : null}
             <span className="us-navitem us-navitem--new">+ 新建表达</span>
           </>
         ) : (
@@ -106,7 +142,11 @@ export function AppSidebar({
           ))
         )}
       </div>
-      <div className="us-sidebar__foot">{FOOTNOTES[tab]}</div>
+      <div className="us-sidebar__foot">
+        {activeSpace === "workshop" && tab === "what"
+          ? "模板只保存抽象槽位；实例化后可换一套数据源整图复用。"
+          : FOOTNOTES[tab]}
+      </div>
     </nav>
   );
 }

@@ -23,6 +23,8 @@ import { SplitView } from "../split/split-view";
 import { useSelectionSnapshot } from "../state/selection-store";
 import { sessionStore, useSessionSnapshot } from "../state/session-store";
 import { workspaceStore, useWorkspaceSnapshot } from "../state/workspace-store";
+import { TemplateCanvas } from "../template/template-canvas";
+import { TemplateConfigDoc } from "../template/template-config-doc";
 import { PageSkeleton } from "./page-skeleton";
 
 const FORM_LABEL: Record<string, string> = {
@@ -86,6 +88,15 @@ export function ExprPage() {
           (candidate) =>
             candidate.exprId === exprId && candidate.kind === "canvas",
         );
+  const isTemplateCanvas = Boolean(canvasView?.config.templateId);
+  const isTemplateConfigDoc =
+    form === "doc" &&
+    snapshot.views.some(
+      (view) =>
+        view.exprId === exprId &&
+        view.kind === "doc" &&
+        typeof view.config.sourceExprId === "string",
+    );
   const canvasCanEdit =
     exprId !== undefined &&
     sessionStore.can(session.currentMemberId, exprId, "editView");
@@ -133,7 +144,7 @@ export function ExprPage() {
         setSearch(next);
       }}
     />
-  ) : form === "canvas" ? (
+  ) : form === "canvas" && !isTemplateCanvas ? (
     <UsInspector
       aside={<span className="us-data">已选 {selectedObjectCount}</span>}
       tabs={[
@@ -217,10 +228,14 @@ export function ExprPage() {
     >
       {form === "doc" && split && expr ? (
         <SplitView exprId={expr.id} />
+      ) : form === "doc" && expr && isTemplateConfigDoc ? (
+        <TemplateConfigDoc exprId={expr.id} />
       ) : form === "doc" && expr ? (
         <DocView exprId={expr.id} />
       ) : form === "bi" && expr ? (
         <BiBoard />
+      ) : form === "canvas" && expr && isTemplateCanvas && !runOpen ? (
+        <TemplateCanvas exprId={expr.id} />
       ) : form === "canvas" && expr && !runOpen ? (
         <CanvasView exprId={expr.id} />
       ) : form === "canvas" && runOpen ? (

@@ -48,7 +48,14 @@ describe("ValidationStore", () => {
       workspace.getObject("sales-offline-dealer")?.fields.cached_price?.value,
     ).toBe(1199);
     expect(store.executeFix("TPL-003", "wangyun").kind).toBe("fixed");
-    expect(workspace.getSlotBindings()[0]?.values.form_factor).toBe("ATX");
+    const binding = workspace
+      .getSlotBindings()
+      .find((item) => item.id === "binding-b860-mainboard");
+    expect(
+      binding?.objectId
+        ? workspace.getObject(binding.objectId)?.fields.form_factor?.value
+        : null,
+    ).toBe("ATX");
     store.dispose();
   });
 });

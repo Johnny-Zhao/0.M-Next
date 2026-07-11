@@ -51,45 +51,56 @@ export function deriveHomeVm(
     pendingCount: pending.length,
     pendingAiCount: pending.filter((changeSet) => changeSet.source === "ai")
       .length,
-    fieldRefCount: workspace.fieldRefs.length,
-    expressions: workspace.expressions.map((expression) => {
-      const forms = expression.viewIds
-        .map(
-          (viewId) => workspace.views.find((view) => view.id === viewId)?.kind,
-        )
-        .filter((form): form is UsFormKind => form !== undefined);
-      const activityMember =
-        workspace.members.find(
-          (candidate) => candidate.id === expression.activityMember,
-        ) ?? workspace.members[0];
-      return {
-        id: expression.id,
-        name: expression.name,
-        forms: preferDefaultForm(forms, expression.defaultForm),
-        defaultForm: expression.defaultForm,
-        lastActivity: expression.lastActivity,
-        avatarLabel: activityMember?.name.slice(0, 1) ?? "?",
-        activityAvatar: activityMember?.avatar ?? "ai",
-      };
-    }),
-    sources: workspace.objectTypes.map((type) => {
-      const objects = workspace.objects.filter(
-        (object) => object.objectTypeCode === type.code,
-      );
-      const objectIds = new Set(objects.map((object) => object.id));
-      const refCount = new Set(
-        workspace.fieldRefs
-          .filter((ref) => objectIds.has(ref.objectId))
-          .map((ref) => ref.exprId),
-      ).size;
-      return {
-        code: type.code,
-        name: type.name,
-        count: objects.length,
-        refCount,
-        ...sourceStatus(type.code),
-      };
-    }),
+    fieldRefCount: workspace.fieldRefs.filter((ref) =>
+      workspace.expressions.some(
+        (expression) =>
+          expression.id === ref.exprId &&
+          (expression.space ?? "main") === "main",
+      ),
+    ).length,
+    expressions: workspace.expressions
+      .filter((expression) => (expression.space ?? "main") === "main")
+      .map((expression) => {
+        const forms = expression.viewIds
+          .map(
+            (viewId) =>
+              workspace.views.find((view) => view.id === viewId)?.kind,
+          )
+          .filter((form): form is UsFormKind => form !== undefined);
+        const activityMember =
+          workspace.members.find(
+            (candidate) => candidate.id === expression.activityMember,
+          ) ?? workspace.members[0];
+        return {
+          id: expression.id,
+          name: expression.name,
+          forms: preferDefaultForm(forms, expression.defaultForm),
+          defaultForm: expression.defaultForm,
+          lastActivity: expression.lastActivity,
+          avatarLabel: activityMember?.name.slice(0, 1) ?? "?",
+          activityAvatar: activityMember?.avatar ?? "ai",
+        };
+      }),
+    sources: workspace.objectTypes
+      .filter((type) => type.code !== "hardware_products")
+      .map((type) => {
+        const objects = workspace.objects.filter(
+          (object) => object.objectTypeCode === type.code,
+        );
+        const objectIds = new Set(objects.map((object) => object.id));
+        const refCount = new Set(
+          workspace.fieldRefs
+            .filter((ref) => objectIds.has(ref.objectId))
+            .map((ref) => ref.exprId),
+        ).size;
+        return {
+          code: type.code,
+          name: type.name,
+          count: objects.length,
+          refCount,
+          ...sourceStatus(type.code),
+        };
+      }),
   };
 }
 
