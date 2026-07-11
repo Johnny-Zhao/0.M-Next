@@ -1,6 +1,5 @@
 import type {
   ChangeSet,
-  CheckResult,
   Comment,
   DataFieldPrimitive,
   DataFieldValue,
@@ -10,6 +9,7 @@ import type {
   OutputSnapshot,
   PermissionMatrix,
   RelationType,
+  ReviewRecord,
   SceneTemplate,
   ViewDef,
   Workspace,
@@ -27,6 +27,7 @@ import type {
   PluginDef,
   RawImport,
   SimScenario,
+  SlotBinding,
 } from "../model/view-layer";
 
 const at = {
@@ -93,7 +94,8 @@ export interface DemoSeed {
   readonly biBars: readonly BiBarDef[];
   readonly rawImport: RawImport;
   readonly chatMessages: readonly ChatMessage[];
-  readonly checkResults: readonly CheckResult[];
+  readonly reviewRecords: readonly ReviewRecord[];
+  readonly slotBindings: readonly SlotBinding[];
   readonly changeSets: readonly ChangeSet[];
   readonly changeEvents: readonly ChangeEvent[];
   readonly activity: readonly ActivityItem[];
@@ -343,11 +345,46 @@ export const demoSeed: DemoSeed = {
     updatedAt: at.validation,
   },
   members: [
-    { id: "wangyun", name: "王芸", role: "管理员", avatar: "wang" },
-    { id: "lixiao", name: "李晓", role: "研发", avatar: "li" },
-    { id: "chenmo", name: "陈默", role: "渠道运营", avatar: "chen" },
-    { id: "zhouran", name: "周然", role: "法务", avatar: "zhou" },
-    { id: "ai", name: "同源 AI", role: "代理", avatar: "ai" },
+    {
+      id: "wangyun",
+      name: "王芸",
+      role: "管理员",
+      dept: "产品部",
+      email: "wang@team.cn",
+      avatar: "wang",
+    },
+    {
+      id: "lixiao",
+      name: "李晓",
+      role: "研发",
+      dept: "研发部",
+      email: "li@team.cn",
+      avatar: "li",
+    },
+    {
+      id: "chenmo",
+      name: "陈默",
+      role: "渠道运营",
+      dept: "渠道运营",
+      email: "chen@team.cn",
+      avatar: "chen",
+    },
+    {
+      id: "zhouran",
+      name: "周然",
+      role: "法务",
+      dept: "法务部",
+      email: "zhou@team.cn",
+      avatar: "zhou",
+    },
+    {
+      id: "ai",
+      name: "同源 AI",
+      role: "代理",
+      dept: "系统代理",
+      email: "ai@team.cn",
+      avatar: "ai",
+    },
   ],
   objectTypes,
   objects: [
@@ -822,46 +859,17 @@ export const demoSeed: DemoSeed = {
       text: "可以让我改数据或改看板,所有 AI 写入都会生成可撤销的变更卡。",
     },
   ],
-  checkResults: [
+  reviewRecords: [],
+  slotBindings: [
     {
-      id: "check-xsrc-001",
-      ruleCode: "XSRC-001",
-      group: "跨源一致性",
-      level: "error",
-      detail: "渠道销量表缓存 ¥1,299 与权威售价 ¥1,199 不一致。",
-      impact: ["渠道经营看板", "Q3 渠道周报"],
-      fixActions: ["同步权威售价"],
+      id: "binding-mainboard-s3",
+      templateId: "tpl-install-v1",
+      slotId: "slot-main-lock",
+      objectId: "prod-s3",
+      values: { form_factor: "mATX" },
+      updatedBy: "lixiao",
+      updatedAt: at.validation,
     },
-    {
-      id: "check-ref-002",
-      ruleCode: "REF-002",
-      group: "引用完整性",
-      level: "error",
-      detail: "一处上市日期引用仍处于低置信待确认。",
-      impact: ["智能门锁 S3 产品规格书"],
-      fixActions: ["逐项确认"],
-    },
-    {
-      id: "check-tpl-003",
-      ruleCode: "TPL-003",
-      group: "模板约束",
-      level: "warning",
-      detail: "全屋门户方案缺少备选网关。",
-      impact: ["全屋智能门户方案"],
-      fixActions: ["补充候选"],
-    },
-    ...Array.from(
-      { length: 8 },
-      (_, index): CheckResult => ({
-        id: `check-passed-${index + 1}`,
-        ruleCode: `PASS-${String(index + 1).padStart(3, "0")}`,
-        group: "字段约束",
-        level: "passed",
-        detail: "规则通过。",
-        impact: [],
-        fixActions: [],
-      }),
-    ),
   ],
   changeSets: [
     {

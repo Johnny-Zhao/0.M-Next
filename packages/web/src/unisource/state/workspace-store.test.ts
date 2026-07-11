@@ -117,6 +117,27 @@ describe("WorkspaceStore", () => {
     ).toEqual(["view", "data"]);
   });
 
+  it("records review actions and updates slot bindings", () => {
+    const store = new WorkspaceStore(cloneDemoSeed());
+
+    const review = store.addReviewRecord({
+      target: { entityType: "field", entityId: "prod-s3", fieldCode: "price" },
+      action: "accept",
+      actor: "wangyun",
+      note: "忽略校验项 XSRC-001",
+    });
+    const binding = store.updateSlotBinding(
+      "binding-mainboard-s3",
+      { form_factor: "ATX" },
+      { actor: "wangyun" },
+    );
+
+    expect(review.id).toContain("review-");
+    expect(store.getReviewRecords()[0]?.note).toBe("忽略校验项 XSRC-001");
+    expect(binding.values.form_factor).toBe("ATX");
+    expect(store.getSlotBindings()[0]?.values.form_factor).toBe("ATX");
+  });
+
   it("updates relation-owned fields without changing endpoint object versions", () => {
     const store = new WorkspaceStore(cloneDemoSeed());
     const sourceVersion = store.getObject("prod-s3")!.version;

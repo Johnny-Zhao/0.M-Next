@@ -45,6 +45,25 @@ describe("ChangeSetStore", () => {
     expect(workspace.getChangeEvents()).toHaveLength(1);
   });
 
+  it("approves with a review record while keeping the write actor", () => {
+    const seed = cloneDemoSeed();
+    const workspace = new WorkspaceStore(seed);
+    const store = new ChangeSetStore(seed, workspace);
+
+    const result = store.approveChangeSet(
+      "changeset-manual-channel",
+      "wangyun",
+    );
+
+    expect(result.ok).toBe(true);
+    expect(workspace.getChangeEvents()[0]?.actor).toBe("chenmo");
+    expect(workspace.getReviewRecords()[0]).toMatchObject({
+      action: "approve",
+      actor: "wangyun",
+    });
+    expect(workspace.getActivity()[0]?.summary).toContain("批准");
+  });
+
   it("rejects a change set without writing any data", () => {
     const seed = cloneDemoSeed();
     const workspace = new WorkspaceStore(seed);
@@ -60,6 +79,24 @@ describe("ChangeSetStore", () => {
       workspace.getObject("sales-offline-dealer")?.fields.month_sales?.value,
     ).toBe(2850);
     expect(workspace.getChangeEvents()).toHaveLength(0);
+  });
+
+  it("rejects with a review record and no data write", () => {
+    const seed = cloneDemoSeed();
+    const workspace = new WorkspaceStore(seed);
+    const store = new ChangeSetStore(seed, workspace);
+
+    const result = store.rejectChangeSet("changeset-manual-channel", "wangyun");
+
+    expect(result.ok).toBe(true);
+    expect(workspace.getReviewRecords()[0]).toMatchObject({
+      action: "reject",
+      actor: "wangyun",
+    });
+    expect(workspace.getChangeEvents()).toHaveLength(0);
+    expect(
+      workspace.getObject("sales-offline-dealer")?.fields.month_sales?.value,
+    ).toBe(2850);
   });
 
   it("skips applied items and resolves after the remaining item is accepted", () => {

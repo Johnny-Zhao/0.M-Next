@@ -8,12 +8,14 @@ import {
   UsButton,
   UsSyncDot,
   IconSpark,
+  pushToast,
   cx,
   type UsCrumb,
   type UsMember,
   type UsSyncState,
 } from "../primitives";
 import { UsLogo } from "./logo";
+import { useValidationSnapshot } from "../state/validation-store";
 
 export interface HeaderPerson {
   member: UsMember;
@@ -34,6 +36,7 @@ export function WorkspaceHeader({
   people,
   actions,
   aiHref,
+  shareDisabledReason,
   className,
 }: {
   variant?: "workspace" | "full";
@@ -43,8 +46,18 @@ export function WorkspaceHeader({
   people?: HeaderPerson[];
   actions?: ReactNode;
   aiHref?: string;
+  shareDisabledReason?: string | null;
   className?: string;
 }) {
+  const validation = useValidationSnapshot();
+  const derivedShareReason =
+    shareDisabledReason ??
+    (validation.results.some(
+      (result) =>
+        result.level === "error" && !validation.ignored.has(result.ruleCode),
+    )
+      ? "存在校验错误,修复后可分享"
+      : null);
   return (
     <header
       className={cx(
@@ -75,11 +88,19 @@ export function WorkspaceHeader({
             ))}
           </UsAvatarGroup>
         ) : null}
-        {actions ?? (
-          <UsButton variant="primary" size="sm">
-            分享 Share
-          </UsButton>
-        )}
+        {actions}
+        <UsButton
+          disabled={Boolean(derivedShareReason)}
+          onClick={() => {
+            if (!derivedShareReason)
+              pushToast({ title: "分享能力将在 P2 接入" });
+          }}
+          size="sm"
+          title={derivedShareReason ?? "分享 Share"}
+          variant="primary"
+        >
+          分享 Share
+        </UsButton>
       </span>
     </header>
   );

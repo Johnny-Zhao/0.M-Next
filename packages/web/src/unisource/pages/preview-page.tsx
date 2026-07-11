@@ -22,6 +22,7 @@ import { UsInspector } from "../shell/inspector";
 import { FullLayout } from "../shell/layouts";
 import { WorkspaceHeader } from "../shell/workspace-header";
 import { changeSetStore, useChangeSetSnapshot } from "../state/changeset-store";
+import { useValidationSnapshot } from "../state/validation-store";
 import { useWorkspaceSnapshot } from "../state/workspace-store";
 
 /** Token 色板预览:名称字符串 → var() 引用,不出现色值字面量。 */
@@ -59,6 +60,7 @@ export function PreviewPage() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const workspace = useWorkspaceSnapshot();
+  const validation = useValidationSnapshot();
   const changeSets = useChangeSetSnapshot();
   const pending = changeSets.changeSets.filter(
     (changeSet) => changeSet.status === "pending",
@@ -93,7 +95,7 @@ export function PreviewPage() {
               {workspace.relations.length} RELATIONS
             </UsMonoTag>
             <UsMonoTag tone="change">{pending.length} CHANGESETS</UsMonoTag>
-            <UsMonoTag>{workspace.checkResults.length} CHECKS</UsMonoTag>
+            <UsMonoTag>{validation.results.length} CHECKS</UsMonoTag>
           </div>
           <div className="us-preview__note">
             这些数字来自 seed/demo-seed.ts → workspace-store /

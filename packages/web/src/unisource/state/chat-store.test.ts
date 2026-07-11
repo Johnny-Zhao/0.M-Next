@@ -42,11 +42,13 @@ describe("ChatStore", () => {
         .map((event) => event.track),
     ).toEqual(["view", "data"]);
 
-    chat.undoAll(ai.id);
+    session.switchMember("lixiao");
+    chat.undoAll(ai.id, session);
 
     expect(workspace.getObject("prod-s3")?.fields.battery_months?.value).toBe(
-      12,
+      14,
     );
+    expect(workspace.getChangeEvents()[0]?.actor).toBe("lixiao");
     expect(
       workspace.getKpis().find((kpi) => kpi.id === "kpi-active-channels")
         ?.visible,

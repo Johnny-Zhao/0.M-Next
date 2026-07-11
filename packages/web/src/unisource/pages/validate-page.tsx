@@ -1,15 +1,20 @@
 import { UsButton } from "../primitives";
 import { FullLayout } from "../shell/layouts";
-import { useWorkspaceSnapshot } from "../state/workspace-store";
-import { PageSkeleton } from "./page-skeleton";
+import {
+  validationStore,
+  useValidationSnapshot,
+} from "../state/validation-store";
+import { ValidateView } from "../validation/validate-view";
 
 export function ValidatePage() {
-  const snapshot = useWorkspaceSnapshot();
-  const errors = snapshot.checkResults.filter(
-    (result) => result.level === "error",
+  const validation = useValidationSnapshot();
+  const errors = validation.results.filter(
+    (result) =>
+      result.level === "error" && !validation.ignored.has(result.ruleCode),
   ).length;
-  const warnings = snapshot.checkResults.filter(
-    (result) => result.level === "warning",
+  const warnings = validation.results.filter(
+    (result) =>
+      result.level === "warning" && !validation.ignored.has(result.ruleCode),
   ).length;
   return (
     <FullLayout
@@ -18,16 +23,16 @@ export function ValidatePage() {
         breadcrumbTail: <span className="us-data">VALIDATE</span>,
         sync: {
           state: errors > 0 ? "danger" : warnings > 0 ? "change" : "ok",
-          label: `${errors} 错误 · ${warnings} 警告 · ${snapshot.checkResults.length} 条规则`,
+          label: `${errors} 错误 · ${warnings} 警告 · ${validation.results.length} 条规则`,
         },
-        actions: <UsButton variant="emphasis">立即运行</UsButton>,
+        actions: (
+          <UsButton onClick={() => validationStore.runAll()} variant="emphasis">
+            立即运行
+          </UsButton>
+        ),
       }}
     >
-      <PageSkeleton
-        kicker="VALIDATE · v1"
-        title="校验中心"
-        desc="P1 实现:规则组导航(11 条规则)、错误/警告/通过三态卡、权威 vs 缓存对照与修复动作;错误存在时阻断分享/导出。"
-      />
+      <ValidateView />
     </FullLayout>
   );
 }

@@ -4,6 +4,7 @@ import type {
   ChangeItem,
   ChangeSet,
   DataFieldPrimitive,
+  MemberId,
 } from "../model/kernel";
 import { cloneDemoSeed, type DemoSeed } from "../seed/demo-seed";
 import { workspaceStore, type WorkspaceStore } from "./workspace-store";
@@ -81,6 +82,43 @@ export class ChangeSetStore {
     const rejected = { ...changeSet, status: "rejected" as const };
     this.replace(rejected);
     return { ok: true, changeSet: rejected };
+  }
+
+  approveChangeSet(changeSetId: string, approver: MemberId): ChangeSetResult {
+    const result = this.confirmAll(changeSetId);
+    if (!result.ok) return result;
+    const target = result.changeSet.items[0]?.target ?? {
+      entityType: "object" as const,
+      entityId: changeSetId,
+    };
+    this.workspace.addReviewRecord({
+      target,
+      action: "approve",
+      actor: approver,
+      note: `${memberName(approver)} 批准了 ${memberName(result.changeSet.actor)} 的修改`,
+    });
+    this.workspace.addActivity({
+      actor: approver,
+      summary: `${memberName(approver)} 批准了 ${memberName(result.changeSet.actor)} 的修改`,
+      tracks: ["data"],
+    });
+    return result;
+  }
+
+  rejectChangeSet(changeSetId: string, reviewer: MemberId): ChangeSetResult {
+    const changeSet = this.findChangeSet(changeSetId);
+    const result = this.reject(changeSetId);
+    if (!result.ok || !changeSet) return result;
+    this.workspace.addReviewRecord({
+      target: changeSet.items[0]?.target ?? {
+        entityType: "object",
+        entityId: changeSetId,
+      },
+      action: "reject",
+      actor: reviewer,
+      note: `${memberName(reviewer)} 拒绝了 ${memberName(changeSet.actor)} 的修改`,
+    });
+    return result;
   }
 
   acceptItems(
@@ -171,6 +209,17 @@ export const changeSetStore = new ChangeSetStore();
 
 function missingChangeSet(changeSetId: string): ChangeSetResult {
   return { ok: false, reason: `找不到变更集 ${changeSetId}` };
+}
+
+function memberName(memberId: MemberId): string {
+  const names: Record<MemberId, string> = {
+    wangyun: "王芸",
+    lixiao: "李晓",
+    chenmo: "陈默",
+    zhouran: "周然",
+    ai: "同源 AI",
+  };
+  return names[memberId];
 }
 
 export function useChangeSetSnapshot(): ChangeSetState {

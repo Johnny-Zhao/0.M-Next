@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 
 import type { FieldDef } from "../model/kernel";
 import type { DocBlockVm, DocRefVm } from "./doc-view-model";
@@ -26,6 +27,8 @@ export function DocView({
     (candidate) => candidate.exprId === exprId,
   );
   const [insertOpen, setInsertOpen] = useState(false);
+  const [searchParams] = useSearchParams();
+  const locateParam = searchParams.get("locate");
   const [query, setQuery] = useState("");
   const [insertedRefs, setInsertedRefs] = useState<readonly string[]>([]);
   const [rebindRef, setRebindRef] = useState<DocRefVm | null>(null);
@@ -40,15 +43,18 @@ export function DocView({
     "editView",
   );
 
-  if (!doc || !vm) return null;
-
-  const locateRef = (refId: string) => {
+  const locateRef = useCallback((refId: string) => {
     const id = `ref-${refId}`;
     const element = document.getElementById(id);
     element?.scrollIntoView({ block: "center", behavior: "smooth" });
     element?.classList.add("us-doc-flash");
     window.setTimeout(() => element?.classList.remove("us-doc-flash"), 1200);
-  };
+  }, []);
+  useEffect(() => {
+    if (locateParam) window.setTimeout(() => locateRef(locateParam), 60);
+  }, [locateParam, locateRef]);
+
+  if (!doc || !vm) return null;
   const insertField = (field: FieldDef) => {
     const ref = workspaceStore.addFieldRef(
       exprId,

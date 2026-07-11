@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import { demoSeed } from "./demo-seed";
+import { WorkspaceStore } from "../state/workspace-store";
+import { runValidationRules } from "../validation/rules";
 
 describe("demoSeed", () => {
   it("keeps the scripted S3 authority and stale channel cache values", () => {
@@ -13,7 +15,7 @@ describe("demoSeed", () => {
     expect(channel?.fields.cached_price?.value).toBe(1299);
   });
 
-  it("contains the low-confidence pending AI change and rule result mix", () => {
+  it("contains the low-confidence pending AI change and validation data carriers", () => {
     const aiChangeSet = demoSeed.changeSets.find(
       (changeSet) => changeSet.id === "changeset-ai-quote",
     );
@@ -30,15 +32,19 @@ describe("demoSeed", () => {
     ).toBe("createObject");
     expect(lowConfidence?.confidence).toBe(0.74);
     expect(lowConfidence?.needsConfirm).toBe(true);
-    expect(
-      demoSeed.checkResults.filter((result) => result.level === "error"),
-    ).toHaveLength(2);
-    expect(
-      demoSeed.checkResults.filter((result) => result.level === "warning"),
-    ).toHaveLength(1);
-    expect(
-      demoSeed.checkResults.filter((result) => result.level === "passed"),
-    ).toHaveLength(8);
+    const results = runValidationRules(
+      new WorkspaceStore(demoSeed).getSnapshot(),
+    );
+    expect(results.filter((result) => result.level === "error")).toHaveLength(
+      2,
+    );
+    expect(results.filter((result) => result.level === "warning")).toHaveLength(
+      1,
+    );
+    expect(results.filter((result) => result.level === "passed")).toHaveLength(
+      8,
+    );
+    expect(demoSeed.slotBindings[0]?.values.form_factor).toBe("mATX");
   });
 
   it("starts the activity stream with the storyline dashboard change", () => {

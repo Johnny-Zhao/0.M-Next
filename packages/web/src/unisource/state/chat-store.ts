@@ -96,9 +96,10 @@ export class ChatStore {
     this.timers.add(timer);
   }
 
-  undoAll(messageId: string): void {
+  undoAll(messageId: string, session: SessionStore = sessionStore): void {
     const message = this.state.messages.find((item) => item.id === messageId);
     const cardIds = message?.actionCardIds ?? [];
+    const actor = session.getSnapshot().currentMemberId;
     for (const card of [...this.state.actionCards].reverse()) {
       if (!cardIds.includes(card.id) || card.status !== "applied") continue;
       if (card.restore) {
@@ -106,13 +107,12 @@ export class ChatStore {
           card.restore.objectId,
           card.restore.fieldCode,
           card.restore.value,
-          { actor: "wangyun", summary: `撤销 ${card.title}` },
+          { actor, summary: `撤销 ${card.title}` },
         );
       } else if (card.eventId) {
         this.workspace.undo(card.eventId);
       }
-      if (card.kpiId)
-        this.workspace.setKpiVisible(card.kpiId, false, "wangyun");
+      if (card.kpiId) this.workspace.setKpiVisible(card.kpiId, false, actor);
     }
     this.state = {
       ...this.state,
@@ -166,6 +166,9 @@ export class ChatStore {
       },
     ];
     if (canApply) {
+      const restoreValue =
+        this.workspace.getObject("prod-s3")?.fields.battery_months?.value ??
+        null;
       const result = this.changeSets.acceptItems(changeSet.id, [
         "chat-battery",
       ]);
@@ -177,7 +180,7 @@ export class ChatStore {
         restore: {
           objectId: "prod-s3",
           fieldCode: "battery_months",
-          value: 12,
+          value: restoreValue,
         },
       };
       if (!result.ok) cards[0] = { ...cards[0]!, status: "pending" };

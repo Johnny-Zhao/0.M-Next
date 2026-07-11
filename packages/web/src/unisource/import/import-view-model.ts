@@ -11,6 +11,7 @@ export interface ImportDiffRowVm {
   readonly confidence: number;
   readonly confidenceTone: "ok" | "change";
   readonly needsConfirm: boolean;
+  readonly groupTitle: string;
 }
 
 export interface ImportGroupVm {
@@ -105,6 +106,7 @@ function buildRow(
     confidence,
     confidenceTone: confidence >= 0.8 ? "ok" : "change",
     needsConfirm,
+    groupTitle: targetGroupTitle(workspace, item),
   };
 }
 
@@ -120,15 +122,22 @@ function itemTitle(item: ChangeItem): string {
   return item.target.fieldCode ?? item.id;
 }
 
+function targetGroupTitle(workspace: WorkspaceState, item: ChangeItem): string {
+  const objectTypeCode =
+    item.objectTypeCode ??
+    workspace.objects.find((object) => object.id === item.target.entityId)
+      ?.objectTypeCode;
+  return (
+    workspace.objectTypes.find((type) => type.code === objectTypeCode)?.name ??
+    objectTypeCode ??
+    "未分组"
+  );
+}
+
 function groupRows(rows: readonly ImportDiffRowVm[]): readonly ImportGroupVm[] {
-  return [
-    {
-      title: "产品规格库",
-      rows: rows.filter((row) => row.op !== "add"),
-    },
-    {
-      title: "合同台账",
-      rows: rows.filter((row) => row.op === "add"),
-    },
-  ].filter((group) => group.rows.length > 0);
+  const titles = Array.from(new Set(rows.map((row) => row.groupTitle)));
+  return titles.map((title) => ({
+    title,
+    rows: rows.filter((row) => row.groupTitle === title),
+  }));
 }

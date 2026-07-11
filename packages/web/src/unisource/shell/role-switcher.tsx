@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 
 import type { MemberId } from "../model/kernel";
 import { UsAvatar } from "../primitives";
+import { resetDemo } from "../state/demo-reset";
 import { sessionStore, useSessionSnapshot } from "../state/session-store";
 import { useWorkspaceSnapshot } from "../state/workspace-store";
 
@@ -86,6 +87,17 @@ export function RoleSwitcher() {
               <span>同源 AI 跟随当前发起人权限</span>
             </div>
           ) : null}
+          <button
+            className="us-rolesw__reset"
+            onClick={() => {
+              resetDemo();
+              setOpen(false);
+            }}
+            role="menuitem"
+            type="button"
+          >
+            重置演示数据
+          </button>
         </div>
       ) : null}
     </div>

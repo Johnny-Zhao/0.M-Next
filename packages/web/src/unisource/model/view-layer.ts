@@ -103,7 +103,19 @@ export interface Member {
   readonly id: MemberId;
   readonly name: string;
   readonly role: string;
+  readonly dept: string;
+  readonly email: string;
   readonly avatar: "wang" | "li" | "chen" | "zhou" | "ai";
+}
+
+export interface SlotBinding {
+  readonly id: string;
+  readonly templateId: string;
+  readonly slotId: string;
+  readonly objectId: DataObjectId;
+  readonly values: Record<FieldCode, DataFieldPrimitive>;
+  readonly updatedBy: MemberId;
+  readonly updatedAt: string;
 }
 
 export interface PluginDef {

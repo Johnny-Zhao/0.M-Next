@@ -1,7 +1,6 @@
 import { useSyncExternalStore } from "react";
 
 import type {
-  CheckResult,
   Comment,
   DataFieldPrimitive,
   DataFieldValue,
@@ -13,6 +12,7 @@ import type {
   OutputSnapshot,
   PermissionMatrix,
   RelationType,
+  ReviewRecord,
   ViewDef,
   Workspace,
 } from "../model/kernel";
@@ -30,6 +30,7 @@ import type {
   PluginDef,
   RawImport,
   SimScenario,
+  SlotBinding,
 } from "../model/view-layer";
 import { cloneDemoSeed, type DemoSeed } from "../seed/demo-seed";
 
@@ -50,7 +51,8 @@ export interface WorkspaceState {
   readonly biBars: readonly BiBarDef[];
   readonly rawImport: RawImport;
   readonly chatMessages: readonly ChatMessage[];
-  readonly checkResults: readonly CheckResult[];
+  readonly reviewRecords: readonly ReviewRecord[];
+  readonly slotBindings: readonly SlotBinding[];
   readonly changeEvents: readonly ChangeEvent[];
   readonly activity: readonly ActivityItem[];
   readonly outputSnapshots: readonly OutputSnapshot[];
@@ -179,8 +181,12 @@ export class WorkspaceStore {
     return this.state.activity;
   }
 
-  getCheckResults(): readonly CheckResult[] {
-    return this.state.checkResults;
+  getReviewRecords(): readonly ReviewRecord[] {
+    return this.state.reviewRecords;
+  }
+
+  getSlotBindings(): readonly SlotBinding[] {
+    return this.state.slotBindings;
   }
 
   getPermissions(): PermissionMatrix {
@@ -367,6 +373,83 @@ export class WorkspaceStore {
         },
         ...this.state.activity,
       ],
+    };
+    this.emit();
+    return next;
+  }
+
+  updateSlotBinding(
+    bindingId: string,
+    values: Record<FieldCode, DataFieldPrimitive>,
+    meta: FieldWriteMeta,
+  ): SlotBinding {
+    const current = this.state.slotBindings.find(
+      (candidate) => candidate.id === bindingId,
+    );
+    if (!current) throw new Error(`找不到槽位绑定 ${bindingId}`);
+    const next: SlotBinding = {
+      ...current,
+      values: { ...current.values, ...values },
+      updatedBy: meta.actor,
+      updatedAt: now,
+    };
+    const event = this.createViewKpiEvent(bindingId, meta.actor);
+    this.state = {
+      ...this.state,
+      slotBindings: this.state.slotBindings.map((candidate) =>
+        candidate.id === bindingId ? next : candidate,
+      ),
+      changeEvents: [event, ...this.state.changeEvents],
+      activity: [
+        {
+          id: activityId(this.sequence),
+          actor: meta.actor,
+          summary: meta.summary ?? `更新槽位绑定 ${bindingId}`,
+          tracks: ["data"],
+          at: now,
+        },
+        ...this.state.activity,
+      ],
+    };
+    this.emit();
+    return next;
+  }
+
+  addReviewRecord(record: Omit<ReviewRecord, "id" | "at">): ReviewRecord {
+    this.sequence += 1;
+    const next: ReviewRecord = {
+      ...record,
+      id: `review-${String(this.sequence).padStart(4, "0")}`,
+      at: now,
+    };
+    this.state = {
+      ...this.state,
+      reviewRecords: [next, ...this.state.reviewRecords],
+      activity: [
+        {
+          id: activityId(this.sequence),
+          actor: record.actor,
+          summary: record.note,
+          tracks: ["view"],
+          at: now,
+        },
+        ...this.state.activity,
+      ],
+    };
+    this.emit();
+    return next;
+  }
+
+  addActivity(item: Omit<ActivityItem, "id" | "at">): ActivityItem {
+    this.sequence += 1;
+    const next: ActivityItem = {
+      ...item,
+      id: activityId(this.sequence),
+      at: now,
+    };
+    this.state = {
+      ...this.state,
+      activity: [next, ...this.state.activity],
     };
     this.emit();
     return next;
@@ -713,7 +796,8 @@ function seedToState(seed: DemoSeed): WorkspaceState {
     biBars: seed.biBars,
     rawImport: seed.rawImport,
     chatMessages: seed.chatMessages,
-    checkResults: seed.checkResults,
+    reviewRecords: seed.reviewRecords,
+    slotBindings: seed.slotBindings,
     changeEvents: seed.changeEvents,
     activity: seed.activity,
     outputSnapshots: seed.outputSnapshots,

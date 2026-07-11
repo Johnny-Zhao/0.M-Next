@@ -11,6 +11,7 @@ export interface ChromeProps {
   people?: HeaderPerson[];
   actions?: ReactNode;
   aiHref?: string;
+  shareDisabledReason?: string | null;
 }
 
 /**
