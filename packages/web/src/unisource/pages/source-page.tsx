@@ -9,6 +9,7 @@ import { parseFormParam } from "../routes-paths";
 import { FormRow, nextFormSearch } from "../shell/form-row";
 import { WorkspaceLayout } from "../shell/layouts";
 import { selectionStore, useSelectionSnapshot } from "../state/selection-store";
+import { sessionStore, useSessionSnapshot } from "../state/session-store";
 import { useWorkspaceSnapshot } from "../state/workspace-store";
 import { PageSkeleton } from "./page-skeleton";
 
@@ -18,6 +19,7 @@ export function SourcePage() {
   const [query, setQuery] = useState("");
   const [hideEol, setHideEol] = useState(false);
   const snapshot = useWorkspaceSnapshot();
+  const session = useSessionSnapshot();
   const selection = useSelectionSnapshot();
   const objectType = snapshot.objectTypes.find(
     (type) => type.code === sourceId,
@@ -32,6 +34,9 @@ export function SourcePage() {
   }));
   const form = parseFormParam(search, "grid");
   const focusObjectId = search.get("focus");
+  const maskValues =
+    objectType !== undefined &&
+    !sessionStore.can(session.currentMemberId, objectType.code, "read");
   const selectedIds = useMemo(
     () =>
       new Set(
@@ -49,8 +54,9 @@ export function SourcePage() {
           objects,
           selectedIds,
           fieldRefs: snapshot.fieldRefs,
-          search: query,
+          search: maskValues ? "" : query,
           hideEol,
+          maskValues,
         }).status;
   useEffect(() => {
     if (!focusObjectId) return;
@@ -98,11 +104,17 @@ export function SourcePage() {
             onToggleHideEol={() => setHideEol((value) => !value)}
             search={query}
           />
+          {maskValues ? (
+            <div className="us-grid-masknotice">
+              字段值按你的数据源权限脱敏显示。
+            </div>
+          ) : null}
           <DataGrid
             hideEol={hideEol}
+            maskValues={maskValues}
             objectType={objectType}
             objects={objects}
-            search={query}
+            search={maskValues ? "" : query}
           />
           {status ? <GridStatusBar status={status} /> : null}
         </section>

@@ -1,4 +1,5 @@
 import { UsMonoTag } from "../primitives";
+import { RefChip } from "../doc/ref-chip";
 import { useWorkspaceSnapshot } from "../state/workspace-store";
 import { buildTemplateViewModel } from "./template-view-model";
 
@@ -53,8 +54,24 @@ export function TemplateConfigDoc({ exprId }: { exprId: string }) {
                   return (
                     <tr key={slot.slotId}>
                       <th>{slot.label}</th>
-                      <td>{slot.objectName}</td>
-                      <td className="us-data">{price ?? "—"}</td>
+                      <td>
+                        <span className="us-config-doc__refcells">
+                          <RefChip
+                            objectId={slot.objectId ?? undefined}
+                            fieldCode="name"
+                            label={slot.objectName ?? slot.label}
+                          />
+                        </span>
+                      </td>
+                      <td>
+                        <span className="us-config-doc__refcells">
+                          <RefChip
+                            objectId={slot.objectId ?? undefined}
+                            fieldCode="price"
+                            label={price ?? "价格"}
+                          />
+                        </span>
+                      </td>
                     </tr>
                   );
                 })}

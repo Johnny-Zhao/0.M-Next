@@ -10,6 +10,7 @@ import {
   IconSearchCheck,
   UsButton,
   UsMonoTag,
+  pushToast,
 } from "../primitives";
 import { usPaths, type UsFormKind } from "../routes-paths";
 import { useWorkspaceSnapshot } from "../state/workspace-store";
@@ -65,9 +66,9 @@ export function FormRow({
   const pluginForms = snapshot.plugins
     .filter((plugin) => plugin.enabled)
     .flatMap((plugin) =>
-      plugin.forms.map((form) => ({
-        form: `plugin:${plugin.id}:${form}`,
-        label: `${plugin.name} · ${form.toUpperCase()}`,
+      plugin.formsProvided.map((form) => ({
+        form: `plugin:${plugin.id}:${form.code}`,
+        label: `${plugin.name} · ${form.name}`,
       })),
     );
 
@@ -133,7 +134,15 @@ export function FormRow({
             <span className="us-formmenu__sep" />
           ) : null}
           {pluginForms.map((option) => (
-            <button key={option.form} role="menuitem" type="button">
+            <button
+              key={option.form}
+              onClick={() => {
+                pushToast({ title: "插件形式挂载留待正式版" });
+                setOpen(false);
+              }}
+              role="menuitem"
+              type="button"
+            >
               {option.label}
             </button>
           ))}

@@ -21,6 +21,9 @@ import {
 import { UsInspector } from "../shell/inspector";
 import { FullLayout } from "../shell/layouts";
 import { WorkspaceHeader } from "../shell/workspace-header";
+import { PlayBar } from "../sim/play-bar";
+import { MatrixRecordCard } from "../matrix/record-card";
+import { PluginCard } from "../plugins/plugin-card";
 import { changeSetStore, useChangeSetSnapshot } from "../state/changeset-store";
 import { useValidationSnapshot } from "../state/validation-store";
 import { useWorkspaceSnapshot } from "../state/workspace-store";
@@ -338,6 +341,83 @@ export function PreviewPage() {
                   content: <span>P2:数据轨/视图轨版本流。</span>,
                 },
               ]}
+            />
+          </div>
+        </UsPanel>
+
+        <UsPanel title="P2 组件" kicker="SLOT · PLAY · MATRIX · ANA · PLUGIN">
+          <div className="us-preview__p2">
+            {(["instantiated", "activated", "violated"] as const).map(
+              (state) => (
+                <article
+                  className="us-slot-card"
+                  data-state={state}
+                  key={state}
+                >
+                  <header>
+                    <span>{state === "activated" ? "主板槽位" : "CPU"}</span>
+                    <UsMonoTag
+                      tone={state === "violated" ? "change" : "primary"}
+                    >
+                      {state}
+                    </UsMonoTag>
+                  </header>
+                  <strong>
+                    {state === "activated" ? "抽象:主板槽位" : "Core Ultra"}
+                  </strong>
+                  <p className="us-data">硬件产品库 · preview</p>
+                </article>
+              ),
+            )}
+          </div>
+          <PlayBar
+            duration={10}
+            loop
+            onLoopChange={() => undefined}
+            onPlayingChange={() => undefined}
+            onSpeedChange={() => undefined}
+            onStop={() => undefined}
+            playing
+            playhead={4}
+            speed={1}
+          />
+          <div className="us-preview__p2">
+            <MatrixRecordCard
+              canDrag
+              card={{
+                objectId: "prod-s3",
+                name: "门锁 S3",
+                columnValue: "预售",
+                rowValue: "王芸",
+                priceText: "¥1,199",
+                docRefs: 3,
+                dim: false,
+              }}
+              onClick={() => undefined}
+              onDragStart={() => undefined}
+            />
+            <div className="us-ana-factor">
+              <span>配件占比下降</span>
+              <i data-tone="change" style={{ width: "72%" }} />
+              <strong className="us-data">-3.4%</strong>
+            </div>
+            <PluginCard
+              card={{
+                id: "plug-preview",
+                name: "三维架构图",
+                meta: "v2.3 · 同源官方",
+                tagline: "把部件层级描述为三维装配视图。",
+                industry: "制造业",
+                formsCount: 2,
+                installed: true,
+                enabled: true,
+                updateTo: "2.4",
+                beta: false,
+                selected: true,
+              }}
+              onInstall={() => undefined}
+              onSelect={() => undefined}
+              onUpdate={() => undefined}
             />
           </div>
         </UsPanel>

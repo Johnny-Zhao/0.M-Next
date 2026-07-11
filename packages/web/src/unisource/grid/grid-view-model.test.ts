@@ -48,4 +48,32 @@ describe("buildGridViewModel", () => {
       "prod-s3-lite",
     ]);
   });
+
+  it("masks values for data sources without read permission", () => {
+    const seed = cloneDemoSeed();
+    const customerType = seed.objectTypes.find(
+      (type) => type.code === "customers",
+    )!;
+    const customers = seed.objects.filter(
+      (object) => object.objectTypeCode === "customers",
+    );
+
+    const masked = buildGridViewModel({
+      objectType: customerType,
+      objects: customers,
+      maskValues: true,
+    });
+    const visible = buildGridViewModel({
+      objectType: customerType,
+      objects: customers,
+      maskValues: false,
+    });
+
+    expect(masked.rows[0]?.cells.map((cell) => cell.text)).toEqual([
+      "···",
+      "···",
+    ]);
+    expect(masked.rows[0]?.cells.every((cell) => cell.masked)).toBe(true);
+    expect(visible.rows[0]?.cells[0]?.text).toBe("华东智联");
+  });
 });

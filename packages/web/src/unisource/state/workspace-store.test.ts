@@ -129,6 +129,47 @@ describe("WorkspaceStore", () => {
     ).toBe(false);
   });
 
+  it("updates plugin registry state without business change events", () => {
+    const seed = cloneDemoSeed();
+    const store = new WorkspaceStore(seed);
+    const beforeEvents = store.getChangeEvents().length;
+    const beforeActivity = store.getActivity().length;
+
+    store.setPluginState(
+      "plug-finsuite",
+      { installed: true, enabled: true },
+      "wangyun",
+    );
+    store.setPluginState("plug-3d-assembly", { enabled: false }, "wangyun");
+    store.setPluginState(
+      "plug-3d-assembly",
+      { version: "2.4", updateTo: null, scope: "group" },
+      "wangyun",
+    );
+
+    expect(
+      store.getPlugins().find((plugin) => plugin.id === "plug-finsuite"),
+    ).toMatchObject({ installed: true, enabled: true });
+    expect(
+      store.getPlugins().find((plugin) => plugin.id === "plug-3d-assembly"),
+    ).toMatchObject({
+      enabled: false,
+      version: "2.4",
+      scope: "group",
+    });
+    expect(
+      store.getPlugins().find((plugin) => plugin.id === "plug-3d-assembly")
+        ?.updateTo,
+    ).toBeUndefined();
+    expect(store.getChangeEvents()).toHaveLength(beforeEvents);
+    expect(store.getActivity()).toHaveLength(beforeActivity);
+
+    store.reset(seed);
+    expect(
+      store.getPlugins().find((plugin) => plugin.id === "plug-3d-assembly"),
+    ).toMatchObject({ enabled: true, version: "2.3", updateTo: "2.4" });
+  });
+
   it("records review actions and binds slots", () => {
     const store = new WorkspaceStore(cloneDemoSeed());
 

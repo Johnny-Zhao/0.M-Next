@@ -1,3 +1,5 @@
+import { useState } from "react";
+
 import type { DataObject } from "../model/kernel";
 import { UsStatusPill } from "../primitives";
 
@@ -6,12 +8,15 @@ export function AddNodePopover({
   objects,
   onAdd,
   onClose,
+  onDragAdd,
 }: {
   readonly existingObjectIds: readonly string[];
   readonly objects: readonly DataObject[];
   readonly onAdd: (objectId: string) => void;
   readonly onClose: () => void;
+  readonly onDragAdd: (objectId: string) => void;
 }) {
+  const [draggingId, setDraggingId] = useState<string | null>(null);
   const existingIds = new Set(existingObjectIds);
   return (
     <div className="us-addnode" role="dialog" aria-label="从数据源添加">
@@ -25,8 +30,22 @@ export function AddNodePopover({
         const exists = existingIds.has(object.id);
         return (
           <button
+            data-dragging={draggingId === object.id || undefined}
             disabled={exists}
+            draggable={!exists}
             key={object.id}
+            onDragEnd={() => setDraggingId(null)}
+            onDragStart={(event) => {
+              if (exists) return;
+              setDraggingId(object.id);
+              event.dataTransfer.effectAllowed = "copy";
+              event.dataTransfer.setData(
+                "application/x-unisource-object",
+                object.id,
+              );
+              event.dataTransfer.setData("text/plain", object.id);
+              onDragAdd(object.id);
+            }}
             onClick={() => onAdd(object.id)}
             type="button"
           >
@@ -45,7 +64,11 @@ export function AddNodePopover({
                       : "sale"
               }
             >
-              {exists ? "已在视图" : object.status}
+              {draggingId === object.id
+                ? "拖拽中…"
+                : exists
+                  ? "已在视图"
+                  : object.status}
             </UsStatusPill>
           </button>
         );

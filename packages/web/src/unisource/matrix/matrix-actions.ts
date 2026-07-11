@@ -1,13 +1,9 @@
-import type { DataFieldPrimitive, MemberId } from "../model/kernel";
+import type { DataFieldPrimitive } from "../model/kernel";
 import type { SessionStore, WriteRequestResult } from "../state/session-store";
 
 export type MatrixMoveResult =
   | { readonly kind: "noop" }
   | ({ readonly kind: "written" } & WriteRequestResult);
-
-export function canDragMatrixCard(memberId: MemberId): boolean {
-  return memberId !== "zhouran" && memberId !== "ai";
-}
 
 export function moveMatrixCardColumn(params: {
   readonly session: SessionStore;

@@ -21,6 +21,7 @@ export interface GridCellVm {
   readonly value: DataFieldPrimitive;
   readonly text: string;
   readonly refState: FieldRef["state"] | null;
+  readonly masked: boolean;
 }
 
 export interface GridRowVm {
@@ -50,6 +51,7 @@ export interface GridViewModelInput {
   readonly fieldRefs?: readonly FieldRef[];
   readonly search?: string;
   readonly hideEol?: boolean;
+  readonly maskValues?: boolean;
 }
 
 const typeMarks: Record<FieldDataType, string> = {
@@ -114,8 +116,11 @@ function buildRow(input: GridViewModelInput, object: DataObject): GridRowVm {
     cells: input.objectType.fields.map((field) => ({
       field,
       value: object.fields[field.code]?.value ?? null,
-      text: formatCellValue(object.fields[field.code]?.value ?? null, field),
+      text: input.maskValues
+        ? "···"
+        : formatCellValue(object.fields[field.code]?.value ?? null, field),
       refState: latestRefState(input.fieldRefs, object.id, field.code),
+      masked: input.maskValues ?? false,
     })),
   };
 }

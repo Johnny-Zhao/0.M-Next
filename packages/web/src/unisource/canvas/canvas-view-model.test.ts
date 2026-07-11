@@ -7,6 +7,7 @@ import {
   deriveGotoTargets,
   deriveMixedValue,
   parseCanvasConfig,
+  screenToCanvasPosition,
 } from "./canvas-view-model";
 
 describe("canvas view model", () => {
@@ -71,5 +72,12 @@ describe("canvas view model", () => {
     expect(deriveMixedValue([12, 12])).toBe(12);
     expect(deriveMixedValue([12, 14])).toBe("mixed");
     expect(deriveMixedValue([])).toBeNull();
+  });
+
+  it("converts screen drop coordinates to canvas coordinates", () => {
+    expect(screenToCanvasPosition(480, 320, { left: 120, top: 80 })).toEqual({
+      x: 360,
+      y: 240,
+    });
   });
 });

@@ -4403,3 +4403,266 @@
   justify-content: center;
   width: 100%;
 }
+
+/* T-US-012 · Plugin center 5b */
+.us-plugins-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--us-sp-4);
+  height: 100%;
+  min-height: 0;
+  padding: var(--us-sp-5);
+}
+.us-plugins-toolbar {
+  align-items: center;
+  display: flex;
+  gap: var(--us-sp-3);
+}
+.us-plugins-toolbar .us-input {
+  max-width: 420px;
+  width: 36vw;
+}
+.us-plugins-layout {
+  display: grid;
+  flex: 1;
+  gap: var(--us-sp-5);
+  grid-template-columns: 216px minmax(360px, 1fr) 330px;
+  min-height: 0;
+}
+.us-plugins-nav,
+.us-plugins-list,
+.us-plugin-detail {
+  background: var(--us-topbar);
+  border: 1px solid var(--us-border);
+  border-radius: var(--us-radius-panel);
+  min-height: 0;
+}
+.us-plugins-nav {
+  display: flex;
+  flex-direction: column;
+  gap: var(--us-sp-2);
+  padding: var(--us-sp-3);
+}
+.us-plugins-nav button {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: var(--us-radius-control);
+  color: var(--us-text-2);
+  display: flex;
+  font: inherit;
+  justify-content: space-between;
+  padding: var(--us-sp-2) var(--us-sp-3);
+}
+.us-plugins-nav button[aria-pressed="true"] {
+  background: var(--us-ink);
+  color: var(--us-gold);
+}
+.us-plugins-nav__kicker,
+.us-plugins-nav p {
+  color: var(--us-text-muted);
+  font-size: var(--us-fs-11);
+}
+.us-plugins-nav__kicker {
+  font-family: var(--us-font-data);
+  margin-top: var(--us-sp-3);
+}
+.us-plugins-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--us-sp-3);
+  overflow: auto;
+  padding: var(--us-sp-4);
+}
+.us-plugin-card {
+  background: var(--us-paper);
+  border: 1px solid var(--us-border);
+  border-radius: var(--us-radius-card);
+  cursor: pointer;
+  display: grid;
+  gap: var(--us-sp-3);
+  padding: var(--us-sp-4);
+}
+.us-plugin-card[data-selected="true"] {
+  border-color: var(--us-primary);
+  box-shadow: var(--us-glow-selected);
+}
+.us-plugin-card header,
+.us-plugin-card footer {
+  align-items: center;
+  display: flex;
+  gap: var(--us-sp-2);
+}
+.us-plugin-card header {
+  justify-content: space-between;
+}
+.us-plugin-card header span,
+.us-plugin-card header small {
+  display: block;
+}
+.us-plugin-card p {
+  color: var(--us-text-2);
+  margin: 0;
+}
+.us-plugin-card__update {
+  background: var(--us-change-bg);
+  border: 1px solid var(--us-change-border);
+  border-radius: var(--us-radius-chip);
+  color: var(--us-change-text);
+  font: 600 var(--us-fs-11) var(--us-font-data);
+  padding: var(--us-sp-1) var(--us-sp-2);
+}
+.us-plugins-list > footer,
+.us-plugin-detail > footer {
+  align-items: center;
+  color: var(--us-text-muted);
+  display: flex;
+  font-size: var(--us-fs-11);
+  gap: var(--us-sp-2);
+}
+.us-plugin-detail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--us-sp-4);
+  overflow: auto;
+  padding: var(--us-sp-4);
+}
+.us-plugin-detail header h2 {
+  font-size: var(--us-fs-20);
+  margin: 0;
+}
+.us-plugin-detail header span,
+.us-plugin-detail header button {
+  display: block;
+  margin-top: var(--us-sp-1);
+}
+.us-plugin-detail header button {
+  background: transparent;
+  border: 0;
+  color: var(--us-change-text);
+  font: 600 var(--us-fs-12) var(--us-font-data);
+  padding: 0;
+}
+.us-plugin-detail__section {
+  border-top: 1px dashed var(--us-border-dashed);
+  padding-top: var(--us-sp-3);
+}
+.us-plugin-detail__section h3 {
+  font-size: var(--us-fs-125);
+  margin: 0 0 var(--us-sp-3);
+}
+.us-plugin-detail__forms {
+  display: grid;
+  gap: var(--us-sp-2);
+}
+.us-plugin-detail__forms span {
+  background: var(--us-surface-head);
+  border: 1px solid var(--us-border-soft);
+  border-radius: var(--us-radius-control);
+  padding: var(--us-sp-2);
+}
+.us-plugin-detail__forms strong,
+.us-plugin-detail__forms small {
+  display: block;
+}
+.us-plugin-detail__forms small,
+.us-plugin-contract small {
+  color: var(--us-text-muted);
+}
+.us-plugin-contract {
+  display: grid;
+  gap: var(--us-sp-2);
+  margin: 0;
+}
+.us-plugin-contract dt {
+  color: var(--us-text-3);
+}
+.us-plugin-contract dd {
+  margin: 0;
+}
+.us-plugin-scope {
+  background: var(--us-surface-track);
+  border-radius: var(--us-radius-control);
+  display: grid;
+  gap: var(--us-sp-1);
+  grid-template-columns: 1fr 1fr;
+  padding: var(--us-sp-1);
+}
+.us-plugin-scope button {
+  background: transparent;
+  border: 0;
+  border-radius: var(--us-radius-chip);
+  color: var(--us-text-2);
+  font: 600 var(--us-fs-12) var(--us-font-ui);
+  padding: var(--us-sp-2);
+}
+.us-plugin-scope button[aria-pressed="true"] {
+  background: var(--us-paper);
+  box-shadow: var(--us-shadow-seg);
+  color: var(--us-primary-deep);
+}
+.us-plugin-actions {
+  display: flex;
+  gap: var(--us-sp-2);
+}
+
+/* T-US-012 · Share dialog / masking / drag add / preview */
+.us-share-dialog {
+  display: grid;
+  gap: var(--us-sp-4);
+  width: min(460px, 72vw);
+}
+.us-share-dialog label {
+  display: grid;
+  gap: var(--us-sp-2);
+}
+.us-share-dialog__link {
+  align-items: center;
+  background: var(--us-surface-input);
+  border: 1px solid var(--us-border);
+  border-radius: var(--us-radius-control);
+  display: flex;
+  gap: var(--us-sp-2);
+  justify-content: space-between;
+  padding: var(--us-sp-2);
+}
+.us-share-dialog p,
+.us-grid-masknotice {
+  background: var(--us-change-bg);
+  border: 1px solid var(--us-change-border);
+  border-radius: var(--us-radius-control);
+  color: var(--us-change-text);
+  margin: 0;
+  padding: var(--us-sp-2) var(--us-sp-3);
+}
+.us-grid td[data-masked="true"] {
+  color: var(--us-text-muted);
+  font-family: var(--us-font-data);
+}
+.us-addnode button[data-dragging="true"] {
+  border-color: var(--us-primary);
+  box-shadow: var(--us-glow-selected);
+  opacity: 0.86;
+}
+.us-canvas-stage[data-dragging-add="true"] {
+  box-shadow: inset 0 0 0 2px var(--us-primary);
+}
+.us-config-doc__refcells {
+  display: inline-flex;
+  gap: var(--us-sp-2);
+}
+.us-preview__p2 {
+  align-items: stretch;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--us-sp-3);
+  margin: var(--us-sp-3) 0;
+}
+.us-preview__p2 .us-slot-card,
+.us-preview__p2 .us-plugin-card {
+  min-width: 190px;
+  width: 240px;
+}
+.us-preview__p2 .us-ana-factor {
+  min-width: 240px;
+}

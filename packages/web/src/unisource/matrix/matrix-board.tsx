@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { UsAvatar, UsMonoTag, UsStatusPill, pushToast } from "../primitives";
 import { sessionStore, useSessionSnapshot } from "../state/session-store";
 import { workspaceStore, useWorkspaceSnapshot } from "../state/workspace-store";
-import { canDragMatrixCard, moveMatrixCardColumn } from "./matrix-actions";
+import { moveMatrixCardColumn } from "./matrix-actions";
 import { MatrixRecordCard } from "./record-card";
 import { buildMatrixViewModel } from "./matrix-view-model";
 
@@ -23,7 +23,7 @@ export function MatrixBoard({ exprId }: { readonly exprId: string }) {
   );
   if (!view || !vm) return null;
 
-  const canDrag = canDragMatrixCard(session.currentMemberId);
+  const canDrag = sessionStore.canDragCards(session.currentMemberId);
   const dropCard = (objectId: string, targetValue: string) => {
     const card = vm.cards.find((candidate) => candidate.objectId === objectId);
     if (!card) return;
@@ -126,7 +126,8 @@ export function MatrixBoard({ exprId }: { readonly exprId: string }) {
       </div>
       <footer className="us-matrix-foot">
         <UsMonoTag active>LIVE</UsMonoTag>
-        矩阵把状态字段变成看板列;拖动卡片跨列即写回统一数据源。
+        矩阵即描述形式:拖动卡片跨列 =
+        修改『状态』字段,表格与所有文档引用同步更新。
       </footer>
     </section>
   );

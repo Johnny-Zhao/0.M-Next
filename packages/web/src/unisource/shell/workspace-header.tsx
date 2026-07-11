@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 
 import {
@@ -8,13 +8,13 @@ import {
   UsButton,
   UsSyncDot,
   IconSpark,
-  pushToast,
   cx,
   type UsCrumb,
   type UsMember,
   type UsSyncState,
 } from "../primitives";
 import { UsLogo } from "./logo";
+import { ShareDialog } from "./share-dialog";
 import { useValidationSnapshot } from "../state/validation-store";
 
 export interface HeaderPerson {
@@ -49,6 +49,7 @@ export function WorkspaceHeader({
   shareDisabledReason?: string | null;
   className?: string;
 }) {
+  const [shareOpen, setShareOpen] = useState(false);
   const validation = useValidationSnapshot();
   const derivedShareReason =
     shareDisabledReason ??
@@ -91,10 +92,7 @@ export function WorkspaceHeader({
         {actions}
         <UsButton
           disabled={Boolean(derivedShareReason)}
-          onClick={() => {
-            if (!derivedShareReason)
-              pushToast({ title: "分享能力将在 P2 接入" });
-          }}
+          onClick={() => setShareOpen(true)}
           size="sm"
           title={derivedShareReason ?? "分享 Share"}
           variant="primary"
@@ -102,6 +100,7 @@ export function WorkspaceHeader({
           分享 Share
         </UsButton>
       </span>
+      <ShareDialog open={shareOpen} onClose={() => setShareOpen(false)} />
     </header>
   );
 }

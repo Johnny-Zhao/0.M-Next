@@ -25,12 +25,14 @@ export function DataGrid({
   search,
   hideEol,
   compact = false,
+  maskValues = false,
 }: {
   readonly objectType: ObjectTypeDef;
   readonly objects: readonly DataObject[];
   readonly search?: string;
   readonly hideEol?: boolean;
   readonly compact?: boolean;
+  readonly maskValues?: boolean;
 }) {
   const workspace = useWorkspaceSnapshot();
   const selection = useSelectionSnapshot();
@@ -51,6 +53,7 @@ export function DataGrid({
     fieldRefs: workspace.fieldRefs,
     search,
     hideEol,
+    maskValues,
   });
 
   const submit = (objectId: string, cell: GridCellVm, value: string) => {
@@ -130,15 +133,17 @@ export function DataGrid({
                   editing.fieldCode === cell.field.code;
                 return (
                   <td
+                    data-masked={cell.masked || undefined}
                     data-ref-state={cell.refState ?? undefined}
                     key={cell.field.code}
-                    onDoubleClick={() =>
+                    onDoubleClick={() => {
+                      if (cell.masked) return;
                       setEditing({
                         objectId: row.objectId,
                         fieldCode: cell.field.code,
                         value: cell.value === null ? "" : String(cell.value),
-                      })
-                    }
+                      });
+                    }}
                   >
                     {active ? (
                       <span className="us-grid__editwrap">

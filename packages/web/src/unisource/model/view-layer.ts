@@ -157,12 +157,42 @@ export interface CanvasConfig {
   readonly edges: readonly CanvasEdgeConfig[];
 }
 
+export type PluginIndustry =
+  | "制造业"
+  | "建筑工程"
+  | "医疗健康"
+  | "金融"
+  | "法务合规"
+  | "教育科研";
+
+export interface PluginFormDef {
+  readonly code: string;
+  readonly name: string;
+  readonly desc: string;
+}
+
+export interface PluginContract {
+  readonly reads: readonly string[];
+  readonly writes: readonly string[];
+  readonly writeNote?: string;
+}
+
 export interface PluginDef {
   readonly id: string;
   readonly name: string;
   readonly version: string;
+  readonly vendor: string;
+  readonly industry: PluginIndustry;
+  readonly tagline: string;
+  readonly formsProvided: readonly PluginFormDef[];
+  readonly contract: PluginContract;
+  readonly scope: "all" | "group";
+  readonly scopeGroupLabel?: string;
+  readonly installed: boolean;
   readonly enabled: boolean;
-  readonly forms: readonly string[];
+  readonly updateTo?: string;
+  readonly beta?: boolean;
+  readonly usedByExprIds: readonly string[];
 }
 
 export interface SimScenario {

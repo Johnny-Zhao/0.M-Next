@@ -197,6 +197,17 @@ export function canvasConfigWithNodes(
   return { ...view.config, nodes, edges: config.edges };
 }
 
+export function screenToCanvasPosition(
+  clientX: number,
+  clientY: number,
+  rect: Pick<DOMRect, "left" | "top">,
+): { readonly x: number; readonly y: number } {
+  return {
+    x: clientX - rect.left,
+    y: clientY - rect.top,
+  };
+}
+
 function relationToEdge(relation: DataRelation): CanvasEdgeVm {
   return {
     id: relation.id,

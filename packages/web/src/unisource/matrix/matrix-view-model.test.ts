@@ -4,7 +4,7 @@ import { cloneDemoSeed } from "../seed/demo-seed";
 import { ChangeSetStore } from "../state/changeset-store";
 import { SessionStore } from "../state/session-store";
 import { WorkspaceStore } from "../state/workspace-store";
-import { canDragMatrixCard, moveMatrixCardColumn } from "./matrix-actions";
+import { moveMatrixCardColumn } from "./matrix-actions";
 import { buildMatrixViewModel } from "./matrix-view-model";
 
 describe("matrix view model", () => {
@@ -104,6 +104,6 @@ describe("matrix view model", () => {
     expect(queued.kind === "written" && queued.queued).toBe(true);
     expect(workspace.getChangeEvents()).toHaveLength(beforeDeniedEvents);
     expect(changes.getPending()[0]?.actor).toBe("chenmo");
-    expect(canDragMatrixCard("zhouran")).toBe(false);
+    expect(session.canDragCards("zhouran")).toBe(false);
   });
 });

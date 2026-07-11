@@ -86,6 +86,14 @@ export interface ViewConfigWriteResult {
   readonly event: ChangeEvent;
 }
 
+export interface PluginStatePatch {
+  readonly installed?: boolean;
+  readonly enabled?: boolean;
+  readonly version?: string;
+  readonly updateTo?: string | null;
+  readonly scope?: PluginDef["scope"];
+}
+
 type Listener = () => void;
 
 const now = "2026-07-10T10:24:00+08:00";
@@ -220,6 +228,45 @@ export class WorkspaceStore {
 
   getAnaReports(): readonly AnaReport[] {
     return this.state.anaReports;
+  }
+
+  getPlugins(): readonly PluginDef[] {
+    return this.state.plugins;
+  }
+
+  setPluginState(
+    pluginId: string,
+    patch: PluginStatePatch,
+    actor: MemberId,
+  ): PluginDef {
+    void actor;
+    const current = this.state.plugins.find((plugin) => plugin.id === pluginId);
+    if (!current) throw new Error(`找不到插件 ${pluginId}`);
+    const { updateTo: currentUpdateTo, ...currentWithoutUpdate } = current;
+    const base: PluginDef = {
+      ...currentWithoutUpdate,
+      installed: patch.installed ?? current.installed,
+      enabled: patch.enabled ?? current.enabled,
+      version: patch.version ?? current.version,
+      scope: patch.scope ?? current.scope,
+    };
+    const next: PluginDef =
+      "updateTo" in patch
+        ? patch.updateTo === null || patch.updateTo === undefined
+          ? base
+          : { ...base, updateTo: patch.updateTo }
+        : currentUpdateTo
+          ? { ...base, updateTo: currentUpdateTo }
+          : base;
+    this.state = {
+      ...this.state,
+      plugins: this.state.plugins.map((plugin) =>
+        plugin.id === pluginId ? next : plugin,
+      ),
+    };
+    // 插件注册表是 UI Mock 能力开关,不进入业务双轨、ChangeEvent 或活动流。
+    this.emit();
+    return next;
   }
 
   updateField(

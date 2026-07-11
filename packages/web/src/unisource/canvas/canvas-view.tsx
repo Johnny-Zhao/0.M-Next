@@ -8,8 +8,9 @@ import {
   type OnConnect,
   type OnNodeDrag,
   type OnSelectionChangeParams,
+  type ReactFlowInstance,
 } from "@xyflow/react";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState, type DragEvent } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
 import type { CanvasNodeConfig } from "../model/view-layer";
@@ -30,6 +31,7 @@ import {
   canvasConfigWithNodes,
   deriveGotoTargets,
   parseCanvasConfig,
+  screenToCanvasPosition,
 } from "./canvas-view-model";
 import { CanvasContextMenu } from "./context-menu";
 import { DeleteObjectConfirmModal } from "./delete-confirm-modal";
@@ -46,7 +48,9 @@ export function CanvasView({ exprId }: { exprId: string }) {
   const navigate = useNavigate();
   const [search, setSearch] = useSearchParams();
   const [addOpen, setAddOpen] = useState(false);
+  const [draggingObjectId, setDraggingObjectId] = useState<string | null>(null);
   const [connectMode, setConnectMode] = useState(false);
+  const flowRef = useRef<ReactFlowInstance | null>(null);
   const [menu, setMenu] = useState<{
     objectId: string;
     x: number;
@@ -226,16 +230,23 @@ export function CanvasView({ exprId }: { exprId: string }) {
     pushToast({ title: "关系已创建" });
   };
 
-  const addObjectToCanvas = (objectId: string) => {
+  const addObjectToCanvas = (
+    objectId: string,
+    position?: { readonly x: number; readonly y: number },
+  ) => {
     const config = parseCanvasConfig(view);
     if (config.nodes.some((node) => node.objectId === objectId)) return;
+    const fallback = {
+      x: 140 + config.nodes.length * 42,
+      y: 120 + config.nodes.length * 34,
+    };
     writeNodes(
       [
         ...config.nodes,
         {
           objectId,
-          x: 140 + config.nodes.length * 42,
-          y: 120 + config.nodes.length * 34,
+          x: Math.round(position?.x ?? fallback.x),
+          y: Math.round(position?.y ?? fallback.y),
           w: 210,
           h: 124,
           shownFields: ["price", "battery_months"],
@@ -245,6 +256,23 @@ export function CanvasView({ exprId }: { exprId: string }) {
     );
     setAddOpen(false);
     selectionStore.set({ entityType: "object", entityId: objectId });
+  };
+
+  const addDroppedObject = (event: DragEvent<HTMLDivElement>) => {
+    const objectId =
+      event.dataTransfer.getData("application/x-unisource-object") ||
+      event.dataTransfer.getData("text/plain");
+    if (!objectId) return;
+    event.preventDefault();
+    const rect = event.currentTarget.getBoundingClientRect();
+    const fallback = screenToCanvasPosition(event.clientX, event.clientY, rect);
+    const position =
+      flowRef.current?.screenToFlowPosition({
+        x: event.clientX,
+        y: event.clientY,
+      }) ?? fallback;
+    addObjectToCanvas(objectId, position);
+    setDraggingObjectId(null);
   };
 
   const runSimulation = () => {
@@ -299,11 +327,25 @@ export function CanvasView({ exprId }: { exprId: string }) {
             existingObjectIds={vm.nodes.map((node) => node.objectId)}
             onAdd={addObjectToCanvas}
             onClose={() => setAddOpen(false)}
+            onDragAdd={setDraggingObjectId}
           />
         ) : null}
       </div>
       <div
         className="us-canvas-stage"
+        data-dragging-add={draggingObjectId !== null || undefined}
+        onDragLeave={() => setDraggingObjectId(null)}
+        onDragOver={(event) => {
+          if (
+            !Array.from(event.dataTransfer.types).includes(
+              "application/x-unisource-object",
+            )
+          )
+            return;
+          event.preventDefault();
+          event.dataTransfer.dropEffect = "copy";
+        }}
+        onDrop={addDroppedObject}
         tabIndex={0}
         onKeyDown={(event) => {
           if (event.key === "Escape") {
@@ -322,6 +364,9 @@ export function CanvasView({ exprId }: { exprId: string }) {
           nodesDraggable={canEdit}
           multiSelectionKeyCode={["Meta", "Control", "Shift"]}
           onConnect={onConnect}
+          onInit={(instance) => {
+            flowRef.current = instance;
+          }}
           onNodeClick={onNodeClick}
           onNodeContextMenu={onNodeContextMenu}
           onNodeDragStop={onNodeDragStop}

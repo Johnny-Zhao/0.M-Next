@@ -118,6 +118,29 @@ describe("demoSeed", () => {
     ).toHaveLength(3);
   });
 
+  it("seeds the plugin registry and customer masking permissions", () => {
+    expect(demoSeed.plugins).toHaveLength(6);
+    expect(demoSeed.plugins.map((plugin) => plugin.id)).not.toContain(
+      "plug-retail",
+    );
+    expect(
+      demoSeed.plugins.find((plugin) => plugin.id === "plug-3d-assembly"),
+    ).toMatchObject({
+      installed: true,
+      enabled: true,
+      updateTo: "2.4",
+      industry: "制造业",
+    });
+    expect(
+      demoSeed.plugins.find((plugin) => plugin.id === "plug-finsuite")
+        ?.formsProvided,
+    ).toHaveLength(3);
+    expect(demoSeed.permissions.wangyun.customers).toBe("admin");
+    expect(demoSeed.permissions.lixiao.customers).toBe("none");
+    expect(demoSeed.permissions.chenmo.customers).toBe("none");
+    expect(demoSeed.permissions.zhouran.customers).toBe("none");
+  });
+
   it("seeds workshop expressions, hardware products and object slot bindings", () => {
     expect(
       demoSeed.expressions.filter(

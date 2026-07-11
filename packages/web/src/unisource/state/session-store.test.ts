@@ -19,6 +19,9 @@ describe("SessionStore", () => {
     expect(session.can("chenmo", "product_specs", "editData")).toBe(false);
     expect(session.can("chenmo", "channel_sales", "editData")).toBe(true);
     expect(session.can("zhouran", "channel_sales", "read")).toBe(false);
+    expect(session.canDragCards("chenmo")).toBe(true);
+    expect(session.canDragCards("zhouran")).toBe(false);
+    expect(session.canDragCards("ai")).toBe(false);
   });
 
   it("writes directly when permitted and queues manual approval when denied", () => {

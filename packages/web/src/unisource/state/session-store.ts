@@ -71,6 +71,11 @@ export class SessionStore {
     return writeLevels.has(level);
   }
 
+  canDragCards(memberId: MemberId): boolean {
+    // 演示身份策略:陈默=数据只读可转审批;周然/AI=纯只读禁拖,超出权限矩阵表达力。
+    return memberId !== "zhouran" && memberId !== "ai";
+  }
+
   requestWrite(params: {
     readonly resourceCode: string;
     readonly objectId: string;
