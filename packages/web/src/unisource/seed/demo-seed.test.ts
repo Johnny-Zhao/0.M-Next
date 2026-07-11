@@ -91,12 +91,14 @@ describe("demoSeed", () => {
       demoSeed.expressions.filter(
         (expression) => expression.space === "workshop",
       ),
-    ).toHaveLength(3);
+    ).toHaveLength(4);
     expect(
       demoSeed.objects.filter(
         (object) => object.objectTypeCode === "hardware_products",
       ),
-    ).toHaveLength(10);
+    ).toHaveLength(12);
+    expect(demoSeed.simScenarios[0]?.id).toBe("sim-visitor");
+    expect(demoSeed.simScenarios[0]?.events).toHaveLength(4);
     expect(demoSeed.sceneTemplates[0]?.slots.map((slot) => slot.id)).toEqual([
       "slot-cpu",
       "slot-psu",

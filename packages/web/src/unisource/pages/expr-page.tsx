@@ -1,3 +1,4 @@
+import { useEffect, useMemo, useState } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 
 import { BiBoard } from "../bi/bi-board";
@@ -20,6 +21,10 @@ import { LayoutToggle, nextLayoutSearch } from "../shell/layout-toggle";
 import { UsInspector } from "../shell/inspector";
 import { WorkspaceLayout } from "../shell/layouts";
 import { SplitView } from "../split/split-view";
+import { advancePlayhead } from "../sim/sim-playback";
+import { SimParamsPanel } from "../sim/sim-params-panel";
+import { SimView } from "../sim/sim-view";
+import { deriveSimTimeline, type SimNetwork } from "../sim/sim-timing";
 import { useSelectionSnapshot } from "../state/selection-store";
 import { sessionStore, useSessionSnapshot } from "../state/session-store";
 import { workspaceStore, useWorkspaceSnapshot } from "../state/workspace-store";
@@ -53,6 +58,11 @@ export function ExprPage() {
   const split = search.get("layout") === "split";
   const chatOpen = search.get("drawer") === "chat";
   const runOpen = search.get("run") === "1";
+  const [simNetwork, setSimNetwork] = useState<SimNetwork>("normal");
+  const [simPlayhead, setSimPlayhead] = useState(0);
+  const [simPlaying, setSimPlaying] = useState(true);
+  const [simSpeed, setSimSpeed] = useState<1 | 2>(1);
+  const [simLoop, setSimLoop] = useState(true);
   const forms = Array.from(
     new Set(
       expr?.viewIds
@@ -89,6 +99,13 @@ export function ExprPage() {
             candidate.exprId === exprId && candidate.kind === "canvas",
         );
   const isTemplateCanvas = Boolean(canvasView?.config.templateId);
+  const isSimulationOpen = form === "canvas" && runOpen && !isTemplateCanvas;
+  const simScenario = snapshot.simScenarios[0] ?? null;
+  const simTimeline = useMemo(
+    () =>
+      simScenario ? deriveSimTimeline(simScenario, snapshot, simNetwork) : null,
+    [simScenario, snapshot, simNetwork],
+  );
   const isTemplateConfigDoc =
     form === "doc" &&
     snapshot.views.some(
@@ -103,6 +120,45 @@ export function ExprPage() {
   const selectedObjectCount = selection.selected.filter(
     (item) => item.entityType === "object",
   ).length;
+
+  useEffect(() => {
+    if (!isSimulationOpen) {
+      setSimPlaying(false);
+      return;
+    }
+    setSimPlayhead(0);
+    setSimPlaying(true);
+  }, [exprId, isSimulationOpen]);
+
+  useEffect(() => {
+    if (!isSimulationOpen || !simPlaying || !simTimeline) return undefined;
+    const timer = window.setInterval(() => {
+      setSimPlayhead((current) => {
+        const next = advancePlayhead(
+          current,
+          0.1,
+          simSpeed,
+          simTimeline.duration,
+          simLoop,
+        );
+        if (!simLoop && next >= simTimeline.duration) setSimPlaying(false);
+        return next;
+      });
+    }, 100);
+    return () => window.clearInterval(timer);
+  }, [isSimulationOpen, simLoop, simPlaying, simSpeed, simTimeline]);
+
+  const changeSimNetwork = (network: SimNetwork) => {
+    setSimNetwork(network);
+    setSimPlayhead(0);
+    setSimPlaying(true);
+  };
+
+  const stopSimulation = () => {
+    const next = new URLSearchParams(search);
+    next.delete("run");
+    setSearch(next);
+  };
 
   const patchCanvasNodes = (
     objectIds: readonly string[],
@@ -143,6 +199,14 @@ export function ExprPage() {
         next.delete("drawer");
         setSearch(next);
       }}
+    />
+  ) : isSimulationOpen && simTimeline && simScenario ? (
+    <SimParamsPanel
+      network={simNetwork}
+      onNetworkChange={changeSimNetwork}
+      playhead={simPlayhead}
+      scenarioName={simScenario.name}
+      timeline={simTimeline}
     />
   ) : form === "canvas" && !isTemplateCanvas ? (
     <UsInspector
@@ -189,15 +253,23 @@ export function ExprPage() {
           { label: "表达" },
           { label: expr?.name ?? exprId ?? "未知表达" },
         ],
+        breadcrumbTail:
+          isSimulationOpen && simScenario ? (
+            <span className="us-sim-breadcrumb">
+              回放中 · 场景「{simScenario.name.split(" · ")[0]}」
+            </span>
+          ) : undefined,
         sync: {
-          state:
-            form === "doc" && docVm
+          state: isSimulationOpen
+            ? "change"
+            : form === "doc" && docVm
               ? docVm.howState
               : syncedRefs > 0
                 ? "change"
                 : "ok",
-          label:
-            form === "doc" && docVm
+          label: isSimulationOpen
+            ? "仿真 · 运行中"
+            : form === "doc" && docVm
               ? docVm.howLabel
               : syncedRefs > 0
                 ? `刚刚同步 ${syncedRefs} 处引用`
@@ -215,6 +287,11 @@ export function ExprPage() {
             setSearch(nextFormSearch(search.toString(), next))
           }
         >
+          {isSimulationOpen ? (
+            <UsMonoTag active tone="change">
+              仿真 · 运行中
+            </UsMonoTag>
+          ) : null}
           {canSplit && form === "doc" ? (
             <LayoutToggle
               onToggle={(next) =>
@@ -236,6 +313,19 @@ export function ExprPage() {
         <BiBoard />
       ) : form === "canvas" && expr && isTemplateCanvas && !runOpen ? (
         <TemplateCanvas exprId={expr.id} />
+      ) : form === "canvas" && expr && isSimulationOpen && simTimeline ? (
+        <SimView
+          exprId={expr.id}
+          loop={simLoop}
+          onLoopChange={setSimLoop}
+          onPlayingChange={setSimPlaying}
+          onSpeedChange={setSimSpeed}
+          onStop={stopSimulation}
+          playing={simPlaying}
+          playhead={simPlayhead}
+          speed={simSpeed}
+          timeline={simTimeline}
+        />
       ) : form === "canvas" && expr && !runOpen ? (
         <CanvasView exprId={expr.id} />
       ) : form === "canvas" && runOpen ? (

@@ -11,6 +11,7 @@ import { useNavigate } from "react-router-dom";
 
 import { UsButton, UsMonoTag, pushToast } from "../primitives";
 import { sessionStore, useSessionSnapshot } from "../state/session-store";
+import type { WorkspaceState } from "../state/workspace-store";
 import { workspaceStore, useWorkspaceSnapshot } from "../state/workspace-store";
 import { useValidationSnapshot } from "../state/validation-store";
 import { LibraryPanel } from "./library-panel";
@@ -26,6 +27,31 @@ import {
 
 const nodeTypes = { slot: SlotCard };
 const edgeTypes = { template: TemplateEdge };
+
+export function resolveTemplateConfigDocHref(
+  workspace: WorkspaceState,
+  sourceExprId: string,
+  templateId: string,
+): string {
+  const sourceExpr = workspace.expressions.find(
+    (candidate) => candidate.id === sourceExprId,
+  );
+  const targetView = workspace.views.find(
+    (view) =>
+      view.kind === "doc" &&
+      view.config.sourceExprId === sourceExprId &&
+      view.config.templateId === templateId,
+  );
+  const fallbackView = workspace.views.find((view) => {
+    if (view.kind !== "doc" || view.config.templateId !== templateId)
+      return false;
+    const expr = workspace.expressions.find(
+      (candidate) => candidate.id === view.exprId,
+    );
+    return expr?.space === sourceExpr?.space;
+  });
+  return `/expr/${targetView?.exprId ?? fallbackView?.exprId ?? sourceExprId}?form=doc`;
+}
 
 export function TemplateCanvas({ exprId }: { exprId: string }) {
   const workspace = useWorkspaceSnapshot();
@@ -163,7 +189,9 @@ export function TemplateCanvas({ exprId }: { exprId: string }) {
             title={availability.reason}
             onClick={() => {
               pushToast({ title: "正在打开配置单" });
-              navigate("/expr/exp-build-z890-doc?form=doc");
+              navigate(
+                resolveTemplateConfigDocHref(workspace, exprId, vm.templateId),
+              );
             }}
           >
             生成配置单 DOC

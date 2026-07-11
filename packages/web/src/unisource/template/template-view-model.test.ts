@@ -7,6 +7,7 @@ import {
   deriveConfigDocAvailability,
   matchesConstraint,
 } from "./template-view-model";
+import { resolveTemplateConfigDocHref } from "./template-canvas";
 
 describe("template view model", () => {
   it("derives slot states, edges and the matching library for Z890", () => {
@@ -47,6 +48,44 @@ describe("template view model", () => {
     expect(
       vm.slots.find((slot) => slot.slotId === "slot-mainboard")?.state,
     ).toBe("violated");
+  });
+
+  it("shows mismatch candidates beyond mainboards", () => {
+    const workspace = new WorkspaceStore(cloneDemoSeed()).getSnapshot();
+    const view = workspace.views.find(
+      (candidate) => candidate.id === "view-build-z890-canvas",
+    )!;
+
+    const memoryVm = buildTemplateViewModel(workspace, view, "slot-memory");
+    const gpuVm = buildTemplateViewModel(workspace, view, "slot-gpu");
+
+    expect(
+      memoryVm.library.items.find((item) => item.objectId === "hw-ram-ddr4-32")
+        ?.matchState,
+    ).toBe("mismatch");
+    expect(
+      gpuVm.library.items.find((item) => item.objectId === "hw-gpu-pcie4-4060")
+        ?.matchState,
+    ).toBe("mismatch");
+  });
+
+  it("resolves config doc targets from the current template expression", () => {
+    const workspace = new WorkspaceStore(cloneDemoSeed()).getSnapshot();
+
+    expect(
+      resolveTemplateConfigDocHref(
+        workspace,
+        "exp-build-z890",
+        "tpl-install-v1",
+      ),
+    ).toBe("/expr/exp-build-z890-doc?form=doc");
+    expect(
+      resolveTemplateConfigDocHref(
+        workspace,
+        "exp-build-b860",
+        "tpl-install-v1",
+      ),
+    ).toBe("/expr/exp-build-b860-doc?form=doc");
   });
 
   it("checks eq/gte/lte constraints and generation blockers", () => {

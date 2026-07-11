@@ -9,9 +9,10 @@ export function EdgeLabeled(props: EdgeProps) {
   const [path, labelX, labelY] = getBezierPath(props);
   const label = String(props.data?.label ?? "");
   const showLabel = props.data?.showLabel !== false;
+  const flowing = props.data?.flowing === true;
   return (
     <>
-      <BaseEdge className="us-canvas-edge" path={path} />
+      <BaseEdge className="us-canvas-edge" data-flowing={flowing} path={path} />
       {showLabel && label ? (
         <EdgeLabelRenderer>
           <span

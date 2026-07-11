@@ -12,6 +12,10 @@ export function TemplateConfigDoc({ exprId }: { exprId: string }) {
     (candidate) =>
       candidate.exprId === sourceExprId && candidate.kind === "canvas",
   );
+  const sourceExpr = workspace.expressions.find(
+    (candidate) => candidate.id === sourceExprId,
+  );
+  const titleSuffix = sourceExpr?.name.split("·").at(-1)?.trim() ?? "LIVE";
   const vm = sourceView
     ? buildTemplateViewModel(workspace, sourceView, null)
     : null;
@@ -26,12 +30,12 @@ export function TemplateConfigDoc({ exprId }: { exprId: string }) {
       <main className="us-doc-main">
         <article className="us-doc-paper us-config-doc">
           <div className="us-doc-meta">
-            <span>BUILD-Z890-001</span>
+            <span>BUILD-{titleSuffix.toUpperCase()}-001</span>
             <span>模板:{vm?.templateName ?? "装机方案 V1"}</span>
-            <span>来源:装机方案·Z890 高配</span>
+            <span>来源:{sourceExpr?.name ?? sourceExprId}</span>
           </div>
           <p className="us-doc-author">王芸 · 供应链 | 字段来自硬件产品库</p>
-          <h1 className="us-doc-title">装机配置单·Z890</h1>
+          <h1 className="us-doc-title">装机配置单·{titleSuffix}</h1>
           <p>
             本配置单由模板槽位实时生成。任一硬件产品库字段更新后，价格与合计同步刷新。
           </p>

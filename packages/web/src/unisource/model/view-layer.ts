@@ -165,10 +165,20 @@ export interface SimScenario {
   readonly id: string;
   readonly name: string;
   readonly duration: number;
+  readonly events: readonly SimEvent[];
   readonly metrics: readonly {
     readonly name: string;
     readonly value: string;
   }[];
+}
+
+export interface SimEvent {
+  readonly id: string;
+  readonly nodeObjectId: DataObjectId;
+  readonly viaRelationId?: DataRelationId;
+  readonly label: string;
+  readonly kind: "source" | "relay" | "action";
+  readonly check?: boolean;
 }
 
 export interface KpiCardDef {
