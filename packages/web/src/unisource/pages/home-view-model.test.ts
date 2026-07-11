@@ -19,7 +19,7 @@ describe("deriveHomeVm", () => {
     expect(vm.sources).toHaveLength(4);
     expect(vm.pendingCount).toBe(2);
     expect(vm.pendingAiCount).toBe(1);
-    expect(vm.fieldRefCount).toBe(4);
+    expect(vm.fieldRefCount).toBe(13);
     expect(
       vm.sources.find((source) => source.code === "product_specs")?.count,
     ).toBe(8);

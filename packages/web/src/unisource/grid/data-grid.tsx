@@ -63,6 +63,7 @@ export function DataGrid({
       <table>
         <thead>
           <tr>
+            <th className="us-grid__checkcol" aria-label="选择" />
             <th aria-label="状态" />
             {vm.columns.map((column) => (
               <th key={column.code}>
@@ -75,6 +76,7 @@ export function DataGrid({
         <tbody>
           {vm.rows.map((row) => (
             <tr
+              data-editing={editing?.objectId === row.objectId || undefined}
               data-selected={row.selected}
               key={row.objectId}
               onClick={(event) => {
@@ -91,6 +93,23 @@ export function DataGrid({
                 });
               }}
             >
+              <td className="us-grid__checkcol">
+                <button
+                  aria-label={row.selected ? "取消选择" : "选择记录"}
+                  className="us-grid__check"
+                  data-checked={row.selected}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    selectionStore.toggle({
+                      entityType: "object",
+                      entityId: row.objectId,
+                    });
+                  }}
+                  type="button"
+                >
+                  {row.selected ? "✓" : ""}
+                </button>
+              </td>
               <td>
                 <UsStatusPill tone={row.statusTone}>
                   {row.statusLabel}

@@ -34,6 +34,41 @@ export interface FieldRef {
   readonly state: FieldRefState;
 }
 
+export type DocInline =
+  | { readonly kind: "text"; readonly text: string }
+  | { readonly kind: "ref"; readonly refId: string };
+
+export type DocBlock =
+  | { readonly kind: "meta"; readonly items: readonly string[] }
+  | { readonly kind: "h1"; readonly text: string; readonly refId?: string }
+  | { readonly kind: "h2"; readonly text: string }
+  | {
+      readonly kind: "paragraph";
+      readonly id: string;
+      readonly inlines: readonly DocInline[];
+    }
+  | {
+      readonly kind: "dataTable";
+      readonly id: string;
+      readonly title: string;
+      readonly sourceLabel: string;
+      readonly rows: readonly {
+        readonly label: string;
+        readonly refId: string;
+      }[];
+    };
+
+export interface DocModel {
+  readonly exprId: string;
+  readonly docNo: string;
+  readonly template: string;
+  readonly binding: {
+    readonly objectId: DataObjectId;
+  };
+  readonly authorLine: string;
+  readonly blocks: readonly DocBlock[];
+}
+
 export type ChangeTrack = "data" | "view";
 
 export interface ChangeEventInverse {

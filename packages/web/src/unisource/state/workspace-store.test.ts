@@ -58,13 +58,42 @@ describe("WorkspaceStore", () => {
     expect(
       store.getFieldRefs("prod-s3", "price").map((ref) => ref.state),
     ).toEqual(["justSynced", "justSynced", "justSynced"]);
-    expect(store.getFieldRefsByExpr("exp-spec-doc")).toHaveLength(2);
+    expect(store.getFieldRefsByExpr("exp-spec-doc")).toHaveLength(10);
 
     vi.advanceTimersByTime(10000);
 
     expect(
       store.getFieldRefs("prod-s3", "price").map((ref) => ref.state),
     ).toEqual(["fresh", "fresh", "fresh"]);
+  });
+
+  it("adds and rebinds field refs on the view track", () => {
+    const store = new WorkspaceStore(cloneDemoSeed());
+    const beforeRefs = store.getSnapshot().fieldRefs.length;
+
+    const added = store.addFieldRef(
+      "exp-spec-doc",
+      "prod-s3",
+      "rating",
+      "防护认证",
+    );
+    const rebound = store.rebindFieldRef(
+      "ref-weekly-presale-gift-dangling",
+      "lifecycle",
+    );
+
+    expect(store.getSnapshot().fieldRefs).toHaveLength(beforeRefs + 1);
+    expect(added.state).toBe("fresh");
+    expect(rebound.fieldCode).toBe("lifecycle");
+    expect(rebound.state).toBe("fresh");
+    expect(
+      store
+        .getChangeEvents()
+        .slice(0, 2)
+        .map((event) => event.track),
+    ).toEqual(["view", "view"]);
+    expect(store.getChangeEvents()[0]?.inverse).toBeNull();
+    expect(store.getActivity()[0]?.tracks).toEqual(["view"]);
   });
 
   it("updates relation-owned fields without changing endpoint object versions", () => {

@@ -20,6 +20,7 @@ import type {
   ActivityItem,
   ChangeEvent,
   ChangeEventInverse,
+  DocModel,
   Expression,
   FieldRef,
   Member,
@@ -39,6 +40,7 @@ export interface WorkspaceState {
   readonly permissions: PermissionMatrix;
   readonly expressions: readonly Expression[];
   readonly views: readonly ViewDef[];
+  readonly docModels: readonly DocModel[];
   readonly fieldRefs: readonly FieldRef[];
   readonly checkResults: readonly CheckResult[];
   readonly changeEvents: readonly ChangeEvent[];
@@ -159,6 +161,10 @@ export class WorkspaceStore {
 
   getFieldRefsByExpr(exprId: string): readonly FieldRef[] {
     return this.state.fieldRefs.filter((ref) => ref.exprId === exprId);
+  }
+
+  getDocModel(exprId: string): DocModel | undefined {
+    return this.state.docModels.find((doc) => doc.exprId === exprId);
   }
 
   getActivity(): readonly ActivityItem[] {
@@ -348,6 +354,80 @@ export class WorkspaceStore {
     return nextRelation;
   }
 
+  addFieldRef(
+    exprId: string,
+    objectId: string,
+    fieldCode: FieldCode,
+    label: string,
+  ): FieldRef {
+    const ref: FieldRef = {
+      id: `ref-${exprId}-${fieldCode}-${this.sequence + 1}`,
+      objectId,
+      fieldCode,
+      exprId,
+      label,
+      state: "fresh",
+    };
+    const event = this.createViewFieldEvent(objectId, fieldCode);
+    this.state = {
+      ...this.state,
+      fieldRefs: [...this.state.fieldRefs, ref],
+      changeEvents: [event, ...this.state.changeEvents],
+      activity: [
+        {
+          id: activityId(this.sequence),
+          actor: this.state.workspace.currentMemberId,
+          summary: `插入字段引用 ${label}`,
+          tracks: ["view"],
+          at: now,
+        },
+        ...this.state.activity,
+      ],
+    };
+    this.emit();
+    return ref;
+  }
+
+  rebindFieldRef(refId: string, newFieldCode: FieldCode): FieldRef {
+    const ref = this.state.fieldRefs.find(
+      (candidate) => candidate.id === refId,
+    );
+    if (!ref) throw new Error(`找不到引用 ${refId}`);
+    const object = this.requireObject(ref.objectId);
+    const type = this.state.objectTypes.find(
+      (candidate) => candidate.code === object.objectTypeCode,
+    );
+    const field = type?.fields.find(
+      (candidate) => candidate.code === newFieldCode,
+    );
+    const nextRef: FieldRef = {
+      ...ref,
+      fieldCode: newFieldCode,
+      label: field?.name ?? ref.label,
+      state: "fresh",
+    };
+    const event = this.createViewFieldEvent(ref.objectId, newFieldCode);
+    this.state = {
+      ...this.state,
+      fieldRefs: this.state.fieldRefs.map((candidate) =>
+        candidate.id === refId ? nextRef : candidate,
+      ),
+      changeEvents: [event, ...this.state.changeEvents],
+      activity: [
+        {
+          id: activityId(this.sequence),
+          actor: this.state.workspace.currentMemberId,
+          summary: `重绑字段引用 ${nextRef.label}`,
+          tracks: ["view"],
+          at: now,
+        },
+        ...this.state.activity,
+      ],
+    };
+    this.emit();
+    return nextRef;
+  }
+
   undo(eventIdToUndo: string): FieldWriteResult {
     const event = this.state.changeEvents.find(
       (candidate) => candidate.id === eventIdToUndo,
@@ -412,6 +492,22 @@ export class WorkspaceStore {
       track: "data",
       actor,
       target: { entityType: "relation", entityId: relationId },
+      syncedRefs: 0,
+      at: now,
+      inverse: null,
+    };
+  }
+
+  private createViewFieldEvent(
+    objectId: string,
+    fieldCode: FieldCode,
+  ): ChangeEvent {
+    this.sequence += 1;
+    return {
+      id: eventId(this.sequence),
+      track: "view",
+      actor: this.state.workspace.currentMemberId,
+      target: { entityType: "field", entityId: objectId, fieldCode },
       syncedRefs: 0,
       at: now,
       inverse: null,
@@ -486,6 +582,7 @@ function seedToState(seed: DemoSeed): WorkspaceState {
     permissions: seed.permissions,
     expressions: seed.expressions,
     views: seed.views,
+    docModels: seed.docModels,
     fieldRefs: seed.fieldRefs,
     checkResults: seed.checkResults,
     changeEvents: seed.changeEvents,

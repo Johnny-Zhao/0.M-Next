@@ -17,6 +17,7 @@ import type {
 import type {
   ActivityItem,
   ChangeEvent,
+  DocModel,
   Expression,
   FieldRef,
   Member,
@@ -82,6 +83,7 @@ export interface DemoSeed {
   readonly sceneTemplates: readonly SceneTemplate[];
   readonly expressions: readonly Expression[];
   readonly views: readonly ViewDef[];
+  readonly docModels: readonly DocModel[];
   readonly fieldRefs: readonly FieldRef[];
   readonly checkResults: readonly CheckResult[];
   readonly changeSets: readonly ChangeSet[];
@@ -510,6 +512,99 @@ export const demoSeed: DemoSeed = {
       config: {},
     },
   ],
+  docModels: [
+    {
+      exprId: "exp-spec-doc",
+      docNo: "SPEC-2026-018",
+      template: "产品规格书 V2",
+      binding: { objectId: "prod-s3" },
+      authorLine: "王芸 · 产品部 | 更新于今天 09:12",
+      blocks: [
+        {
+          kind: "meta",
+          items: [
+            "SPEC-2026-018",
+            "模板:产品规格书 V2",
+            "绑定:产品规格库 › 智能门锁 S3",
+          ],
+        },
+        {
+          kind: "h1",
+          text: "智能门锁 S3 产品规格书",
+          refId: "ref-s3-name-title",
+        },
+        { kind: "h2", text: "一、定位与定价" },
+        {
+          kind: "paragraph",
+          id: "p-position",
+          inlines: [
+            { kind: "text", text: "本规格书描述 " },
+            { kind: "ref", refId: "ref-s3-name-position" },
+            { kind: "text", text: " 的上市定位。型号 " },
+            { kind: "ref", refId: "ref-s3-sku-hero" },
+            { kind: "text", text: " 面向高端入户门场景,建议零售价为 " },
+            { kind: "ref", refId: "ref-s3-price-spec" },
+            { kind: "text", text: "。" },
+          ],
+        },
+        {
+          kind: "paragraph",
+          id: "p-status",
+          inlines: [
+            { kind: "text", text: "当前生命周期为预售,预计上市日期为 " },
+            { kind: "ref", refId: "ref-s3-launch-ai" },
+            { kind: "text", text: "。" },
+          ],
+        },
+        { kind: "h2", text: "二、关键参数" },
+        {
+          kind: "paragraph",
+          id: "p-params",
+          inlines: [
+            { kind: "text", text: "核心参数包含续航 " },
+            { kind: "ref", refId: "ref-s3-battery-para" },
+            { kind: "text", text: " 个月、防护等级 " },
+            { kind: "ref", refId: "ref-s3-rating-para" },
+            { kind: "text", text: ",用于指导销售与渠道物料。" },
+          ],
+        },
+        {
+          kind: "dataTable",
+          id: "table-spec",
+          title: "数据表格",
+          sourceLabel: "产品规格库",
+          rows: [
+            { label: "型号", refId: "ref-s3-sku-table" },
+            { label: "建议零售价", refId: "ref-s3-price-spec" },
+            { label: "电池续航", refId: "ref-s3-battery-table" },
+            { label: "防护等级", refId: "ref-s3-rating-table" },
+          ],
+        },
+        { kind: "h2", text: "三、续航与可靠性" },
+        {
+          kind: "paragraph",
+          id: "p-reliability",
+          inlines: [
+            { kind: "text", text: "可靠性章节复核 " },
+            { kind: "ref", refId: "ref-s3-name-position" },
+            { kind: "text", text: " 的防护认证 " },
+            { kind: "ref", refId: "ref-s3-rating-table" },
+            { kind: "text", text: " 与续航数据 " },
+            { kind: "ref", refId: "ref-s3-battery-table" },
+            { kind: "text", text: "。" },
+          ],
+        },
+        {
+          kind: "paragraph",
+          id: "p-dangling",
+          inlines: [
+            { kind: "text", text: "待重绑的上市权益字段:" },
+            { kind: "ref", refId: "ref-weekly-presale-gift-dangling" },
+          ],
+        },
+      ],
+    },
+  ],
   fieldRefs: [
     {
       id: "ref-s3-price-spec",
@@ -517,6 +612,70 @@ export const demoSeed: DemoSeed = {
       fieldCode: "price",
       exprId: "exp-spec-doc",
       label: "规格书售价",
+      state: "fresh",
+    },
+    {
+      id: "ref-s3-name-title",
+      objectId: "prod-s3",
+      fieldCode: "name",
+      exprId: "exp-spec-doc",
+      label: "标题产品名",
+      state: "fresh",
+    },
+    {
+      id: "ref-s3-name-position",
+      objectId: "prod-s3",
+      fieldCode: "name",
+      exprId: "exp-spec-doc",
+      label: "定位产品名",
+      state: "fresh",
+    },
+    {
+      id: "ref-s3-sku-hero",
+      objectId: "prod-s3",
+      fieldCode: "sku",
+      exprId: "exp-spec-doc",
+      label: "正文型号",
+      state: "fresh",
+    },
+    {
+      id: "ref-s3-sku-table",
+      objectId: "prod-s3",
+      fieldCode: "sku",
+      exprId: "exp-spec-doc",
+      label: "表格型号",
+      state: "fresh",
+    },
+    {
+      id: "ref-s3-battery-para",
+      objectId: "prod-s3",
+      fieldCode: "battery_months",
+      exprId: "exp-spec-doc",
+      label: "正文续航",
+      state: "fresh",
+    },
+    {
+      id: "ref-s3-battery-table",
+      objectId: "prod-s3",
+      fieldCode: "battery_months",
+      exprId: "exp-spec-doc",
+      label: "表格续航",
+      state: "fresh",
+    },
+    {
+      id: "ref-s3-rating-para",
+      objectId: "prod-s3",
+      fieldCode: "rating",
+      exprId: "exp-spec-doc",
+      label: "正文防护等级",
+      state: "fresh",
+    },
+    {
+      id: "ref-s3-rating-table",
+      objectId: "prod-s3",
+      fieldCode: "rating",
+      exprId: "exp-spec-doc",
+      label: "表格防护等级",
       state: "fresh",
     },
     {
@@ -542,6 +701,14 @@ export const demoSeed: DemoSeed = {
       exprId: "exp-spec-doc",
       label: "上市日期",
       state: "lowConfidence",
+    },
+    {
+      id: "ref-weekly-presale-gift-dangling",
+      objectId: "prod-s3",
+      fieldCode: "presale_gift",
+      exprId: "exp-weekly",
+      label: "预售权益",
+      state: "dangling",
     },
   ],
   checkResults: [

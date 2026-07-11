@@ -1,12 +1,14 @@
 import { useParams, useSearchParams } from "react-router-dom";
 
+import { DocView } from "../doc/doc-view";
+import { buildDocViewModel } from "../doc/doc-view-model";
 import { UsMonoTag } from "../primitives";
 import { parseFormParam } from "../routes-paths";
 import { FormRow, nextFormSearch } from "../shell/form-row";
 import { LayoutToggle, nextLayoutSearch } from "../shell/layout-toggle";
 import { UsInspector } from "../shell/inspector";
 import { WorkspaceLayout } from "../shell/layouts";
-import { SplitDocument, SplitView } from "../split/split-view";
+import { SplitView } from "../split/split-view";
 import { useWorkspaceSnapshot } from "../state/workspace-store";
 import { PageSkeleton } from "./page-skeleton";
 
@@ -55,6 +57,11 @@ export function ExprPage() {
       : snapshot.fieldRefs.filter(
           (ref) => ref.exprId === exprId && ref.state === "justSynced",
         ).length;
+  const docModel =
+    exprId === undefined
+      ? undefined
+      : snapshot.docModels.find((candidate) => candidate.exprId === exprId);
+  const docVm = docModel ? buildDocViewModel(snapshot, docModel) : null;
 
   const inspector =
     form === "canvas" ? (
@@ -106,11 +113,18 @@ export function ExprPage() {
           { label: expr?.name ?? exprId ?? "未知表达" },
         ],
         sync: {
-          state: syncedRefs > 0 ? "change" : "ok",
+          state:
+            form === "doc" && docVm
+              ? docVm.howState
+              : syncedRefs > 0
+                ? "change"
+                : "ok",
           label:
-            syncedRefs > 0
-              ? `刚刚同步 ${syncedRefs} 处引用`
-              : (expr?.lastActivity ?? "已同步"),
+            form === "doc" && docVm
+              ? docVm.howLabel
+              : syncedRefs > 0
+                ? `刚刚同步 ${syncedRefs} 处引用`
+                : (expr?.lastActivity ?? "已同步"),
         },
         people,
       }}
@@ -137,9 +151,7 @@ export function ExprPage() {
       {form === "doc" && split && expr ? (
         <SplitView exprId={expr.id} />
       ) : form === "doc" && expr ? (
-        <section className="us-splitview us-splitview--single">
-          <SplitDocument exprId={expr.id} justSynced={syncedRefs} />
-        </section>
+        <DocView exprId={expr.id} />
       ) : (
         <PageSkeleton
           kicker={`EXPR · form=${form}`}

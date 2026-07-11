@@ -1,5 +1,3 @@
-import { UsButton } from "../primitives";
-
 export function nextLayoutSearch(search: string, split: boolean): string {
   const params = new URLSearchParams(search);
   if (split) {
@@ -19,23 +17,14 @@ export function LayoutToggle({
   readonly onToggle: (split: boolean) => void;
 }) {
   return (
-    <span className="us-ltoggle" aria-label="布局">
-      <UsButton
-        aria-pressed={!split}
-        onClick={() => onToggle(false)}
-        size="sm"
-        variant={!split ? "primary" : "secondary"}
-      >
-        单页
-      </UsButton>
-      <UsButton
-        aria-pressed={split}
-        onClick={() => onToggle(true)}
-        size="sm"
-        variant={split ? "primary" : "secondary"}
-      >
-        分屏
-      </UsButton>
-    </span>
+    <button
+      className="us-ltoggle"
+      data-on={split}
+      onClick={() => onToggle(!split)}
+      type="button"
+    >
+      <span>分屏对照</span>
+      <i aria-pressed={split} role="switch" />
+    </button>
   );
 }
