@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { ObjectTypeDef } from "../model/kernel";
 import {
+  mapAiChangeSet,
   mapCommandError,
   mapCheckResult,
   mapHistoryEntry,
@@ -230,6 +231,77 @@ describe("dto mappers", () => {
           currentValue: 1199,
           changedBy: "lixiao",
           changedAt: "2026-07-10T10:40:00+08:00",
+        },
+      ],
+    });
+  });
+
+  it("maps kernel AI change sets into local overlay change sets", () => {
+    const changeSet = mapAiChangeSet({
+      setId: "ai-set-1",
+      action: "SUGGEST_FIELDS",
+      status: "PROPOSED",
+      provider: "kernel",
+      providerVersion: "v1",
+      contextHash: "hash",
+      resultText: null,
+      createdAt: "2026-07-10T10:24:00+08:00",
+      applied: 1,
+      skipped: 0,
+      items: [
+        {
+          itemId: "ai-item-1",
+          seq: 1,
+          opType: "UPDATE_FIELD",
+          payload: {
+            objectId: "prod-s3",
+            fieldCode: "price",
+            before: 1299,
+            after: 1199,
+          },
+          precheck: {},
+          itemStatus: "PROPOSED",
+        },
+        {
+          itemId: "ai-item-2",
+          seq: 2,
+          opType: "CREATE_OBJECT",
+          payload: {
+            id: "prod-new",
+            objectTypeCode: "product_specs",
+            fields: { name: "新品", price: 899 },
+          },
+          precheck: {},
+          itemStatus: "APPLIED",
+        },
+      ],
+    });
+
+    expect(changeSet).toMatchObject({
+      id: "ai-set-1",
+      source: "ai",
+      status: "pending",
+      actor: "ai",
+      items: [
+        {
+          id: "ai-item-1",
+          op: "updateField",
+          target: {
+            entityType: "field",
+            entityId: "prod-s3",
+            fieldCode: "price",
+          },
+          oldValue: 1299,
+          nextValue: 1199,
+          applied: false,
+        },
+        {
+          id: "ai-item-2",
+          op: "createObject",
+          target: { entityType: "object", entityId: "prod-new" },
+          objectTypeCode: "product_specs",
+          fields: { name: "新品", price: 899 },
+          applied: true,
         },
       ],
     });

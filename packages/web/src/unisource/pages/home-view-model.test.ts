@@ -10,7 +10,7 @@ describe("deriveHomeVm", () => {
   it("derives homepage counts from the stores", () => {
     const seed = cloneDemoSeed();
     const workspace = new WorkspaceStore(seed).getSnapshot();
-    const changeSets: ChangeSetState = { changeSets: seed.changeSets };
+    const changeSets: ChangeSetState = changeSetState(seed.changeSets);
     const session: SessionState = { currentMemberId: "wangyun" };
 
     const vm = deriveHomeVm(workspace, changeSets, session);
@@ -33,12 +33,21 @@ describe("deriveHomeVm", () => {
   it("uses the current session member for the greeting", () => {
     const seed = cloneDemoSeed();
     const workspace = new WorkspaceStore(seed).getSnapshot();
-    const vm = deriveHomeVm(
-      workspace,
-      { changeSets: seed.changeSets },
-      { currentMemberId: "chenmo" },
-    );
+    const vm = deriveHomeVm(workspace, changeSetState(seed.changeSets), {
+      currentMemberId: "chenmo",
+    });
 
     expect(vm.currentMemberName).toBe("陈默");
   });
 });
+
+function changeSetState(
+  changeSets: ChangeSetState["changeSets"],
+): ChangeSetState {
+  return {
+    changeSets,
+    kernelChangeSets: [],
+    kernelSyncAt: null,
+    kernelBusy: false,
+  };
+}

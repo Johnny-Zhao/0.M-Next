@@ -6,11 +6,15 @@ import type {
   DataFieldPrimitive,
   MemberId,
 } from "../model/kernel";
+import { pushToast, type UsToastInput } from "../primitives";
 import { cloneDemoSeed, type DemoSeed } from "../seed/demo-seed";
 import { workspaceStore, type WorkspaceStore } from "./workspace-store";
 
 export interface ChangeSetState {
   readonly changeSets: readonly ChangeSet[];
+  readonly kernelChangeSets: readonly ChangeSet[];
+  readonly kernelSyncAt: string | null;
+  readonly kernelBusy: boolean;
 }
 
 export type ChangeSetResult =
@@ -19,15 +23,40 @@ export type ChangeSetResult =
 
 type Listener = () => void;
 
+const kernelSyncClock = "2026-07-10T10:32:00+08:00";
+
+export interface KernelChangeSetSource {
+  setActor(actorId: MemberId): void;
+  listAiChanges(): Promise<readonly ChangeSet[]>;
+  confirmAiChange(
+    setId: string,
+    itemIds?: readonly string[],
+  ): Promise<ChangeSetResult>;
+  rejectAiChange(setId: string): Promise<ChangeSetResult>;
+}
+
 export class ChangeSetStore {
   private state: ChangeSetState;
   private readonly listeners = new Set<Listener>();
+  private kernelSource: KernelChangeSetSource | null = null;
+  private readonly showToast: (input: UsToastInput) => number;
 
   constructor(
     seed: DemoSeed = cloneDemoSeed(),
     private readonly workspace: WorkspaceStore = workspaceStore,
+    options: {
+      readonly kernelSource?: KernelChangeSetSource | null;
+      readonly pushToast?: (input: UsToastInput) => number;
+    } = {},
   ) {
-    this.state = { changeSets: seed.changeSets };
+    this.kernelSource = options.kernelSource ?? null;
+    this.showToast = options.pushToast ?? pushToast;
+    this.state = {
+      changeSets: seed.changeSets,
+      kernelChangeSets: [],
+      kernelSyncAt: null,
+      kernelBusy: false,
+    };
   }
 
   subscribe = (listener: Listener): (() => void) => {
@@ -37,8 +66,26 @@ export class ChangeSetStore {
 
   getSnapshot = (): ChangeSetState => this.state;
 
+  setKernelSource(source: KernelChangeSetSource | null): void {
+    this.kernelSource = source;
+    if (source === null) {
+      this.state = {
+        ...this.state,
+        kernelChangeSets: [],
+        kernelSyncAt: null,
+        kernelBusy: false,
+      };
+      this.emit();
+    }
+  }
+
   reset(seed: DemoSeed = cloneDemoSeed()): void {
-    this.state = { changeSets: seed.changeSets };
+    this.state = {
+      changeSets: seed.changeSets,
+      kernelChangeSets: [],
+      kernelSyncAt: null,
+      kernelBusy: false,
+    };
     this.emit();
   }
 
@@ -49,9 +96,107 @@ export class ChangeSetStore {
   }
 
   submit(changeSet: ChangeSet): ChangeSet {
-    this.state = { changeSets: [changeSet, ...this.state.changeSets] };
+    this.state = {
+      ...this.state,
+      changeSets: [changeSet, ...this.state.changeSets],
+    };
     this.emit();
     return changeSet;
+  }
+
+  async refreshKernelAiChanges(actor: MemberId): Promise<void> {
+    if (!this.kernelSource) return;
+    this.kernelSource.setActor(actor);
+    this.state = { ...this.state, kernelBusy: true };
+    this.emit();
+    try {
+      const kernelChangeSets = await this.kernelSource.listAiChanges();
+      this.state = {
+        ...this.state,
+        kernelChangeSets,
+        kernelSyncAt: kernelSyncClock,
+        kernelBusy: false,
+      };
+      this.emit();
+    } catch (error) {
+      this.state = { ...this.state, kernelBusy: false };
+      this.emit();
+      this.showToast({
+        title: "内核 AI 变更集同步失败",
+        desc: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  async confirmKernelItems(
+    changeSetId: string,
+    itemIds: readonly string[],
+    actor: MemberId,
+  ): Promise<void> {
+    if (!this.kernelSource) return;
+    this.kernelSource.setActor(actor);
+    this.state = { ...this.state, kernelBusy: true };
+    this.emit();
+    try {
+      const result = await this.kernelSource.confirmAiChange(
+        changeSetId,
+        itemIds.length > 0 ? itemIds : undefined,
+      );
+      if (!result.ok) {
+        this.showToast({ title: "内核确认失败", desc: result.reason });
+        this.state = { ...this.state, kernelBusy: false };
+        this.emit();
+        return;
+      }
+      const kernelChangeSets = await this.kernelSource.listAiChanges();
+      this.state = {
+        ...this.state,
+        kernelChangeSets,
+        kernelSyncAt: kernelSyncClock,
+        kernelBusy: false,
+      };
+      this.emit();
+      this.showToast({ title: "内核 AI 变更已确认" });
+    } catch (error) {
+      this.state = { ...this.state, kernelBusy: false };
+      this.emit();
+      this.showToast({
+        title: "内核确认失败",
+        desc: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  async rejectKernel(changeSetId: string, actor: MemberId): Promise<void> {
+    if (!this.kernelSource) return;
+    this.kernelSource.setActor(actor);
+    this.state = { ...this.state, kernelBusy: true };
+    this.emit();
+    try {
+      const result = await this.kernelSource.rejectAiChange(changeSetId);
+      if (!result.ok) {
+        this.showToast({ title: "内核拒绝失败", desc: result.reason });
+        this.state = { ...this.state, kernelBusy: false };
+        this.emit();
+        return;
+      }
+      const kernelChangeSets = await this.kernelSource.listAiChanges();
+      this.state = {
+        ...this.state,
+        kernelChangeSets,
+        kernelSyncAt: kernelSyncClock,
+        kernelBusy: false,
+      };
+      this.emit();
+      this.showToast({ title: "内核 AI 变更已拒绝" });
+    } catch (error) {
+      this.state = { ...this.state, kernelBusy: false };
+      this.emit();
+      this.showToast({
+        title: "内核拒绝失败",
+        desc: error instanceof Error ? error.message : String(error),
+      });
+    }
   }
 
   confirmAll(changeSetId: string): ChangeSetResult {
@@ -193,6 +338,7 @@ export class ChangeSetStore {
 
   private replace(changeSet: ChangeSet): void {
     this.state = {
+      ...this.state,
       changeSets: this.state.changeSets.map((candidate) =>
         candidate.id === changeSet.id ? changeSet : candidate,
       ),

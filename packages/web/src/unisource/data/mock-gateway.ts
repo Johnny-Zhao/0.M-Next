@@ -196,6 +196,10 @@ export class MockUnisourceGateway implements UnisourceGateway {
     return this.validationRuns.get(runId) ?? [];
   }
 
+  async listAiChanges(): Promise<readonly ChangeSet[]> {
+    return this.changeSets.getSnapshot().changeSets;
+  }
+
   async proposeAiChange(changeSet: ChangeSet): Promise<ChangeSet> {
     return this.changeSets.submit(changeSet);
   }

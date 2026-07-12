@@ -1,4 +1,6 @@
 import type {
+  AiChangeItem,
+  AiChangeSet,
   CheckResultItem,
   CommandError,
   ObjectHistoryEntry,
@@ -7,11 +9,14 @@ import type {
 } from "@m-next/views";
 
 import type {
+  ChangeItem,
+  ChangeSet,
   DataFieldPrimitive,
   DataFieldValue,
   DataObject,
   DataObjectStatus,
   DataSource,
+  FieldCode,
   FieldDataType,
   FieldDef,
   MemberId,
@@ -129,6 +134,18 @@ export function mapCheckResult(dto: CheckResultItem): RuleOutcome {
   };
 }
 
+export function mapAiChangeSet(dto: AiChangeSet): ChangeSet {
+  return {
+    id: dto.setId,
+    source: "ai",
+    status: mapAiChangeSetStatus(dto.status),
+    title: dto.action || `内核 AI 变更集 ${shortId(dto.setId)}`,
+    actor: "ai",
+    createdAt: dto.createdAt,
+    items: dto.items.map(mapAiChangeItem),
+  };
+}
+
 export function mapCommandError(error: CommandError): WriteRejection {
   return {
     code: error.code,
@@ -143,6 +160,79 @@ export function mapCommandError(error: CommandError): WriteRejection {
       }),
     ),
   };
+}
+
+function mapAiChangeItem(item: AiChangeItem): ChangeItem {
+  const payload = item.payload;
+  const entityId =
+    readString(payload, "objectId") ??
+    readString(payload, "targetId") ??
+    readString(payload, "relationId") ??
+    readString(payload, "id") ??
+    item.itemId;
+  const fieldCode =
+    readString(payload, "fieldCode") ?? readString(payload, "fieldDefCode");
+  const op = mapAiOp(item.opType);
+  return {
+    id: item.itemId,
+    op,
+    target: fieldCode
+      ? { entityType: "field", entityId, fieldCode }
+      : {
+          entityType: op === "createRelation" ? "relation" : "object",
+          entityId,
+        },
+    objectTypeCode: readString(payload, "objectTypeCode"),
+    fields: readPrimitiveRecord(payload.fields),
+    oldValue: toOptionalPrimitive(payload.oldValue ?? payload.before),
+    nextValue: toOptionalPrimitive(
+      payload.nextValue ?? payload.value ?? payload.after,
+    ),
+    confirmed: item.itemStatus === "APPLIED" || item.itemStatus === "SKIPPED",
+    applied: item.itemStatus === "APPLIED",
+    note: `${item.opType} · ${item.itemStatus}`,
+  };
+}
+
+function mapAiChangeSetStatus(
+  status: AiChangeSet["status"],
+): ChangeSet["status"] {
+  if (status === "CONFIRMED") return "resolved";
+  if (status === "REJECTED") return "rejected";
+  return "pending";
+}
+
+function mapAiOp(opType: string): ChangeItem["op"] {
+  const normalized = opType.toUpperCase();
+  if (normalized.includes("CREATE_RELATION")) return "createRelation";
+  if (normalized.includes("CREATE_OBJECT")) return "createObject";
+  return "updateField";
+}
+
+function readString(
+  record: Readonly<Record<string, unknown>>,
+  key: string,
+): string | undefined {
+  const value = record[key];
+  return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
+function readPrimitiveRecord(
+  value: unknown,
+): Record<FieldCode, DataFieldPrimitive> | undefined {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return undefined;
+  }
+  return Object.fromEntries(
+    Object.entries(value).map(([key, fieldValue]) => [
+      key,
+      toDataFieldPrimitive(fieldValue),
+    ]),
+  );
+}
+
+function shortId(value: string): string {
+  return value.length > 8 ? value.slice(0, 8) : value;
 }
 
 function mapFieldDefinition(field: ObjectType["fields"][number]): FieldDef {

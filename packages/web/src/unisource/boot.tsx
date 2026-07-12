@@ -15,6 +15,7 @@ import {
 } from "./data/kernel-gateway";
 import { KernelWriteBridge } from "./data/write-bridge";
 import { applyDemoSeed, configureBackendReload } from "./state/demo-reset";
+import { changeSetStore } from "./state/changeset-store";
 import { validationStore } from "./state/validation-store";
 import { workspaceStore } from "./state/workspace-store";
 
@@ -38,6 +39,7 @@ async function boot(root: Root, mode: BootMode): Promise<void> {
     configureBackendReload(null);
     workspaceStore.setWriteSink(null);
     validationStore.setKernelSource(null);
+    changeSetStore.setKernelSource(null);
     setKernelRuntimeState({
       backend: false,
       workspaceId: null,
@@ -63,6 +65,8 @@ async function boot(root: Root, mode: BootMode): Promise<void> {
     applyDemoSeed(seed, notify ? { toastTitle: "已从内核重载工作空间" } : {});
     workspaceStore.setWriteSink(writeBridge);
     validationStore.setKernelSource(gateway);
+    changeSetStore.setKernelSource(gateway);
+    void changeSetStore.refreshKernelAiChanges("wangyun");
     setKernelRuntimeState({
       backend: true,
       workspaceId,
@@ -130,6 +134,7 @@ function fallbackToMock(root: Root): void {
   configureBackendReload(null);
   workspaceStore.setWriteSink(null);
   validationStore.setKernelSource(null);
+  changeSetStore.setKernelSource(null);
   setKernelRuntimeState({
     backend: false,
     workspaceId: null,

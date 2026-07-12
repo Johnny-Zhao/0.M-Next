@@ -38,6 +38,7 @@ import type {
 } from "../state/workspace-store";
 import type { RuleOutcome } from "../validation/rules";
 import {
+  mapAiChangeSet,
   mapCommandError,
   mapCheckResult,
   mapHistoryEntry,
@@ -424,22 +425,60 @@ export class KernelGateway implements UnisourceGateway {
     return items.map(mapCheckResult);
   }
 
-  async proposeAiChange(
-    ...args: Parameters<UnisourceGateway["proposeAiChange"]>
-  ): Promise<ChangeSet> {
-    this.rejectWrite(...args);
+  async listAiChanges(): Promise<readonly ChangeSet[]> {
+    const sets = await this.viewClient.aiChanges(
+      this.workspaceId,
+      this.currentActor,
+      { status: "PROPOSED" },
+    );
+    return sets.map(mapAiChangeSet);
+  }
+
+  async proposeAiChange(changeSet: ChangeSet): Promise<ChangeSet> {
+    return this.runWrite(async () => {
+      await this.commandClient.proposeAiChange(this.workspaceId, {
+        action: "SUGGEST_FIELDS",
+        selection: {
+          objectIds: [
+            ...new Set(
+              changeSet.items
+                .map((item) => item.target.entityId)
+                .filter((id) => id.length > 0),
+            ),
+          ],
+          checkResultIds: [],
+        },
+        instruction: changeSet.title,
+      });
+      return changeSet;
+    });
   }
 
   async confirmAiChange(
-    ...args: Parameters<UnisourceGateway["confirmAiChange"]>
+    setId: string,
+    itemIds?: readonly string[],
   ): Promise<ChangeSetResult> {
-    this.rejectWrite(...args);
+    return this.runWrite(async () => {
+      await this.commandClient.confirmAiChange(
+        this.workspaceId,
+        setId,
+        itemIds,
+      );
+      return {
+        ok: true,
+        changeSet: await this.readAiChangeSet(setId, "resolved"),
+      };
+    });
   }
 
-  async rejectAiChange(
-    ...args: Parameters<UnisourceGateway["rejectAiChange"]>
-  ): Promise<ChangeSetResult> {
-    this.rejectWrite(...args);
+  async rejectAiChange(setId: string): Promise<ChangeSetResult> {
+    return this.runWrite(async () => {
+      await this.commandClient.rejectAiChange(this.workspaceId, setId);
+      return {
+        ok: true,
+        changeSet: await this.readAiChangeSet(setId, "rejected"),
+      };
+    });
   }
 
   private rejectWrite(...args: readonly unknown[]): never {
@@ -456,6 +495,20 @@ export class KernelGateway implements UnisourceGateway {
       }
       throw error;
     }
+  }
+
+  private async readAiChangeSet(
+    setId: string,
+    fallbackStatus: ChangeSet["status"],
+  ): Promise<ChangeSet> {
+    const sets = await this.viewClient.aiChanges(
+      this.workspaceId,
+      this.currentActor,
+      { setId },
+    );
+    return (
+      sets.map(mapAiChangeSet)[0] ?? kernelAiFallback(setId, fallbackStatus)
+    );
   }
 
   private async requireObjectType(code: string): Promise<ObjectType> {
@@ -721,8 +774,27 @@ function kernelWriteEvent(
   };
 }
 
+function kernelAiFallback(
+  setId: string,
+  status: ChangeSet["status"],
+): ChangeSet {
+  return {
+    id: setId,
+    source: "ai",
+    status,
+    title: `内核 AI 变更集 ${shortId(setId)}`,
+    actor: "ai",
+    createdAt: "2026-07-10T10:24:00+08:00",
+    items: [],
+  };
+}
+
 function latestChangeAt(events: readonly ChangeEvent[]): string | null {
   return events[0]?.at ?? null;
+}
+
+function shortId(value: string): string {
+  return value.length > 8 ? value.slice(0, 8) : value;
 }
 
 function byId<T extends { readonly id: string }>(

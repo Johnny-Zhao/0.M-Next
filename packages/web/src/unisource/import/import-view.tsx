@@ -1,7 +1,10 @@
 import { useMemo, useState, type ReactNode } from "react";
 
+import { useKernelRuntimeState } from "../data/boot-mode";
+import type { ChangeSet } from "../model/kernel";
 import type { RawImport } from "../model/view-layer";
 import { IconSpark, UsButton, UsMonoTag, pushToast } from "../primitives";
+import { useSessionSnapshot } from "../state/session-store";
 import { changeSetStore, useChangeSetSnapshot } from "../state/changeset-store";
 import { useWorkspaceSnapshot, workspaceStore } from "../state/workspace-store";
 import { ImportSteps } from "./import-steps";
@@ -12,6 +15,8 @@ import { TargetDiffList } from "./target-diff-list";
 export function ImportView() {
   const workspace = useWorkspaceSnapshot();
   const changeSets = useChangeSetSnapshot();
+  const session = useSessionSnapshot();
+  const kernelRuntime = useKernelRuntimeState();
   const [parsed, setParsed] = useState(true);
   const [loading, setLoading] = useState(false);
   const [confirmedIds, setConfirmedIds] = useState<ReadonlySet<string>>(
@@ -60,6 +65,19 @@ export function ImportView() {
         ],
       });
     }
+  };
+  const syncKernel = () => {
+    void changeSetStore.refreshKernelAiChanges(session.currentMemberId);
+  };
+  const confirmKernel = (changeSetId: string, itemIds: readonly string[]) => {
+    void changeSetStore.confirmKernelItems(
+      changeSetId,
+      itemIds,
+      session.currentMemberId,
+    );
+  };
+  const rejectKernel = (changeSetId: string) => {
+    void changeSetStore.rejectKernel(changeSetId, session.currentMemberId);
   };
 
   return (
@@ -136,12 +154,107 @@ export function ImportView() {
                   ✓ 确认写入
                 </UsButton>
               </footer>
+              {kernelRuntime.backend ? (
+                <KernelAiChangeSetsPanel
+                  busy={changeSets.kernelBusy}
+                  changeSets={changeSets.kernelChangeSets}
+                  onConfirm={confirmKernel}
+                  onReject={rejectKernel}
+                  onSync={syncKernel}
+                  syncAt={changeSets.kernelSyncAt}
+                />
+              ) : null}
             </>
           )}
         </article>
       </div>
     </section>
   );
+}
+
+function KernelAiChangeSetsPanel(props: {
+  readonly busy: boolean;
+  readonly changeSets: readonly ChangeSet[];
+  readonly syncAt: string | null;
+  readonly onSync: () => void;
+  readonly onConfirm: (changeSetId: string, itemIds: readonly string[]) => void;
+  readonly onReject: (changeSetId: string) => void;
+}) {
+  return (
+    <section className="us-targetdiff" aria-label="内核 AI 变更集">
+      <section>
+        <header>
+          <div>
+            <UsMonoTag tone="primary">KERNEL AI</UsMonoTag>
+            <strong>内核 AI 变更集(权威)</strong>
+          </div>
+          <UsButton
+            disabled={props.busy}
+            onClick={props.onSync}
+            size="sm"
+            variant="secondary"
+          >
+            {props.busy ? "同步中" : "同步"}
+          </UsButton>
+        </header>
+        {props.changeSets.length === 0 ? (
+          <article>
+            <small>
+              暂无内核待确认项
+              {props.syncAt ? ` · ${props.syncAt}` : ""}
+            </small>
+          </article>
+        ) : (
+          props.changeSets.map((changeSet) => {
+            const openItemIds = changeSet.items
+              .filter((item) => item.confirmed !== true)
+              .map((item) => item.id);
+            return (
+              <article data-confidence="change" key={changeSet.id}>
+                <div>
+                  <b>{changeSet.title}</b>
+                  <small>
+                    {changeSetStatusLabel(changeSet.status)} ·{" "}
+                    {changeSet.items.length} 项 · {changeSet.createdAt}
+                  </small>
+                </div>
+                {changeSet.items.slice(0, 3).map((item) => (
+                  <label key={item.id}>
+                    {item.note ?? item.op}
+                    <span className="us-data"> {item.id.slice(0, 8)}</span>
+                  </label>
+                ))}
+                <footer className="us-import-actions">
+                  <UsButton
+                    disabled={props.busy || openItemIds.length === 0}
+                    onClick={() => props.onConfirm(changeSet.id, openItemIds)}
+                    size="sm"
+                    variant="primary"
+                  >
+                    确认所列项
+                  </UsButton>
+                  <UsButton
+                    disabled={props.busy}
+                    onClick={() => props.onReject(changeSet.id)}
+                    size="sm"
+                    variant="secondary"
+                  >
+                    拒绝
+                  </UsButton>
+                </footer>
+              </article>
+            );
+          })
+        )}
+      </section>
+    </section>
+  );
+}
+
+function changeSetStatusLabel(status: ChangeSet["status"]): string {
+  if (status === "resolved") return "已确认";
+  if (status === "rejected") return "已拒绝";
+  return "待确认";
 }
 
 function renderRaw(raw: RawImport) {

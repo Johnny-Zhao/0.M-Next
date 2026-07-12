@@ -234,6 +234,14 @@ export interface UnisourceGateway {
   checkResults(runId: string): Promise<readonly RuleOutcome[]>;
 
   /**
+   * Read kernel-authoritative AI change sets without replacing scripted local sets.
+   * @kernel GET /workspaces/{id}/views/ai-changes.
+   * @mock Return the local ChangeSetStore projection.
+   * @gap G1: displayed as an overlay until all scripted flows migrate.
+   */
+  listAiChanges(): Promise<readonly ChangeSet[]>;
+
+  /**
    * Submit an AI change set for human confirmation.
    * @kernel POST /workspaces/{id}/ai-commands ProposeAiChange.
    * @mock Delegate to ChangeSetStore.submit.

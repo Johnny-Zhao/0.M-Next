@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 
+import type { ChangeSet, MemberId } from "../model/kernel";
 import { cloneDemoSeed } from "../seed/demo-seed";
-import { ChangeSetStore } from "./changeset-store";
+import {
+  ChangeSetStore,
+  type ChangeSetResult,
+  type KernelChangeSetSource,
+} from "./changeset-store";
 import { WorkspaceStore } from "./workspace-store";
 
 describe("ChangeSetStore", () => {
@@ -155,4 +160,114 @@ describe("ChangeSetStore", () => {
       entityId: "contract-new",
     });
   });
+
+  it("refreshes kernel AI change sets without replacing scripted sets", async () => {
+    const seed = cloneDemoSeed();
+    const source = new FakeKernelChangeSetSource([kernelChangeSet("kernel-1")]);
+    const store = new ChangeSetStore(seed, new WorkspaceStore(seed), {
+      kernelSource: source,
+      pushToast: () => 0,
+    });
+
+    await store.refreshKernelAiChanges("lixiao");
+
+    expect(source.actorIds).toEqual(["lixiao"]);
+    expect(store.getSnapshot().changeSets).toHaveLength(seed.changeSets.length);
+    expect(store.getSnapshot().kernelChangeSets[0]?.id).toBe("kernel-1");
+    expect(store.getSnapshot().kernelSyncAt).toBe("2026-07-10T10:32:00+08:00");
+    expect(store.getSnapshot().kernelBusy).toBe(false);
+  });
+
+  it("confirms selected kernel items and refreshes the overlay", async () => {
+    const seed = cloneDemoSeed();
+    const source = new FakeKernelChangeSetSource([kernelChangeSet("kernel-1")]);
+    const store = new ChangeSetStore(seed, new WorkspaceStore(seed), {
+      kernelSource: source,
+      pushToast: () => 0,
+    });
+
+    await store.confirmKernelItems("kernel-1", ["item-1"], "wangyun");
+
+    expect(source.confirmCalls).toEqual([
+      { setId: "kernel-1", itemIds: ["item-1"] },
+    ]);
+    expect(source.listCalls).toBe(1);
+    expect(store.getSnapshot().kernelBusy).toBe(false);
+  });
+
+  it("rejects kernel change sets and clears overlay when the source is removed", async () => {
+    const seed = cloneDemoSeed();
+    const source = new FakeKernelChangeSetSource([kernelChangeSet("kernel-1")]);
+    const store = new ChangeSetStore(seed, new WorkspaceStore(seed), {
+      kernelSource: source,
+      pushToast: () => 0,
+    });
+
+    await store.rejectKernel("kernel-1", "wangyun");
+    store.setKernelSource(null);
+
+    expect(source.rejectCalls).toEqual(["kernel-1"]);
+    expect(store.getSnapshot().kernelChangeSets).toEqual([]);
+    expect(store.getSnapshot().kernelSyncAt).toBeNull();
+  });
 });
+
+class FakeKernelChangeSetSource implements KernelChangeSetSource {
+  readonly actorIds: MemberId[] = [];
+  readonly confirmCalls: {
+    readonly setId: string;
+    readonly itemIds: readonly string[] | undefined;
+  }[] = [];
+  readonly rejectCalls: string[] = [];
+  listCalls = 0;
+
+  constructor(private readonly changeSets: readonly ChangeSet[]) {}
+
+  setActor(actorId: MemberId): void {
+    this.actorIds.push(actorId);
+  }
+
+  async listAiChanges(): Promise<readonly ChangeSet[]> {
+    this.listCalls += 1;
+    return this.changeSets;
+  }
+
+  async confirmAiChange(
+    setId: string,
+    itemIds?: readonly string[],
+  ): Promise<ChangeSetResult> {
+    this.confirmCalls.push({ setId, itemIds });
+    return { ok: true, changeSet: kernelChangeSet(setId) };
+  }
+
+  async rejectAiChange(setId: string): Promise<ChangeSetResult> {
+    this.rejectCalls.push(setId);
+    return { ok: true, changeSet: kernelChangeSet(setId, "rejected") };
+  }
+}
+
+function kernelChangeSet(
+  id: string,
+  status: ChangeSet["status"] = "pending",
+): ChangeSet {
+  return {
+    id,
+    source: "ai",
+    status,
+    title: "内核 AI 建议",
+    actor: "ai",
+    createdAt: "2026-07-10T10:24:00+08:00",
+    items: [
+      {
+        id: "item-1",
+        op: "updateField",
+        target: {
+          entityType: "field",
+          entityId: "prod-s3",
+          fieldCode: "price",
+        },
+        nextValue: 1199,
+      },
+    ],
+  };
+}

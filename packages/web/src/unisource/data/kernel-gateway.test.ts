@@ -214,6 +214,60 @@ describe("KernelGateway", () => {
     );
   });
 
+  it("lists kernel AI change sets from the read model", async () => {
+    const api = new FakeKernelApi();
+    api.aiChangeSets = [kernelAiChangeSet("ai-set-1")];
+    const gateway = new KernelGateway("", "ws-kernel", "wangyun", api.fetch);
+
+    const changeSets = await gateway.listAiChanges();
+
+    expect(changeSets[0]).toMatchObject({
+      id: "ai-set-1",
+      status: "pending",
+      items: [
+        {
+          id: "ai-item-1",
+          target: {
+            entityType: "field",
+            entityId: "kernel-prod-s3",
+            fieldCode: "price",
+          },
+        },
+      ],
+    });
+    expect(api.aiChangeActorIds).toEqual(["wangyun"]);
+  });
+
+  it("confirms selected kernel AI items through ai-commands", async () => {
+    const api = new FakeKernelApi();
+    api.aiChangeSets = [kernelAiChangeSet("ai-set-1")];
+    const gateway = new KernelGateway("", "ws-kernel", "wangyun", api.fetch);
+    gateway.setActor("lixiao");
+
+    const result = await gateway.confirmAiChange("ai-set-1", ["ai-item-1"]);
+
+    expect(result.ok).toBe(true);
+    expect(api.aiCommands[0]).toMatchObject({
+      actorId: "lixiao",
+      commandType: "ConfirmAiChange",
+      payload: { setId: "ai-set-1", itemIds: ["ai-item-1"] },
+    });
+    expect(api.aiChangeSetFilters).toContain("ai-set-1");
+  });
+
+  it("rejects kernel AI change sets through ai-commands", async () => {
+    const api = new FakeKernelApi();
+    api.aiChangeSets = [kernelAiChangeSet("ai-set-1")];
+    const gateway = new KernelGateway("", "ws-kernel", "wangyun", api.fetch);
+
+    await gateway.rejectAiChange("ai-set-1");
+
+    expect(api.aiCommands[0]).toMatchObject({
+      commandType: "RejectAiChange",
+      payload: { setId: "ai-set-1" },
+    });
+  });
+
   it("maps command failures into write rejections", async () => {
     const api = new FakeKernelApi();
     api.seedObjects(2);
@@ -286,6 +340,14 @@ class FakeKernelApi {
     readonly commandType: string;
     readonly payload: Record<string, unknown>;
   }[] = [];
+  readonly aiCommands: {
+    readonly actorId: string | null;
+    readonly commandType: string;
+    readonly payload: Record<string, unknown>;
+  }[] = [];
+  aiChangeSets: AiChangeSetFixture[] = [];
+  readonly aiChangeActorIds: (string | null)[] = [];
+  readonly aiChangeSetFilters: (string | null)[] = [];
   checkResults: CheckResultFixture[] = [];
   readonly checkResultPageCalls: number[] = [];
   failNextUpdate = false;
@@ -345,6 +407,19 @@ class FakeKernelApi {
         pageSize: size,
         total: this.checkResults.length,
       });
+    }
+    if (url.pathname.endsWith("/views/ai-changes")) {
+      this.aiChangeActorIds.push(readHeader(init?.headers, "X-Actor-Id"));
+      const setId = url.searchParams.get("setId");
+      this.aiChangeSetFilters.push(setId);
+      return json(
+        setId
+          ? this.aiChangeSets.filter((changeSet) => changeSet.setId === setId)
+          : this.aiChangeSets,
+      );
+    }
+    if (url.pathname.endsWith("/ai-commands") && init?.method === "POST") {
+      return this.handleAiCommand(String(init.body ?? "{}"), init);
     }
     if (url.pathname.endsWith("/commands") && init?.method === "POST") {
       return this.handleCommand(String(init.body ?? "{}"), init);
@@ -481,6 +556,23 @@ class FakeKernelApi {
       events: this.ruleCommandReturnsRunId ? ["kernel-run-1"] : [],
     });
   }
+
+  private handleAiCommand(bodyText: string, init: RequestInit): Response {
+    const body = JSON.parse(bodyText) as {
+      readonly commandType?: string;
+      readonly payload?: Record<string, unknown>;
+    };
+    this.aiCommands.push({
+      actorId: readHeader(init.headers, "X-Actor-Id"),
+      commandType: body.commandType ?? "",
+      payload: body.payload ?? {},
+    });
+    return json({
+      status: "COMMITTED",
+      events: [`event-${this.aiCommands.length}`],
+      idempotentReplay: false,
+    });
+  }
 }
 
 interface ViewObjectFixture {
@@ -529,6 +621,27 @@ interface CheckResultFixture {
   readonly createdAt: string;
 }
 
+interface AiChangeSetFixture {
+  readonly setId: string;
+  readonly action: string;
+  readonly status: "PROPOSED" | "REJECTED" | "CONFIRMED";
+  readonly provider: string;
+  readonly providerVersion: string;
+  readonly contextHash: string;
+  readonly resultText: string | null;
+  readonly createdAt: string;
+  readonly applied: number;
+  readonly skipped: number;
+  readonly items: readonly {
+    readonly itemId: string;
+    readonly seq: number;
+    readonly opType: string;
+    readonly payload: Readonly<Record<string, unknown>>;
+    readonly precheck: Readonly<Record<string, unknown>>;
+    readonly itemStatus: string;
+  }[];
+}
+
 function toViewObject(object: DataObject, objectId: string): ViewObjectFixture {
   return {
     objectId,
@@ -559,6 +672,36 @@ function kernelCheck(
     fieldCode,
     configHash: "hash",
     createdAt: "2026-07-10T10:24:00+08:00",
+  };
+}
+
+function kernelAiChangeSet(setId: string): AiChangeSetFixture {
+  return {
+    setId,
+    action: "SUGGEST_FIELDS",
+    status: "PROPOSED",
+    provider: "kernel",
+    providerVersion: "v1",
+    contextHash: "hash",
+    resultText: null,
+    createdAt: "2026-07-10T10:24:00+08:00",
+    applied: 0,
+    skipped: 0,
+    items: [
+      {
+        itemId: "ai-item-1",
+        seq: 1,
+        opType: "UPDATE_FIELD",
+        payload: {
+          objectId: "kernel-prod-s3",
+          fieldCode: "price",
+          before: 1299,
+          after: 1199,
+        },
+        precheck: {},
+        itemStatus: "PROPOSED",
+      },
+    ],
   };
 }
 
