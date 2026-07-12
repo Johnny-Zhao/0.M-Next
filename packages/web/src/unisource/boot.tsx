@@ -15,6 +15,7 @@ import {
 } from "./data/kernel-gateway";
 import { KernelWriteBridge } from "./data/write-bridge";
 import { applyDemoSeed, configureBackendReload } from "./state/demo-reset";
+import { validationStore } from "./state/validation-store";
 import { workspaceStore } from "./state/workspace-store";
 
 const rootElement = document.getElementById("root");
@@ -36,6 +37,7 @@ async function boot(root: Root, mode: BootMode): Promise<void> {
   if (!mode.backend) {
     configureBackendReload(null);
     workspaceStore.setWriteSink(null);
+    validationStore.setKernelSource(null);
     setKernelRuntimeState({
       backend: false,
       workspaceId: null,
@@ -60,6 +62,7 @@ async function boot(root: Root, mode: BootMode): Promise<void> {
     const report = gateway.getLastLoadReport();
     applyDemoSeed(seed, notify ? { toastTitle: "已从内核重载工作空间" } : {});
     workspaceStore.setWriteSink(writeBridge);
+    validationStore.setKernelSource(gateway);
     setKernelRuntimeState({
       backend: true,
       workspaceId,
@@ -126,6 +129,7 @@ function fallbackToMock(root: Root): void {
   clearBrowserBackendPreference();
   configureBackendReload(null);
   workspaceStore.setWriteSink(null);
+  validationStore.setKernelSource(null);
   setKernelRuntimeState({
     backend: false,
     workspaceId: null,

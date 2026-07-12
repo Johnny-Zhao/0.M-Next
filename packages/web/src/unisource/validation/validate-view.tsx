@@ -5,6 +5,7 @@ import type { RuleGroup } from "./rules";
 import { CompareDiff } from "./compare-diff";
 import { RuleNav } from "./rule-nav";
 import { ValidationCardList } from "./validation-card";
+import { useKernelRuntimeState } from "../data/boot-mode";
 import { IconSync, UsButton, UsMonoTag, pushToast } from "../primitives";
 import { useSessionSnapshot } from "../state/session-store";
 import {
@@ -18,6 +19,7 @@ export function ValidateView() {
   const workspace = useWorkspaceSnapshot();
   const session = useSessionSnapshot();
   const validation = useValidationSnapshot();
+  const kernelRuntime = useKernelRuntimeState();
   const [group, setGroup] = useState<RuleGroup | "全部规则">("全部规则");
   const [selectedRule, setSelectedRule] = useState<string | null>("XSRC-001");
   const [running, setRunning] = useState(false);
@@ -47,6 +49,9 @@ export function ValidateView() {
   const runNow = () => {
     setRunning(true);
     validationStore.runAll("0.2s");
+    if (kernelRuntime.backend) {
+      void validationStore.runKernelCheck(session.currentMemberId);
+    }
     window.setTimeout(() => setRunning(false), 360);
   };
   const fix = (ruleCode: string) => {
@@ -104,8 +109,45 @@ export function ValidateView() {
             results={filtered}
             selectedRule={selected?.ruleCode ?? null}
           />
+          {kernelRuntime.backend ? (
+            <section className="us-validationcards" aria-label="内核校验">
+              <article className="us-validationcard" data-tone="warning">
+                <button type="button">
+                  <span className="us-validationcard__mark">✓</span>
+                  <span>
+                    <strong>内核校验(权威)</strong>
+                    <small>
+                      {validation.kernelRunning
+                        ? "运行中"
+                        : validation.kernelRunAt
+                          ? `${formatTime(validation.kernelRunAt)} · ${validation.kernelResults.length} 命中`
+                          : "尚未运行"}
+                    </small>
+                  </span>
+                </button>
+                {validation.kernelResults.length > 0 ? (
+                  <ul>
+                    {validation.kernelResults.map((result) => (
+                      <li
+                        key={`${result.ruleCode}-${result.target?.entityId ?? "workspace"}`}
+                      >
+                        <strong>{result.ruleCode}</strong> · {result.detail}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p>
+                    {validation.kernelRunning
+                      ? "正在读取内核校验结果..."
+                      : "点击「立即运行」后显示内核权威命中。"}
+                  </p>
+                )}
+              </article>
+            </section>
+          ) : null}
           <p className="us-validate-foot">
             错误会阻断「生成配置单 / 分享」,修复或设为例外后自动解锁。
+            {kernelRuntime.backend ? " 内核 BLOCK 亦会阻断分享。" : ""}
           </p>
         </main>
         <CompareDiff members={workspace.members} rule={selected} />

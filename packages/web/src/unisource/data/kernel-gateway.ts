@@ -2,6 +2,7 @@ import {
   CommandFailure,
   CommandClient,
   ViewClient,
+  type CheckResultItem,
   type FetchFn,
   type ObjectType,
   type RelationSummary,
@@ -38,6 +39,7 @@ import type {
 import type { RuleOutcome } from "../validation/rules";
 import {
   mapCommandError,
+  mapCheckResult,
   mapHistoryEntry,
   mapObjectType,
   mapViewObject,
@@ -79,21 +81,24 @@ export class KernelGateway implements UnisourceGateway {
   private readonly viewClient: ViewClient;
   private readonly commandClient: CommandClient;
   private lastLoadReport: KernelGatewayLoadReport | null = null;
+  private currentActor: MemberId;
   private objectTypesByCode: ReadonlyMap<string, ObjectType> | null = null;
   private relationTypeIdsByCode: ReadonlyMap<string, string> | null = null;
 
   constructor(
     baseUrl: string,
     private readonly workspaceId: string,
-    actorId: string,
+    actorId: MemberId,
     fetchFn?: FetchFn,
   ) {
     this.viewClient = new ViewClient(baseUrl, fetchFn);
     this.commandClient = new CommandClient(baseUrl, fetchFn);
+    this.currentActor = actorId;
     this.commandClient.setActorId(actorId);
   }
 
   setActor(actorId: MemberId): void {
+    this.currentActor = actorId;
     this.commandClient.setActorId(actorId);
   }
 
@@ -390,13 +395,33 @@ export class KernelGateway implements UnisourceGateway {
   }
 
   async runRuleCheck(): Promise<string> {
-    throw tus016();
+    return this.viewClient.runRuleCheck(
+      this.workspaceId,
+      this.currentActor,
+      undefined,
+    );
   }
 
-  async checkResults(
-    ...args: Parameters<UnisourceGateway["checkResults"]>
-  ): Promise<readonly RuleOutcome[]> {
-    this.rejectWrite(...args);
+  async checkResults(runId: string): Promise<readonly RuleOutcome[]> {
+    const items: CheckResultItem[] = [];
+    let page = 0;
+    const size = 50;
+    while (true) {
+      const result = await this.viewClient.checkResults(
+        this.workspaceId,
+        runId,
+        page,
+        size,
+      );
+      items.push(...result.items);
+      if (
+        result.items.length === 0 ||
+        (page + 1) * result.pageSize >= result.total
+      )
+        break;
+      page += 1;
+    }
+    return items.map(mapCheckResult);
   }
 
   async proposeAiChange(

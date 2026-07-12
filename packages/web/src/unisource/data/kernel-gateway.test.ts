@@ -159,6 +159,61 @@ describe("KernelGateway", () => {
     });
   });
 
+  it("runs kernel rule checks with the current actor", async () => {
+    const api = new FakeKernelApi();
+    const gateway = new KernelGateway("", "ws-kernel", "wangyun", api.fetch);
+    gateway.setActor("lixiao");
+
+    const runId = await gateway.runRuleCheck();
+
+    expect(runId).toBe("kernel-run-1");
+    expect(api.ruleCommands[0]).toMatchObject({
+      actorId: "lixiao",
+      commandType: "RunRuleCheck",
+      payload: {},
+    });
+  });
+
+  it("loads paged kernel check results and maps them into rule outcomes", async () => {
+    const api = new FakeKernelApi();
+    api.checkResults = [
+      kernelCheck("RULE-1", "BLOCK", "prod-s3", "price"),
+      kernelCheck("RULE-2", "WARN", "prod-g2", null),
+      kernelCheck("RULE-3", "OK", "prod-m1", null),
+      ...Array.from({ length: 48 }, (_, index) =>
+        kernelCheck(`RULE-${index + 4}`, "OK", `prod-extra-${index}`, null),
+      ),
+    ];
+    const gateway = new KernelGateway("", "ws-kernel", "wangyun", api.fetch);
+
+    const results = await gateway.checkResults("kernel-run-1");
+
+    expect(api.checkResultPageCalls).toEqual([0, 1]);
+    expect(results.slice(0, 3).map((result) => result.ruleCode)).toEqual([
+      "RULE-1",
+      "RULE-2",
+      "RULE-3",
+    ]);
+    expect(results[0]).toMatchObject({
+      level: "error",
+      target: {
+        entityType: "field",
+        entityId: "prod-s3",
+        fieldCode: "price",
+      },
+    });
+  });
+
+  it("surfaces rule command errors", async () => {
+    const api = new FakeKernelApi();
+    api.ruleCommandReturnsRunId = false;
+    const gateway = new KernelGateway("", "ws-kernel", "wangyun", api.fetch);
+
+    await expect(gateway.runRuleCheck()).rejects.toThrow(
+      "RunRuleCheck 未返回 runId",
+    );
+  });
+
   it("maps command failures into write rejections", async () => {
     const api = new FakeKernelApi();
     api.seedObjects(2);
@@ -226,7 +281,15 @@ class FakeKernelApi {
     readonly commandType: string;
     readonly payload: Record<string, unknown>;
   }[] = [];
+  readonly ruleCommands: {
+    readonly actorId: string | null;
+    readonly commandType: string;
+    readonly payload: Record<string, unknown>;
+  }[] = [];
+  checkResults: CheckResultFixture[] = [];
+  readonly checkResultPageCalls: number[] = [];
   failNextUpdate = false;
+  ruleCommandReturnsRunId = true;
   private objectSequence = 0;
   private relationSequence = 0;
 
@@ -267,6 +330,20 @@ class FakeKernelApi {
         page: 0,
         pageSize: 30,
         total: this.history.get(objectId)?.length ?? 0,
+      });
+    }
+    if (url.pathname.endsWith("/rule-commands") && init?.method === "POST") {
+      return this.handleRuleCommand(String(init.body ?? "{}"), init);
+    }
+    if (url.pathname.endsWith("/views/check-results")) {
+      const page = Number(url.searchParams.get("page") ?? "0");
+      const size = Number(url.searchParams.get("size") ?? "50");
+      this.checkResultPageCalls.push(page);
+      return json({
+        items: this.checkResults.slice(page * size, (page + 1) * size),
+        page,
+        pageSize: size,
+        total: this.checkResults.length,
       });
     }
     if (url.pathname.endsWith("/commands") && init?.method === "POST") {
@@ -387,6 +464,23 @@ class FakeKernelApi {
     }
     return json({ message: "unsupported command" }, 400);
   }
+
+  private handleRuleCommand(bodyText: string, init: RequestInit): Response {
+    const body = JSON.parse(bodyText) as {
+      readonly commandType?: string;
+      readonly payload?: Record<string, unknown>;
+    };
+    this.ruleCommands.push({
+      actorId: readHeader(init.headers, "X-Actor-Id"),
+      commandType: body.commandType ?? "",
+      payload: body.payload ?? {},
+    });
+    return json({
+      commandId: "rule-command-1",
+      status: "ACCEPTED",
+      events: this.ruleCommandReturnsRunId ? ["kernel-run-1"] : [],
+    });
+  }
 }
 
 interface ViewObjectFixture {
@@ -424,6 +518,17 @@ interface HistoryFixture {
   readonly occurredAt: string;
 }
 
+interface CheckResultFixture {
+  readonly runId: string;
+  readonly ruleCode: string;
+  readonly severity: string;
+  readonly message: string;
+  readonly objectId: string;
+  readonly fieldCode: string | null;
+  readonly configHash: string;
+  readonly createdAt: string;
+}
+
 function toViewObject(object: DataObject, objectId: string): ViewObjectFixture {
   return {
     objectId,
@@ -436,6 +541,24 @@ function toViewObject(object: DataObject, objectId: string): ViewObjectFixture {
     updatedAt: object.updatedAt,
     source: "manual",
     ruleStatus: "OK",
+  };
+}
+
+function kernelCheck(
+  ruleCode: string,
+  severity: string,
+  objectId: string,
+  fieldCode: string | null,
+): CheckResultFixture {
+  return {
+    runId: "kernel-run-1",
+    ruleCode,
+    severity,
+    message: `${ruleCode} message`,
+    objectId,
+    fieldCode,
+    configHash: "hash",
+    createdAt: "2026-07-10T10:24:00+08:00",
   };
 }
 

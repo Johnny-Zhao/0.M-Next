@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from "react";
 
 import type { MemberId } from "../model/kernel";
+import { pushToast, type UsToastInput } from "../primitives";
 import { cloneDemoSeed } from "../seed/demo-seed";
 import {
   deriveShareBlocked,
@@ -15,6 +16,9 @@ export interface ValidationState {
   readonly runAt: string;
   readonly durationLabel: string;
   readonly ignored: ReadonlySet<string>;
+  readonly kernelResults: readonly RuleOutcome[];
+  readonly kernelRunAt: string | null;
+  readonly kernelRunning: boolean;
 }
 
 export type FixResult =
@@ -30,13 +34,29 @@ type Listener = () => void;
 
 const runClock = "2026-07-10T10:32:00+08:00";
 
+export interface KernelValidationSource {
+  setActor(actorId: MemberId): void;
+  runRuleCheck(): Promise<string>;
+  checkResults(runId: string): Promise<readonly RuleOutcome[]>;
+}
+
 export class ValidationStore {
   private state: ValidationState;
   private readonly listeners = new Set<Listener>();
   private unsubscribeWorkspace: (() => void) | null = null;
   private runSequence = 0;
+  private kernelSource: KernelValidationSource | null = null;
+  private readonly showToast: (input: UsToastInput) => number;
 
-  constructor(private readonly workspace: WorkspaceStore = workspaceStore) {
+  constructor(
+    private readonly workspace: WorkspaceStore = workspaceStore,
+    options: {
+      readonly kernelSource?: KernelValidationSource | null;
+      readonly pushToast?: (input: UsToastInput) => number;
+    } = {},
+  ) {
+    this.kernelSource = options.kernelSource ?? null;
+    this.showToast = options.pushToast ?? pushToast;
     this.state = this.evaluate(new Set(), "0.2s");
     this.unsubscribeWorkspace = this.workspace.subscribe(() => {
       this.runAll("0.1s");
@@ -50,8 +70,26 @@ export class ValidationStore {
 
   getSnapshot = (): ValidationState => this.state;
 
+  setKernelSource(source: KernelValidationSource | null): void {
+    this.kernelSource = source;
+    if (source === null && this.state.kernelResults.length > 0) {
+      this.state = {
+        ...this.state,
+        kernelResults: [],
+        kernelRunAt: null,
+        kernelRunning: false,
+      };
+      this.emit();
+    }
+  }
+
   reset(): void {
-    this.state = this.evaluate(new Set(), "0.2s");
+    this.state = {
+      ...this.evaluate(new Set(), "0.2s"),
+      kernelResults: [],
+      kernelRunAt: null,
+      kernelRunning: false,
+    };
     this.emit();
   }
 
@@ -86,7 +124,43 @@ export class ValidationStore {
   }
 
   shareDisabledReason(): string | null {
-    return deriveShareBlocked(this.state.results, this.state.ignored);
+    return (
+      deriveShareBlocked(this.state.results, this.state.ignored) ??
+      (this.state.kernelResults.some(
+        (result) =>
+          result.level === "error" && !this.state.ignored.has(result.ruleCode),
+      )
+        ? "内核校验存在阻断项,修复后可分享"
+        : null)
+    );
+  }
+
+  async runKernelCheck(actor: MemberId): Promise<void> {
+    if (!this.kernelSource) return;
+    this.kernelSource.setActor(actor);
+    this.state = { ...this.state, kernelRunning: true };
+    this.emit();
+    try {
+      const runId = await this.kernelSource.runRuleCheck();
+      const results = await this.kernelSource.checkResults(runId);
+      this.state = {
+        ...this.state,
+        kernelResults: results,
+        kernelRunAt: this.kernelRunAt(),
+        kernelRunning: false,
+      };
+      this.emit();
+      this.showToast({
+        title: `内核校验:${results.length} 命中`,
+      });
+    } catch (error) {
+      this.state = { ...this.state, kernelRunning: false };
+      this.emit();
+      this.showToast({
+        title: "内核校验失败",
+        desc: error instanceof Error ? error.message : String(error),
+      });
+    }
   }
 
   ignore(ruleCode: string, actor: MemberId): void {
@@ -175,7 +249,17 @@ export class ValidationStore {
       ),
       durationLabel,
       ignored,
+      kernelResults: this.state?.kernelResults ?? [],
+      kernelRunAt: this.state?.kernelRunAt ?? null,
+      kernelRunning: this.state?.kernelRunning ?? false,
     };
+  }
+
+  private kernelRunAt(): string {
+    return runClock.replace(
+      ":00+08:00",
+      `:${String(this.runSequence).padStart(2, "0")}+08:00`,
+    );
   }
 
   private emit(): void {
