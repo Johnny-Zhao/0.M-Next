@@ -694,6 +694,37 @@ describe("view and command clients", () => {
     });
   });
 
+  it("omits itemIds from full AI confirmation payloads", async () => {
+    const fetchFn = vi.fn<FetchFn>(
+      async () => new Response(JSON.stringify({ events: ["set-1"] })),
+    );
+    const client = new CommandClient("/api", fetchFn);
+    client.setActorId("actor-1");
+
+    await client.confirmAiChange("ws", "set-1");
+
+    const request = JSON.parse(String(fetchFn.mock.calls[0]?.[1]?.body));
+    expect(request.commandType).toBe("ConfirmAiChange");
+    expect(request.payload).toEqual({ setId: "set-1" });
+  });
+
+  it("carries itemIds for item-level AI confirmation payloads", async () => {
+    const fetchFn = vi.fn<FetchFn>(
+      async () => new Response(JSON.stringify({ events: ["set-1"] })),
+    );
+    const client = new CommandClient("/api", fetchFn);
+    client.setActorId("actor-1");
+
+    await client.confirmAiChange("ws", "set-1", ["item-1", "item-2"]);
+
+    const request = JSON.parse(String(fetchFn.mock.calls[0]?.[1]?.body));
+    expect(request.commandType).toBe("ConfirmAiChange");
+    expect(request.payload).toEqual({
+      setId: "set-1",
+      itemIds: ["item-1", "item-2"],
+    });
+  });
+
   it("reads AI change sets with actor-scoped view access", async () => {
     const fetchFn = vi.fn<FetchFn>(
       async () =>

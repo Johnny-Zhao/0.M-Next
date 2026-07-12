@@ -25,10 +25,12 @@ import java.security.NoSuchAlgorithmException;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -209,10 +211,16 @@ class AiChangeRepository implements AiChangeSetSubmitter {
     if (!"PROPOSED".equals(status)) {
       throw rejected("AI-409-INVALID-STATE", "AI 变更集当前状态不可确认", "刷新变更集状态后重试");
     }
+    if (request.itemIds() != null && request.itemIds().isEmpty()) {
+      throw rejected("AI-422-EMPTY-ITEM-SELECTION", "AI 变更项确认列表不能为空", "选择至少一个待确认项后重试");
+    }
+    var allItems = changeItems(request.setId());
+    var selectedItems = selectedItems(allItems, request.itemIds());
     var applied = 0;
     var skipped = 0;
     var results = new ArrayList<BatchItemResult>();
-    for (var item : changeItems(request.setId())) {
+    for (var item : selectedItems) {
+      if (!"PROPOSED".equals(item.itemStatus())) continue;
       var precheck = precheck(request.workspaceId(), item.aiItem());
       updateItemPrecheck(item.id(), precheck);
       if ("BLOCKED".equals(precheck.get("verdict"))) {
@@ -234,19 +242,32 @@ class AiChangeRepository implements AiChangeSetSubmitter {
       results.add(new BatchItemResult(item.seq(), written.status(), null, written.events()));
     }
     var now = Instant.now();
-    jdbc.update(
-        """
-        UPDATE ai_change_set
-        SET status = 'CONFIRMED', confirmed_by = ?, confirmed_at = ?,
-            updated_by = ?, updated_at = ?
-        WHERE workspace_id = ? AND id = ?
-        """,
-        actorId,
-        Timestamp.from(now),
-        actorId,
-        Timestamp.from(now),
-        request.workspaceId(),
-        request.setId());
+    if (proposedItemCount(request.setId()) == 0) {
+      jdbc.update(
+          """
+          UPDATE ai_change_set
+          SET status = 'CONFIRMED', confirmed_by = ?, confirmed_at = ?,
+              updated_by = ?, updated_at = ?
+          WHERE workspace_id = ? AND id = ?
+          """,
+          actorId,
+          Timestamp.from(now),
+          actorId,
+          Timestamp.from(now),
+          request.workspaceId(),
+          request.setId());
+    } else {
+      jdbc.update(
+          """
+          UPDATE ai_change_set
+          SET updated_by = ?, updated_at = ?
+          WHERE workspace_id = ? AND id = ?
+          """,
+          actorId,
+          Timestamp.from(now),
+          request.workspaceId(),
+          request.setId());
+    }
     projection.projectConfirmed(request.setId());
     var result =
         new CommandResult(
@@ -327,7 +348,7 @@ class AiChangeRepository implements AiChangeSetSubmitter {
   private List<ChangeItemRow> changeItems(UUID setId) {
     return jdbc.query(
         """
-        SELECT id, seq, op_type, payload::text
+        SELECT id, seq, op_type, payload::text, item_status
         FROM ai_change_item WHERE set_id = ? ORDER BY seq FOR UPDATE
         """,
         (row, ignored) ->
@@ -335,7 +356,32 @@ class AiChangeRepository implements AiChangeSetSubmitter {
                 row.getObject(1, UUID.class),
                 row.getInt(2),
                 row.getString(3),
-                map(row.getString(4))),
+                map(row.getString(4)),
+                row.getString(5)),
+        setId);
+  }
+
+  private List<ChangeItemRow> selectedItems(
+      List<ChangeItemRow> allItems, List<UUID> requestedItemIds) {
+    if (requestedItemIds == null) return allItems;
+    Set<UUID> known = new HashSet<>();
+    for (var item : allItems) known.add(item.id());
+    for (var itemId : requestedItemIds) {
+      if (!known.contains(itemId)) {
+        throw rejected(
+            "AI-422-ITEM-NOT-IN-SET",
+            "AI 变更项不属于该变更集",
+            "刷新变更集后重新选择条目");
+      }
+    }
+    var requested = new HashSet<>(requestedItemIds);
+    return allItems.stream().filter(item -> requested.contains(item.id())).toList();
+  }
+
+  private int proposedItemCount(UUID setId) {
+    return jdbc.queryForObject(
+        "SELECT count(*) FROM ai_change_item WHERE set_id = ? AND item_status = 'PROPOSED'",
+        Integer.class,
         setId);
   }
 
@@ -631,7 +677,7 @@ class AiChangeRepository implements AiChangeSetSubmitter {
             FROM command_log
             WHERE workspace_id = ? AND command_type = 'ConfirmAiChange'
               AND result_snapshot->'events' @> CAST(? AS jsonb)
-            ORDER BY decided_at LIMIT 1
+            ORDER BY decided_at DESC LIMIT 1
             """,
             (row, ignored) -> row.getString(1),
             workspaceId,
@@ -776,7 +822,8 @@ class AiChangeRepository implements AiChangeSetSubmitter {
   private record ObjectRow(
       UUID objectId, UUID objectTypeId, long version, Map<String, Object> fields) {}
 
-  private record ChangeItemRow(UUID id, int seq, String opType, Map<String, Object> payload) {
+  private record ChangeItemRow(
+      UUID id, int seq, String opType, Map<String, Object> payload, String itemStatus) {
     AiActionProvider.AiChangeItem aiItem() {
       return new AiActionProvider.AiChangeItem(opType, payload);
     }

@@ -44,6 +44,7 @@ Spec-Ref: T-V33-AI-1a, AG-106, AG-311, AG-406
 载荷:
 
 - `setId`: 待确认写入的 AI 变更集 UUID
+- `itemIds`: 可选。缺省或 `null` 表示沿用现行为全量确认; 非空数组表示仅确认列出的变更项。
 
 仅 `PROPOSED` 状态可确认。确认需工作空间 `REVIEWER` 及以上角色。
 
@@ -54,6 +55,17 @@ Spec-Ref: T-V33-AI-1a, AG-106, AG-311, AG-406
 - `BLOCKED` 项不写入主数据, 项状态置为 `SKIPPED`
 - 成功写入项状态置为 `APPLIED`, 变更集状态置为 `CONFIRMED`
 - 重复确认已 `CONFIRMED` 的同一变更集不得重复写入, 返回首次确认结果
+
+### 4.1 条目级确认
+
+- `itemIds` 缺省或 `null`: 行为与 v1.0 完全一致, 对变更集内全部未决项执行确认。
+- `itemIds` 非空: 仅对列出的变更项执行上述 dry-run 预检与重放; 未列出的 `PROPOSED` 项保持 `PROPOSED`。
+- 列出的 `WRITABLE`/`WARN` 项写入后置为 `APPLIED`; 列出的 `BLOCKED` 项置为 `SKIPPED`, 不写入主数据。
+- 确认后仍存在 `PROPOSED` 项时, 变更集状态保持 `PROPOSED`, 可继续下一次条目级确认。
+- 全部变更项均达到终态(`APPLIED`/`SKIPPED`)后, 变更集置为 `CONFIRMED`, `confirmed_by`/`confirmed_at` 记录最后一次确认者与时间。
+- `itemIds` 中任一 UUID 不属于该变更集时, 整体拒绝并保持零写入, 错误码 `AI-422-ITEM-NOT-IN-SET`。
+- `itemIds: []` 拒绝, 错误码 `AI-422-EMPTY-ITEM-SELECTION`, 避免与全量确认语义混淆。
+- 幂等复用现有机制: 命令级 `payloadHash` 包含 `itemIds`; 项级重放键仍为 `aiconfirm:{setId}:item:{seq}`, 不新增幂等机制。
 
 ## 5. 只读查询
 
@@ -67,6 +79,8 @@ Spec-Ref: T-V33-AI-1a, AG-106, AG-311, AG-406
 - `createdAt`
 - `applied`, `skipped`
 - `items[]`: `itemId`, `seq`, `opType`, `payload`, `precheck`, `itemStatus`
+
+条目级确认后, 变更集可能仍为 `PROPOSED`; `applied`/`skipped` 始终按当前已达终态的条目计数。
 
 ## 6. 预检枚举
 
@@ -92,4 +106,6 @@ Spec-Ref: T-V33-AI-1a, AG-106, AG-311, AG-406
 - `AI-404-CHANGESET-NOT-FOUND`
 - `AI-409-IDEMPOTENCY-CONFLICT`
 - `AI-422-PROVIDER-FAILED`
+- `AI-422-ITEM-NOT-IN-SET`
+- `AI-422-EMPTY-ITEM-SELECTION`
 - `AI-409-INVALID-STATE`

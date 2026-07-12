@@ -223,6 +223,124 @@ class AiChangeE2EIntegrationTest {
     assertEquals("任务调度", moduleFieldValue(objectId, "responsibility"));
   }
 
+  @Test
+  void confirmSelectedItemsKeepsSetProposedThenFinalizesRemainingItems() throws Exception {
+    enableGovernance();
+    var setId =
+        eventId(
+            post(
+                command("ProposeAiChange", "ai-propose-partial", suggestPayload()),
+                AUTHOR.toString()));
+    var proposed = single(get("/views/ai-changes?setId=" + setId, REVIEWER.toString()));
+    var priorityItemId = itemIdByField(proposed, "priority");
+    var payload = Map.<String, Object>of("setId", setId, "itemIds", List.of(priorityItemId));
+
+    var confirmed =
+        post(command("ConfirmAiChange", "ai-confirm-priority", payload), REVIEWER.toString());
+    assertEquals(200, confirmed.getStatusCode().value(), String.valueOf(confirmed.getBody()));
+    assertEquals(
+        List.of(setId, "applied=1", "skipped=0", "errors=0"),
+        confirmed.getBody().get("events"));
+    projectOutbox();
+
+    var partial = single(get("/views/ai-changes?setId=" + setId, REVIEWER.toString()));
+    assertEquals("PROPOSED", partial.get("status"));
+    assertEquals(1, ((Number) partial.get("applied")).intValue());
+    assertEquals(0, ((Number) partial.get("skipped")).intValue());
+    assertEquals("APPLIED", itemStatusByField(partial, "priority"));
+    assertEquals("PROPOSED", itemStatusByField(partial, "score"));
+    assertEquals("LOW", fieldValue("priority"));
+
+    var replayRequest = command("ConfirmAiChange", "ai-confirm-priority-replay", payload);
+    assertEquals(200, post(replayRequest, REVIEWER.toString()).getStatusCode().value());
+    var replay = post(replayRequest, REVIEWER.toString());
+    assertTrue((Boolean) replay.getBody().get("idempotentReplay"));
+    assertEquals(1, count("command_log WHERE command_type = 'UpdateFields'"));
+
+    var finalConfirm =
+        post(
+            command("ConfirmAiChange", "ai-confirm-remaining", Map.of("setId", setId)),
+            REVIEWER.toString());
+    assertEquals(200, finalConfirm.getStatusCode().value(), String.valueOf(finalConfirm.getBody()));
+    assertEquals(
+        List.of(setId, "applied=1", "skipped=1", "errors=0"),
+        finalConfirm.getBody().get("events"));
+    projectOutbox();
+
+    var finalized = single(get("/views/ai-changes?setId=" + setId, REVIEWER.toString()));
+    assertEquals("CONFIRMED", finalized.get("status"));
+    assertEquals(2, ((Number) finalized.get("applied")).intValue());
+    assertEquals(1, ((Number) finalized.get("skipped")).intValue());
+    assertEquals("0", String.valueOf(fieldValue("score")));
+    assertEquals(2, count("command_log WHERE command_type = 'UpdateFields'"));
+  }
+
+  @Test
+  void confirmSelectedBlockedItemSkipsOnlyThatItem() {
+    enableGovernance();
+    var setId =
+        eventId(
+            post(
+                command("ProposeAiChange", "ai-propose-blocked-only", suggestPayload()),
+                AUTHOR.toString()));
+    var proposed = single(get("/views/ai-changes?setId=" + setId, REVIEWER.toString()));
+    var blockedItemId = itemIdByField(proposed, "blocked_number");
+
+    var confirmed =
+        post(
+            command(
+                "ConfirmAiChange",
+                "ai-confirm-blocked-only",
+                Map.of("setId", setId, "itemIds", List.of(blockedItemId))),
+            REVIEWER.toString());
+
+    assertEquals(200, confirmed.getStatusCode().value(), String.valueOf(confirmed.getBody()));
+    assertEquals(
+        List.of(setId, "applied=0", "skipped=1", "errors=0"),
+        confirmed.getBody().get("events"));
+    var view = single(get("/views/ai-changes?setId=" + setId, REVIEWER.toString()));
+    assertEquals("PROPOSED", view.get("status"));
+    assertEquals(0, ((Number) view.get("applied")).intValue());
+    assertEquals(1, ((Number) view.get("skipped")).intValue());
+    assertEquals("SKIPPED", itemStatusByField(view, "blocked_number"));
+    assertEquals("{}", fieldSnapshot());
+  }
+
+  @Test
+  void confirmSelectedItemsRejectsEmptyAndForeignItemIdsWithoutWriting() {
+    enableGovernance();
+    var setId =
+        eventId(
+            post(
+                command("ProposeAiChange", "ai-propose-invalid-items", suggestPayload()),
+                AUTHOR.toString()));
+
+    var empty =
+        post(
+            command(
+                "ConfirmAiChange",
+                "ai-confirm-empty-items",
+                Map.of("setId", setId, "itemIds", List.of())),
+            REVIEWER.toString());
+    var foreign =
+        post(
+            command(
+                "ConfirmAiChange",
+                "ai-confirm-foreign-item",
+                Map.of("setId", setId, "itemIds", List.of(UUID.randomUUID()))),
+            REVIEWER.toString());
+
+    assertEquals(422, empty.getStatusCode().value());
+    assertEquals("AI-422-EMPTY-ITEM-SELECTION", errorCode(empty));
+    assertEquals(422, foreign.getStatusCode().value());
+    assertEquals("AI-422-ITEM-NOT-IN-SET", errorCode(foreign));
+    assertEquals(
+        "PROPOSED",
+        single(get("/views/ai-changes?setId=" + setId, REVIEWER.toString())).get("status"));
+    assertEquals(0, count("command_log WHERE command_type = 'UpdateFields'"));
+    assertEquals("{}", fieldSnapshot());
+  }
+
   private Map<String, Object> suggestPayload() {
     return Map.of(
         "action",
@@ -292,6 +410,24 @@ class AiChangeE2EIntegrationTest {
       verdicts.put((String) field.get("fieldDefCode"), (String) precheck.get("verdict"));
     }
     return verdicts;
+  }
+
+  private String itemIdByField(Map<String, Object> view, String fieldCode) {
+    for (var item : (List<Map<String, Object>>) view.get("items")) {
+      var payload = (Map<String, Object>) item.get("payload");
+      var field = (Map<String, Object>) ((List<?>) payload.get("fields")).getFirst();
+      if (fieldCode.equals(field.get("fieldDefCode"))) return String.valueOf(item.get("itemId"));
+    }
+    throw new AssertionError("missing AI item for field " + fieldCode);
+  }
+
+  private String itemStatusByField(Map<String, Object> view, String fieldCode) {
+    for (var item : (List<Map<String, Object>>) view.get("items")) {
+      var payload = (Map<String, Object>) item.get("payload");
+      var field = (Map<String, Object>) ((List<?>) payload.get("fields")).getFirst();
+      if (fieldCode.equals(field.get("fieldDefCode"))) return String.valueOf(item.get("itemStatus"));
+    }
+    throw new AssertionError("missing AI item for field " + fieldCode);
   }
 
   private String eventId(ResponseEntity<Map> response) {

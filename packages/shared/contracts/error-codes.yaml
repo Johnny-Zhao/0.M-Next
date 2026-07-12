@@ -104,6 +104,14 @@ codes:
     httpStatus: 422
     title: AI 变更项预检失败
     responseRequirement: —
+  - code: AI-422-ITEM-NOT-IN-SET
+    httpStatus: 422
+    title: AI 变更项不属于该变更集
+    responseRequirement: 提示刷新变更集后重新选择条目
+  - code: AI-422-EMPTY-ITEM-SELECTION
+    httpStatus: 422
+    title: AI 变更项确认列表为空
+    responseRequirement: 提示至少选择一个待确认条目
   - code: AI-400-SCHEMA-INVALID
     httpStatus: 400
     title: AI 命令载荷不符合 Schema

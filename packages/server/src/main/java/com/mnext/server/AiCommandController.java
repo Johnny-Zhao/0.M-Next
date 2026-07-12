@@ -134,7 +134,10 @@ public class AiCommandController {
         request.workspaceId(),
         request.correlationId(),
         request.idempotencyKey(),
-        UUID.fromString(text(payload, "setId")));
+        UUID.fromString(text(payload, "setId")),
+        payload.has("itemIds") && !payload.get("itemIds").isNull()
+            ? uuids(payload.get("itemIds"))
+            : null);
   }
 
   private static AiSelectionRequest selection(JsonNode node) {

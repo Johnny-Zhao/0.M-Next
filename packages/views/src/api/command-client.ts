@@ -227,8 +227,12 @@ export class CommandClient {
   async confirmAiChange(
     workspaceId: string,
     setId: string,
+    itemIds?: readonly string[],
   ): Promise<AiCommandResult> {
-    return this.aiPost("ConfirmAiChange", workspaceId, { setId });
+    return this.aiPost("ConfirmAiChange", workspaceId, {
+      setId,
+      ...(itemIds && itemIds.length > 0 ? { itemIds } : {}),
+    });
   }
 
   async rejectAiChange(
