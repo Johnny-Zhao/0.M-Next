@@ -65,7 +65,7 @@ export interface UnisourceGateway {
    * Create one object with stored fields.
    * @kernel POST /commands CreateObject.
    * @mock Delegate to WorkspaceStore.createObject.
-   * @gap G3/G8: kernel object type id resolution is deferred.
+   * @gap Mechanical code-to-kernelId resolution; see pre-study section 6.3.
    */
   createObject(params: {
     readonly objectTypeCode: string;
@@ -80,7 +80,7 @@ export interface UnisourceGateway {
    * Create one relation between existing objects.
    * @kernel POST /commands CreateRelation.
    * @mock Delegate to WorkspaceStore.createRelation.
-   * @gap G4/G8: relation type id resolution and rule precheck are deferred.
+   * @gap Mechanical code-to-kernelId resolution; see pre-study section 6.3.
    */
   createRelation(params: {
     readonly relationTypeCode: string;
@@ -224,7 +224,7 @@ export interface UnisourceGateway {
 
   /**
    * Submit an AI change set for human confirmation.
-   * @kernel POST /ai-change-sets SubmitAIChangeSet.
+   * @kernel POST /workspaces/{id}/ai-commands ProposeAiChange.
    * @mock Delegate to ChangeSetStore.submit.
    * @gap G1: item-level backend confirmation is tracked separately.
    */
@@ -232,7 +232,7 @@ export interface UnisourceGateway {
 
   /**
    * Confirm an AI change set, optionally by item id.
-   * @kernel POST /ai-change-sets ConfirmAIChangeSet.
+   * @kernel POST /workspaces/{id}/ai-commands ConfirmAiChange.
    * @mock Delegate to ChangeSetStore.confirmAll or acceptItems.
    * @gap G1: itemIds is reserved for the backend item-confirmation card.
    */
@@ -243,7 +243,7 @@ export interface UnisourceGateway {
 
   /**
    * Reject an AI change set.
-   * @kernel POST /ai-change-sets reject action.
+   * @kernel POST /workspaces/{id}/ai-commands RejectAiChange.
    * @mock Delegate to ChangeSetStore.reject.
    * @gap G1: review audit mapping is completed in the kernel adapter.
    */

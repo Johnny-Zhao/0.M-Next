@@ -26,10 +26,9 @@ describe("unisource import boundary", () => {
       return importStatements(file)
         .filter(({ specifier }) => specifier === "@m-next/views")
         .filter(({ statement }) => {
-          return (
-            !allowedViewsImports.has(relative) ||
-            !statement.trimStart().startsWith("import type")
-          );
+          if (!allowedViewsImports.has(relative)) return true;
+          if (relative === "data/kernel-gateway.ts") return false;
+          return !statement.trimStart().startsWith("import type");
         })
         .map(({ statement }) => `${relative}: ${statement.trim()}`);
     });

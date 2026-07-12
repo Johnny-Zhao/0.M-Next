@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 
+import { useKernelRuntimeState } from "../data/boot-mode";
 import {
   UsAvatar,
   UsAvatarGroup,
@@ -51,6 +52,7 @@ export function WorkspaceHeader({
 }) {
   const [shareOpen, setShareOpen] = useState(false);
   const validation = useValidationSnapshot();
+  const kernelRuntime = useKernelRuntimeState();
   const derivedShareReason =
     shareDisabledReason ??
     (validation.results.some(
@@ -71,6 +73,14 @@ export function WorkspaceHeader({
       <UsBreadcrumb items={breadcrumb} tail={breadcrumbTail} />
       <span className="us-topbar__spacer" />
       <span className="us-topbar__actions">
+        {kernelRuntime.backend ? (
+          <span
+            className="us-kernel-ribbon"
+            title={kernelRuntime.reportLabel ?? "Kernel read mode"}
+          >
+            KERNEL · {shortId(kernelRuntime.workspaceId ?? "")} · 写入本地
+          </span>
+        ) : null}
         {sync ? <UsSyncDot state={sync.state}>{sync.label}</UsSyncDot> : null}
         {aiHref ? (
           <Link className="us-topbar__ai" to={aiHref} title="打开同源 AI">
@@ -103,4 +113,8 @@ export function WorkspaceHeader({
       <ShareDialog open={shareOpen} onClose={() => setShareOpen(false)} />
     </header>
   );
+}
+
+function shortId(value: string): string {
+  return value.length > 8 ? value.slice(0, 8) : value;
 }

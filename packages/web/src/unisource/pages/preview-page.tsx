@@ -24,6 +24,14 @@ import { WorkspaceHeader } from "../shell/workspace-header";
 import { PlayBar } from "../sim/play-bar";
 import { MatrixRecordCard } from "../matrix/record-card";
 import { PluginCard } from "../plugins/plugin-card";
+import {
+  persistBrowserBootMode,
+  readBrowserWorkspacePreference,
+  resolveBrowserBootMode,
+  type BootMode,
+} from "../data/boot-mode";
+import { KernelGateway, type KernelSeedReport } from "../data/kernel-gateway";
+import { cloneDemoSeed } from "../seed/demo-seed";
 import { changeSetStore, useChangeSetSnapshot } from "../state/changeset-store";
 import { useValidationSnapshot } from "../state/validation-store";
 import { useWorkspaceSnapshot } from "../state/workspace-store";
@@ -62,6 +70,12 @@ export function PreviewPage() {
   const [net, setNet] = useState("normal");
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
+  const initialBootMode: BootMode = resolveBrowserBootMode();
+  const [backendEnabled, setBackendEnabled] = useState(initialBootMode.backend);
+  const [workspaceId, setWorkspaceId] = useState(
+    initialBootMode.workspaceId ?? readBrowserWorkspacePreference(),
+  );
+  const [seedReport, setSeedReport] = useState<KernelSeedReport | null>(null);
   const workspace = useWorkspaceSnapshot();
   const validation = useValidationSnapshot();
   const changeSets = useChangeSetSnapshot();
@@ -124,6 +138,95 @@ export function PreviewPage() {
             >
               确认写入 ¥1,199 演示
             </UsButton>
+          </div>
+        </UsPanel>
+
+        <UsPanel title="内核联调 · DEV" kicker="KERNEL GATEWAY">
+          <div className="us-kernel-dev">
+            <label>
+              <span>模式</span>
+              <UsSegmented
+                aria-label="内核模式"
+                items={[
+                  { key: "mock", label: "Mock" },
+                  { key: "backend", label: "Backend" },
+                ]}
+                value={backendEnabled ? "backend" : "mock"}
+                onChange={(value) => setBackendEnabled(value === "backend")}
+              />
+            </label>
+            <label>
+              <span>workspaceId</span>
+              <UsInput
+                data
+                onChange={(event) => setWorkspaceId(event.currentTarget.value)}
+                placeholder="ws..."
+                value={workspaceId}
+              />
+            </label>
+            <div className="us-kernel-dev__actions">
+              <UsButton
+                onClick={() => {
+                  persistBrowserBootMode({
+                    backend: backendEnabled,
+                    workspaceId: workspaceId.trim() || null,
+                    source: "url",
+                  });
+                  pushToast({
+                    title: backendEnabled
+                      ? "已保存 Backend 模式偏好"
+                      : "已回到 Mock 模式偏好",
+                    desc: "刷新同源页面后生效。",
+                  });
+                }}
+              >
+                保存模式偏好
+              </UsButton>
+              <UsButton
+                disabled={!workspaceId.trim()}
+                onClick={() => {
+                  const gateway = new KernelGateway(
+                    "",
+                    workspaceId.trim(),
+                    "wangyun",
+                  );
+                  void gateway
+                    .seedDemoData(cloneDemoSeed())
+                    .then((report) => {
+                      setSeedReport(report);
+                      pushToast({ title: "演示数据写入请求已完成" });
+                    })
+                    .catch((error: unknown) => {
+                      pushToast({
+                        title: "演示数据写入失败",
+                        desc:
+                          error instanceof Error
+                            ? error.message
+                            : String(error),
+                      });
+                    });
+                }}
+                variant="primary"
+              >
+                写入演示数据到后端
+              </UsButton>
+            </div>
+            {seedReport ? (
+              <div className="us-kernel-dev__report">
+                <span className="us-data">
+                  created {seedReport.createdObjects}/
+                  {seedReport.createdRelations}
+                </span>
+                <span className="us-data">
+                  skipped {seedReport.skippedObjects}/
+                  {seedReport.skippedRelations}
+                </span>
+                <span>
+                  missing {seedReport.missingTypes.join(", ") || "none"}
+                </span>
+                <span>failed {seedReport.failed.length}</span>
+              </div>
+            ) : null}
           </div>
         </UsPanel>
 

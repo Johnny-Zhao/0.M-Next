@@ -18,6 +18,7 @@ import type {
 import { cloneDemoSeed, type DemoSeed } from "../seed/demo-seed";
 import { ChangeSetStore, type ChangeSetResult } from "../state/changeset-store";
 import {
+  type WorkspaceState,
   WorkspaceStore,
   type FieldWriteMeta,
   type FieldWriteResult,
@@ -41,11 +42,9 @@ export class MockUnisourceGateway implements UnisourceGateway {
   }
 
   async loadWorkspace(): Promise<DemoSeed> {
-    const state = this.workspace.getSnapshot();
-    return structuredClone({
-      ...state,
-      changeSets: this.changeSets.getSnapshot().changeSets,
-    }) as DemoSeed;
+    return structuredClone(
+      toDemoSeed(this.workspace.getSnapshot(), this.changeSets.getSnapshot()),
+    );
   }
 
   async updateField(
@@ -211,4 +210,38 @@ export class MockUnisourceGateway implements UnisourceGateway {
 
 export function createMockUnisourceGateway(seed?: DemoSeed): UnisourceGateway {
   return new MockUnisourceGateway(seed);
+}
+
+export function toDemoSeed(
+  state: WorkspaceState,
+  changeSetState: { readonly changeSets: DemoSeed["changeSets"] },
+): DemoSeed {
+  return {
+    workspace: state.workspace,
+    members: state.members,
+    objectTypes: state.objectTypes,
+    objects: state.objects,
+    relationTypes: state.relationTypes,
+    relations: state.relations,
+    comments: state.comments,
+    permissions: state.permissions,
+    sceneTemplates: state.sceneTemplates,
+    expressions: state.expressions,
+    views: state.views,
+    docModels: state.docModels,
+    fieldRefs: state.fieldRefs,
+    kpis: state.kpis,
+    biBars: state.biBars,
+    anaReports: state.anaReports,
+    rawImport: state.rawImport,
+    chatMessages: state.chatMessages,
+    reviewRecords: state.reviewRecords,
+    slotBindings: state.slotBindings,
+    changeSets: changeSetState.changeSets,
+    changeEvents: state.changeEvents,
+    activity: state.activity,
+    outputSnapshots: state.outputSnapshots,
+    plugins: state.plugins,
+    simScenarios: state.simScenarios,
+  };
 }

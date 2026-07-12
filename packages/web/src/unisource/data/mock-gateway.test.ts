@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import type { ChangeSet } from "../model/kernel";
-import { MockUnisourceGateway } from "./mock-gateway";
+import { cloneDemoSeed } from "../seed/demo-seed";
+import { ChangeSetStore } from "../state/changeset-store";
+import { WorkspaceStore } from "../state/workspace-store";
+import { MockUnisourceGateway, toDemoSeed } from "./mock-gateway";
 import type { UnisourceGateway } from "./gateway";
 
 describe("MockUnisourceGateway", () => {
@@ -111,5 +114,20 @@ describe("MockUnisourceGateway", () => {
     expect(runId).toBe("mock-rule-run-0001");
     expect(results.map((result) => result.ruleCode)).toContain("XSRC-001");
     await expect(gateway.checkResults("missing")).resolves.toEqual([]);
+  });
+
+  it("assembles DemoSeed explicitly from workspace and change-set snapshots", () => {
+    const seed = cloneDemoSeed();
+    const workspace = new WorkspaceStore(seed);
+    const changeSets = new ChangeSetStore(seed, workspace);
+
+    const assembled = toDemoSeed(
+      workspace.getSnapshot(),
+      changeSets.getSnapshot(),
+    );
+
+    expect(assembled.objects).toBe(workspace.getSnapshot().objects);
+    expect(assembled.changeSets).toBe(changeSets.getSnapshot().changeSets);
+    expect(assembled.simScenarios).toBe(workspace.getSnapshot().simScenarios);
   });
 });

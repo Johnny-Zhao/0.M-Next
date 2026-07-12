@@ -77,9 +77,12 @@ export function mapObjectType(dto: ObjectType): ObjectTypeWithKernelId {
   };
 }
 
-export function mapHistoryEntry(dto: ObjectHistoryEntry): ChangeEvent {
+export function mapHistoryEntry(
+  dto: ObjectHistoryEntry,
+  objectIdHint?: string,
+): ChangeEvent {
   const actor = mapActor(dto.actorId ?? dto.actorDisplay ?? dto.source);
-  const entityId = historyEntityId(dto);
+  const entityId = historyEntityId(dto, objectIdHint);
   const target = historyTarget(dto, entityId);
   const oldValue = toOptionalPrimitive(dto.before);
   const nextValue = toOptionalPrimitive(dto.after);
@@ -209,10 +212,14 @@ function historyTarget(
   return { entityType: "object", entityId };
 }
 
-function historyEntityId(dto: ObjectHistoryEntry): string {
+function historyEntityId(
+  dto: ObjectHistoryEntry,
+  objectIdHint?: string,
+): string {
   return (
     extractEntityId(dto.after) ??
     extractEntityId(dto.before) ??
+    objectIdHint ??
     dto.correlationId ??
     dto.eventId
   );

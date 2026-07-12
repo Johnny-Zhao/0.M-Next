@@ -4697,3 +4697,76 @@
 .us-preview__p2 .us-ana-factor {
   min-width: 240px;
 }
+
+/* T-US-015 · KernelGateway boot and DEV bridge */
+.us-boot {
+  align-items: center;
+  background: var(--us-canvas);
+  color: var(--us-ink);
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+}
+.us-boot__card {
+  background: var(--us-paper);
+  border: 1px solid var(--us-border);
+  border-radius: var(--us-radius-panel);
+  box-shadow: var(--us-shadow-card);
+  display: grid;
+  gap: var(--us-sp-3);
+  min-width: min(420px, 86vw);
+  padding: var(--us-sp-5);
+}
+.us-boot__card[data-tone="danger"] {
+  border-color: var(--us-danger);
+}
+.us-boot__card p {
+  color: var(--us-text-muted);
+  margin: 0;
+}
+.us-boot__actions,
+.us-kernel-dev__actions,
+.us-kernel-dev__report {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--us-sp-2);
+}
+.us-boot__actions button {
+  background: var(--us-paper);
+  border: 1px solid var(--us-border);
+  border-radius: var(--us-radius-control);
+  color: var(--us-ink);
+  cursor: pointer;
+  font: 600 var(--us-fs-12) var(--us-font-ui);
+  padding: var(--us-sp-2) var(--us-sp-3);
+}
+.us-kernel-ribbon {
+  background: var(--us-ink);
+  border-radius: var(--us-radius-chip);
+  color: var(--us-gold);
+  font: 700 var(--us-fs-10) var(--us-font-data);
+  padding: var(--us-sp-1) var(--us-sp-2);
+  white-space: nowrap;
+}
+.us-kernel-dev {
+  display: grid;
+  gap: var(--us-sp-3);
+}
+.us-kernel-dev label {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--us-sp-2);
+}
+.us-kernel-dev label > span:first-child {
+  color: var(--us-text-muted);
+  font: 700 var(--us-fs-11) var(--us-font-ui);
+  min-width: 92px;
+}
+.us-kernel-dev__report {
+  background: var(--us-surface-input);
+  border: 1px solid var(--us-border);
+  border-radius: var(--us-radius-control);
+  color: var(--us-text-2);
+  padding: var(--us-sp-2);
+}
