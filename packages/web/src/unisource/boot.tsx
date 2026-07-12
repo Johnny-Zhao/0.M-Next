@@ -13,7 +13,9 @@ import {
   KernelGateway,
   type KernelGatewayLoadReport,
 } from "./data/kernel-gateway";
+import { KernelWriteBridge } from "./data/write-bridge";
 import { applyDemoSeed, configureBackendReload } from "./state/demo-reset";
+import { workspaceStore } from "./state/workspace-store";
 
 const rootElement = document.getElementById("root");
 
@@ -33,6 +35,7 @@ void boot(root, bootMode);
 async function boot(root: Root, mode: BootMode): Promise<void> {
   if (!mode.backend) {
     configureBackendReload(null);
+    workspaceStore.setWriteSink(null);
     setKernelRuntimeState({
       backend: false,
       workspaceId: null,
@@ -51,10 +54,12 @@ async function boot(root: Root, mode: BootMode): Promise<void> {
   }
   const workspaceId = mode.workspaceId;
   const gateway = new KernelGateway("", workspaceId, "wangyun");
+  const writeBridge = new KernelWriteBridge(gateway);
   const load = async (notify: boolean): Promise<void> => {
     const seed = await gateway.loadWorkspace();
     const report = gateway.getLastLoadReport();
     applyDemoSeed(seed, notify ? { toastTitle: "已从内核重载工作空间" } : {});
+    workspaceStore.setWriteSink(writeBridge);
     setKernelRuntimeState({
       backend: true,
       workspaceId,
@@ -120,6 +125,7 @@ function renderBootError(
 function fallbackToMock(root: Root): void {
   clearBrowserBackendPreference();
   configureBackendReload(null);
+  workspaceStore.setWriteSink(null);
   setKernelRuntimeState({
     backend: false,
     workspaceId: null,

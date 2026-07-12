@@ -19,6 +19,7 @@ describe("MockUnisourceGateway", () => {
   it("persists updateField writes into the next loadWorkspace snapshot", async () => {
     const gateway = new MockUnisourceGateway();
 
+    gateway.setActor("lixiao");
     await gateway.updateField("prod-s3", "price", 1099, {
       actor: "wangyun",
     });

@@ -69,6 +69,7 @@ export interface FieldWriteMeta {
   readonly source?: "manual" | "ai";
   readonly viaAi?: boolean;
   readonly summary?: string;
+  readonly expectedObjectVersion?: number;
 }
 
 export interface FieldWriteResult {
@@ -92,6 +93,65 @@ export interface PluginStatePatch {
   readonly version?: string;
   readonly updateTo?: string | null;
   readonly scope?: PluginDef["scope"];
+}
+
+export interface FieldWriteDescriptor {
+  readonly kind: "updateField";
+  readonly objectId: string;
+  readonly fieldCode: FieldCode;
+  readonly value: DataFieldPrimitive;
+  readonly previousObject: DataObject;
+  readonly expectedObjectVersion: number;
+  readonly meta: FieldWriteMeta;
+}
+
+export interface ObjectCreateDescriptor {
+  readonly kind: "createObject";
+  readonly temporaryObjectId: string;
+  readonly object: DataObject;
+  readonly params: {
+    readonly objectTypeCode: string;
+    readonly fields: Record<FieldCode, DataFieldPrimitive>;
+    readonly actor?: MemberId;
+    readonly source?: "manual" | "ai";
+    readonly summary?: string;
+  };
+}
+
+export interface RelationCreateDescriptor {
+  readonly kind: "createRelation";
+  readonly temporaryRelationId: string;
+  readonly relation: DataRelation;
+  readonly params: {
+    readonly relationTypeCode: string;
+    readonly sourceId: string;
+    readonly targetId: string;
+    readonly fields?: Record<FieldCode, DataFieldValue>;
+    readonly actor?: MemberId;
+    readonly summary?: string;
+  };
+}
+
+export interface DeletedObjectSnapshot {
+  readonly object: DataObject;
+  readonly relations: readonly DataRelation[];
+  readonly fieldRefs: readonly FieldRef[];
+  readonly views: readonly ViewDef[];
+}
+
+export interface ObjectDeleteDescriptor {
+  readonly kind: "deleteObject";
+  readonly objectId: string;
+  readonly actor: MemberId;
+  readonly expectedVersion: number;
+  readonly snapshot: DeletedObjectSnapshot;
+}
+
+export interface WriteSink {
+  updateField(descriptor: FieldWriteDescriptor): void;
+  createObject(descriptor: ObjectCreateDescriptor): void;
+  createRelation(descriptor: RelationCreateDescriptor): void;
+  deleteObject(descriptor: ObjectDeleteDescriptor): void;
 }
 
 type Listener = () => void;
@@ -125,6 +185,7 @@ export class WorkspaceStore {
   private readonly listeners = new Set<Listener>();
   private readonly refTimers = new Map<string, ReturnType<typeof setTimeout>>();
   private sequence = 0;
+  private writeSink: WriteSink | null = null;
 
   constructor(seed: DemoSeed = cloneDemoSeed()) {
     this.state = seedToState(seed);
@@ -136,6 +197,10 @@ export class WorkspaceStore {
   };
 
   getSnapshot = (): WorkspaceState => this.state;
+
+  setWriteSink(sink: WriteSink | null): void {
+    this.writeSink = sink;
+  }
 
   reset(seed: DemoSeed = cloneDemoSeed()): void {
     this.clearRefTimers();
@@ -276,6 +341,7 @@ export class WorkspaceStore {
     meta: FieldWriteMeta,
   ): FieldWriteResult {
     const current = this.requireObject(objectId);
+    const previousObject = structuredClone(current) as DataObject;
     const previous = current.fields[fieldCode];
     const affectedRefs = this.getFieldRefs(objectId, fieldCode);
     const affectedRefIds = new Set(affectedRefs.map((ref) => ref.id));
@@ -323,6 +389,17 @@ export class WorkspaceStore {
     };
     this.scheduleRefFresh(affectedRefs.map((ref) => ref.id));
     this.emit();
+    this.notifyWriteSink((sink) =>
+      sink.updateField({
+        kind: "updateField",
+        objectId,
+        fieldCode,
+        value,
+        previousObject,
+        expectedObjectVersion: current.version,
+        meta,
+      }),
+    );
     return { event, syncedRefs, object: nextObject };
   }
 
@@ -362,6 +439,14 @@ export class WorkspaceStore {
       ],
     };
     this.emit();
+    this.notifyWriteSink((sink) =>
+      sink.createRelation({
+        kind: "createRelation",
+        temporaryRelationId: relation.id,
+        relation,
+        params,
+      }),
+    );
     return { relation };
   }
 
@@ -452,6 +537,14 @@ export class WorkspaceStore {
       ],
     };
     this.emit();
+    this.notifyWriteSink((sink) =>
+      sink.createObject({
+        kind: "createObject",
+        temporaryObjectId: object.id,
+        object,
+        params,
+      }),
+    );
     return object;
   }
 
@@ -673,11 +766,22 @@ export class WorkspaceStore {
 
   deleteObject(objectId: string, actor: MemberId = "wangyun"): DataObject {
     const object = this.requireObject(objectId);
-    const affectedRefIds = new Set(
-      this.state.fieldRefs
-        .filter((ref) => ref.objectId === objectId)
-        .map((ref) => ref.id),
-    );
+    const snapshot: DeletedObjectSnapshot = {
+      object: structuredClone(object) as DataObject,
+      relations: structuredClone(
+        this.state.relations.filter(
+          (relation) =>
+            relation.sourceId === objectId || relation.targetId === objectId,
+        ),
+      ) as DataRelation[],
+      fieldRefs: structuredClone(
+        this.state.fieldRefs.filter((ref) => ref.objectId === objectId),
+      ) as FieldRef[],
+      views: structuredClone(
+        this.state.views.filter((view) => view.kind === "canvas"),
+      ) as ViewDef[],
+    };
+    const affectedRefIds = new Set(snapshot.fieldRefs.map((ref) => ref.id));
     const event = this.createObjectEvent(objectId, actor);
     this.state = {
       ...this.state,
@@ -712,6 +816,15 @@ export class WorkspaceStore {
       ],
     };
     this.emit();
+    this.notifyWriteSink((sink) =>
+      sink.deleteObject({
+        kind: "deleteObject",
+        objectId,
+        actor,
+        expectedVersion: object.version,
+        snapshot,
+      }),
+    );
     return object;
   }
 
@@ -857,6 +970,189 @@ export class WorkspaceStore {
         summary: `撤销 ${event.id}`,
       },
     );
+  }
+
+  rollbackField(params: {
+    readonly objectId: string;
+    readonly previousObject: DataObject;
+  }): void {
+    const restored =
+      params.previousObject.id === params.objectId
+        ? params.previousObject
+        : { ...params.previousObject, id: params.objectId };
+    this.state = {
+      ...this.state,
+      objects: this.state.objects.map((object) =>
+        object.id === params.objectId || object.id === params.previousObject.id
+          ? restored
+          : object,
+      ),
+    };
+    this.emit();
+  }
+
+  removeObject(objectId: string): void {
+    const affectedRefIds = new Set(
+      this.state.fieldRefs
+        .filter((ref) => ref.objectId === objectId)
+        .map((ref) => ref.id),
+    );
+    this.state = {
+      ...this.state,
+      objects: this.state.objects.filter((object) => object.id !== objectId),
+      relations: this.state.relations.filter(
+        (relation) =>
+          relation.sourceId !== objectId && relation.targetId !== objectId,
+      ),
+      fieldRefs: this.state.fieldRefs.map((ref) =>
+        affectedRefIds.has(ref.id) ? { ...ref, state: "dangling" } : ref,
+      ),
+      views: this.state.views.map((view) =>
+        view.kind === "canvas"
+          ? {
+              ...view,
+              config: removeObjectFromCanvasConfig(view.config, objectId),
+            }
+          : view,
+      ),
+    };
+    this.emit();
+  }
+
+  restoreObject(
+    snapshot: DeletedObjectSnapshot,
+    restoredObjectId = snapshot.object.id,
+  ): void {
+    const originalId = snapshot.object.id;
+    const object =
+      restoredObjectId === originalId
+        ? snapshot.object
+        : { ...snapshot.object, id: restoredObjectId };
+    const relations = snapshot.relations.map((relation) =>
+      replaceRelationEndpoint(relation, originalId, restoredObjectId),
+    );
+    const fieldRefs = snapshot.fieldRefs.map((ref) =>
+      ref.objectId === originalId
+        ? { ...ref, objectId: restoredObjectId }
+        : ref,
+    );
+    const views = snapshot.views.map((view) => ({
+      ...view,
+      config: replaceObjectInCanvasConfig(
+        view.config,
+        originalId,
+        restoredObjectId,
+      ),
+    }));
+    const relationIds = new Set(relations.map((relation) => relation.id));
+    const refIds = new Set(fieldRefs.map((ref) => ref.id));
+    const viewIds = new Set(views.map((view) => view.id));
+    this.state = {
+      ...this.state,
+      objects: [
+        object,
+        ...this.state.objects.filter(
+          (candidate) =>
+            candidate.id !== originalId && candidate.id !== restoredObjectId,
+        ),
+      ],
+      relations: [
+        ...relations,
+        ...this.state.relations.filter(
+          (relation) => !relationIds.has(relation.id),
+        ),
+      ],
+      fieldRefs: [
+        ...this.state.fieldRefs.map((ref) =>
+          refIds.has(ref.id)
+            ? (fieldRefs.find((candidate) => candidate.id === ref.id) ?? ref)
+            : ref,
+        ),
+        ...fieldRefs.filter(
+          (ref) =>
+            !this.state.fieldRefs.some((candidate) => candidate.id === ref.id),
+        ),
+      ],
+      views: this.state.views.map((view) =>
+        viewIds.has(view.id)
+          ? (views.find((candidate) => candidate.id === view.id) ?? view)
+          : view,
+      ),
+    };
+    this.emit();
+  }
+
+  reconcileObjectId(temporaryObjectId: string, object: DataObject): void {
+    this.state = {
+      ...this.state,
+      objects: this.state.objects.map((candidate) =>
+        candidate.id === temporaryObjectId ? object : candidate,
+      ),
+      relations: this.state.relations.map((relation) =>
+        replaceRelationEndpoint(relation, temporaryObjectId, object.id),
+      ),
+      fieldRefs: this.state.fieldRefs.map((ref) =>
+        ref.objectId === temporaryObjectId
+          ? { ...ref, objectId: object.id }
+          : ref,
+      ),
+      views: this.state.views.map((view) =>
+        view.kind === "canvas"
+          ? {
+              ...view,
+              config: replaceObjectInCanvasConfig(
+                view.config,
+                temporaryObjectId,
+                object.id,
+              ),
+            }
+          : view,
+      ),
+    };
+    this.emit();
+  }
+
+  removeRelation(relationId: string): void {
+    this.state = {
+      ...this.state,
+      relations: this.state.relations.filter(
+        (relation) => relation.id !== relationId,
+      ),
+      views: this.state.views.map((view) =>
+        view.kind === "canvas"
+          ? {
+              ...view,
+              config: removeRelationFromCanvasConfig(view.config, relationId),
+            }
+          : view,
+      ),
+    };
+    this.emit();
+  }
+
+  reconcileRelationId(
+    temporaryRelationId: string,
+    relation: DataRelation,
+  ): void {
+    this.state = {
+      ...this.state,
+      relations: this.state.relations.map((candidate) =>
+        candidate.id === temporaryRelationId ? relation : candidate,
+      ),
+      views: this.state.views.map((view) =>
+        view.kind === "canvas"
+          ? {
+              ...view,
+              config: replaceRelationInCanvasConfig(
+                view.config,
+                temporaryRelationId,
+                relation.id,
+              ),
+            }
+          : view,
+      ),
+    };
+    this.emit();
   }
 
   private createFieldEvent(params: {
@@ -1072,6 +1368,15 @@ export class WorkspaceStore {
     this.refTimers.clear();
   }
 
+  private notifyWriteSink(callback: (sink: WriteSink) => void): void {
+    if (!this.writeSink) return;
+    try {
+      callback(this.writeSink);
+    } catch {
+      // WriteSink is a background bridge. Local writes stay synchronous.
+    }
+  }
+
   private emit(): void {
     this.listeners.forEach((listener) => listener());
   }
@@ -1121,6 +1426,71 @@ function removeObjectFromCanvasConfig(
       )
     : [];
   return { ...config, nodes };
+}
+
+function replaceRelationEndpoint(
+  relation: DataRelation,
+  fromObjectId: string,
+  toObjectId: string,
+): DataRelation {
+  return {
+    ...relation,
+    sourceId:
+      relation.sourceId === fromObjectId ? toObjectId : relation.sourceId,
+    targetId:
+      relation.targetId === fromObjectId ? toObjectId : relation.targetId,
+  };
+}
+
+function replaceObjectInCanvasConfig(
+  config: Record<string, unknown>,
+  fromObjectId: string,
+  toObjectId: string,
+): Record<string, unknown> {
+  const nodes = Array.isArray(config.nodes)
+    ? config.nodes.map((node) =>
+        isRecord(node) && node.objectId === fromObjectId
+          ? { ...node, objectId: toObjectId }
+          : node,
+      )
+    : config.nodes;
+  return { ...config, nodes };
+}
+
+function removeRelationFromCanvasConfig(
+  config: Record<string, unknown>,
+  relationId: string,
+): Record<string, unknown> {
+  const edges = Array.isArray(config.edges)
+    ? config.edges.filter(
+        (edge) =>
+          !(
+            isRecord(edge) &&
+            "relationId" in edge &&
+            edge.relationId === relationId
+          ),
+      )
+    : config.edges;
+  return { ...config, edges };
+}
+
+function replaceRelationInCanvasConfig(
+  config: Record<string, unknown>,
+  fromRelationId: string,
+  toRelationId: string,
+): Record<string, unknown> {
+  const edges = Array.isArray(config.edges)
+    ? config.edges.map((edge) =>
+        isRecord(edge) && edge.relationId === fromRelationId
+          ? { ...edge, relationId: toRelationId }
+          : edge,
+      )
+    : config.edges;
+  return { ...config, edges };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
 }
 
 export const workspaceStore = new WorkspaceStore();

@@ -71,15 +71,117 @@ describe("KernelGateway", () => {
     );
   });
 
-  it("keeps the write surface explicitly blocked for T-US-016", async () => {
+  it("posts UpdateFields with object version locking and no field version", async () => {
     const api = new FakeKernelApi();
+    api.seedObjects(2);
+    const gateway = new KernelGateway("", "ws-kernel", "wangyun", api.fetch);
+    gateway.setActor("lixiao");
+
+    await gateway.updateField("kernel-prod-s3", "price", 1000, {
+      actor: "lixiao",
+      expectedObjectVersion: 1,
+    });
+
+    expect(api.commands[0]).toMatchObject({
+      actorId: "lixiao",
+      commandType: "UpdateFields",
+      payload: {
+        objectId: "kernel-prod-s3",
+        expectedObjectVersion: 1,
+        fields: [{ fieldDefCode: "price", value: 1000 }],
+      },
+    });
+    expect(
+      (
+        api.commands[0]?.payload.fields as { expectedFieldVersion?: number }[]
+      )[0]?.expectedFieldVersion,
+    ).toBeUndefined();
+  });
+
+  it("creates objects through resolved object type ids and claims read-model ids", async () => {
+    const api = new FakeKernelApi();
+    const gateway = new KernelGateway("", "ws-kernel", "wangyun", api.fetch);
+
+    const object = await gateway.createObject({
+      objectTypeCode: "product_specs",
+      fields: { name: "Bridge Product", price: 42 },
+      actor: "wangyun",
+    });
+
+    expect(api.commands[0]).toMatchObject({
+      commandType: "CreateObject",
+      payload: {
+        objectTypeId: "type-product",
+        fields: { name: "Bridge Product", price: 42 },
+      },
+    });
+    expect(object.id).toBe("created-object-1");
+    expect(object.fields.name?.value).toBe("Bridge Product");
+  });
+
+  it("creates relations through resolved relation type ids and claims relation ids", async () => {
+    const api = new FakeKernelApi();
+    api.seedObjects(2);
+    const gateway = new KernelGateway("", "ws-kernel", "wangyun", api.fetch);
+
+    const result = await gateway.createRelation({
+      relationTypeCode: "interconnects_with",
+      sourceId: "kernel-prod-s3",
+      targetId: "kernel-prod-g2",
+      actor: "wangyun",
+    });
+
+    expect(api.commands[0]).toMatchObject({
+      commandType: "CreateRelation",
+      payload: {
+        relationTypeId: "reltype-interconnect",
+        sourceId: "kernel-prod-s3",
+        targetId: "kernel-prod-g2",
+      },
+    });
+    expect(result.relation.id).toBe("created-relation-1");
+  });
+
+  it("archives objects with the supplied expected version", async () => {
+    const api = new FakeKernelApi();
+    api.seedObjects(2);
+    const gateway = new KernelGateway("", "ws-kernel", "wangyun", api.fetch);
+
+    await gateway.deleteObject("kernel-prod-s3", "wangyun", 5);
+
+    expect(api.commands[0]).toMatchObject({
+      commandType: "Archive",
+      payload: {
+        targetType: "object",
+        targetId: "kernel-prod-s3",
+        expectedVersion: 5,
+      },
+    });
+  });
+
+  it("maps command failures into write rejections", async () => {
+    const api = new FakeKernelApi();
+    api.seedObjects(2);
+    api.failNextUpdate = true;
     const gateway = new KernelGateway("", "ws-kernel", "wangyun", api.fetch);
 
     await expect(
       gateway.updateField("kernel-prod-s3", "price", 1000, {
         actor: "wangyun",
+        expectedObjectVersion: 1,
       }),
-    ).rejects.toThrow("T-US-016");
+    ).rejects.toMatchObject({
+      code: "KERNEL-409-VERSION-CONFLICT",
+      title: "乐观版本冲突",
+      currentVersion: 2,
+      conflictingFields: [
+        {
+          fieldCode: "price",
+          currentValue: 1199,
+          changedBy: "lixiao",
+        },
+      ],
+    });
   });
 });
 
@@ -119,6 +221,12 @@ class FakeKernelApi {
   readonly relations: RelationFixture[] = [];
   readonly history = new Map<string, HistoryFixture[]>();
   readonly objectPageCalls: number[] = [];
+  readonly commands: {
+    readonly actorId: string | null;
+    readonly commandType: string;
+    readonly payload: Record<string, unknown>;
+  }[] = [];
+  failNextUpdate = false;
   private objectSequence = 0;
   private relationSequence = 0;
 
@@ -162,7 +270,7 @@ class FakeKernelApi {
       });
     }
     if (url.pathname.endsWith("/commands") && init?.method === "POST") {
-      return this.handleCommand(String(init.body ?? "{}"));
+      return this.handleCommand(String(init.body ?? "{}"), init);
     }
     return json({ message: "not found" }, 404);
   };
@@ -187,13 +295,63 @@ class FakeKernelApi {
     }
   }
 
-  private handleCommand(bodyText: string): Response {
+  private handleCommand(bodyText: string, init: RequestInit): Response {
     const body = JSON.parse(bodyText) as {
       readonly commandType?: string;
       readonly payload?: Record<string, unknown>;
     };
+    const payload = body.payload ?? {};
+    this.commands.push({
+      actorId: readHeader(init.headers, "X-Actor-Id"),
+      commandType: body.commandType ?? "",
+      payload,
+    });
+    if (body.commandType === "UpdateFields") {
+      if (this.failNextUpdate) {
+        this.failNextUpdate = false;
+        return json(
+          {
+            error: {
+              code: "KERNEL-409-VERSION-CONFLICT",
+              details: {
+                currentVersion: 2,
+                conflictingFields: [
+                  {
+                    fieldDefCode: "price",
+                    yourValue: 1000,
+                    currentValue: 1199,
+                    changedBy: "lixiao",
+                    changedAt: "2026-07-10T10:40:00+08:00",
+                  },
+                ],
+              },
+            },
+          },
+          409,
+        );
+      }
+      const object = this.objects.find(
+        (candidate) => candidate.objectId === payload.objectId,
+      );
+      if (!object) return json({ message: "missing object" }, 404);
+      const fields = payload.fields as {
+        readonly fieldDefCode: string;
+        readonly value: unknown;
+      }[];
+      const next = {
+        ...object,
+        version: object.version + 1,
+        fields: {
+          ...object.fields,
+          ...Object.fromEntries(
+            fields.map((field) => [field.fieldDefCode, field.value]),
+          ),
+        },
+      };
+      this.objects.splice(this.objects.indexOf(object), 1, next);
+      return json({ status: "COMMITTED" });
+    }
     if (body.commandType === "CreateObject") {
-      const payload = body.payload ?? {};
       const fields = payload.fields as Record<string, unknown>;
       this.objectSequence += 1;
       this.objects.push({
@@ -209,7 +367,6 @@ class FakeKernelApi {
       return json({ status: "COMMITTED" });
     }
     if (body.commandType === "CreateRelation") {
-      const payload = body.payload ?? {};
       this.relationSequence += 1;
       this.relations.push({
         relationId: `created-relation-${this.relationSequence}`,
@@ -218,6 +375,14 @@ class FakeKernelApi {
         targetId: String(payload.targetId),
         version: 1,
       });
+      return json({ status: "COMMITTED" });
+    }
+    if (body.commandType === "Archive") {
+      const targetId = String(payload.targetId);
+      const index = this.objects.findIndex(
+        (object) => object.objectId === targetId,
+      );
+      if (index >= 0) this.objects.splice(index, 1);
       return json({ status: "COMMITTED" });
     }
     return json({ message: "unsupported command" }, 400);
@@ -272,6 +437,21 @@ function toViewObject(object: DataObject, objectId: string): ViewObjectFixture {
     source: "manual",
     ruleStatus: "OK",
   };
+}
+
+function readHeader(
+  headers: RequestInit["headers"],
+  name: string,
+): string | null {
+  if (!headers) return null;
+  if (headers instanceof Headers) return headers.get(name);
+  if (Array.isArray(headers)) {
+    return (
+      headers.find(([key]) => key.toLowerCase() === name.toLowerCase())?.[1] ??
+      null
+    );
+  }
+  return (headers as Record<string, string>)[name] ?? null;
 }
 
 function json(value: unknown, status = 200): Response {

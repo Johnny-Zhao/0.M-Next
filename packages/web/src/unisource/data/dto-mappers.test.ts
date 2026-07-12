@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { ObjectTypeDef } from "../model/kernel";
 import {
+  mapCommandError,
   mapCheckResult,
   mapHistoryEntry,
   mapObjectType,
@@ -198,6 +199,39 @@ describe("dto mappers", () => {
     expect(unknown.target).toEqual({
       entityType: "object",
       entityId: "prod-s3",
+    });
+  });
+
+  it("maps command errors into local write rejections", () => {
+    const rejection = mapCommandError({
+      code: "KERNEL-409-VERSION-CONFLICT",
+      title: "乐观版本冲突",
+      details: {
+        currentVersion: 7,
+        conflictingFields: [
+          {
+            fieldDefCode: "price",
+            yourValue: 1099,
+            currentValue: 1199,
+            changedBy: "lixiao",
+            changedAt: "2026-07-10T10:40:00+08:00",
+          },
+        ],
+      },
+    });
+
+    expect(rejection).toEqual({
+      code: "KERNEL-409-VERSION-CONFLICT",
+      title: "乐观版本冲突",
+      currentVersion: 7,
+      conflictingFields: [
+        {
+          fieldCode: "price",
+          currentValue: 1199,
+          changedBy: "lixiao",
+          changedAt: "2026-07-10T10:40:00+08:00",
+        },
+      ],
     });
   });
 });

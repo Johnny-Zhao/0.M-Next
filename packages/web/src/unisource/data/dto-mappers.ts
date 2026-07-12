@@ -1,5 +1,6 @@
 import type {
   CheckResultItem,
+  CommandError,
   ObjectHistoryEntry,
   ObjectType,
   ViewObject,
@@ -19,6 +20,7 @@ import type {
 } from "../model/kernel";
 import type { ChangeEvent } from "../model/view-layer";
 import type { RuleOutcome } from "../validation/rules";
+import type { WriteRejection } from "./gateway";
 
 type ObjectTypeWithKernelId = ObjectTypeDef & { readonly kernelId: string };
 
@@ -124,6 +126,22 @@ export function mapCheckResult(dto: CheckResultItem): RuleOutcome {
     target,
     impact: [],
     fixes: [],
+  };
+}
+
+export function mapCommandError(error: CommandError): WriteRejection {
+  return {
+    code: error.code,
+    title: error.title,
+    currentVersion: error.details?.currentVersion,
+    conflictingFields: (error.details?.conflictingFields ?? []).map(
+      (field) => ({
+        fieldCode: field.fieldDefCode,
+        currentValue: field.currentValue,
+        changedBy: field.changedBy,
+        changedAt: field.changedAt,
+      }),
+    ),
   };
 }
 

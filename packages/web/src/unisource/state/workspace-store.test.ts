@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { Comment } from "../model/kernel";
 import { cloneDemoSeed } from "../seed/demo-seed";
-import { WorkspaceStore } from "./workspace-store";
+import { WorkspaceStore, type WriteSink } from "./workspace-store";
 
 describe("WorkspaceStore", () => {
   afterEach(() => {
@@ -33,6 +33,79 @@ describe("WorkspaceStore", () => {
       value: 1199,
     });
     expect(listener).toHaveBeenCalledOnce();
+  });
+
+  it("notifies the write sink after local data writes", () => {
+    const store = new WorkspaceStore(cloneDemoSeed());
+    const sink = createSink();
+    store.setWriteSink(sink);
+    const before = store.getObject("prod-s3")!;
+
+    store.updateField("prod-s3", "price", 1099, { actor: "wangyun" });
+    const object = store.createObject({
+      objectTypeCode: "contracts",
+      fields: { name: "测试合同" },
+      actor: "wangyun",
+    });
+    const relation = store.createRelation({
+      relationTypeCode: "interconnects_with",
+      sourceId: object.id,
+      targetId: "prod-s3",
+      actor: "wangyun",
+    });
+    store.deleteObject(object.id, "wangyun");
+
+    expect(sink.updateField).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: "updateField",
+        objectId: "prod-s3",
+        fieldCode: "price",
+        value: 1099,
+        expectedObjectVersion: before.version,
+        previousObject: before,
+      }),
+    );
+    expect(sink.createObject).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: "createObject",
+        temporaryObjectId: object.id,
+      }),
+    );
+    expect(sink.createRelation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: "createRelation",
+        temporaryRelationId: relation.relation.id,
+      }),
+    );
+    expect(sink.deleteObject).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: "deleteObject",
+        objectId: object.id,
+        expectedVersion: object.version,
+      }),
+    );
+  });
+
+  it("keeps projection-only writes out of the write sink", () => {
+    const store = new WorkspaceStore(cloneDemoSeed());
+    const sink = createSink();
+    store.setWriteSink(sink);
+
+    store.updateViewConfig(
+      "view-portal-canvas",
+      { nodes: [{ objectId: "prod-s3", x: 1, y: 2 }] },
+      { actor: "wangyun" },
+    );
+    store.setKpiVisible("kpi-active-channels", false, "wangyun");
+    store.addFieldRef("exp-spec-doc", "prod-s3", "rating", "防护认证");
+    store.updateRelationField("rel-s3-g2-interconnect", "protocol", "Matter", {
+      actor: "wangyun",
+    });
+
+    expect(sink.updateField).not.toHaveBeenCalled();
+    expect(sink.createObject).not.toHaveBeenCalled();
+    expect(sink.createRelation).not.toHaveBeenCalled();
+    expect(sink.deleteObject).not.toHaveBeenCalled();
   });
 
   it("undo restores by writing a new version instead of rolling back", () => {
@@ -313,6 +386,115 @@ describe("WorkspaceStore", () => {
     ).not.toContain("prod-s3");
   });
 
+  it("silently rolls back fields and restores deleted object snapshots", () => {
+    const store = new WorkspaceStore(cloneDemoSeed());
+    const sink = createSink();
+    store.setWriteSink(sink);
+    const previous = store.getObject("prod-s3")!;
+
+    store.updateField("prod-s3", "price", 1099, { actor: "wangyun" });
+    store.rollbackField({ objectId: "prod-s3", previousObject: previous });
+
+    expect(store.getObject("prod-s3")?.fields.price?.value).toBe(1199);
+    expect(store.getObject("prod-s3")?.version).toBe(previous.version);
+
+    store.deleteObject("prod-s3", "wangyun");
+    const deleted = vi.mocked(sink.deleteObject).mock.calls[0]?.[0];
+    expect(store.getObject("prod-s3")).toBeUndefined();
+    store.restoreObject(deleted!.snapshot);
+
+    expect(store.getObject("prod-s3")).toBeDefined();
+    expect(store.getRelations("prod-s3")).not.toHaveLength(0);
+    expect(
+      store
+        .getSnapshot()
+        .fieldRefs.filter((ref) => ref.objectId === "prod-s3")
+        .some((ref) => ref.state !== "dangling"),
+    ).toBe(true);
+  });
+
+  it("reconciles temporary object and relation ids across local projections", () => {
+    const store = new WorkspaceStore(cloneDemoSeed());
+    const object = store.createObject({
+      objectTypeCode: "contracts",
+      fields: { name: "临时合同" },
+      objectId: "obj-temp-contract",
+      actor: "wangyun",
+    });
+    store.addFieldRef(
+      "exp-spec-doc",
+      object.id,
+      "name",
+      "临时合同名称",
+      "wangyun",
+    );
+    const relation = store.createRelation({
+      relationTypeCode: "interconnects_with",
+      sourceId: object.id,
+      targetId: "prod-s3",
+      actor: "wangyun",
+    }).relation;
+    store.updateViewConfig(
+      "view-portal-canvas",
+      {
+        nodes: [{ objectId: object.id, x: 1, y: 2 }],
+        edges: [{ relationId: relation.id }],
+      },
+      { actor: "wangyun" },
+    );
+
+    store.reconcileObjectId(object.id, { ...object, id: "kernel-contract" });
+    store.reconcileRelationId(relation.id, {
+      ...relation,
+      id: "kernel-relation",
+      sourceId: "kernel-contract",
+    });
+
+    expect(store.getObject("obj-temp-contract")).toBeUndefined();
+    expect(store.getObject("kernel-contract")).toBeDefined();
+    expect(store.getRelations("kernel-contract")[0]?.sourceId).toBe(
+      "kernel-contract",
+    );
+    expect(
+      store
+        .getSnapshot()
+        .fieldRefs.some((ref) => ref.objectId === "kernel-contract"),
+    ).toBe(true);
+    expect(
+      (
+        store.getView("view-portal-canvas")?.config.nodes as {
+          objectId: string;
+        }[]
+      )[0]?.objectId,
+    ).toBe("kernel-contract");
+    expect(
+      (
+        store.getView("view-portal-canvas")?.config.edges as {
+          relationId: string;
+        }[]
+      )[0]?.relationId,
+    ).toBe("kernel-relation");
+  });
+
+  it("routes data undo through updateField and the write sink", () => {
+    const store = new WorkspaceStore(cloneDemoSeed());
+    const sink = createSink();
+    store.setWriteSink(sink);
+    const update = store.updateField("prod-s3", "price", 1099, {
+      actor: "wangyun",
+    });
+
+    store.undo(update.event.id);
+
+    expect(sink.updateField).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(sink.updateField).mock.calls[1]?.[0]).toMatchObject({
+      objectId: "prod-s3",
+      fieldCode: "price",
+      value: 1199,
+      expectedObjectVersion: 2,
+    });
+  });
+
   it("can attach comments to a relation", () => {
     const store = new WorkspaceStore(cloneDemoSeed());
     const comment: Comment = {
@@ -333,3 +515,12 @@ describe("WorkspaceStore", () => {
     expect(store.getSnapshot().comments[0]).toBe(comment);
   });
 });
+
+function createSink(): WriteSink {
+  return {
+    updateField: vi.fn(),
+    createObject: vi.fn(),
+    createRelation: vi.fn(),
+    deleteObject: vi.fn(),
+  };
+}

@@ -41,6 +41,10 @@ export class MockUnisourceGateway implements UnisourceGateway {
     this.changeSets = new ChangeSetStore(initialSeed, this.workspace);
   }
 
+  setActor(actorId: MemberId): void {
+    void actorId;
+  }
+
   async loadWorkspace(): Promise<DemoSeed> {
     return structuredClone(
       toDemoSeed(this.workspace.getSnapshot(), this.changeSets.getSnapshot()),
@@ -95,7 +99,9 @@ export class MockUnisourceGateway implements UnisourceGateway {
   async deleteObject(
     objectId: DataObjectId,
     actor?: MemberId,
+    expectedVersion?: number,
   ): Promise<DataObject> {
+    void expectedVersion;
     return this.workspace.deleteObject(objectId, actor);
   }
 

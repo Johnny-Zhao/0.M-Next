@@ -78,7 +78,7 @@ export function WorkspaceHeader({
             className="us-kernel-ribbon"
             title={kernelRuntime.reportLabel ?? "Kernel read mode"}
           >
-            KERNEL · {shortId(kernelRuntime.workspaceId ?? "")} · 写入本地
+            KERNEL · {shortId(kernelRuntime.workspaceId ?? "")} · 内核直写
           </span>
         ) : null}
         {sync ? <UsSyncDot state={sync.state}>{sync.label}</UsSyncDot> : null}

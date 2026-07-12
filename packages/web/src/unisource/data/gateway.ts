@@ -28,6 +28,13 @@ import type { RuleOutcome } from "../validation/rules";
 
 export interface UnisourceGateway {
   /**
+   * Update the actor used by write-side command clients.
+   * @kernel Maps to CommandClient.setActorId / X-Actor-Id.
+   * @mock No-op; local writes already carry actor metadata.
+   */
+  setActor(actorId: MemberId): void;
+
+  /**
    * Load the complete UniSource workspace graph in the current demo shape.
    * @kernel Assemble from read-model endpoints; implemented in T-US-015.
    * @mock Return a cloned WorkspaceStore and ChangeSetStore snapshot.
@@ -97,7 +104,11 @@ export interface UnisourceGateway {
    * @mock Delegate to WorkspaceStore.deleteObject.
    * @gap G10: durable undo is based on history in later batches.
    */
-  deleteObject(objectId: DataObjectId, actor?: MemberId): Promise<DataObject>;
+  deleteObject(
+    objectId: DataObjectId,
+    actor?: MemberId,
+    expectedVersion?: number,
+  ): Promise<DataObject>;
 
   /**
    * Bind an object into a template slot.
@@ -248,4 +259,16 @@ export interface UnisourceGateway {
    * @gap G1: review audit mapping is completed in the kernel adapter.
    */
   rejectAiChange(setId: string): Promise<ChangeSetResult>;
+}
+
+export interface WriteRejection {
+  readonly code: string;
+  readonly title: string;
+  readonly currentVersion?: number;
+  readonly conflictingFields: readonly {
+    readonly fieldCode: FieldCode;
+    readonly currentValue: unknown;
+    readonly changedBy: string;
+    readonly changedAt: string;
+  }[];
 }

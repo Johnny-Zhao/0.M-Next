@@ -1,4 +1,5 @@
 import {
+  CommandFailure,
   CommandClient,
   ViewClient,
   type FetchFn,
@@ -10,8 +11,11 @@ import {
 import type {
   ChangeSet,
   DataFieldPrimitive,
+  DataFieldValue,
   DataObject,
   DataRelation,
+  FieldCode,
+  MemberId,
   RelationType,
   ReviewRecord,
 } from "../model/kernel";
@@ -26,12 +30,18 @@ import type {
 import { cloneDemoSeed, type DemoSeed } from "../seed/demo-seed";
 import type { ChangeSetResult } from "../state/changeset-store";
 import type {
+  FieldWriteMeta,
   FieldWriteResult,
   RelationWriteResult,
   ViewConfigWriteResult,
 } from "../state/workspace-store";
 import type { RuleOutcome } from "../validation/rules";
-import { mapHistoryEntry, mapObjectType, mapViewObject } from "./dto-mappers";
+import {
+  mapCommandError,
+  mapHistoryEntry,
+  mapObjectType,
+  mapViewObject,
+} from "./dto-mappers";
 import type { UnisourceGateway } from "./gateway";
 import {
   objectBusinessKey,
@@ -69,6 +79,8 @@ export class KernelGateway implements UnisourceGateway {
   private readonly viewClient: ViewClient;
   private readonly commandClient: CommandClient;
   private lastLoadReport: KernelGatewayLoadReport | null = null;
+  private objectTypesByCode: ReadonlyMap<string, ObjectType> | null = null;
+  private relationTypeIdsByCode: ReadonlyMap<string, string> | null = null;
 
   constructor(
     baseUrl: string,
@@ -78,6 +90,10 @@ export class KernelGateway implements UnisourceGateway {
   ) {
     this.viewClient = new ViewClient(baseUrl, fetchFn);
     this.commandClient = new CommandClient(baseUrl, fetchFn);
+    this.commandClient.setActorId(actorId);
+  }
+
+  setActor(actorId: MemberId): void {
     this.commandClient.setActorId(actorId);
   }
 
@@ -121,6 +137,9 @@ export class KernelGateway implements UnisourceGateway {
   ): Promise<KernelSeedReport> {
     const report = mutableSeedReport();
     const objectTypes = await this.viewClient.objectTypes(this.workspaceId);
+    this.objectTypesByCode = new Map(
+      objectTypes.map((type) => [type.code, type]),
+    );
     const typeIds = new Map(objectTypes.map((type) => [type.code, type.id]));
     const existingObjects = await this.loadObjectsForTypes(objectTypes);
     const existingKeys = new Set(
@@ -171,6 +190,7 @@ export class KernelGateway implements UnisourceGateway {
     const relationTypeIds = new Map(
       relationTypes.map((type) => [type.code, type.id]),
     );
+    this.relationTypeIdsByCode = relationTypeIds;
 
     for (const relation of seed.relations) {
       const relationTypeId = relationTypeIds.get(relation.relationTypeCode);
@@ -220,9 +240,29 @@ export class KernelGateway implements UnisourceGateway {
   }
 
   async updateField(
-    ...args: Parameters<UnisourceGateway["updateField"]>
+    objectId: string,
+    fieldCode: FieldCode,
+    value: DataFieldPrimitive,
+    meta: FieldWriteMeta,
   ): Promise<FieldWriteResult> {
-    this.rejectWrite(...args);
+    const expectedObjectVersion = meta.expectedObjectVersion;
+    if (typeof expectedObjectVersion !== "number") {
+      throw new Error("KernelGateway.updateField 缺少 expectedObjectVersion");
+    }
+    return this.runWrite(async () => {
+      await this.commandClient.updateFields(
+        this.workspaceId,
+        objectId,
+        expectedObjectVersion,
+        [{ fieldDefCode: fieldCode, value }],
+      );
+      const object = await this.loadObjectById(objectId);
+      return {
+        event: kernelWriteEvent("field", objectId, fieldCode, meta.actor),
+        syncedRefs: 0,
+        object,
+      };
+    });
   }
 
   async updateRelationField(
@@ -232,21 +272,67 @@ export class KernelGateway implements UnisourceGateway {
   }
 
   async createObject(
-    ...args: Parameters<UnisourceGateway["createObject"]>
+    params: Parameters<UnisourceGateway["createObject"]>[0],
   ): Promise<DataObject> {
-    this.rejectWrite(...args);
+    return this.runWrite(async () => {
+      const type = await this.requireObjectType(params.objectTypeCode);
+      await this.commandClient.createObject(
+        this.workspaceId,
+        type.id,
+        params.fields,
+      );
+      return this.claimObject(params.objectTypeCode, params.fields);
+    });
   }
 
   async createRelation(
-    ...args: Parameters<UnisourceGateway["createRelation"]>
+    params: Parameters<UnisourceGateway["createRelation"]>[0],
   ): Promise<RelationWriteResult> {
-    this.rejectWrite(...args);
+    return this.runWrite(async () => {
+      const relationTypeId = await this.requireRelationTypeId(
+        params.relationTypeCode,
+      );
+      const result = await this.commandClient.createRelation(
+        this.workspaceId,
+        relationTypeId,
+        params.sourceId,
+        params.targetId,
+        "unisource",
+      );
+      const relation =
+        result?.relationId && result.version
+          ? {
+              id: result.relationId,
+              relationTypeCode: params.relationTypeCode,
+              sourceId: params.sourceId,
+              targetId: params.targetId,
+              status: "active" as const,
+              fields: {},
+              version: result.version,
+              annotationIds: [],
+            }
+          : await this.claimRelation(params);
+      return { relation };
+    });
   }
 
   async deleteObject(
-    ...args: Parameters<UnisourceGateway["deleteObject"]>
+    objectId: string,
+    actor?: MemberId,
+    expectedVersion?: number,
   ): Promise<DataObject> {
-    this.rejectWrite(...args);
+    void actor;
+    return this.runWrite(async () => {
+      const object = await this.loadObjectById(objectId);
+      await this.commandClient.archive(
+        this.workspaceId,
+        "object",
+        objectId,
+        expectedVersion ?? object.version,
+        "unisource-delete-object",
+      );
+      return object;
+    });
   }
 
   async bindSlot(
@@ -336,13 +422,104 @@ export class KernelGateway implements UnisourceGateway {
     throw tus016();
   }
 
+  private async runWrite<T>(operation: () => Promise<T>): Promise<T> {
+    try {
+      return await operation();
+    } catch (error) {
+      if (error instanceof CommandFailure) {
+        throw mapCommandError(error.commandError);
+      }
+      throw error;
+    }
+  }
+
+  private async requireObjectType(code: string): Promise<ObjectType> {
+    const objectTypes = await this.loadObjectTypeMap();
+    const type = objectTypes.get(code);
+    if (!type) throw new Error(`找不到对象类型 ${code}`);
+    return type;
+  }
+
+  private async requireRelationTypeId(code: string): Promise<string> {
+    const relationTypes = await this.loadRelationTypeIdMap();
+    const relationTypeId = relationTypes.get(code);
+    if (!relationTypeId) throw new Error(`找不到关系类型 ${code}`);
+    return relationTypeId;
+  }
+
+  private async loadObjectTypeMap(): Promise<ReadonlyMap<string, ObjectType>> {
+    if (this.objectTypesByCode) return this.objectTypesByCode;
+    const objectTypes = await this.viewClient.objectTypes(this.workspaceId);
+    this.objectTypesByCode = new Map(
+      objectTypes.map((type) => [type.code, type]),
+    );
+    return this.objectTypesByCode;
+  }
+
+  private async loadRelationTypeIdMap(): Promise<ReadonlyMap<string, string>> {
+    if (this.relationTypeIdsByCode) return this.relationTypeIdsByCode;
+    const relationTypes = await this.viewClient.relationTypes(this.workspaceId);
+    this.relationTypeIdsByCode = new Map(
+      relationTypes.map((type) => [type.code, type.id]),
+    );
+    return this.relationTypeIdsByCode;
+  }
+
+  private async loadObjectById(objectId: string): Promise<DataObject> {
+    const detail = await this.viewClient.object(this.workspaceId, objectId);
+    const type = await this.requireObjectType(detail.object.objectType);
+    return mapViewObject(detail.object, mapObjectType(type));
+  }
+
+  private async claimObject(
+    objectTypeCode: string,
+    fields: Record<FieldCode, DataFieldPrimitive>,
+  ): Promise<DataObject> {
+    const type = await this.requireObjectType(objectTypeCode);
+    const expectedKey = objectBusinessKey(objectStub(objectTypeCode, fields));
+    if (!expectedKey) throw new Error("无法按业务键认领新对象");
+    const objects = await this.loadObjectsForTypes([type]);
+    const object = objects.find(
+      (candidate) => objectBusinessKey(candidate) === expectedKey,
+    );
+    if (!object) throw new Error("内核对象创建成功,但读模型尚未认领到新对象");
+    return object;
+  }
+
+  private async claimRelation(params: {
+    readonly relationTypeCode: string;
+    readonly sourceId: string;
+    readonly targetId: string;
+  }): Promise<DataRelation> {
+    const details = await Promise.all([
+      this.viewClient.object(this.workspaceId, params.sourceId),
+      this.viewClient.object(this.workspaceId, params.targetId),
+    ]);
+    const relation = details
+      .flatMap((detail) => detail.relations)
+      .find(
+        (candidate) =>
+          candidate.relationType === params.relationTypeCode &&
+          candidate.sourceId === params.sourceId &&
+          candidate.targetId === params.targetId,
+      );
+    if (!relation) throw new Error("内核关系创建成功,但读模型尚未认领到新关系");
+    return mapRelationSummary(relation);
+  }
+
   private async loadKernelGraph(): Promise<KernelGraph> {
     const objectTypeDtos = await this.viewClient.objectTypes(this.workspaceId);
+    this.objectTypesByCode = new Map(
+      objectTypeDtos.map((type) => [type.code, type]),
+    );
     const objectTypes = objectTypeDtos.map(mapObjectType);
     const objects = await this.loadObjectsForTypes(objectTypeDtos);
     const relations = await this.loadRelationsForObjects(objects);
     const relationTypeDtos = await this.viewClient.relationTypes(
       this.workspaceId,
+    );
+    this.relationTypeIdsByCode = new Map(
+      relationTypeDtos.map((type) => [type.code, type.id]),
     );
     const relationTypes = mapRelationTypes(
       relationTypeDtos,
@@ -460,6 +637,35 @@ function rawFields(object: DataObject): Record<string, DataFieldPrimitive> {
   );
 }
 
+function objectStub(
+  objectTypeCode: string,
+  fields: Record<FieldCode, DataFieldPrimitive>,
+): DataObject {
+  return {
+    id: "kernel-claim-object",
+    objectTypeCode,
+    status: "active",
+    version: 1,
+    fields: Object.fromEntries(
+      Object.entries(fields).map(([code, value]) => [code, fieldValue(value)]),
+    ),
+    createdBy: "wangyun",
+    createdAt: "2026-07-10T10:24:00+08:00",
+    updatedBy: "wangyun",
+    updatedAt: "2026-07-10T10:24:00+08:00",
+  };
+}
+
+function fieldValue(value: DataFieldPrimitive): DataFieldValue {
+  return {
+    value,
+    fieldVersion: 1,
+    updatedBy: "wangyun",
+    updatedAt: "2026-07-10T10:24:00+08:00",
+    source: "manual",
+  };
+}
+
 function historyActivity(event: ChangeEvent): ActivityItem {
   return {
     id: `activity-${event.id}`,
@@ -467,6 +673,26 @@ function historyActivity(event: ChangeEvent): ActivityItem {
     summary: `${event.target.entityType} ${event.target.entityId}`,
     tracks: [event.track],
     at: event.at,
+  };
+}
+
+function kernelWriteEvent(
+  entityType: ChangeEvent["target"]["entityType"],
+  entityId: string,
+  fieldCode: FieldCode | undefined,
+  actor: MemberId,
+): ChangeEvent {
+  return {
+    id: `kernel-write-${entityId}`,
+    track: "data",
+    actor,
+    target:
+      entityType === "field" && fieldCode
+        ? { entityType, entityId, fieldCode }
+        : { entityType, entityId },
+    syncedRefs: 0,
+    at: "2026-07-10T10:24:00+08:00",
+    inverse: null,
   };
 }
 
