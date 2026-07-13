@@ -1,4 +1,5 @@
 import { ImportView } from "../import/import-view";
+import { StructuredImport } from "../import/structured-import";
 import { WorkspaceLayout } from "../shell/layouts";
 import { useChangeSetSnapshot } from "../state/changeset-store";
 
@@ -14,7 +15,10 @@ export function ImportPage() {
         sync: { state: "change", label: `${pendingAi} 个 AI 变更集待确认` },
       }}
     >
-      <ImportView />
+      <div className="us-import-page">
+        <ImportView />
+        <StructuredImport />
+      </div>
     </WorkspaceLayout>
   );
 }

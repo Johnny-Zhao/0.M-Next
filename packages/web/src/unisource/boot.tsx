@@ -19,6 +19,7 @@ import { applyDemoSeed, configureBackendReload } from "./state/demo-reset";
 import { changeSetStore } from "./state/changeset-store";
 import { outputsStore } from "./state/outputs-store";
 import { sessionStore } from "./state/session-store";
+import { structuredImportStore } from "./state/structured-import-store";
 import { validationStore } from "./state/validation-store";
 import { workspaceStore } from "./state/workspace-store";
 
@@ -45,6 +46,7 @@ async function boot(root: Root, mode: BootMode): Promise<void> {
     changeSetStore.setKernelSource(null);
     outputsStore.setKernelSource(null);
     annotationsStore.setKernelSource(null);
+    structuredImportStore.setKernelSource(null);
     setKernelRuntimeState({
       backend: false,
       workspaceId: null,
@@ -74,6 +76,7 @@ async function boot(root: Root, mode: BootMode): Promise<void> {
     changeSetStore.setKernelSource(gateway);
     outputsStore.setKernelSource(gateway);
     annotationsStore.setKernelSource(gateway);
+    structuredImportStore.setKernelSource(gateway, () => load(true));
     void changeSetStore.refreshKernelAiChanges(
       sessionStore.getSnapshot().currentMemberId,
     );
@@ -147,6 +150,7 @@ function fallbackToMock(root: Root): void {
   changeSetStore.setKernelSource(null);
   outputsStore.setKernelSource(null);
   annotationsStore.setKernelSource(null);
+  structuredImportStore.setKernelSource(null);
   setKernelRuntimeState({
     backend: false,
     workspaceId: null,

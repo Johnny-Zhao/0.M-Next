@@ -36,6 +36,9 @@ import type {
   SnapshotArtifact,
   Annotation,
   CreateAnnotationInput,
+  ExchangeApplyOutcome,
+  ExchangeDiff,
+  ExchangeFormat,
   UnisourceGateway,
 } from "./gateway";
 
@@ -289,6 +292,24 @@ export class MockUnisourceGateway implements UnisourceGateway {
     };
   }
 
+  async exchangePreview(
+    format: ExchangeFormat,
+    payload: string,
+  ): Promise<ExchangeDiff> {
+    void format;
+    void payload;
+    return emptyExchangeDiff();
+  }
+
+  async exchangeApply(
+    format: ExchangeFormat,
+    payload: string,
+  ): Promise<ExchangeApplyOutcome> {
+    void format;
+    void payload;
+    throw new Error("结构化导入需连接内核");
+  }
+
   async listAiChanges(): Promise<readonly ChangeSet[]> {
     return this.changeSets.getSnapshot().changeSets;
   }
@@ -361,5 +382,20 @@ function mockAnnotation(id: string, resolved: boolean): Annotation {
     anchoredDataVersion: 1,
     resolvedBy: resolved ? "wangyun" : null,
     resolvedAt: resolved ? "2026-07-10T10:32:00+08:00" : null,
+  };
+}
+
+function emptyExchangeDiff(): ExchangeDiff {
+  return {
+    objects: { added: [], removed: [], changed: [] },
+    relations: { added: [], removed: [], changed: [] },
+    summary: {
+      objectsAdded: 0,
+      objectsRemoved: 0,
+      objectsChanged: 0,
+      relationsAdded: 0,
+      relationsRemoved: 0,
+      relationsChanged: 0,
+    },
   };
 }

@@ -6,6 +6,8 @@ import {
   mapAnnotation,
   mapCommandError,
   mapCheckResult,
+  mapExchangeApply,
+  mapExchangeDiff,
   mapHistoryEntry,
   mapObjectType,
   mapOutputDetail,
@@ -347,6 +349,39 @@ describe("dto mappers", () => {
     });
   });
 
+  it("maps exchange preview and apply DTOs into local import results", () => {
+    const diff = mapExchangeDiff(exchangeDiffFixture());
+    const apply = mapExchangeApply({
+      diff: exchangeDiffFixture(),
+      applied: ["object:prod-new"],
+      unapplied: [
+        {
+          item: "relation:bad",
+          error: {
+            code: "KERNEL-422-SCHEMA-INVALID",
+            title: "Schema invalid",
+            details: { currentVersion: 2 },
+          },
+        },
+      ],
+    });
+
+    expect(diff.summary).toMatchObject({
+      objectsAdded: 1,
+      objectsChanged: 1,
+      relationsChanged: 1,
+    });
+    expect(diff.objects.changed[0]?.fields.changed.price).toEqual({
+      from: 1199,
+      to: 1299,
+    });
+    expect(apply.applied).toEqual(["object:prod-new"]);
+    expect(apply.unapplied[0]).toMatchObject({
+      item: "relation:bad",
+      error: { code: "KERNEL-422-SCHEMA-INVALID" },
+    });
+  });
+
   it("maps snapshot and output DTOs into local output artifacts", () => {
     expect(
       mapSnapshotMeta({
@@ -399,3 +434,47 @@ describe("dto mappers", () => {
     });
   });
 });
+
+function exchangeDiffFixture() {
+  return {
+    objects: {
+      added: ["prod-new"],
+      removed: [],
+      changed: [
+        {
+          objectId: "prod-s3",
+          fields: {
+            added: { color: "black" },
+            removed: {},
+            changed: { price: { from: 1199, to: 1299 } },
+          },
+          statusChanged: null,
+        },
+      ],
+    },
+    relations: {
+      added: [],
+      removed: ["rel-old"],
+      changed: [
+        {
+          relationId: "rel-s3-g2",
+          fields: { added: {}, removed: {}, changed: {} },
+          endpointChanged: {
+            fromSource: "prod-s3",
+            fromTarget: "prod-g2",
+            toSource: "prod-s3",
+            toTarget: "prod-new",
+          },
+        },
+      ],
+    },
+    summary: {
+      objectsAdded: 1,
+      objectsRemoved: 0,
+      objectsChanged: 1,
+      relationsAdded: 0,
+      relationsRemoved: 1,
+      relationsChanged: 1,
+    },
+  };
+}

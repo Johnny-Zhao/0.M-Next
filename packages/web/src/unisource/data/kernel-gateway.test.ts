@@ -332,6 +332,46 @@ describe("KernelGateway", () => {
     });
   });
 
+  it("previews and applies structured exchange imports", async () => {
+    const api = new FakeKernelApi();
+    const gateway = new KernelGateway("", "ws-kernel", "wangyun", api.fetch);
+    gateway.setActor("chenmo");
+
+    const preview = await gateway.exchangePreview("json", '{"objects":[]}');
+    const apply = await gateway.exchangeApply("reqif", "<REQ-IF />");
+
+    expect(preview.summary.objectsAdded).toBe(1);
+    expect(api.exchangePreviews[0]).toEqual({
+      format: "json",
+      base: "current",
+      payload: '{"objects":[]}',
+    });
+    expect(apply).toMatchObject({
+      applied: ["object:prod-new"],
+      unapplied: [{ item: "relation:bad" }],
+    });
+    expect(api.exchangeApplies[0]).toEqual({
+      actorId: "chenmo",
+      format: "reqif",
+      payload: { reqif: "<REQ-IF />", confirmRemovals: false },
+    });
+  });
+
+  it("surfaces structured exchange endpoint errors", async () => {
+    const api = new FakeKernelApi();
+    const gateway = new KernelGateway("", "ws-kernel", "wangyun", api.fetch);
+
+    api.failNextExchangePreview = true;
+    await expect(gateway.exchangePreview("json", "{}")).rejects.toThrow(
+      "交换预览失败",
+    );
+
+    api.failNextExchangeApply = true;
+    await expect(gateway.exchangeApply("json", "{}")).rejects.toMatchObject({
+      code: "KERNEL-422-SCHEMA-INVALID",
+    });
+  });
+
   it("captures snapshots, creates outputs and reads artifacts with the current actor", async () => {
     const api = new FakeKernelApi();
     const gateway = new KernelGateway("", "ws-kernel", "wangyun", api.fetch);
@@ -470,6 +510,16 @@ class FakeKernelApi {
     readonly commandType: string;
     readonly payload: Record<string, unknown>;
   }[] = [];
+  readonly exchangePreviews: {
+    readonly format: string;
+    readonly base: string | null;
+    readonly payload: string;
+  }[] = [];
+  readonly exchangeApplies: {
+    readonly actorId: string | null;
+    readonly format: string;
+    readonly payload: Record<string, unknown>;
+  }[] = [];
   readonly annotationQueries: {
     readonly targetType: string | null;
     readonly targetId: string | null;
@@ -483,6 +533,8 @@ class FakeKernelApi {
   readonly checkResultPageCalls: number[] = [];
   failNextUpdate = false;
   failNextSnapshot = false;
+  failNextExchangePreview = false;
+  failNextExchangeApply = false;
   ruleCommandReturnsRunId = true;
   private objectSequence = 0;
   private relationSequence = 0;
@@ -619,6 +671,58 @@ class FakeKernelApi {
     }
     if (url.pathname.endsWith("/review/commands") && init?.method === "POST") {
       return this.handleReviewCommand(String(init.body ?? "{}"), init);
+    }
+    const exchange = url.pathname.match(/\/exchange\/([^/]+)\/([^/]+)$/);
+    if (exchange && init?.method === "POST") {
+      const format = exchange[1] ?? "";
+      const action = exchange[2] ?? "";
+      if (action === "preview") {
+        if (this.failNextExchangePreview) {
+          this.failNextExchangePreview = false;
+          return json({ message: "preview failed" }, 500);
+        }
+        this.exchangePreviews.push({
+          format,
+          base: url.searchParams.get("base"),
+          payload: String(init.body ?? ""),
+        });
+        return json(exchangeDiffFixture());
+      }
+      if (action === "apply") {
+        if (this.failNextExchangeApply) {
+          this.failNextExchangeApply = false;
+          return json(
+            {
+              error: {
+                code: "KERNEL-422-SCHEMA-INVALID",
+                title: "Schema invalid",
+              },
+            },
+            422,
+          );
+        }
+        this.exchangeApplies.push({
+          actorId: readHeader(init.headers, "X-Actor-Id"),
+          format,
+          payload: JSON.parse(String(init.body ?? "{}")) as Record<
+            string,
+            unknown
+          >,
+        });
+        return json({
+          diff: exchangeDiffFixture(),
+          applied: ["object:prod-new"],
+          unapplied: [
+            {
+              item: "relation:bad",
+              error: {
+                code: "KERNEL-422-SCHEMA-INVALID",
+                title: "Schema invalid",
+              },
+            },
+          ],
+        });
+      }
     }
     if (url.pathname.endsWith("/commands") && init?.method === "POST") {
       return this.handleCommand(String(init.body ?? "{}"), init);
@@ -1018,6 +1122,45 @@ function markAnnotation(
   if (index >= 0) annotations.splice(index, 1, next);
   else annotations.push(next);
   return next;
+}
+
+function exchangeDiffFixture() {
+  return {
+    objects: {
+      added: ["prod-new"],
+      removed: [],
+      changed: [
+        {
+          objectId: "prod-s3",
+          fields: {
+            added: {},
+            removed: {},
+            changed: { price: { from: 1199, to: 1299 } },
+          },
+          statusChanged: null,
+        },
+      ],
+    },
+    relations: {
+      added: [],
+      removed: ["rel-old"],
+      changed: [
+        {
+          relationId: "rel-s3-g2",
+          fields: { added: {}, removed: {}, changed: {} },
+          endpointChanged: null,
+        },
+      ],
+    },
+    summary: {
+      objectsAdded: 1,
+      objectsRemoved: 0,
+      objectsChanged: 1,
+      relationsAdded: 0,
+      relationsRemoved: 1,
+      relationsChanged: 1,
+    },
+  };
 }
 
 function outputMeta(

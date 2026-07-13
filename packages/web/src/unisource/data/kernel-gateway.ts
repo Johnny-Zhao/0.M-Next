@@ -42,6 +42,8 @@ import {
   mapAnnotation,
   mapCommandError,
   mapCheckResult,
+  mapExchangeApply,
+  mapExchangeDiff,
   mapHistoryEntry,
   mapObjectType,
   mapOutputDetail,
@@ -57,6 +59,9 @@ import type {
   SnapshotArtifact,
   Annotation,
   CreateAnnotationInput,
+  ExchangeApplyOutcome,
+  ExchangeDiff,
+  ExchangeFormat,
   UnisourceGateway,
 } from "./gateway";
 import {
@@ -545,6 +550,33 @@ export class KernelGateway implements UnisourceGateway {
       );
       return mapOutputDetail(output);
     });
+  }
+
+  async exchangePreview(
+    format: ExchangeFormat,
+    payload: string,
+  ): Promise<ExchangeDiff> {
+    const diff = await this.viewClient.exchangePreview(
+      this.workspaceId,
+      format,
+      payload,
+    );
+    return mapExchangeDiff(diff);
+  }
+
+  async exchangeApply(
+    format: ExchangeFormat,
+    payload: string,
+  ): Promise<ExchangeApplyOutcome> {
+    return this.runWrite(async () =>
+      mapExchangeApply(
+        await this.commandClient.exchangeApply(
+          this.workspaceId,
+          format,
+          payload,
+        ),
+      ),
+    );
   }
 
   async listAiChanges(): Promise<readonly ChangeSet[]> {

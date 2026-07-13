@@ -3,6 +3,8 @@ import type {
   AiChangeSet,
   CheckResultItem,
   CommandError,
+  ExchangeApplyResult,
+  ExchangeDiffResult,
   ObjectHistoryEntry,
   ObjectType,
   OutputDetail,
@@ -34,6 +36,8 @@ import type {
   OutputArtifactMeta,
   SnapshotArtifact,
   Annotation,
+  ExchangeApplyOutcome,
+  ExchangeDiff,
   WriteRejection,
 } from "./gateway";
 
@@ -207,6 +211,47 @@ export function mapAnnotation(dto: ReviewAnnotation): Annotation {
   };
 }
 
+export function mapExchangeDiff(dto: ExchangeDiffResult): ExchangeDiff {
+  return {
+    objects: {
+      added: [...dto.objects.added],
+      removed: [...dto.objects.removed],
+      changed: dto.objects.changed.map((object) => ({
+        objectId: object.objectId,
+        fields: mapExchangeFieldDiff(object.fields),
+        statusChanged: object.statusChanged,
+      })),
+    },
+    relations: {
+      added: [...dto.relations.added],
+      removed: [...dto.relations.removed],
+      changed: dto.relations.changed.map((relation) => ({
+        relationId: relation.relationId,
+        fields: mapExchangeFieldDiff(relation.fields),
+        endpointChanged: relation.endpointChanged,
+      })),
+    },
+    summary: { ...dto.summary },
+  };
+}
+
+export function mapExchangeApply(
+  dto: ExchangeApplyResult,
+): ExchangeApplyOutcome {
+  return {
+    diff: mapExchangeDiff(dto.diff),
+    applied: [...dto.applied],
+    unapplied: dto.unapplied.map((item) => ({
+      item: item.item,
+      error: {
+        code: item.error.code,
+        title: item.error.title,
+        details: item.error.details,
+      },
+    })),
+  };
+}
+
 export function mapCommandError(error: CommandError): WriteRejection {
   return {
     code: error.code,
@@ -220,6 +265,16 @@ export function mapCommandError(error: CommandError): WriteRejection {
         changedAt: field.changedAt,
       }),
     ),
+  };
+}
+
+function mapExchangeFieldDiff(
+  diff: ExchangeDiffResult["objects"]["changed"][number]["fields"],
+): ExchangeDiff["objects"]["changed"][number]["fields"] {
+  return {
+    added: { ...diff.added },
+    removed: { ...diff.removed },
+    changed: { ...diff.changed },
   };
 }
 

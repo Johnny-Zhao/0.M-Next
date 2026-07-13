@@ -65,6 +65,71 @@ export interface OutputCreateOptions {
   readonly fieldOrder?: readonly string[] | null;
 }
 
+export type ExchangeFormat = "json" | "reqif";
+
+export interface ExchangeValueChange {
+  readonly from: unknown;
+  readonly to: unknown;
+}
+
+export interface ExchangeFieldDiff {
+  readonly added: Readonly<Record<string, unknown>>;
+  readonly removed: Readonly<Record<string, unknown>>;
+  readonly changed: Readonly<Record<string, ExchangeValueChange>>;
+}
+
+export interface ExchangeChangedObject {
+  readonly objectId: string;
+  readonly fields: ExchangeFieldDiff;
+  readonly statusChanged: ExchangeValueChange | null;
+}
+
+export interface ExchangeChangedRelation {
+  readonly relationId: string;
+  readonly fields: ExchangeFieldDiff;
+  readonly endpointChanged: {
+    readonly fromSource: string;
+    readonly fromTarget: string;
+    readonly toSource: string;
+    readonly toTarget: string;
+  } | null;
+}
+
+export interface ExchangeDiff {
+  readonly objects: {
+    readonly added: readonly string[];
+    readonly removed: readonly string[];
+    readonly changed: readonly ExchangeChangedObject[];
+  };
+  readonly relations: {
+    readonly added: readonly string[];
+    readonly removed: readonly string[];
+    readonly changed: readonly ExchangeChangedRelation[];
+  };
+  readonly summary: {
+    readonly objectsAdded: number;
+    readonly objectsRemoved: number;
+    readonly objectsChanged: number;
+    readonly relationsAdded: number;
+    readonly relationsRemoved: number;
+    readonly relationsChanged: number;
+  };
+}
+
+export interface ExchangeApplyOutcome {
+  readonly diff: ExchangeDiff;
+  readonly applied: readonly string[];
+  readonly unapplied: readonly {
+    readonly item: string;
+    readonly error: {
+      readonly code?: string;
+      readonly title?: string;
+      readonly message?: string;
+      readonly details?: unknown;
+    };
+  }[];
+}
+
 export type AnnotationSeverity = "info" | "warn" | "block";
 
 export interface Annotation {
@@ -368,6 +433,26 @@ export interface UnisourceGateway {
    * @mock Return a synthetic text artifact for interface completeness.
    */
   getOutput(outputId: string): Promise<OutputArtifact>;
+
+  /**
+   * Preview a structured artifact import without writing data.
+   * @kernel POST /exchange/{format}/preview.
+   * @mock Backend-only feature; returns an empty diff.
+   */
+  exchangePreview(
+    format: ExchangeFormat,
+    payload: string,
+  ): Promise<ExchangeDiff>;
+
+  /**
+   * Apply a structured artifact import and return per-item results.
+   * @kernel POST /exchange/{format}/apply.
+   * @mock Backend-only feature; UI keeps this disabled without a kernel source.
+   */
+  exchangeApply(
+    format: ExchangeFormat,
+    payload: string,
+  ): Promise<ExchangeApplyOutcome>;
 
   /**
    * Read kernel-authoritative AI change sets without replacing scripted local sets.
