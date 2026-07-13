@@ -4770,3 +4770,23 @@
   color: var(--us-text-2);
   padding: var(--us-sp-2);
 }
+
+.us-perm-person small .us-monotag {
+  margin-left: var(--us-sp-1);
+}
+
+.us-memberdetail__scope {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--us-sp-2);
+  margin-top: var(--us-sp-3);
+}
+
+.us-memberdetail__scope span {
+  background: var(--us-canvas);
+  border: 1px solid var(--us-border-soft);
+  border-radius: var(--us-radius-chip);
+  color: var(--us-text-2);
+  font-size: var(--us-fs-11);
+  padding: var(--us-sp-1) var(--us-sp-2);
+}

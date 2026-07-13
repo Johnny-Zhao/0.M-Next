@@ -50,6 +50,8 @@ export function AccessView() {
           />
           <p className="us-access-foot">
             陈默(琥珀行):数据只读 + 表达可编辑 — 能重排看板,改不了售价。
+            空间角色为前端 G2 投影,仅用于演示可见性;内核仍按当前 actor
+            自行鉴权。
           </p>
         </main>
         <aside className="us-access-side">

@@ -1,7 +1,8 @@
 import type { MemberId, PermissionMatrix, PermLevel } from "../model/kernel";
 import type { Member } from "../model/view-layer";
-import { UsAvatar } from "../primitives";
+import { UsAvatar, UsMonoTag } from "../primitives";
 import { permissionLabel } from "./capability-list";
+import { projectSpaceRole } from "./space-role";
 
 const resources = [
   { code: "product_specs", label: "产品规格库", icon: "▦" },
@@ -51,7 +52,12 @@ export function PermissionMatrixView({
             />
             <span>
               <strong>{member.name}</strong>
-              <small>{member.dept}</small>
+              <small>
+                {member.dept}
+                <UsMonoTag>
+                  {projectSpaceRole(member.id, permissions)}
+                </UsMonoTag>
+              </small>
             </span>
           </span>
           {resources.map((resource) => {
