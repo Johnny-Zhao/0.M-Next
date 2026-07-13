@@ -39,6 +39,7 @@ import type {
 import type { RuleOutcome } from "../validation/rules";
 import {
   mapAiChangeSet,
+  mapAnnotation,
   mapCommandError,
   mapCheckResult,
   mapHistoryEntry,
@@ -54,6 +55,8 @@ import type {
   OutputCreateOptions,
   OutputFormat,
   SnapshotArtifact,
+  Annotation,
+  CreateAnnotationInput,
   UnisourceGateway,
 } from "./gateway";
 import {
@@ -403,6 +406,70 @@ export class KernelGateway implements UnisourceGateway {
     ...args: Parameters<UnisourceGateway["addReviewRecord"]>
   ): Promise<ReviewRecord> {
     this.rejectWrite(...args);
+  }
+
+  async listAnnotations(
+    target?: Parameters<UnisourceGateway["listAnnotations"]>[0],
+  ): Promise<readonly Annotation[]> {
+    if (!target) return [];
+    const annotations = await this.viewClient.annotations(
+      this.workspaceId,
+      target.entityType,
+      target.entityId,
+      target.entityType === "field" ? target.fieldCode : null,
+    );
+    return annotations.map(mapAnnotation);
+  }
+
+  async createAnnotation(request: CreateAnnotationInput): Promise<Annotation> {
+    return this.runWrite(async () => {
+      const annotation = await this.commandClient.createAnnotation(
+        this.workspaceId,
+        {
+          targetType: request.target.entityType,
+          targetId: request.target.entityId,
+          fieldCode:
+            request.target.entityType === "field"
+              ? request.target.fieldCode
+              : null,
+          anchoredDataVersion: request.anchoredDataVersion,
+          severity: request.severity,
+          body: request.body,
+          roundId: null,
+        },
+      );
+      return mapAnnotation(annotation);
+    });
+  }
+
+  async resolveAnnotation(
+    annotationId: string,
+    comment?: string | null,
+  ): Promise<Annotation> {
+    return this.runWrite(async () =>
+      mapAnnotation(
+        await this.commandClient.resolveAnnotation(
+          this.workspaceId,
+          annotationId,
+          comment,
+        ),
+      ),
+    );
+  }
+
+  async reopenAnnotation(
+    annotationId: string,
+    comment?: string | null,
+  ): Promise<Annotation> {
+    return this.runWrite(async () =>
+      mapAnnotation(
+        await this.commandClient.reopenAnnotation(
+          this.workspaceId,
+          annotationId,
+          comment,
+        ),
+      ),
+    );
   }
 
   async runRuleCheck(): Promise<string> {

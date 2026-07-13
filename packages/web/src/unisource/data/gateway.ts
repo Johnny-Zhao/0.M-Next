@@ -1,5 +1,6 @@
 import type {
   ChangeSet,
+  Comment,
   DataFieldPrimitive,
   DataObject,
   DataObjectId,
@@ -8,6 +9,7 @@ import type {
   FieldCode,
   MemberId,
   ReviewRecord,
+  SelectionRef,
 } from "../model/kernel";
 import type {
   FieldRef,
@@ -61,6 +63,43 @@ export interface OutputCreateOptions {
   readonly templateVersion?: number | null;
   readonly objectType?: string | null;
   readonly fieldOrder?: readonly string[] | null;
+}
+
+export type AnnotationSeverity = "info" | "warn" | "block";
+
+export interface Annotation {
+  readonly id: string;
+  readonly anchor: SelectionRef;
+  readonly body: string;
+  readonly author: MemberId;
+  readonly at: string;
+  readonly resolved: boolean;
+  readonly severity: AnnotationSeverity;
+  readonly anchoredDataVersion: number;
+  readonly resolvedBy?: MemberId | null;
+  readonly resolvedAt?: string | null;
+}
+
+export interface CreateAnnotationInput {
+  readonly target: SelectionRef;
+  readonly body: string;
+  readonly severity: AnnotationSeverity;
+  readonly anchoredDataVersion: number;
+}
+
+export function annotationFromComment(comment: Comment): Annotation {
+  return {
+    id: comment.id,
+    anchor: comment.anchor,
+    body: comment.body,
+    author: comment.author,
+    at: comment.at,
+    resolved: comment.resolved,
+    severity: "info",
+    anchoredDataVersion: 1,
+    resolvedBy: null,
+    resolvedAt: null,
+  };
 }
 
 export interface UnisourceGateway {
@@ -253,6 +292,40 @@ export interface UnisourceGateway {
   addReviewRecord(
     record: Omit<ReviewRecord, "id" | "at">,
   ): Promise<ReviewRecord>;
+
+  /**
+   * Read anchored review annotations for a selected object/field/relation.
+   * @kernel GET /annotations with targetType/targetId/fieldCode.
+   * @mock Return local seed comments.
+   */
+  listAnnotations(target?: SelectionRef): Promise<readonly Annotation[]>;
+
+  /**
+   * Create one anchored review annotation.
+   * @kernel POST /review/commands CreateAnnotation.
+   * @mock No-op write surface; local comments remain seed-backed.
+   */
+  createAnnotation(request: CreateAnnotationInput): Promise<Annotation>;
+
+  /**
+   * Resolve an anchored annotation without touching main data versions.
+   * @kernel POST /review/commands ResolveAnnotation.
+   * @mock No-op write surface.
+   */
+  resolveAnnotation(
+    annotationId: string,
+    comment?: string | null,
+  ): Promise<Annotation>;
+
+  /**
+   * Reopen a resolved annotation.
+   * @kernel POST /review/commands ReopenAnnotation.
+   * @mock No-op write surface.
+   */
+  reopenAnnotation(
+    annotationId: string,
+    comment?: string | null,
+  ): Promise<Annotation>;
 
   /**
    * Trigger a validation run and return its run id.

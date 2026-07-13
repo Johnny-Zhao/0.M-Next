@@ -268,6 +268,70 @@ describe("KernelGateway", () => {
     });
   });
 
+  it("reads and writes review annotations with the current actor", async () => {
+    const api = new FakeKernelApi();
+    api.annotations = [
+      kernelAnnotation("ann-1", "object", "kernel-prod-s3", null),
+    ];
+    const gateway = new KernelGateway("", "ws-kernel", "wangyun", api.fetch);
+    gateway.setActor("lixiao");
+
+    const listed = await gateway.listAnnotations({
+      entityType: "object",
+      entityId: "kernel-prod-s3",
+    });
+    const created = await gateway.createAnnotation({
+      target: {
+        entityType: "field",
+        entityId: "kernel-prod-s3",
+        fieldCode: "price",
+      },
+      body: "Needs review",
+      severity: "warn",
+      anchoredDataVersion: 2,
+    });
+    const resolved = await gateway.resolveAnnotation("ann-1");
+    const reopened = await gateway.reopenAnnotation("ann-1");
+
+    expect(listed[0]).toMatchObject({
+      id: "ann-1",
+      anchor: { entityType: "object", entityId: "kernel-prod-s3" },
+    });
+    expect(created).toMatchObject({
+      body: "Needs review",
+      severity: "warn",
+      anchor: {
+        entityType: "field",
+        entityId: "kernel-prod-s3",
+        fieldCode: "price",
+      },
+    });
+    expect(resolved.resolved).toBe(true);
+    expect(reopened.resolved).toBe(false);
+    expect(api.annotationQueries[0]).toEqual({
+      targetType: "object",
+      targetId: "kernel-prod-s3",
+      fieldCode: null,
+    });
+    expect(api.reviewCommands.map((command) => command.commandType)).toEqual([
+      "CreateAnnotation",
+      "ResolveAnnotation",
+      "ReopenAnnotation",
+    ]);
+    expect(api.reviewCommands[0]).toMatchObject({
+      actorId: "lixiao",
+      payload: {
+        targetType: "field",
+        targetId: "kernel-prod-s3",
+        fieldCode: "price",
+        anchoredDataVersion: 2,
+        severity: "warn",
+        body: "Needs review",
+        roundId: null,
+      },
+    });
+  });
+
   it("captures snapshots, creates outputs and reads artifacts with the current actor", async () => {
     const api = new FakeKernelApi();
     const gateway = new KernelGateway("", "ws-kernel", "wangyun", api.fetch);
@@ -401,7 +465,18 @@ class FakeKernelApi {
     readonly actorId: string | null;
     readonly payload: Record<string, unknown>;
   }[] = [];
+  readonly reviewCommands: {
+    readonly actorId: string | null;
+    readonly commandType: string;
+    readonly payload: Record<string, unknown>;
+  }[] = [];
+  readonly annotationQueries: {
+    readonly targetType: string | null;
+    readonly targetId: string | null;
+    readonly fieldCode: string | null;
+  }[] = [];
   aiChangeSets: AiChangeSetFixture[] = [];
+  annotations: ReviewAnnotationFixture[] = [];
   readonly aiChangeActorIds: (string | null)[] = [];
   readonly aiChangeSetFilters: (string | null)[] = [];
   checkResults: CheckResultFixture[] = [];
@@ -525,6 +600,25 @@ class FakeKernelApi {
     }
     if (url.pathname.endsWith("/ai-commands") && init?.method === "POST") {
       return this.handleAiCommand(String(init.body ?? "{}"), init);
+    }
+    if (url.pathname.endsWith("/annotations")) {
+      const query = {
+        targetType: url.searchParams.get("targetType"),
+        targetId: url.searchParams.get("targetId"),
+        fieldCode: url.searchParams.get("fieldCode"),
+      };
+      this.annotationQueries.push(query);
+      return json(
+        this.annotations.filter(
+          (annotation) =>
+            annotation.targetType === query.targetType &&
+            annotation.targetId === query.targetId &&
+            (annotation.fieldCode ?? null) === query.fieldCode,
+        ),
+      );
+    }
+    if (url.pathname.endsWith("/review/commands") && init?.method === "POST") {
+      return this.handleReviewCommand(String(init.body ?? "{}"), init);
     }
     if (url.pathname.endsWith("/commands") && init?.method === "POST") {
       return this.handleCommand(String(init.body ?? "{}"), init);
@@ -678,6 +772,56 @@ class FakeKernelApi {
       idempotentReplay: false,
     });
   }
+
+  private handleReviewCommand(bodyText: string, init: RequestInit): Response {
+    const body = JSON.parse(bodyText) as {
+      readonly commandType?: string;
+      readonly payload?: Record<string, unknown>;
+    };
+    const payload = body.payload ?? {};
+    this.reviewCommands.push({
+      actorId: readHeader(init.headers, "X-Actor-Id"),
+      commandType: body.commandType ?? "",
+      payload,
+    });
+    if (body.commandType === "CreateAnnotation") {
+      const annotation = kernelAnnotation(
+        `ann-created-${this.reviewCommands.length}`,
+        String(payload.targetType),
+        String(payload.targetId),
+        payload.fieldCode === null ? null : String(payload.fieldCode),
+        {
+          severity: String(payload.severity),
+          body: String(payload.body),
+          anchoredDataVersion: Number(payload.anchoredDataVersion),
+          createdBy: readHeader(init.headers, "X-Actor-Id") ?? "wangyun",
+        },
+      );
+      this.annotations.push(annotation);
+      return json(annotation);
+    }
+    if (body.commandType === "ResolveAnnotation") {
+      return json(
+        markAnnotation(
+          this.annotations,
+          String(payload.annotationId),
+          true,
+          readHeader(init.headers, "X-Actor-Id") ?? "wangyun",
+        ),
+      );
+    }
+    if (body.commandType === "ReopenAnnotation") {
+      return json(
+        markAnnotation(
+          this.annotations,
+          String(payload.annotationId),
+          false,
+          readHeader(init.headers, "X-Actor-Id") ?? "wangyun",
+        ),
+      );
+    }
+    return json({ message: "unsupported review command" }, 400);
+  }
 }
 
 interface ViewObjectFixture {
@@ -747,6 +891,23 @@ interface AiChangeSetFixture {
   }[];
 }
 
+interface ReviewAnnotationFixture {
+  readonly id: string;
+  readonly workspaceId: string;
+  readonly roundId: string | null;
+  readonly targetType: "object" | "field" | "relation";
+  readonly targetId: string;
+  readonly fieldCode: string | null;
+  readonly anchoredDataVersion: number;
+  readonly severity: string;
+  readonly body: string;
+  readonly status: "open" | "resolved";
+  readonly createdBy: string;
+  readonly createdAt: string;
+  readonly resolvedBy: string | null;
+  readonly resolvedAt: string | null;
+}
+
 function toViewObject(object: DataObject, objectId: string): ViewObjectFixture {
   return {
     objectId,
@@ -808,6 +969,55 @@ function kernelAiChangeSet(setId: string): AiChangeSetFixture {
       },
     ],
   };
+}
+
+function kernelAnnotation(
+  id: string,
+  targetType: string,
+  targetId: string,
+  fieldCode: string | null,
+  overrides: Partial<ReviewAnnotationFixture> = {},
+): ReviewAnnotationFixture {
+  return {
+    id,
+    workspaceId: "ws-kernel",
+    roundId: null,
+    targetType: targetType as ReviewAnnotationFixture["targetType"],
+    targetId,
+    fieldCode,
+    anchoredDataVersion: 1,
+    severity: "INFO",
+    body: `${id} body`,
+    status: "open",
+    createdBy: "wangyun",
+    createdAt: "2026-07-10T10:24:00+08:00",
+    resolvedBy: null,
+    resolvedAt: null,
+    ...overrides,
+  };
+}
+
+function markAnnotation(
+  annotations: ReviewAnnotationFixture[],
+  annotationId: string,
+  resolved: boolean,
+  actor: string,
+): ReviewAnnotationFixture {
+  const previous =
+    annotations.find((annotation) => annotation.id === annotationId) ??
+    kernelAnnotation(annotationId, "object", "kernel-prod-s3", null);
+  const next: ReviewAnnotationFixture = {
+    ...previous,
+    status: resolved ? "resolved" : "open",
+    resolvedBy: resolved ? actor : null,
+    resolvedAt: resolved ? "2026-07-10T10:32:00+08:00" : null,
+  };
+  const index = annotations.findIndex(
+    (annotation) => annotation.id === annotationId,
+  );
+  if (index >= 0) annotations.splice(index, 1, next);
+  else annotations.push(next);
+  return next;
 }
 
 function outputMeta(

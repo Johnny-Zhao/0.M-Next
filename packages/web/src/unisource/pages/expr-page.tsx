@@ -17,6 +17,7 @@ import { buildDocViewModel } from "../doc/doc-view-model";
 import { MatrixBoard } from "../matrix/matrix-board";
 import type { CanvasNodeConfig } from "../model/view-layer";
 import { UsMonoTag } from "../primitives";
+import { AnnotationDrawer } from "../review/annotation-drawer";
 import { parseFormParam } from "../routes-paths";
 import { FormRow, nextFormSearch } from "../shell/form-row";
 import { LayoutToggle, nextLayoutSearch } from "../shell/layout-toggle";
@@ -59,6 +60,7 @@ export function ExprPage() {
   const form = parseFormParam(search, expr?.defaultForm ?? "doc");
   const split = search.get("layout") === "split";
   const chatOpen = search.get("drawer") === "chat";
+  const reviewOpen = search.get("drawer") === "review";
   const runOpen = search.get("run") === "1";
   const [simNetwork, setSimNetwork] = useState<SimNetwork>("normal");
   const [simPlayhead, setSimPlayhead] = useState(0);
@@ -133,6 +135,19 @@ export function ExprPage() {
   const selectedObjectCount = selection.selected.filter(
     (item) => item.entityType === "object",
   ).length;
+  const annotationTarget = selection.current ?? selection.selected[0] ?? null;
+
+  const closeDrawer = () => {
+    const next = new URLSearchParams(search);
+    next.delete("drawer");
+    setSearch(next);
+  };
+
+  const openReviewDrawer = () => {
+    const next = new URLSearchParams(search);
+    next.set("drawer", "review");
+    setSearch(next);
+  };
 
   useEffect(() => {
     if (!isSimulationOpen) {
@@ -205,14 +220,14 @@ export function ExprPage() {
     );
   };
 
-  const inspector = chatOpen ? (
-    <ChatPanel
-      onClose={() => {
-        const next = new URLSearchParams(search);
-        next.delete("drawer");
-        setSearch(next);
-      }}
+  const inspector = reviewOpen ? (
+    <AnnotationDrawer
+      open={reviewOpen}
+      onClose={closeDrawer}
+      target={annotationTarget}
     />
+  ) : chatOpen ? (
+    <ChatPanel onClose={closeDrawer} />
   ) : isSimulationOpen && simTimeline && simScenario ? (
     <SimParamsPanel
       network={simNetwork}
@@ -291,6 +306,17 @@ export function ExprPage() {
                   : (expr?.lastActivity ?? "已同步"),
         },
         people,
+        actions: (
+          <button
+            aria-pressed={reviewOpen}
+            className="us-topbar__review"
+            onClick={openReviewDrawer}
+            title="打开评审批注"
+            type="button"
+          >
+            评审
+          </button>
+        ),
         aiHref: `/expr/${expr?.id ?? exprId}?form=${form}&drawer=chat`,
       }}
       inspector={inspector}

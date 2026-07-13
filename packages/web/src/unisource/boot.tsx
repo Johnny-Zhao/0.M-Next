@@ -14,6 +14,7 @@ import {
   type KernelGatewayLoadReport,
 } from "./data/kernel-gateway";
 import { KernelWriteBridge } from "./data/write-bridge";
+import { annotationsStore } from "./state/annotations-store";
 import { applyDemoSeed, configureBackendReload } from "./state/demo-reset";
 import { changeSetStore } from "./state/changeset-store";
 import { outputsStore } from "./state/outputs-store";
@@ -43,6 +44,7 @@ async function boot(root: Root, mode: BootMode): Promise<void> {
     validationStore.setKernelSource(null);
     changeSetStore.setKernelSource(null);
     outputsStore.setKernelSource(null);
+    annotationsStore.setKernelSource(null);
     setKernelRuntimeState({
       backend: false,
       workspaceId: null,
@@ -71,6 +73,7 @@ async function boot(root: Root, mode: BootMode): Promise<void> {
     validationStore.setKernelSource(gateway);
     changeSetStore.setKernelSource(gateway);
     outputsStore.setKernelSource(gateway);
+    annotationsStore.setKernelSource(gateway);
     void changeSetStore.refreshKernelAiChanges(
       sessionStore.getSnapshot().currentMemberId,
     );
@@ -143,6 +146,7 @@ function fallbackToMock(root: Root): void {
   validationStore.setKernelSource(null);
   changeSetStore.setKernelSource(null);
   outputsStore.setKernelSource(null);
+  annotationsStore.setKernelSource(null);
   setKernelRuntimeState({
     backend: false,
     workspaceId: null,

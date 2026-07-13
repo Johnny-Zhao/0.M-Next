@@ -27,12 +27,15 @@ import {
   type ViewConfigWriteResult,
 } from "../state/workspace-store";
 import { runValidationRules, type RuleOutcome } from "../validation/rules";
+import { annotationFromComment } from "./gateway";
 import type {
   OutputArtifact,
   OutputArtifactMeta,
   OutputCreateOptions,
   OutputFormat,
   SnapshotArtifact,
+  Annotation,
+  CreateAnnotationInput,
   UnisourceGateway,
 } from "./gateway";
 
@@ -189,6 +192,48 @@ export class MockUnisourceGateway implements UnisourceGateway {
     return this.workspace.addReviewRecord(record);
   }
 
+  async listAnnotations(
+    target?: Parameters<UnisourceGateway["listAnnotations"]>[0],
+  ): Promise<readonly Annotation[]> {
+    const annotations = this.workspace
+      .getSnapshot()
+      .comments.map(annotationFromComment);
+    if (!target) return annotations;
+    return annotations.filter(
+      (annotation) =>
+        annotation.anchor.entityType === target.entityType &&
+        annotation.anchor.entityId === target.entityId &&
+        (annotation.anchor.fieldCode ?? null) === (target.fieldCode ?? null),
+    );
+  }
+
+  async createAnnotation(request: CreateAnnotationInput): Promise<Annotation> {
+    return {
+      id: "mock-annotation",
+      anchor: request.target,
+      body: request.body,
+      author: "wangyun",
+      at: "2026-07-10T10:32:00+08:00",
+      resolved: false,
+      severity: request.severity,
+      anchoredDataVersion: request.anchoredDataVersion,
+      resolvedBy: null,
+      resolvedAt: null,
+    };
+  }
+
+  async resolveAnnotation(annotationId: string): Promise<Annotation> {
+    return (
+      (await this.listAnnotations()).find(
+        (annotation) => annotation.id === annotationId,
+      ) ?? mockAnnotation(annotationId, true)
+    );
+  }
+
+  async reopenAnnotation(annotationId: string): Promise<Annotation> {
+    return mockAnnotation(annotationId, false);
+  }
+
   async runRuleCheck(): Promise<string> {
     this.validationRunSequence += 1;
     const runId = `mock-rule-run-${String(this.validationRunSequence).padStart(4, "0")}`;
@@ -301,5 +346,20 @@ export function toDemoSeed(
     outputSnapshots: state.outputSnapshots,
     plugins: state.plugins,
     simScenarios: state.simScenarios,
+  };
+}
+
+function mockAnnotation(id: string, resolved: boolean): Annotation {
+  return {
+    id,
+    anchor: { entityType: "object", entityId: "mock" },
+    body: "Mock annotation",
+    author: "wangyun",
+    at: "2026-07-10T10:32:00+08:00",
+    resolved,
+    severity: "info",
+    anchoredDataVersion: 1,
+    resolvedBy: resolved ? "wangyun" : null,
+    resolvedAt: resolved ? "2026-07-10T10:32:00+08:00" : null,
   };
 }

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { ObjectTypeDef } from "../model/kernel";
 import {
   mapAiChangeSet,
+  mapAnnotation,
   mapCommandError,
   mapCheckResult,
   mapHistoryEntry,
@@ -307,6 +308,42 @@ describe("dto mappers", () => {
           applied: true,
         },
       ],
+    });
+  });
+
+  it("maps kernel review annotations into local anchored comments", () => {
+    const annotation = mapAnnotation({
+      id: "ann-1",
+      workspaceId: "ws",
+      roundId: null,
+      targetType: "field",
+      targetId: "kernel-prod-s3",
+      fieldCode: "price",
+      anchoredDataVersion: 7,
+      severity: "BLOCK",
+      body: "价格需要复核",
+      status: "resolved",
+      createdBy: "lixiao",
+      createdAt: "2026-07-10T10:24:00+08:00",
+      resolvedBy: "wangyun",
+      resolvedAt: "2026-07-10T10:32:00+08:00",
+    });
+
+    expect(annotation).toEqual({
+      id: "ann-1",
+      anchor: {
+        entityType: "field",
+        entityId: "kernel-prod-s3",
+        fieldCode: "price",
+      },
+      body: "价格需要复核",
+      author: "lixiao",
+      at: "2026-07-10T10:24:00+08:00",
+      resolved: true,
+      severity: "block",
+      anchoredDataVersion: 7,
+      resolvedBy: "wangyun",
+      resolvedAt: "2026-07-10T10:32:00+08:00",
     });
   });
 

@@ -7,6 +7,7 @@ import type {
   ObjectType,
   OutputDetail,
   OutputMeta,
+  ReviewAnnotation,
   SnapshotMeta,
   ViewObject,
 } from "@m-next/views";
@@ -32,6 +33,7 @@ import type {
   OutputArtifact,
   OutputArtifactMeta,
   SnapshotArtifact,
+  Annotation,
   WriteRejection,
 } from "./gateway";
 
@@ -180,6 +182,28 @@ export function mapOutputDetail(dto: OutputDetail): OutputArtifact {
   return {
     ...mapOutputMeta(dto.meta),
     artifact: dto.artifact,
+  };
+}
+
+export function mapAnnotation(dto: ReviewAnnotation): Annotation {
+  return {
+    id: dto.id,
+    anchor:
+      dto.targetType === "field"
+        ? {
+            entityType: "field",
+            entityId: dto.targetId,
+            fieldCode: dto.fieldCode ?? undefined,
+          }
+        : { entityType: dto.targetType, entityId: dto.targetId },
+    body: dto.body,
+    author: mapActor(dto.createdBy),
+    at: dto.createdAt,
+    resolved: dto.status === "resolved",
+    severity: mapAnnotationSeverity(dto.severity),
+    anchoredDataVersion: dto.anchoredDataVersion,
+    resolvedBy: dto.resolvedBy ? mapActor(dto.resolvedBy) : null,
+    resolvedAt: dto.resolvedAt,
   };
 }
 
@@ -403,6 +427,18 @@ function mapSeverity(value: string): RuleOutcome["level"] {
   if (normalized === "BLOCK") return "error";
   if (normalized === "OK") return "passed";
   return "warning";
+}
+
+function mapAnnotationSeverity(value: string): Annotation["severity"] {
+  const normalized = value.toLowerCase();
+  if (normalized === "block") return "block";
+  if (
+    normalized === "warn" ||
+    normalized === "issue" ||
+    normalized === "suggest"
+  )
+    return "warn";
+  return "info";
 }
 
 function readStringArray(value: unknown): readonly string[] | undefined {

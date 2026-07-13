@@ -4896,3 +4896,177 @@
     transition: none;
   }
 }
+
+/* T-US-020 · kernel review annotation drawer */
+.us-topbar__review {
+  align-items: center;
+  background: var(--us-surface);
+  border: 1px solid var(--us-border);
+  border-radius: var(--us-radius-control);
+  color: var(--us-text-muted);
+  cursor: pointer;
+  display: inline-flex;
+  font-size: var(--us-fs-115);
+  font-weight: 700;
+  height: 28px;
+  padding: 0 var(--us-sp-3);
+}
+
+.us-topbar__review:hover,
+.us-topbar__review[aria-pressed="true"] {
+  background: var(--us-primary-bg);
+  border-color: var(--us-primary);
+  color: var(--us-primary-deep);
+}
+
+.us-annotation {
+  display: grid;
+  gap: var(--us-sp-5);
+}
+
+.us-annotation__target,
+.us-annotation__composer,
+.us-annotation-card {
+  background: var(--us-paper);
+  border: 1px solid var(--us-border);
+  border-radius: var(--us-radius-card);
+  box-shadow: var(--us-shadow-card);
+}
+
+.us-annotation__target {
+  align-items: center;
+  display: flex;
+  gap: var(--us-sp-3);
+  justify-content: space-between;
+  padding: var(--us-sp-4);
+}
+
+.us-annotation__target span {
+  display: grid;
+  gap: var(--us-sp-1);
+  min-width: 0;
+}
+
+.us-annotation__target small,
+.us-annotation__note,
+.us-annotation__readonly,
+.us-annotation__empty {
+  color: var(--us-text-muted);
+  font-size: var(--us-fs-115);
+}
+
+.us-annotation__target strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.us-annotation__composer {
+  display: grid;
+  gap: var(--us-sp-4);
+  padding: var(--us-sp-4);
+}
+
+.us-annotation__composer label {
+  display: grid;
+  gap: var(--us-sp-2);
+}
+
+.us-annotation__composer label span {
+  color: var(--us-text-muted);
+  font-size: var(--us-fs-115);
+  font-weight: 700;
+}
+
+.us-annotation__composer select,
+.us-annotation__composer textarea {
+  background: var(--us-surface-input);
+  border: 1px solid var(--us-border);
+  border-radius: var(--us-radius-control);
+  color: var(--us-text);
+  font: inherit;
+  padding: var(--us-sp-3);
+}
+
+.us-annotation__composer textarea {
+  min-height: 92px;
+  resize: vertical;
+}
+
+.us-annotation__note,
+.us-annotation__readonly,
+.us-annotation__empty {
+  margin: 0;
+}
+
+.us-annotation__readonly,
+.us-annotation__empty {
+  background: var(--us-surface);
+  border: 1px dashed var(--us-border-strong);
+  border-radius: var(--us-radius-card);
+  padding: var(--us-sp-4);
+}
+
+.us-annotation__list {
+  display: grid;
+  gap: var(--us-sp-4);
+}
+
+.us-annotation-card {
+  display: grid;
+  gap: var(--us-sp-3);
+  padding: var(--us-sp-4);
+}
+
+.us-annotation-card[data-severity="info"] {
+  border-left: 3px solid var(--us-primary);
+}
+
+.us-annotation-card[data-severity="warn"] {
+  border-left: 3px solid var(--us-change);
+}
+
+.us-annotation-card[data-severity="block"] {
+  border-left: 3px solid var(--us-danger);
+}
+
+.us-annotation-card[data-resolved="true"] {
+  opacity: 0.72;
+}
+
+.us-annotation-card header,
+.us-annotation-card footer {
+  align-items: center;
+  display: flex;
+  gap: var(--us-sp-2);
+  justify-content: space-between;
+}
+
+.us-annotation-card header span {
+  align-items: center;
+  display: inline-flex;
+  gap: var(--us-sp-2);
+  min-width: 0;
+}
+
+.us-annotation-card p {
+  line-height: 1.8;
+  margin: 0;
+}
+
+.us-annotation-card footer {
+  color: var(--us-text-muted);
+  flex-wrap: wrap;
+  font-size: var(--us-fs-115);
+  justify-content: flex-start;
+  min-width: 0;
+}
+
+.us-annotation-card footer button {
+  background: transparent;
+  border: 0;
+  color: var(--us-primary-deep);
+  cursor: pointer;
+  font-weight: 700;
+  padding: 0;
+}
