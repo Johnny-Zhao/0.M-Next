@@ -13,9 +13,26 @@ export interface FieldUpdate {
   readonly expectedFieldVersion?: number | null;
 }
 
+export interface ChangeStateRequest {
+  readonly targetType: "object" | "relation" | "fieldValue";
+  readonly targetId: string;
+  readonly fromState: string;
+  readonly toState: string;
+  readonly reason: string;
+  readonly expectedVersion: number;
+}
+
 export interface RelationCommandResult {
   readonly relationId?: string;
   readonly version?: number;
+}
+
+export interface UpdateRelationRequest {
+  readonly relationId: string;
+  readonly expectedVersion: number;
+  readonly fields: Readonly<Record<string, unknown>>;
+  readonly sourceId?: string;
+  readonly targetId?: string;
 }
 
 export interface CommandAck {
@@ -84,6 +101,7 @@ export interface CommandError {
 }
 
 const errorTitles: Readonly<Record<string, string>> = {
+  "KERNEL-409-STATE-TRANSITION-INVALID": "状态流转不合法",
   "KERNEL-409-VERSION-CONFLICT": "乐观版本冲突",
   "KERNEL-410-TARGET-ARCHIVED": "目标已废止",
   "KERNEL-423-TARGET-LOCKED": "字段或对象被他人锁定",
@@ -184,6 +202,20 @@ export class CommandClient {
     });
   }
 
+  async changeState(
+    workspaceId: string,
+    request: ChangeStateRequest,
+  ): Promise<CommandAck | void> {
+    return this.post("ChangeState", workspaceId, {
+      targetType: request.targetType,
+      targetId: request.targetId,
+      fromState: request.fromState,
+      toState: request.toState,
+      reason: request.reason,
+      expectedVersion: request.expectedVersion,
+    });
+  }
+
   async createRelation(
     workspaceId: string,
     relationType: string,
@@ -197,6 +229,19 @@ export class CommandClient {
       targetId,
       relationFields: {},
       source: { type: "manual", ref },
+    });
+  }
+
+  async updateRelation(
+    workspaceId: string,
+    request: UpdateRelationRequest,
+  ): Promise<RelationCommandResult | void> {
+    return this.post("UpdateRelation", workspaceId, {
+      relationId: request.relationId,
+      expectedVersion: request.expectedVersion,
+      fields: request.fields,
+      ...(request.sourceId === undefined ? {} : { sourceId: request.sourceId }),
+      ...(request.targetId === undefined ? {} : { targetId: request.targetId }),
     });
   }
 

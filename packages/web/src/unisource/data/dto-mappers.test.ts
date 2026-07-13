@@ -7,6 +7,9 @@ import {
   mapCheckResult,
   mapHistoryEntry,
   mapObjectType,
+  mapOutputDetail,
+  mapOutputMeta,
+  mapSnapshotMeta,
   mapViewObject,
 } from "./dto-mappers";
 
@@ -304,6 +307,58 @@ describe("dto mappers", () => {
           applied: true,
         },
       ],
+    });
+  });
+
+  it("maps snapshot and output DTOs into local output artifacts", () => {
+    expect(
+      mapSnapshotMeta({
+        snapshotId: "snapshot-1",
+        createdAt: "2026-07-10T10:24:00+08:00",
+        createdBy: "wangyun",
+        dataVersion: 9,
+        contentHash: "hash-snapshot",
+        scopeObjectType: "hardware_products",
+      }),
+    ).toEqual({
+      snapshotId: "snapshot-1",
+      createdAt: "2026-07-10T10:24:00+08:00",
+      createdBy: "wangyun",
+      dataVersion: 9,
+      contentHash: "hash-snapshot",
+      scopeObjectType: "hardware_products",
+    });
+
+    const meta = {
+      outputId: "output-1",
+      dataSnapshotId: "snapshot-1",
+      format: "docx" as const,
+      templateId: "tpl-install-v1",
+      templateVersion: 1,
+      reviewStatus: "READY",
+      checkStatus: "OK",
+      dataVersion: 9,
+      createdAt: "2026-07-10T10:25:00+08:00",
+      createdBy: "wangyun",
+      contentHash: "hash-output",
+    };
+
+    expect(mapOutputMeta(meta)).toEqual({
+      outputId: "output-1",
+      snapshotId: "snapshot-1",
+      format: "docx",
+      createdAt: "2026-07-10T10:25:00+08:00",
+      createdBy: "wangyun",
+      contentHash: "hash-output",
+    });
+    expect(mapOutputDetail({ meta, artifact: "YmFzZTY0" })).toEqual({
+      outputId: "output-1",
+      snapshotId: "snapshot-1",
+      format: "docx",
+      artifact: "YmFzZTY0",
+      createdAt: "2026-07-10T10:25:00+08:00",
+      createdBy: "wangyun",
+      contentHash: "hash-output",
     });
   });
 });

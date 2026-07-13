@@ -574,6 +574,69 @@ describe("view and command clients", () => {
     });
   });
 
+  it("posts UpdateRelation through the command endpoint", async () => {
+    const fetchFn = vi.fn<FetchFn>(
+      async () =>
+        new Response(JSON.stringify({ relationId: "relation", version: 4 })),
+    );
+    const client = new CommandClient("/api", fetchFn);
+    client.setActorId("alice");
+
+    await client.updateRelation("ws", {
+      relationId: "relation",
+      expectedVersion: 3,
+      fields: { weight: 8, note: "critical" },
+    });
+    await client.updateRelation("ws", {
+      relationId: "relation",
+      expectedVersion: 4,
+      fields: { weight: 9 },
+      sourceId: "source-2",
+      targetId: "target-2",
+    });
+
+    expect(fetchFn.mock.calls[0]?.[0]).toBe("/api/workspaces/ws/commands");
+    expect(fetchFn.mock.calls[0]?.[1]?.headers).toMatchObject({
+      "content-type": "application/json",
+      "X-Actor-Id": "alice",
+    });
+    const fieldsOnly = JSON.parse(String(fetchFn.mock.calls[0]?.[1]?.body));
+    expect(fieldsOnly.commandType).toBe("UpdateRelation");
+    expect(fieldsOnly.payload).toEqual({
+      relationId: "relation",
+      expectedVersion: 3,
+      fields: { weight: 8, note: "critical" },
+    });
+    expect(fieldsOnly.payload).not.toHaveProperty("sourceId");
+    expect(fieldsOnly.payload).not.toHaveProperty("targetId");
+
+    const withEndpoints = JSON.parse(String(fetchFn.mock.calls[1]?.[1]?.body));
+    expect(withEndpoints.commandType).toBe("UpdateRelation");
+    expect(withEndpoints.payload).toEqual({
+      relationId: "relation",
+      expectedVersion: 4,
+      fields: { weight: 9 },
+      sourceId: "source-2",
+      targetId: "target-2",
+    });
+  });
+
+  it("does not post UpdateRelation until an actor id is set", async () => {
+    const fetchFn = vi.fn<FetchFn>(
+      async () => new Response(null, { status: 200 }),
+    );
+    const client = new CommandClient("/api", fetchFn);
+
+    await expect(
+      client.updateRelation("ws", {
+        relationId: "relation",
+        expectedVersion: 3,
+        fields: { weight: 8 },
+      }),
+    ).rejects.toThrow("缺少 X-Actor-Id");
+    expect(fetchFn).not.toHaveBeenCalled();
+  });
+
   it("posts CreateObject with resolved object type id and manual source", async () => {
     const fetchFn = vi.fn<FetchFn>(
       async () =>
@@ -634,6 +697,65 @@ describe("view and command clients", () => {
       expectedVersion: 3,
       relationPolicy: "unlink",
     });
+  });
+
+  it("posts ChangeState with the state transition payload", async () => {
+    const fetchFn = vi.fn<FetchFn>(
+      async () =>
+        new Response(
+          JSON.stringify({
+            commandId: "cmd-1",
+            status: "COMMITTED",
+            events: [],
+          }),
+        ),
+    );
+    const client = new CommandClient("/api", fetchFn);
+    client.setActorId("alice");
+
+    await client.changeState("ws", {
+      targetType: "object",
+      targetId: "module-1",
+      fromState: "DRAFT",
+      toState: "PENDING_CONFIRM",
+      reason: "submit for review",
+      expectedVersion: 3,
+    });
+
+    expect(fetchFn.mock.calls[0]?.[0]).toBe("/api/workspaces/ws/commands");
+    expect(fetchFn.mock.calls[0]?.[1]?.headers).toMatchObject({
+      "content-type": "application/json",
+      "X-Actor-Id": "alice",
+    });
+    const request = JSON.parse(String(fetchFn.mock.calls[0]?.[1]?.body));
+    expect(request.commandType).toBe("ChangeState");
+    expect(request.payload).toEqual({
+      targetType: "object",
+      targetId: "module-1",
+      fromState: "DRAFT",
+      toState: "PENDING_CONFIRM",
+      reason: "submit for review",
+      expectedVersion: 3,
+    });
+  });
+
+  it("does not post ChangeState until an actor id is set", async () => {
+    const fetchFn = vi.fn<FetchFn>(
+      async () => new Response(null, { status: 200 }),
+    );
+    const client = new CommandClient("/api", fetchFn);
+
+    await expect(
+      client.changeState("ws", {
+        targetType: "object",
+        targetId: "module-1",
+        fromState: "DRAFT",
+        toState: "PENDING_CONFIRM",
+        reason: "submit for review",
+        expectedVersion: 3,
+      }),
+    ).rejects.toThrow("缺少 X-Actor-Id");
+    expect(fetchFn).not.toHaveBeenCalled();
   });
 
   it("instantiates against the author workspace with the new id in the payload", async () => {

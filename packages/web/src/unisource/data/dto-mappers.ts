@@ -5,6 +5,9 @@ import type {
   CommandError,
   ObjectHistoryEntry,
   ObjectType,
+  OutputDetail,
+  OutputMeta,
+  SnapshotMeta,
   ViewObject,
 } from "@m-next/views";
 
@@ -25,7 +28,12 @@ import type {
 } from "../model/kernel";
 import type { ChangeEvent } from "../model/view-layer";
 import type { RuleOutcome } from "../validation/rules";
-import type { WriteRejection } from "./gateway";
+import type {
+  OutputArtifact,
+  OutputArtifactMeta,
+  SnapshotArtifact,
+  WriteRejection,
+} from "./gateway";
 
 type ObjectTypeWithKernelId = ObjectTypeDef & { readonly kernelId: string };
 
@@ -143,6 +151,35 @@ export function mapAiChangeSet(dto: AiChangeSet): ChangeSet {
     actor: "ai",
     createdAt: dto.createdAt,
     items: dto.items.map(mapAiChangeItem),
+  };
+}
+
+export function mapSnapshotMeta(dto: SnapshotMeta): SnapshotArtifact {
+  return {
+    snapshotId: dto.snapshotId,
+    createdBy: dto.createdBy,
+    createdAt: dto.createdAt,
+    dataVersion: dto.dataVersion,
+    contentHash: dto.contentHash,
+    scopeObjectType: dto.scopeObjectType,
+  };
+}
+
+export function mapOutputMeta(dto: OutputMeta): OutputArtifactMeta {
+  return {
+    outputId: dto.outputId,
+    snapshotId: dto.dataSnapshotId,
+    format: dto.format,
+    createdBy: dto.createdBy,
+    createdAt: dto.createdAt,
+    contentHash: dto.contentHash,
+  };
+}
+
+export function mapOutputDetail(dto: OutputDetail): OutputArtifact {
+  return {
+    ...mapOutputMeta(dto.meta),
+    artifact: dto.artifact,
   };
 }
 

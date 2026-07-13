@@ -268,6 +268,54 @@ describe("KernelGateway", () => {
     });
   });
 
+  it("captures snapshots, creates outputs and reads artifacts with the current actor", async () => {
+    const api = new FakeKernelApi();
+    const gateway = new KernelGateway("", "ws-kernel", "wangyun", api.fetch);
+    gateway.setActor("lixiao");
+
+    const snapshot = await gateway.captureSnapshot("hardware_products");
+    const output = await gateway.createOutput(snapshot.snapshotId, "docx", {
+      templateId: "tpl-install-v1",
+      objectType: "hardware_products",
+    });
+    const artifact = await gateway.getOutput(output.outputId);
+
+    expect(api.snapshots[0]).toEqual({
+      actorId: "lixiao",
+      payload: { scopeObjectType: "hardware_products" },
+    });
+    expect(api.outputs[0]).toEqual({
+      actorId: "lixiao",
+      payload: {
+        snapshotId: "snapshot-1",
+        format: "docx",
+        templateId: "tpl-install-v1",
+        templateVersion: null,
+        objectType: "hardware_products",
+        fieldOrder: null,
+      },
+    });
+    expect(output).toMatchObject({
+      outputId: "output-1",
+      snapshotId: "snapshot-1",
+      format: "docx",
+      createdBy: "lixiao",
+    });
+    expect(artifact).toMatchObject({
+      outputId: "output-1",
+      format: "docx",
+      artifact: "ZG9jeA==",
+    });
+  });
+
+  it("surfaces output endpoint errors", async () => {
+    const api = new FakeKernelApi();
+    api.failNextSnapshot = true;
+    const gateway = new KernelGateway("", "ws-kernel", "wangyun", api.fetch);
+
+    await expect(gateway.captureSnapshot()).rejects.toThrow("写入视图制品失败");
+  });
+
   it("maps command failures into write rejections", async () => {
     const api = new FakeKernelApi();
     api.seedObjects(2);
@@ -345,12 +393,21 @@ class FakeKernelApi {
     readonly commandType: string;
     readonly payload: Record<string, unknown>;
   }[] = [];
+  readonly snapshots: {
+    readonly actorId: string | null;
+    readonly payload: Record<string, unknown>;
+  }[] = [];
+  readonly outputs: {
+    readonly actorId: string | null;
+    readonly payload: Record<string, unknown>;
+  }[] = [];
   aiChangeSets: AiChangeSetFixture[] = [];
   readonly aiChangeActorIds: (string | null)[] = [];
   readonly aiChangeSetFilters: (string | null)[] = [];
   checkResults: CheckResultFixture[] = [];
   readonly checkResultPageCalls: number[] = [];
   failNextUpdate = false;
+  failNextSnapshot = false;
   ruleCommandReturnsRunId = true;
   private objectSequence = 0;
   private relationSequence = 0;
@@ -393,6 +450,54 @@ class FakeKernelApi {
         pageSize: 30,
         total: this.history.get(objectId)?.length ?? 0,
       });
+    }
+    if (url.pathname.endsWith("/snapshots") && init?.method === "POST") {
+      if (this.failNextSnapshot) {
+        this.failNextSnapshot = false;
+        return json({ message: "snapshot failed" }, 500);
+      }
+      const payload = JSON.parse(String(init.body ?? "{}")) as Record<
+        string,
+        unknown
+      >;
+      this.snapshots.push({
+        actorId: readHeader(init.headers, "X-Actor-Id"),
+        payload,
+      });
+      return json({
+        snapshotId: `snapshot-${this.snapshots.length}`,
+        createdAt: "2026-07-10T10:24:00+08:00",
+        createdBy: readHeader(init.headers, "X-Actor-Id") ?? "wangyun",
+        dataVersion: 7,
+        contentHash: "snapshot-hash",
+        scopeObjectType: payload.scopeObjectType ?? null,
+      });
+    }
+    const outputDetail = url.pathname.match(/\/outputs\/([^/]+)$/);
+    if (outputDetail) {
+      const outputId = outputDetail[1] ?? "";
+      return json({
+        meta: outputMeta(outputId, "snapshot-1", "docx", "lixiao"),
+        artifact: "ZG9jeA==",
+      });
+    }
+    if (url.pathname.endsWith("/outputs") && init?.method === "POST") {
+      const payload = JSON.parse(String(init.body ?? "{}")) as Record<
+        string,
+        unknown
+      >;
+      this.outputs.push({
+        actorId: readHeader(init.headers, "X-Actor-Id"),
+        payload,
+      });
+      return json(
+        outputMeta(
+          `output-${this.outputs.length}`,
+          String(payload.snapshotId),
+          String(payload.format),
+          readHeader(init.headers, "X-Actor-Id") ?? "wangyun",
+        ),
+      );
     }
     if (url.pathname.endsWith("/rule-commands") && init?.method === "POST") {
       return this.handleRuleCommand(String(init.body ?? "{}"), init);
@@ -702,6 +807,27 @@ function kernelAiChangeSet(setId: string): AiChangeSetFixture {
         itemStatus: "PROPOSED",
       },
     ],
+  };
+}
+
+function outputMeta(
+  outputId: string,
+  snapshotId: string,
+  format: string,
+  actor: string,
+) {
+  return {
+    outputId,
+    dataSnapshotId: snapshotId,
+    format,
+    templateId: "tpl-install-v1",
+    templateVersion: 1,
+    reviewStatus: "READY",
+    checkStatus: "OK",
+    dataVersion: 7,
+    createdAt: "2026-07-10T10:25:00+08:00",
+    createdBy: actor,
+    contentHash: "output-hash",
   };
 }
 

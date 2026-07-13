@@ -9,7 +9,10 @@ import {
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
+import { useKernelRuntimeState } from "../data/boot-mode";
+import type { OutputFormat } from "../data/gateway";
 import { UsButton, UsMonoTag, pushToast } from "../primitives";
+import { outputsStore, useOutputsSnapshot } from "../state/outputs-store";
 import { sessionStore, useSessionSnapshot } from "../state/session-store";
 import type { WorkspaceState } from "../state/workspace-store";
 import { workspaceStore, useWorkspaceSnapshot } from "../state/workspace-store";
@@ -57,6 +60,8 @@ export function TemplateCanvas({ exprId }: { exprId: string }) {
   const workspace = useWorkspaceSnapshot();
   const session = useSessionSnapshot();
   const validation = useValidationSnapshot();
+  const kernelRuntime = useKernelRuntimeState();
+  const outputs = useOutputsSnapshot();
   const navigate = useNavigate();
   const view = workspace.views.find(
     (candidate) => candidate.exprId === exprId && candidate.kind === "canvas",
@@ -156,6 +161,26 @@ export function TemplateCanvas({ exprId }: { exprId: string }) {
       { actor: session.currentMemberId, summary: "移动模板槽位" },
     );
   };
+  const exportKernelOutput = (format: OutputFormat) => {
+    if (!availability.enabled) {
+      pushToast({ title: availability.reason ?? "暂不可导出" });
+      return;
+    }
+    void outputsStore.exportToKernel(
+      format,
+      {
+        scopeObjectType: "hardware_products",
+        objectType: "hardware_products",
+        templateId: vm.templateId,
+        fileBaseName: `装机配置单-${vm.templateName}`,
+      },
+      session.currentMemberId,
+    );
+  };
+  const openLocalConfigDoc = () => {
+    pushToast({ title: "正在打开配置单" });
+    navigate(resolveTemplateConfigDocHref(workspace, exprId, vm.templateId));
+  };
 
   return (
     <section className="us-template-shell">
@@ -185,17 +210,41 @@ export function TemplateCanvas({ exprId }: { exprId: string }) {
           <UsButton
             size="sm"
             variant="emphasis"
-            disabled={!availability.enabled}
+            disabled={!availability.enabled || outputs.busy}
             title={availability.reason}
             onClick={() => {
-              pushToast({ title: "正在打开配置单" });
-              navigate(
-                resolveTemplateConfigDocHref(workspace, exprId, vm.templateId),
-              );
+              if (kernelRuntime.backend) exportKernelOutput("docx");
+              else openLocalConfigDoc();
             }}
           >
-            生成配置单 DOC
+            {outputs.busy
+              ? "导出中"
+              : kernelRuntime.backend
+                ? "导出 DOCX"
+                : "生成配置单 DOC"}
           </UsButton>
+          {kernelRuntime.backend ? (
+            <>
+              <UsButton
+                disabled={!availability.enabled || outputs.busy}
+                onClick={() => exportKernelOutput("pdf")}
+                size="sm"
+                title={availability.reason}
+                variant="secondary"
+              >
+                PDF
+              </UsButton>
+              <UsButton
+                disabled={!availability.enabled || outputs.busy}
+                onClick={() => exportKernelOutput("csv")}
+                size="sm"
+                title={availability.reason}
+                variant="secondary"
+              >
+                CSV
+              </UsButton>
+            </>
+          ) : null}
         </div>
         <div
           className="us-template-stage"

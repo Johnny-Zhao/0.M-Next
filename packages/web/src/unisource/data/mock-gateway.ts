@@ -27,7 +27,14 @@ import {
   type ViewConfigWriteResult,
 } from "../state/workspace-store";
 import { runValidationRules, type RuleOutcome } from "../validation/rules";
-import type { UnisourceGateway } from "./gateway";
+import type {
+  OutputArtifact,
+  OutputArtifactMeta,
+  OutputCreateOptions,
+  OutputFormat,
+  SnapshotArtifact,
+  UnisourceGateway,
+} from "./gateway";
 
 export class MockUnisourceGateway implements UnisourceGateway {
   private readonly workspace: WorkspaceStore;
@@ -194,6 +201,47 @@ export class MockUnisourceGateway implements UnisourceGateway {
 
   async checkResults(runId: string): Promise<readonly RuleOutcome[]> {
     return this.validationRuns.get(runId) ?? [];
+  }
+
+  async captureSnapshot(
+    scopeObjectType?: string | null,
+  ): Promise<SnapshotArtifact> {
+    return {
+      snapshotId: "mock-snapshot",
+      createdBy: "mock",
+      createdAt: "2026-07-10T10:32:00+08:00",
+      dataVersion: 1,
+      contentHash: "mock",
+      scopeObjectType: scopeObjectType ?? null,
+    };
+  }
+
+  async createOutput(
+    snapshotId: string,
+    format: OutputFormat,
+    options: OutputCreateOptions = {},
+  ): Promise<OutputArtifactMeta> {
+    void options;
+    return {
+      outputId: `mock-output-${format}`,
+      snapshotId,
+      format,
+      createdBy: "mock",
+      createdAt: "2026-07-10T10:32:00+08:00",
+      contentHash: "mock",
+    };
+  }
+
+  async getOutput(outputId: string): Promise<OutputArtifact> {
+    return {
+      outputId,
+      snapshotId: "mock-snapshot",
+      format: "markdown",
+      artifact: "# Mock output",
+      createdBy: "mock",
+      createdAt: "2026-07-10T10:32:00+08:00",
+      contentHash: "mock",
+    };
   }
 
   async listAiChanges(): Promise<readonly ChangeSet[]> {

@@ -43,9 +43,19 @@ import {
   mapCheckResult,
   mapHistoryEntry,
   mapObjectType,
+  mapOutputDetail,
+  mapOutputMeta,
+  mapSnapshotMeta,
   mapViewObject,
 } from "./dto-mappers";
-import type { UnisourceGateway } from "./gateway";
+import type {
+  OutputArtifact,
+  OutputArtifactMeta,
+  OutputCreateOptions,
+  OutputFormat,
+  SnapshotArtifact,
+  UnisourceGateway,
+} from "./gateway";
 import {
   objectBusinessKey,
   relationBusinessKey,
@@ -423,6 +433,42 @@ export class KernelGateway implements UnisourceGateway {
       page += 1;
     }
     return items.map(mapCheckResult);
+  }
+
+  async captureSnapshot(
+    scopeObjectType?: string | null,
+  ): Promise<SnapshotArtifact> {
+    const snapshot = await this.viewClient.captureSnapshot(
+      this.workspaceId,
+      this.currentActor,
+      scopeObjectType ?? null,
+    );
+    return mapSnapshotMeta(snapshot);
+  }
+
+  async createOutput(
+    snapshotId: string,
+    format: OutputFormat,
+    options: OutputCreateOptions = {},
+  ): Promise<OutputArtifactMeta> {
+    const output = await this.viewClient.createOutput(
+      this.workspaceId,
+      this.currentActor,
+      {
+        snapshotId,
+        format,
+        templateId: options.templateId ?? null,
+        templateVersion: options.templateVersion ?? null,
+        objectType: options.objectType ?? null,
+        fieldOrder: options.fieldOrder ?? null,
+      },
+    );
+    return mapOutputMeta(output);
+  }
+
+  async getOutput(outputId: string): Promise<OutputArtifact> {
+    const output = await this.viewClient.getOutput(this.workspaceId, outputId);
+    return mapOutputDetail(output);
   }
 
   async listAiChanges(): Promise<readonly ChangeSet[]> {

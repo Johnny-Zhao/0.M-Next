@@ -26,6 +26,43 @@ import type {
 } from "../state/workspace-store";
 import type { RuleOutcome } from "../validation/rules";
 
+export type OutputFormat =
+  | "markdown"
+  | "docx"
+  | "pdf"
+  | "html"
+  | "csv"
+  | "xlsx";
+
+export interface SnapshotArtifact {
+  readonly snapshotId: string;
+  readonly createdBy: string;
+  readonly createdAt: string;
+  readonly dataVersion: number;
+  readonly contentHash: string;
+  readonly scopeObjectType: string | null;
+}
+
+export interface OutputArtifactMeta {
+  readonly outputId: string;
+  readonly snapshotId: string;
+  readonly format: OutputFormat;
+  readonly createdBy: string;
+  readonly createdAt: string;
+  readonly contentHash: string;
+}
+
+export interface OutputArtifact extends OutputArtifactMeta {
+  readonly artifact: string;
+}
+
+export interface OutputCreateOptions {
+  readonly templateId?: string | null;
+  readonly templateVersion?: number | null;
+  readonly objectType?: string | null;
+  readonly fieldOrder?: readonly string[] | null;
+}
+
 export interface UnisourceGateway {
   /**
    * Update the actor used by write-side command clients.
@@ -232,6 +269,32 @@ export interface UnisourceGateway {
    * @gap G9: pagination and compare/fix payload parity are deferred.
    */
   checkResults(runId: string): Promise<readonly RuleOutcome[]>;
+
+  /**
+   * Capture a data snapshot for output rendering.
+   * @kernel POST /workspaces/{id}/snapshots with X-Actor-Id.
+   * @mock Return a synthetic snapshot meta; local demo export does not use it.
+   * @gap G5: slot bindings remain frontend projection data until backend support.
+   */
+  captureSnapshot(scopeObjectType?: string | null): Promise<SnapshotArtifact>;
+
+  /**
+   * Create one output render task from a snapshot.
+   * @kernel POST /workspaces/{id}/outputs.
+   * @mock Return a synthetic output meta; local demo export does not use it.
+   */
+  createOutput(
+    snapshotId: string,
+    format: OutputFormat,
+    options?: OutputCreateOptions,
+  ): Promise<OutputArtifactMeta>;
+
+  /**
+   * Read the rendered artifact payload for download.
+   * @kernel GET /workspaces/{id}/outputs/{outputId}.
+   * @mock Return a synthetic text artifact for interface completeness.
+   */
+  getOutput(outputId: string): Promise<OutputArtifact>;
 
   /**
    * Read kernel-authoritative AI change sets without replacing scripted local sets.

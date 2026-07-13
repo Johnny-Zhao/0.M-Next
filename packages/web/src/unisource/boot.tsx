@@ -16,6 +16,7 @@ import {
 import { KernelWriteBridge } from "./data/write-bridge";
 import { applyDemoSeed, configureBackendReload } from "./state/demo-reset";
 import { changeSetStore } from "./state/changeset-store";
+import { outputsStore } from "./state/outputs-store";
 import { validationStore } from "./state/validation-store";
 import { workspaceStore } from "./state/workspace-store";
 
@@ -40,6 +41,7 @@ async function boot(root: Root, mode: BootMode): Promise<void> {
     workspaceStore.setWriteSink(null);
     validationStore.setKernelSource(null);
     changeSetStore.setKernelSource(null);
+    outputsStore.setKernelSource(null);
     setKernelRuntimeState({
       backend: false,
       workspaceId: null,
@@ -66,6 +68,7 @@ async function boot(root: Root, mode: BootMode): Promise<void> {
     workspaceStore.setWriteSink(writeBridge);
     validationStore.setKernelSource(gateway);
     changeSetStore.setKernelSource(gateway);
+    outputsStore.setKernelSource(gateway);
     void changeSetStore.refreshKernelAiChanges("wangyun");
     setKernelRuntimeState({
       backend: true,
@@ -135,6 +138,7 @@ function fallbackToMock(root: Root): void {
   workspaceStore.setWriteSink(null);
   validationStore.setKernelSource(null);
   changeSetStore.setKernelSource(null);
+  outputsStore.setKernelSource(null);
   setKernelRuntimeState({
     backend: false,
     workspaceId: null,
