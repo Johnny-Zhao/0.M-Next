@@ -181,8 +181,13 @@ function KernelAiChangeSetsPanel(props: {
   readonly onReject: (changeSetId: string) => void;
 }) {
   return (
-    <section className="us-targetdiff" aria-label="内核 AI 变更集">
-      <section>
+    <section
+      aria-busy={props.busy}
+      aria-label="内核 AI 变更集"
+      className="us-targetdiff us-kernel-ai-panel"
+      data-busy={props.busy}
+    >
+      <section className="us-kernel-ai-panel__inner">
         <header>
           <div>
             <UsMonoTag tone="primary">KERNEL AI</UsMonoTag>
@@ -198,7 +203,7 @@ function KernelAiChangeSetsPanel(props: {
           </UsButton>
         </header>
         {props.changeSets.length === 0 ? (
-          <article>
+          <article data-empty="true">
             <small>
               暂无内核待确认项
               {props.syncAt ? ` · ${props.syncAt}` : ""}

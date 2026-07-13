@@ -4790,3 +4790,109 @@
   font-size: var(--us-fs-11);
   padding: var(--us-sp-1) var(--us-sp-2);
 }
+
+/* T-US-019 · P4 backend polish */
+.us-validationcard--kernel[data-tone="danger"] {
+  background: var(--us-danger-bg);
+  border-color: var(--us-danger-border);
+}
+
+.us-validationcard--kernel[data-tone="warning"] {
+  background: var(--us-change-bg);
+  border-color: var(--us-change-border);
+}
+
+.us-validationcard--kernel[data-tone="neutral"] {
+  background: var(--us-paper);
+  border-color: var(--us-border);
+}
+
+.us-validationcard__summary {
+  align-items: center;
+  display: flex;
+  gap: var(--us-sp-3);
+  justify-content: space-between;
+  width: 100%;
+}
+
+.us-validationcard__summary > span:nth-child(2) {
+  display: grid;
+  flex: 1 1 auto;
+  gap: var(--us-sp-1);
+  min-width: 0;
+}
+
+.us-validationcard--kernel[data-tone="danger"] .us-validationcard__mark {
+  background: var(--us-danger);
+  color: var(--us-paper);
+}
+
+.us-validationcard--kernel[data-tone="neutral"] .us-validationcard__mark {
+  background: var(--us-primary-bg);
+  border-color: var(--us-primary-border);
+  color: var(--us-primary-deep);
+}
+
+.us-kernel-ai-panel {
+  margin-top: var(--us-sp-4);
+}
+
+.us-kernel-ai-panel__inner {
+  border-style: dashed;
+}
+
+.us-kernel-ai-panel[data-busy="true"] {
+  opacity: 0.82;
+}
+
+.us-kernel-ai-panel article[data-empty="true"] {
+  background: var(--us-surface-input);
+  border-style: dashed;
+  color: var(--us-text-muted);
+}
+
+.us-kernel-ai-panel .us-import-actions {
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.us-template-export-actions {
+  align-items: center;
+  background: var(--us-surface-input);
+  border: 1px solid var(--us-border);
+  border-radius: var(--us-radius-control);
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--us-sp-2);
+  padding: var(--us-sp-1);
+}
+
+.us-template-export-actions[data-busy="true"] {
+  border-color: var(--us-change-border);
+}
+
+.us-template-export-actions[data-disabled="true"] {
+  border-color: var(--us-danger-border);
+}
+
+.us-template-export-hint {
+  color: var(--us-text-muted);
+  font: 700 var(--us-fs-10) var(--us-font-data);
+  padding: 0 var(--us-sp-1);
+  white-space: nowrap;
+}
+
+.us-template-export-actions[data-busy="true"] .us-template-export-hint {
+  color: var(--us-change-text);
+}
+
+.us-template-export-actions[data-disabled="true"] .us-template-export-hint {
+  color: var(--us-danger);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .us-kernel-ai-panel,
+  .us-template-export-actions {
+    transition: none;
+  }
+}

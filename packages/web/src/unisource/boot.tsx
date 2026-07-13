@@ -17,6 +17,7 @@ import { KernelWriteBridge } from "./data/write-bridge";
 import { applyDemoSeed, configureBackendReload } from "./state/demo-reset";
 import { changeSetStore } from "./state/changeset-store";
 import { outputsStore } from "./state/outputs-store";
+import { sessionStore } from "./state/session-store";
 import { validationStore } from "./state/validation-store";
 import { workspaceStore } from "./state/workspace-store";
 
@@ -59,7 +60,8 @@ async function boot(root: Root, mode: BootMode): Promise<void> {
     return;
   }
   const workspaceId = mode.workspaceId;
-  const gateway = new KernelGateway("", workspaceId, "wangyun");
+  const initialActor = sessionStore.getSnapshot().currentMemberId;
+  const gateway = new KernelGateway("", workspaceId, initialActor);
   const writeBridge = new KernelWriteBridge(gateway);
   const load = async (notify: boolean): Promise<void> => {
     const seed = await gateway.loadWorkspace();
@@ -69,7 +71,9 @@ async function boot(root: Root, mode: BootMode): Promise<void> {
     validationStore.setKernelSource(gateway);
     changeSetStore.setKernelSource(gateway);
     outputsStore.setKernelSource(gateway);
-    void changeSetStore.refreshKernelAiChanges("wangyun");
+    void changeSetStore.refreshKernelAiChanges(
+      sessionStore.getSnapshot().currentMemberId,
+    );
     setKernelRuntimeState({
       backend: true,
       workspaceId,

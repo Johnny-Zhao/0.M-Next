@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import type { ChangeSet, MemberId } from "../model/kernel";
 import { cloneDemoSeed } from "../seed/demo-seed";
@@ -178,6 +178,26 @@ describe("ChangeSetStore", () => {
     expect(store.getSnapshot().kernelBusy).toBe(false);
   });
 
+  it("keeps kernel refresh failures local and resets busy", async () => {
+    const seed = cloneDemoSeed();
+    const source = new FakeKernelChangeSetSource([]);
+    source.failList = true;
+    const pushToast = vi.fn();
+    const store = new ChangeSetStore(seed, new WorkspaceStore(seed), {
+      kernelSource: source,
+      pushToast,
+    });
+
+    await expect(
+      store.refreshKernelAiChanges("lixiao"),
+    ).resolves.toBeUndefined();
+
+    expect(store.getSnapshot().kernelBusy).toBe(false);
+    expect(pushToast).toHaveBeenCalledWith(
+      expect.objectContaining({ desc: "list failed" }),
+    );
+  });
+
   it("confirms selected kernel items and refreshes the overlay", async () => {
     const seed = cloneDemoSeed();
     const source = new FakeKernelChangeSetSource([kernelChangeSet("kernel-1")]);
@@ -195,6 +215,26 @@ describe("ChangeSetStore", () => {
     expect(store.getSnapshot().kernelBusy).toBe(false);
   });
 
+  it("keeps kernel confirm failures local and resets busy", async () => {
+    const seed = cloneDemoSeed();
+    const source = new FakeKernelChangeSetSource([kernelChangeSet("kernel-1")]);
+    source.failConfirm = true;
+    const pushToast = vi.fn();
+    const store = new ChangeSetStore(seed, new WorkspaceStore(seed), {
+      kernelSource: source,
+      pushToast,
+    });
+
+    await expect(
+      store.confirmKernelItems("kernel-1", ["item-1"], "wangyun"),
+    ).resolves.toBeUndefined();
+
+    expect(store.getSnapshot().kernelBusy).toBe(false);
+    expect(pushToast).toHaveBeenCalledWith(
+      expect.objectContaining({ desc: "confirm failed" }),
+    );
+  });
+
   it("rejects kernel change sets and clears overlay when the source is removed", async () => {
     const seed = cloneDemoSeed();
     const source = new FakeKernelChangeSetSource([kernelChangeSet("kernel-1")]);
@@ -210,6 +250,26 @@ describe("ChangeSetStore", () => {
     expect(store.getSnapshot().kernelChangeSets).toEqual([]);
     expect(store.getSnapshot().kernelSyncAt).toBeNull();
   });
+
+  it("keeps kernel reject failures local and resets busy", async () => {
+    const seed = cloneDemoSeed();
+    const source = new FakeKernelChangeSetSource([kernelChangeSet("kernel-1")]);
+    source.failReject = true;
+    const pushToast = vi.fn();
+    const store = new ChangeSetStore(seed, new WorkspaceStore(seed), {
+      kernelSource: source,
+      pushToast,
+    });
+
+    await expect(
+      store.rejectKernel("kernel-1", "wangyun"),
+    ).resolves.toBeUndefined();
+
+    expect(store.getSnapshot().kernelBusy).toBe(false);
+    expect(pushToast).toHaveBeenCalledWith(
+      expect.objectContaining({ desc: "reject failed" }),
+    );
+  });
 });
 
 class FakeKernelChangeSetSource implements KernelChangeSetSource {
@@ -220,6 +280,9 @@ class FakeKernelChangeSetSource implements KernelChangeSetSource {
   }[] = [];
   readonly rejectCalls: string[] = [];
   listCalls = 0;
+  failList = false;
+  failConfirm = false;
+  failReject = false;
 
   constructor(private readonly changeSets: readonly ChangeSet[]) {}
 
@@ -229,6 +292,7 @@ class FakeKernelChangeSetSource implements KernelChangeSetSource {
 
   async listAiChanges(): Promise<readonly ChangeSet[]> {
     this.listCalls += 1;
+    if (this.failList) throw new Error("list failed");
     return this.changeSets;
   }
 
@@ -237,11 +301,13 @@ class FakeKernelChangeSetSource implements KernelChangeSetSource {
     itemIds?: readonly string[],
   ): Promise<ChangeSetResult> {
     this.confirmCalls.push({ setId, itemIds });
+    if (this.failConfirm) throw new Error("confirm failed");
     return { ok: true, changeSet: kernelChangeSet(setId) };
   }
 
   async rejectAiChange(setId: string): Promise<ChangeSetResult> {
     this.rejectCalls.push(setId);
+    if (this.failReject) throw new Error("reject failed");
     return { ok: true, changeSet: kernelChangeSet(setId, "rejected") };
   }
 }

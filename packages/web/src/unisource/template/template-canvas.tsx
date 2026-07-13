@@ -207,44 +207,59 @@ export function TemplateCanvas({ exprId }: { exprId: string }) {
           >
             另存为模板
           </UsButton>
-          <UsButton
-            size="sm"
-            variant="emphasis"
-            disabled={!availability.enabled || outputs.busy}
-            title={availability.reason}
-            onClick={() => {
-              if (kernelRuntime.backend) exportKernelOutput("docx");
-              else openLocalConfigDoc();
-            }}
+          <span
+            className="us-template-export-actions"
+            data-busy={outputs.busy}
+            data-disabled={!availability.enabled}
           >
-            {outputs.busy
-              ? "导出中"
-              : kernelRuntime.backend
-                ? "导出 DOCX"
-                : "生成配置单 DOC"}
-          </UsButton>
-          {kernelRuntime.backend ? (
-            <>
-              <UsButton
-                disabled={!availability.enabled || outputs.busy}
-                onClick={() => exportKernelOutput("pdf")}
-                size="sm"
-                title={availability.reason}
-                variant="secondary"
-              >
-                PDF
-              </UsButton>
-              <UsButton
-                disabled={!availability.enabled || outputs.busy}
-                onClick={() => exportKernelOutput("csv")}
-                size="sm"
-                title={availability.reason}
-                variant="secondary"
-              >
-                CSV
-              </UsButton>
-            </>
-          ) : null}
+            <span className="us-template-export-hint">
+              {outputs.busy
+                ? "导出中"
+                : availability.enabled
+                  ? kernelRuntime.backend
+                    ? "内核输出"
+                    : "本地配置单"
+                  : availability.reason}
+            </span>
+            <UsButton
+              size="sm"
+              variant="emphasis"
+              disabled={!availability.enabled || outputs.busy}
+              title={availability.reason}
+              onClick={() => {
+                if (kernelRuntime.backend) exportKernelOutput("docx");
+                else openLocalConfigDoc();
+              }}
+            >
+              {outputs.busy
+                ? "导出中"
+                : kernelRuntime.backend
+                  ? "导出 DOCX"
+                  : "生成配置单 DOC"}
+            </UsButton>
+            {kernelRuntime.backend ? (
+              <>
+                <UsButton
+                  disabled={!availability.enabled || outputs.busy}
+                  onClick={() => exportKernelOutput("pdf")}
+                  size="sm"
+                  title={availability.reason}
+                  variant="secondary"
+                >
+                  PDF
+                </UsButton>
+                <UsButton
+                  disabled={!availability.enabled || outputs.busy}
+                  onClick={() => exportKernelOutput("csv")}
+                  size="sm"
+                  title={availability.reason}
+                  variant="secondary"
+                >
+                  CSV
+                </UsButton>
+              </>
+            ) : null}
+          </span>
         </div>
         <div
           className="us-template-stage"

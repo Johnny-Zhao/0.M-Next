@@ -46,6 +46,7 @@ export function ValidateView() {
     (result) =>
       result.level === "passed" && !validation.ignored.has(result.ruleCode),
   ).length;
+  const kernelSummary = kernelValidationSummary(validation.kernelResults);
   const runNow = () => {
     setRunning(true);
     validationStore.runAll("0.2s");
@@ -111,9 +112,14 @@ export function ValidateView() {
           />
           {kernelRuntime.backend ? (
             <section className="us-validationcards" aria-label="内核校验">
-              <article className="us-validationcard" data-tone="warning">
-                <button type="button">
-                  <span className="us-validationcard__mark">✓</span>
+              <article
+                className="us-validationcard us-validationcard--kernel"
+                data-tone={kernelSummary.tone}
+              >
+                <div className="us-validationcard__summary">
+                  <span className="us-validationcard__mark">
+                    {kernelSummary.mark}
+                  </span>
                   <span>
                     <strong>内核校验(权威)</strong>
                     <small>
@@ -124,7 +130,10 @@ export function ValidateView() {
                           : "尚未运行"}
                     </small>
                   </span>
-                </button>
+                  <UsMonoTag tone={kernelSummary.tagTone}>
+                    {kernelSummary.label}
+                  </UsMonoTag>
+                </div>
                 {validation.kernelResults.length > 0 ? (
                   <ul>
                     {validation.kernelResults.map((result) => (
@@ -159,4 +168,36 @@ export function ValidateView() {
 function formatTime(value: string): string {
   const match = value.match(/T(\d{2}:\d{2})/);
   return match?.[1] ?? "10:32";
+}
+
+function kernelValidationSummary(
+  results: readonly { readonly level: string }[],
+): {
+  readonly tone: "danger" | "warning" | "neutral";
+  readonly tagTone: "danger" | "change" | "primary";
+  readonly mark: string;
+  readonly label: string;
+} {
+  if (results.some((result) => result.level === "error")) {
+    return {
+      tone: "danger",
+      tagTone: "danger",
+      mark: "!",
+      label: "BLOCK",
+    };
+  }
+  if (results.some((result) => result.level === "warning")) {
+    return {
+      tone: "warning",
+      tagTone: "change",
+      mark: "!",
+      label: "WARN",
+    };
+  }
+  return {
+    tone: "neutral",
+    tagTone: "primary",
+    mark: "✓",
+    label: results.length > 0 ? "OK" : "IDLE",
+  };
 }

@@ -438,12 +438,14 @@ export class KernelGateway implements UnisourceGateway {
   async captureSnapshot(
     scopeObjectType?: string | null,
   ): Promise<SnapshotArtifact> {
-    const snapshot = await this.viewClient.captureSnapshot(
-      this.workspaceId,
-      this.currentActor,
-      scopeObjectType ?? null,
-    );
-    return mapSnapshotMeta(snapshot);
+    return this.runWrite(async () => {
+      const snapshot = await this.viewClient.captureSnapshot(
+        this.workspaceId,
+        this.currentActor,
+        scopeObjectType ?? null,
+      );
+      return mapSnapshotMeta(snapshot);
+    });
   }
 
   async createOutput(
@@ -451,24 +453,31 @@ export class KernelGateway implements UnisourceGateway {
     format: OutputFormat,
     options: OutputCreateOptions = {},
   ): Promise<OutputArtifactMeta> {
-    const output = await this.viewClient.createOutput(
-      this.workspaceId,
-      this.currentActor,
-      {
-        snapshotId,
-        format,
-        templateId: options.templateId ?? null,
-        templateVersion: options.templateVersion ?? null,
-        objectType: options.objectType ?? null,
-        fieldOrder: options.fieldOrder ?? null,
-      },
-    );
-    return mapOutputMeta(output);
+    return this.runWrite(async () => {
+      const output = await this.viewClient.createOutput(
+        this.workspaceId,
+        this.currentActor,
+        {
+          snapshotId,
+          format,
+          templateId: options.templateId ?? null,
+          templateVersion: options.templateVersion ?? null,
+          objectType: options.objectType ?? null,
+          fieldOrder: options.fieldOrder ?? null,
+        },
+      );
+      return mapOutputMeta(output);
+    });
   }
 
   async getOutput(outputId: string): Promise<OutputArtifact> {
-    const output = await this.viewClient.getOutput(this.workspaceId, outputId);
-    return mapOutputDetail(output);
+    return this.runWrite(async () => {
+      const output = await this.viewClient.getOutput(
+        this.workspaceId,
+        outputId,
+      );
+      return mapOutputDetail(output);
+    });
   }
 
   async listAiChanges(): Promise<readonly ChangeSet[]> {
