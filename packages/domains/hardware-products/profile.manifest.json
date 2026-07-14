@@ -1,0 +1,227 @@
+{
+  "id": "hardware-products",
+  "name": "门锁与装机",
+  "version": "1.0.0",
+  "templateCode": "hardware_products",
+  "tags": {
+    "industry": ["智能家居", "硬件"],
+    "profession": ["产品", "供应链"],
+    "scenario": ["门锁", "装机"]
+  },
+  "valueTypes": [],
+  "objectTypes": [
+    { "code": "product_specs", "name": "产品规格库" },
+    { "code": "hardware_products", "name": "硬件产品库" },
+    { "code": "channel_sales", "name": "渠道销量表" },
+    { "code": "contracts", "name": "合同台账" },
+    { "code": "customers", "name": "客户信息库" }
+  ],
+  "fields": [
+    {
+      "objectType": "product_specs",
+      "code": "sku",
+      "name": "产品编号",
+      "dataType": "string",
+      "required": false
+    },
+    {
+      "objectType": "product_specs",
+      "code": "name",
+      "name": "名称",
+      "dataType": "string",
+      "required": false
+    },
+    {
+      "objectType": "product_specs",
+      "code": "price",
+      "name": "权威售价",
+      "dataType": "number",
+      "required": false
+    },
+    {
+      "objectType": "product_specs",
+      "code": "owner",
+      "name": "负责人",
+      "dataType": "string",
+      "required": false
+    },
+    {
+      "objectType": "product_specs",
+      "code": "battery_months",
+      "name": "续航(月)",
+      "dataType": "number",
+      "required": false
+    },
+    {
+      "objectType": "product_specs",
+      "code": "rating",
+      "name": "防护等级",
+      "dataType": "string",
+      "required": false
+    },
+    {
+      "objectType": "product_specs",
+      "code": "launch_date",
+      "name": "上市日期",
+      "dataType": "date",
+      "required": false
+    },
+    {
+      "objectType": "product_specs",
+      "code": "lifecycle",
+      "name": "状态",
+      "dataType": "enum",
+      "required": false,
+      "constraints": { "enumValues": ["研发中", "预售", "在售", "停产"] }
+    },
+    {
+      "objectType": "hardware_products",
+      "code": "name",
+      "name": "名称",
+      "dataType": "string",
+      "required": false
+    },
+    {
+      "objectType": "hardware_products",
+      "code": "part_type",
+      "name": "品类",
+      "dataType": "enum",
+      "required": false,
+      "constraints": { "enumValues": ["主板", "CPU", "电源", "内存", "显卡"] }
+    },
+    {
+      "objectType": "hardware_products",
+      "code": "chipset",
+      "name": "芯片组",
+      "dataType": "string",
+      "required": false
+    },
+    {
+      "objectType": "hardware_products",
+      "code": "form_factor",
+      "name": "版型",
+      "dataType": "enum",
+      "required": false,
+      "constraints": { "enumValues": ["", "ATX", "mATX"] }
+    },
+    {
+      "objectType": "hardware_products",
+      "code": "socket",
+      "name": "插槽",
+      "dataType": "string",
+      "required": false
+    },
+    {
+      "objectType": "hardware_products",
+      "code": "vrm",
+      "name": "供电",
+      "dataType": "string",
+      "required": false
+    },
+    {
+      "objectType": "hardware_products",
+      "code": "price",
+      "name": "价格",
+      "dataType": "number",
+      "required": false
+    },
+    {
+      "objectType": "hardware_products",
+      "code": "cores",
+      "name": "核心数",
+      "dataType": "number",
+      "required": false
+    },
+    {
+      "objectType": "channel_sales",
+      "code": "channel",
+      "name": "渠道",
+      "dataType": "string",
+      "required": false
+    },
+    {
+      "objectType": "channel_sales",
+      "code": "month_sales",
+      "name": "本月销量",
+      "dataType": "number",
+      "required": false
+    },
+    {
+      "objectType": "channel_sales",
+      "code": "cached_price",
+      "name": "S3 售价缓存",
+      "dataType": "number",
+      "required": false
+    },
+    {
+      "objectType": "contracts",
+      "code": "name",
+      "name": "合同名称",
+      "dataType": "string",
+      "required": false
+    },
+    {
+      "objectType": "contracts",
+      "code": "product",
+      "name": "产品",
+      "dataType": "string",
+      "required": false
+    },
+    {
+      "objectType": "contracts",
+      "code": "channel",
+      "name": "渠道",
+      "dataType": "string",
+      "required": false
+    },
+    {
+      "objectType": "contracts",
+      "code": "quote",
+      "name": "报价",
+      "dataType": "number",
+      "required": false
+    },
+    {
+      "objectType": "contracts",
+      "code": "contact",
+      "name": "联系人",
+      "dataType": "string",
+      "required": false
+    },
+    {
+      "objectType": "contracts",
+      "code": "amount",
+      "name": "金额",
+      "dataType": "number",
+      "required": false
+    },
+    {
+      "objectType": "customers",
+      "code": "name",
+      "name": "客户名称",
+      "dataType": "string",
+      "required": false
+    },
+    {
+      "objectType": "customers",
+      "code": "region",
+      "name": "区域",
+      "dataType": "string",
+      "required": false
+    }
+  ],
+  "relations": [
+    {
+      "code": "interconnects_with",
+      "name": "互联",
+      "source": "product_specs",
+      "target": "product_specs",
+      "direction": "undirected",
+      "cardinality": "many_to_many",
+      "semantics": "weak",
+      "hierarchical": false
+    }
+  ],
+  "derived": [],
+  "rules": []
+}

@@ -37,6 +37,8 @@ class DevSeedRunner implements ApplicationRunner {
       UUID.fromString("22222222-2222-4222-8222-222222222222");
   private static final UUID MBSE_WORKSPACE =
       UUID.fromString("33333333-3333-4333-8333-333333333333");
+  private static final UUID HARDWARE_WORKSPACE =
+      UUID.fromString("44444444-4444-4444-8444-444444444444");
   private static final String AUTHOR = ProfileLoader.AUTHOR_WORKSPACE.toString();
   private static final String INTERIOR_TEMPLATE_CODE = "interior_design";
   private static final String TECHNICAL_TEMPLATE_CODE = "technical_proposal";
@@ -102,6 +104,9 @@ class DevSeedRunner implements ApplicationRunner {
     if (!mbseSeedRichEnough()) {
       seedMbseObjects();
     }
+    var hardwareManifest = hardwareManifest();
+    profileLoader.install(hardwareManifest, actor);
+    ensureDemoWorkspace(hardwareManifest, actor, HARDWARE_WORKSPACE, "门锁 Demo");
     var sysmlManifest = sysmlManifest();
     profileLoader.install(sysmlManifest, actor);
     applyProfile(sysmlManifest, actor, MBSE_WORKSPACE);
@@ -125,6 +130,7 @@ class DevSeedRunner implements ApplicationRunner {
     LOG.info(
         "DEV SEED: technical-proposal installed, demo workspace {} ready", TECHNICAL_WORKSPACE);
     LOG.info("DEV SEED: mbse installed, rich verification demo workspace {} ready", MBSE_WORKSPACE);
+    LOG.info("DEV SEED: hardware-products installed, demo workspace {} ready", HARDWARE_WORKSPACE);
     LOG.info("DEV SEED: sysml-mbse mapping applied to workspace {} ready", MBSE_WORKSPACE);
   }
 
@@ -138,6 +144,10 @@ class DevSeedRunner implements ApplicationRunner {
 
   private ProfileManifest mbseManifest() throws Exception {
     return manifest("mbse", "mbse");
+  }
+
+  private ProfileManifest hardwareManifest() throws Exception {
+    return manifest("hardware-products", "hardware products");
   }
 
   private ProfileManifest sysmlManifest() throws Exception {

@@ -10,6 +10,7 @@ import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -37,6 +38,28 @@ class DevSeedRunnerIntegrationTest {
       UUID.fromString("22222222-2222-4222-8222-222222222222");
   private static final UUID MBSE_WORKSPACE =
       UUID.fromString("33333333-3333-4333-8333-333333333333");
+  private static final UUID HARDWARE_WORKSPACE =
+      UUID.fromString("44444444-4444-4444-8444-444444444444");
+  private static final Map<String, Set<String>> HARDWARE_FIELDS =
+      Map.of(
+          "product_specs",
+          Set.of(
+              "sku",
+              "name",
+              "price",
+              "owner",
+              "battery_months",
+              "rating",
+              "launch_date",
+              "lifecycle"),
+          "hardware_products",
+          Set.of("name", "part_type", "chipset", "form_factor", "socket", "vrm", "price", "cores"),
+          "channel_sales",
+          Set.of("channel", "month_sales", "cached_price"),
+          "contracts",
+          Set.of("name", "product", "channel", "quote", "contact", "amount"),
+          "customers",
+          Set.of("name", "region"));
 
   @Container
   static final PostgreSQLContainer<?> POSTGRES =
@@ -60,7 +83,7 @@ class DevSeedRunnerIntegrationTest {
   @LocalServerPort int port;
 
   @Test
-  void devSeedInstallsInteriorTechnicalProposalAndMbseDemos() {
+  void devSeedInstallsInteriorTechnicalProposalMbseAndHardwareDemos() {
     assertEquals(1, objectCount(INTERIOR_WORKSPACE, "floorplan"));
     assertEquals(6, objectCount(INTERIOR_WORKSPACE, "room"));
 
@@ -176,12 +199,45 @@ class DevSeedRunnerIntegrationTest {
     assertTrue(workspaceIds.contains(INTERIOR_WORKSPACE.toString()), workspaces.toString());
     assertTrue(workspaceIds.contains(TECHNICAL_WORKSPACE.toString()), workspaces.toString());
     assertTrue(workspaceIds.contains(MBSE_WORKSPACE.toString()), workspaces.toString());
+    assertTrue(workspaceIds.contains(HARDWARE_WORKSPACE.toString()), workspaces.toString());
     assertTrue(names.contains("室内设计 Demo"), names.toString());
     assertTrue(names.contains("技术方案 Demo"), names.toString());
     assertTrue(names.contains("MBSE Demo"), names.toString());
+    assertTrue(names.contains("门锁 Demo"), names.toString());
 
     assertEquals(1, templateObjectTypeCount(ProfileLoader.AUTHOR_WORKSPACE, "room"));
     assertEquals(1, runtimeObjectTypeCount(INTERIOR_WORKSPACE, "room"));
+  }
+
+  @Test
+  void devSeedInstallsEmptyHardwareDemoWithAllSeedTypes() {
+    assertEquals(0, objectCount(HARDWARE_WORKSPACE, "product_specs"));
+    assertEquals(HARDWARE_FIELDS.keySet(), runtimeObjectTypeCodes(HARDWARE_WORKSPACE));
+    HARDWARE_FIELDS.forEach(
+        (objectTypeCode, fields) ->
+            assertEquals(fields, fieldCodes(HARDWARE_WORKSPACE, objectTypeCode)));
+    assertEquals(1, runtimeRelationTypeCount(HARDWARE_WORKSPACE, "interconnects_with"));
+
+    var response =
+        http.getForEntity(
+            base() + "/workspaces/" + HARDWARE_WORKSPACE + "/views/object-types", Map[].class);
+    assertEquals(200, response.getStatusCode().value(), String.valueOf(response.getBody()));
+    var returnedCodes =
+        Arrays.stream(response.getBody())
+            .map(type -> String.valueOf(type.get("code")))
+            .collect(java.util.stream.Collectors.toSet());
+    assertEquals(HARDWARE_FIELDS.keySet(), returnedCodes);
+    Arrays.stream(response.getBody())
+        .forEach(
+            type -> {
+              @SuppressWarnings("unchecked")
+              var fields = (List<Map<String, Object>>) type.get("fields");
+              var returnedFields =
+                  fields.stream()
+                      .map(field -> String.valueOf(field.get("code")))
+                      .collect(java.util.stream.Collectors.toSet());
+              assertEquals(HARDWARE_FIELDS.get(String.valueOf(type.get("code"))), returnedFields);
+            });
   }
 
   @Test
@@ -334,6 +390,28 @@ class DevSeedRunnerIntegrationTest {
         objectTypeCode);
   }
 
+  private Set<String> runtimeObjectTypeCodes(UUID workspaceId) {
+    return Set.copyOf(
+        jdbc.queryForList(
+            "SELECT code FROM object_type WHERE workspace_id = ? AND template_version_id IS NULL",
+            String.class,
+            workspaceId));
+  }
+
+  private Set<String> fieldCodes(UUID workspaceId, String objectTypeCode) {
+    return Set.copyOf(
+        jdbc.queryForList(
+            """
+            SELECT field.code
+            FROM field_def field
+            JOIN object_type type ON type.id = field.object_type_id
+            WHERE type.workspace_id = ? AND type.code = ?
+            """,
+            String.class,
+            workspaceId,
+            objectTypeCode));
+  }
+
   private UUID objectIdByField(
       UUID workspaceId, String objectTypeCode, String fieldCode, String expected) {
     return jdbc.queryForObject(
@@ -408,6 +486,18 @@ class DevSeedRunnerIntegrationTest {
         FROM data_relation relation
         JOIN relation_type type ON type.id = relation.relation_type_id
         WHERE relation.workspace_id = ? AND type.code = ? AND relation.status = 'ACTIVE'
+        """,
+        Integer.class,
+        workspaceId,
+        relationTypeCode);
+  }
+
+  private int runtimeRelationTypeCount(UUID workspaceId, String relationTypeCode) {
+    return jdbc.queryForObject(
+        """
+        SELECT count(*)
+        FROM relation_type
+        WHERE workspace_id = ? AND code = ?
         """,
         Integer.class,
         workspaceId,
