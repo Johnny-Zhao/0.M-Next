@@ -37,6 +37,8 @@ importers:
 
   packages/domains/mbse: {}
 
+  packages/domains/pc-procurement: {}
+
   packages/domains/sysml: {}
 
   packages/domains/sysml-mbse-mapping: {}

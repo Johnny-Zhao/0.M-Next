@@ -40,6 +40,15 @@ class DevSeedRunnerIntegrationTest {
       UUID.fromString("33333333-3333-4333-8333-333333333333");
   private static final UUID HARDWARE_WORKSPACE =
       UUID.fromString("44444444-4444-4444-8444-444444444444");
+  private static final UUID PC_PROCUREMENT_WORKSPACE = PcProcurementDevSeeder.WORKSPACE_ID;
+  private static final Set<String> PC_PROCUREMENT_TYPES =
+      Set.of(
+          "procurement_requirement",
+          "hardware_product",
+          "supplier",
+          "supplier_quote",
+          "build_plan",
+          "build_plan_item");
   private static final Map<String, Set<String>> HARDWARE_FIELDS =
       Map.of(
           "product_specs",
@@ -78,7 +87,9 @@ class DevSeedRunnerIntegrationTest {
   @Autowired ObjectMapper mapper;
   @Autowired TestRestTemplate http;
   @Autowired DerivedEvaluator derivedEvaluator;
+  @Autowired RuleCheckRunner ruleChecks;
   @Autowired DevSeedRunner runner;
+  @Autowired PcProcurementDevSeeder pcProcurementSeeder;
   @Autowired SnapshotRepository snapshots;
   @LocalServerPort int port;
 
@@ -241,6 +252,120 @@ class DevSeedRunnerIntegrationTest {
   }
 
   @Test
+  void pcProcurementProfileAndSeedAreInstalled() {
+    assertEquals(PC_PROCUREMENT_TYPES, runtimeObjectTypeCodes(PC_PROCUREMENT_WORKSPACE));
+    assertEquals(1, objectCount(PC_PROCUREMENT_WORKSPACE, "procurement_requirement"));
+    assertEquals(14, objectCount(PC_PROCUREMENT_WORKSPACE, "hardware_product"));
+    assertEquals(3, objectCount(PC_PROCUREMENT_WORKSPACE, "supplier"));
+    assertEquals(12, objectCount(PC_PROCUREMENT_WORKSPACE, "supplier_quote"));
+    assertEquals(2, objectCount(PC_PROCUREMENT_WORKSPACE, "build_plan"));
+    assertEquals(14, objectCount(PC_PROCUREMENT_WORKSPACE, "build_plan_item"));
+
+    assertEquals(2, relationCount(PC_PROCUREMENT_WORKSPACE, "build_plan_satisfies_requirement"));
+    assertEquals(14, relationCount(PC_PROCUREMENT_WORKSPACE, "build_plan_contains_item"));
+    assertEquals(14, relationCount(PC_PROCUREMENT_WORKSPACE, "build_plan_item_selects_product"));
+    assertEquals(
+        14, relationCount(PC_PROCUREMENT_WORKSPACE, "build_plan_item_uses_supplier_quote"));
+    assertEquals(12, relationCount(PC_PROCUREMENT_WORKSPACE, "supplier_quote_for_product"));
+    assertEquals(12, relationCount(PC_PROCUREMENT_WORKSPACE, "supplier_quote_offered_by_supplier"));
+
+    assertEquals(12, derivedFieldCount(PC_PROCUREMENT_WORKSPACE));
+    assertEquals(6, ruleDefinitionCount(PC_PROCUREMENT_WORKSPACE));
+    assertEquals("WARN", ruleSeverity(PC_PROCUREMENT_WORKSPACE, "R-PC-INVENTORY"));
+    assertEquals(46, readModelTotalCount(PC_PROCUREMENT_WORKSPACE));
+    assertEquals(46, distinctFieldValueCount(PC_PROCUREMENT_WORKSPACE, "code"));
+    assertEquals(46, distinctFieldValueCount(PC_PROCUREMENT_WORKSPACE, "name"));
+  }
+
+  @Test
+  void pcProcurementTotalsUseSupplierQuotesAndExposeCompatibility() {
+    var validPlan =
+        objectIdByField(PC_PROCUREMENT_WORKSPACE, "build_plan", "code", "PLAN-PC-VALID");
+    var invalidPlan =
+        objectIdByField(PC_PROCUREMENT_WORKSPACE, "build_plan", "code", "PLAN-PC-INVALID");
+
+    assertDecimal(
+        "8783",
+        derivedEvaluator.evaluate(PC_PROCUREMENT_WORKSPACE, validPlan, "total_price_cny_fx"));
+    assertDecimal(
+        "12872",
+        derivedEvaluator.evaluate(PC_PROCUREMENT_WORKSPACE, invalidPlan, "total_price_cny_fx"));
+    assertDecimal(
+        "560",
+        derivedEvaluator.evaluate(
+            PC_PROCUREMENT_WORKSPACE, validPlan, "total_performance_score_fx"));
+    assertDecimal(
+        "518",
+        derivedEvaluator.evaluate(
+            PC_PROCUREMENT_WORKSPACE, invalidPlan, "total_performance_score_fx"));
+    assertDecimal(
+        "0",
+        derivedEvaluator.evaluate(
+            PC_PROCUREMENT_WORKSPACE, validPlan, "cpu_mainboard_platform_span_fx"));
+    assertDecimal(
+        "1695",
+        derivedEvaluator.evaluate(
+            PC_PROCUREMENT_WORKSPACE, invalidPlan, "cpu_mainboard_platform_span_fx"));
+    assertDecimal(
+        "1",
+        derivedEvaluator.evaluate(
+            PC_PROCUREMENT_WORKSPACE, invalidPlan, "memory_platform_span_fx"));
+    assertDecimal(
+        "550",
+        derivedEvaluator.evaluate(
+            PC_PROCUREMENT_WORKSPACE, invalidPlan, "power_supply_capacity_w_fx"));
+    var cpuItem =
+        objectIdByField(PC_PROCUREMENT_WORKSPACE, "build_plan_item", "code", "ITEM-V-CPU");
+    assertDecimal(
+        "1699",
+        derivedEvaluator.evaluate(PC_PROCUREMENT_WORKSPACE, cpuItem, "selected_unit_price_cny_fx"));
+    assertDecimal(
+        "125", derivedEvaluator.evaluate(PC_PROCUREMENT_WORKSPACE, cpuItem, "power_w_fx"));
+    assertDecimal(
+        "85",
+        derivedEvaluator.evaluate(
+            PC_PROCUREMENT_WORKSPACE, cpuItem, "selected_performance_score_fx"));
+    assertDecimal(
+        "20", derivedEvaluator.evaluate(PC_PROCUREMENT_WORKSPACE, cpuItem, "quote_inventory_fx"));
+  }
+
+  @Test
+  void pcProcurementRulesDistinguishValidAndInvalidPlans() {
+    var validPlan =
+        objectIdByField(PC_PROCUREMENT_WORKSPACE, "build_plan", "code", "PLAN-PC-VALID");
+    var invalidPlan =
+        objectIdByField(PC_PROCUREMENT_WORKSPACE, "build_plan", "code", "PLAN-PC-INVALID");
+    var result =
+        ruleChecks.run(
+            new RunRuleCheckRequest(
+                PC_PROCUREMENT_WORKSPACE,
+                UUID.randomUUID(),
+                "test-pc-rules-" + UUID.randomUUID(),
+                null));
+    var runId = UUID.fromString(result.events().getFirst());
+
+    assertEquals(4, blockingResultCount(runId));
+    assertTrue(blockingRuleCodes(runId, validPlan).isEmpty());
+    assertEquals(
+        Set.of("R-PC-BUDGET", "R-PC-POWER", "R-PC-CPU-MAINBOARD", "R-PC-MEMORY"),
+        blockingRuleCodes(runId, invalidPlan));
+  }
+
+  @Test
+  void pcProcurementSeedIsIdempotentAcrossRepeatedStarts() throws Exception {
+    var objectCount = totalObjectCount(PC_PROCUREMENT_WORKSPACE);
+    var relationCount = totalRelationCount(PC_PROCUREMENT_WORKSPACE);
+    var commandCount = commandCount(PC_PROCUREMENT_WORKSPACE);
+
+    pcProcurementSeeder.run(null);
+    pcProcurementSeeder.run(null);
+
+    assertEquals(objectCount, totalObjectCount(PC_PROCUREMENT_WORKSPACE));
+    assertEquals(relationCount, totalRelationCount(PC_PROCUREMENT_WORKSPACE));
+    assertEquals(commandCount, commandCount(PC_PROCUREMENT_WORKSPACE));
+  }
+
+  @Test
   void devSeedSkipsExistingTechnicalProposalData() throws Exception {
     var objectCounts = technicalObjectCounts();
     var moduleRelations = relationCount(TECHNICAL_WORKSPACE, "proposal_contains_module");
@@ -336,6 +461,60 @@ class DevSeedRunnerIntegrationTest {
         objectTypeCode);
   }
 
+  private int totalObjectCount(UUID workspaceId) {
+    return jdbc.queryForObject(
+        "SELECT count(*) FROM data_object WHERE workspace_id = ?", Integer.class, workspaceId);
+  }
+
+  private int totalRelationCount(UUID workspaceId) {
+    return jdbc.queryForObject(
+        "SELECT count(*) FROM data_relation WHERE workspace_id = ?", Integer.class, workspaceId);
+  }
+
+  private int commandCount(UUID workspaceId) {
+    return jdbc.queryForObject(
+        "SELECT count(*) FROM command_log WHERE workspace_id = ?", Integer.class, workspaceId);
+  }
+
+  private int derivedFieldCount(UUID workspaceId) {
+    return jdbc.queryForObject(
+        "SELECT count(*) FROM derived_field WHERE workspace_id = ?", Integer.class, workspaceId);
+  }
+
+  private int ruleDefinitionCount(UUID workspaceId) {
+    return jdbc.queryForObject(
+        "SELECT count(*) FROM rule_def WHERE workspace_id = ?", Integer.class, workspaceId);
+  }
+
+  private String ruleSeverity(UUID workspaceId, String ruleCode) {
+    return jdbc.queryForObject(
+        "SELECT severity FROM rule_def WHERE workspace_id = ? AND rule_code = ?",
+        String.class,
+        workspaceId,
+        ruleCode);
+  }
+
+  private Set<String> blockingRuleCodes(UUID runId, UUID objectId) {
+    return Set.copyOf(
+        jdbc.queryForList(
+            """
+            SELECT rule_code
+            FROM check_result
+            WHERE workspace_id = ? AND run_id = ? AND object_id = ? AND severity = 'BLOCK'
+            """,
+            String.class,
+            PC_PROCUREMENT_WORKSPACE,
+            runId,
+            objectId));
+  }
+
+  private int blockingResultCount(UUID runId) {
+    return jdbc.queryForObject(
+        "SELECT count(*) FROM check_result WHERE run_id = ? AND severity = 'BLOCK'",
+        Integer.class,
+        runId);
+  }
+
   private Map<String, Integer> technicalObjectCounts() {
     return Map.of(
         "proposal", objectCount(TECHNICAL_WORKSPACE, "proposal"),
@@ -364,6 +543,19 @@ class DevSeedRunnerIntegrationTest {
         Integer.class,
         workspaceId,
         objectTypeCode);
+  }
+
+  private int readModelTotalCount(UUID workspaceId) {
+    return jdbc.queryForObject(
+        "SELECT count(*) FROM rm_object WHERE workspace_id = ?", Integer.class, workspaceId);
+  }
+
+  private int distinctFieldValueCount(UUID workspaceId, String fieldCode) {
+    return jdbc.queryForObject(
+        "SELECT count(DISTINCT fields->>?) FROM rm_object WHERE workspace_id = ?",
+        Integer.class,
+        fieldCode,
+        workspaceId);
   }
 
   private int templateObjectTypeCount(UUID workspaceId, String objectTypeCode) {

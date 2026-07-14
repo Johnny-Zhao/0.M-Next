@@ -1,0 +1,6 @@
+{
+  "id": "pc-procurement",
+  "name": "电脑采购",
+  "version": "1.0.0",
+  "profileManifest": "./profile.manifest.json"
+}
