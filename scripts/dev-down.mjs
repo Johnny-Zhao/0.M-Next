@@ -75,11 +75,7 @@ function unixPidsOnPort(port) {
 
 function isJavaProcess(pid) {
   const result = windows
-    ? capture("powershell.exe", [
-        "-NoProfile",
-        "-Command",
-        `(Get-CimInstance Win32_Process -Filter "ProcessId = ${pid}").Name`,
-      ])
+    ? capture("tasklist", ["/FI", `PID eq ${pid}`, "/FO", "CSV", "/NH"])
     : capture("ps", ["-p", String(pid), "-o", "comm="]);
   return /java/i.test(`${result.stdout} ${result.stderr}`);
 }
@@ -99,6 +95,6 @@ function capture(command, args) {
   return spawnSync(command, args, {
     cwd: root,
     encoding: "utf8",
-    shell: windows,
+    shell: false,
   });
 }

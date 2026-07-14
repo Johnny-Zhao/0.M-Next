@@ -372,6 +372,44 @@ describe("KernelGateway", () => {
     });
   });
 
+  it("reads field lineage from the kernel read model", async () => {
+    const api = new FakeKernelApi();
+    const gateway = new KernelGateway("", "ws-kernel", "wangyun", api.fetch);
+
+    const lineage = await gateway.lineage("kernel-prod-s3", "price");
+
+    expect(api.lineageQueries).toEqual([
+      { objectId: "kernel-prod-s3", fieldCode: "price" },
+    ]);
+    expect(lineage).toMatchObject({
+      objectId: "kernel-prod-s3",
+      fieldCode: "price",
+      algorithm: { kind: "derived", ref: "fx.margin" },
+      partial: false,
+      truncated: true,
+    });
+    expect(lineage.upstream[0]).toMatchObject({
+      objectId: "kernel-prod-g2",
+      fieldCode: "cost",
+      depth: 1,
+    });
+    expect(lineage.downstream[0]).toMatchObject({
+      kind: "rule",
+      ref: "R-PRICE-001",
+      depth: 2,
+    });
+  });
+
+  it("surfaces lineage read errors", async () => {
+    const api = new FakeKernelApi();
+    const gateway = new KernelGateway("", "ws-kernel", "wangyun", api.fetch);
+    api.failNextLineage = true;
+
+    await expect(gateway.lineage("kernel-prod-s3", "price")).rejects.toThrow(
+      "读取视图数据失败",
+    );
+  });
+
   it("captures snapshots, creates outputs and reads artifacts with the current actor", async () => {
     const api = new FakeKernelApi();
     const gateway = new KernelGateway("", "ws-kernel", "wangyun", api.fetch);
@@ -520,6 +558,10 @@ class FakeKernelApi {
     readonly format: string;
     readonly payload: Record<string, unknown>;
   }[] = [];
+  readonly lineageQueries: {
+    readonly objectId: string | null;
+    readonly fieldCode: string | null;
+  }[] = [];
   readonly annotationQueries: {
     readonly targetType: string | null;
     readonly targetId: string | null;
@@ -535,6 +577,7 @@ class FakeKernelApi {
   failNextSnapshot = false;
   failNextExchangePreview = false;
   failNextExchangeApply = false;
+  failNextLineage = false;
   ruleCommandReturnsRunId = true;
   private objectSequence = 0;
   private relationSequence = 0;
@@ -639,6 +682,17 @@ class FakeKernelApi {
         pageSize: size,
         total: this.checkResults.length,
       });
+    }
+    if (url.pathname.endsWith("/views/lineage")) {
+      if (this.failNextLineage) {
+        this.failNextLineage = false;
+        return json({ message: "lineage failed" }, 500);
+      }
+      this.lineageQueries.push({
+        objectId: url.searchParams.get("objectId"),
+        fieldCode: url.searchParams.get("fieldCode"),
+      });
+      return json(lineageFixture());
     }
     if (url.pathname.endsWith("/views/ai-changes")) {
       this.aiChangeActorIds.push(readHeader(init?.headers, "X-Actor-Id"));
@@ -1160,6 +1214,40 @@ function exchangeDiffFixture() {
       relationsRemoved: 1,
       relationsChanged: 1,
     },
+  };
+}
+
+function lineageFixture() {
+  return {
+    objectId: "kernel-prod-s3",
+    fieldCode: "price",
+    upstream: [
+      {
+        kind: "field",
+        objectId: "kernel-prod-g2",
+        objectType: "product_specs",
+        fieldCode: "cost",
+        ref: null,
+        source: "manual",
+        updatedAt: "2026-07-10T10:24:00+08:00",
+        depth: 1,
+      },
+    ],
+    algorithm: { kind: "derived", ref: "fx.margin" },
+    downstream: [
+      {
+        kind: "rule",
+        objectId: null,
+        objectType: null,
+        fieldCode: null,
+        ref: "R-PRICE-001",
+        source: "rules",
+        updatedAt: null,
+        depth: 2,
+      },
+    ],
+    partial: false,
+    truncated: true,
   };
 }
 

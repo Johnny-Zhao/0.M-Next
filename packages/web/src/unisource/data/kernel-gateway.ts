@@ -45,6 +45,7 @@ import {
   mapExchangeApply,
   mapExchangeDiff,
   mapHistoryEntry,
+  mapLineage,
   mapObjectType,
   mapOutputDetail,
   mapOutputMeta,
@@ -62,6 +63,7 @@ import type {
   ExchangeApplyOutcome,
   ExchangeDiff,
   ExchangeFormat,
+  Lineage,
   UnisourceGateway,
 } from "./gateway";
 import {
@@ -576,6 +578,12 @@ export class KernelGateway implements UnisourceGateway {
           payload,
         ),
       ),
+    );
+  }
+
+  async lineage(objectId: string, fieldCode: string): Promise<Lineage> {
+    return mapLineage(
+      await this.viewClient.lineage(this.workspaceId, objectId, fieldCode),
     );
   }
 

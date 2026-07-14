@@ -130,6 +130,33 @@ export interface ExchangeApplyOutcome {
   }[];
 }
 
+export type LineageEntryKind = "field" | "derived" | "rule" | "recommendation";
+export type LineageAlgorithmKind = "stored" | "derived" | "rule";
+
+export interface LineageEntry {
+  readonly kind: LineageEntryKind;
+  readonly objectId: string | null;
+  readonly objectType: string | null;
+  readonly fieldCode: string | null;
+  readonly ref: string | null;
+  readonly source: string | null;
+  readonly updatedAt: string | null;
+  readonly depth: number;
+}
+
+export interface Lineage {
+  readonly objectId: string;
+  readonly fieldCode: string;
+  readonly upstream: readonly LineageEntry[];
+  readonly downstream: readonly LineageEntry[];
+  readonly algorithm: {
+    readonly kind: LineageAlgorithmKind;
+    readonly ref: string;
+  };
+  readonly partial: boolean;
+  readonly truncated: boolean;
+}
+
 export type AnnotationSeverity = "info" | "warn" | "block";
 
 export interface Annotation {
@@ -453,6 +480,13 @@ export interface UnisourceGateway {
     format: ExchangeFormat,
     payload: string,
   ): Promise<ExchangeApplyOutcome>;
+
+  /**
+   * Read field-level derivation and reference lineage for one field anchor.
+   * @kernel GET /views/lineage?objectId=...&fieldCode=...
+   * @mock Backend-only source; drawer derives local downstream from fieldRefs.
+   */
+  lineage(objectId: DataObjectId, fieldCode: FieldCode): Promise<Lineage>;
 
   /**
    * Read kernel-authoritative AI change sets without replacing scripted local sets.

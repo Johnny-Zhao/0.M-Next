@@ -5,6 +5,8 @@ import type {
   CommandError,
   ExchangeApplyResult,
   ExchangeDiffResult,
+  LineageNode,
+  LineageView,
   ObjectHistoryEntry,
   ObjectType,
   OutputDetail,
@@ -38,6 +40,8 @@ import type {
   Annotation,
   ExchangeApplyOutcome,
   ExchangeDiff,
+  Lineage,
+  LineageEntry,
   WriteRejection,
 } from "./gateway";
 
@@ -252,6 +256,21 @@ export function mapExchangeApply(
   };
 }
 
+export function mapLineage(dto: LineageView): Lineage {
+  return {
+    objectId: dto.objectId,
+    fieldCode: dto.fieldCode,
+    upstream: dto.upstream.map(mapLineageEntry),
+    downstream: dto.downstream.map(mapLineageEntry),
+    algorithm: {
+      kind: dto.algorithm.kind,
+      ref: dto.algorithm.ref,
+    },
+    partial: dto.partial,
+    truncated: dto.truncated,
+  };
+}
+
 export function mapCommandError(error: CommandError): WriteRejection {
   return {
     code: error.code,
@@ -265,6 +284,19 @@ export function mapCommandError(error: CommandError): WriteRejection {
         changedAt: field.changedAt,
       }),
     ),
+  };
+}
+
+function mapLineageEntry(node: LineageNode): LineageEntry {
+  return {
+    kind: node.kind,
+    objectId: node.objectId,
+    objectType: node.objectType,
+    fieldCode: node.fieldCode,
+    ref: node.ref,
+    source: node.source,
+    updatedAt: node.updatedAt,
+    depth: node.depth,
   };
 }
 

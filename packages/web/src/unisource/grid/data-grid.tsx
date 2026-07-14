@@ -136,6 +136,19 @@ export function DataGrid({
                     data-masked={cell.masked || undefined}
                     data-ref-state={cell.refState ?? undefined}
                     key={cell.field.code}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      const ref = {
+                        entityType: "field" as const,
+                        entityId: row.objectId,
+                        fieldCode: cell.field.code,
+                      };
+                      if (event.metaKey || event.ctrlKey || event.shiftKey) {
+                        selectionStore.toggle(ref);
+                        return;
+                      }
+                      selectionStore.set(ref);
+                    }}
                     onDoubleClick={() => {
                       if (cell.masked) return;
                       setEditing({

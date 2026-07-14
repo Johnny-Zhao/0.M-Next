@@ -5231,3 +5231,148 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* T-US-022 · field lineage drawer */
+.us-topbar__lineage[aria-pressed="true"] {
+  box-shadow: var(--us-glow-selected);
+}
+
+.us-lineage {
+  display: grid;
+  gap: var(--us-sp-5);
+}
+
+.us-lineage__target,
+.us-lineage__algorithm,
+.us-lineage-anchor,
+.us-lineage-node {
+  background: var(--us-paper);
+  border: 1px solid var(--us-border);
+  border-radius: var(--us-radius-card);
+  box-shadow: var(--us-shadow-card);
+}
+
+.us-lineage__target {
+  align-items: center;
+  display: flex;
+  gap: var(--us-sp-3);
+  justify-content: space-between;
+  padding: var(--us-sp-4);
+}
+
+.us-lineage__target span {
+  display: grid;
+  gap: var(--us-sp-1);
+  min-width: 0;
+}
+
+.us-lineage__target small,
+.us-lineage__empty,
+.us-lineage__notice,
+.us-lineage-lane > p,
+.us-lineage-node span {
+  color: var(--us-text-muted);
+  font-size: var(--us-fs-115);
+}
+
+.us-lineage__target strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.us-lineage__empty,
+.us-lineage__notice {
+  background: var(--us-surface);
+  border: 1px dashed var(--us-border-strong);
+  border-radius: var(--us-radius-card);
+  margin: 0;
+  padding: var(--us-sp-4);
+}
+
+.us-lineage__notice {
+  background: var(--us-change-bg);
+  border-color: var(--us-change-border);
+  color: var(--us-change-text);
+}
+
+.us-lineage__algorithm,
+.us-lineage-anchor {
+  align-items: center;
+  display: flex;
+  gap: var(--us-sp-3);
+  padding: var(--us-sp-3) var(--us-sp-4);
+}
+
+.us-lineage__algorithm span,
+.us-lineage-anchor strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.us-lineage-lane {
+  display: grid;
+  gap: var(--us-sp-3);
+}
+
+.us-lineage-lane > header {
+  color: var(--us-text);
+  font-size: var(--us-fs-125);
+  font-weight: 800;
+}
+
+.us-lineage-level {
+  border-left: 1px dashed var(--us-border-strong);
+  display: grid;
+  gap: var(--us-sp-2);
+  padding-left: var(--us-sp-3);
+}
+
+.us-lineage-level > span {
+  color: var(--us-text-faint);
+  font-size: var(--us-fs-105);
+}
+
+.us-lineage-level > div {
+  display: grid;
+  gap: var(--us-sp-3);
+}
+
+.us-lineage-node {
+  display: grid;
+  gap: var(--us-sp-2);
+  padding: var(--us-sp-3);
+}
+
+.us-lineage-node[data-kind="rule"] {
+  border-left: 3px solid var(--us-change);
+}
+
+.us-lineage-node[data-kind="derived"] {
+  border-left: 3px solid var(--us-primary);
+}
+
+.us-lineage-node[data-kind="recommendation"] {
+  border-left: 3px solid var(--us-gold);
+}
+
+.us-lineage-node header {
+  align-items: center;
+  display: flex;
+  gap: var(--us-sp-2);
+  justify-content: space-between;
+}
+
+.us-lineage-node strong {
+  color: var(--us-text);
+  font-size: var(--us-fs-125);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .us-lineage-node,
+  .us-lineage-anchor {
+    transition: none;
+  }
+}

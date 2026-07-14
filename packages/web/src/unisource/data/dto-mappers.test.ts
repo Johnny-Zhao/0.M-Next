@@ -9,6 +9,7 @@ import {
   mapExchangeApply,
   mapExchangeDiff,
   mapHistoryEntry,
+  mapLineage,
   mapObjectType,
   mapOutputDetail,
   mapOutputMeta,
@@ -382,6 +383,29 @@ describe("dto mappers", () => {
     });
   });
 
+  it("maps lineage DTOs into local field lineage", () => {
+    const lineage = mapLineage(lineageFixture());
+
+    expect(lineage).toMatchObject({
+      objectId: "prod-s3",
+      fieldCode: "price",
+      algorithm: { kind: "derived", ref: "fx.price_margin" },
+      partial: true,
+      truncated: false,
+    });
+    expect(lineage.upstream[0]).toMatchObject({
+      kind: "field",
+      objectId: "prod-g2",
+      fieldCode: "cost",
+      depth: 1,
+    });
+    expect(lineage.downstream[0]).toMatchObject({
+      kind: "rule",
+      ref: "R-PRICE-001",
+      depth: 2,
+    });
+  });
+
   it("maps snapshot and output DTOs into local output artifacts", () => {
     expect(
       mapSnapshotMeta({
@@ -476,5 +500,39 @@ function exchangeDiffFixture() {
       relationsRemoved: 1,
       relationsChanged: 1,
     },
+  };
+}
+
+function lineageFixture() {
+  return {
+    objectId: "prod-s3",
+    fieldCode: "price",
+    upstream: [
+      {
+        kind: "field" as const,
+        objectId: "prod-g2",
+        objectType: "product_specs",
+        fieldCode: "cost",
+        ref: null,
+        source: "manual",
+        updatedAt: "2026-07-10T10:24:00+08:00",
+        depth: 1,
+      },
+    ],
+    algorithm: { kind: "derived" as const, ref: "fx.price_margin" },
+    downstream: [
+      {
+        kind: "rule" as const,
+        objectId: null,
+        objectType: null,
+        fieldCode: null,
+        ref: "R-PRICE-001",
+        source: "rules",
+        updatedAt: null,
+        depth: 2,
+      },
+    ],
+    partial: true,
+    truncated: false,
   };
 }

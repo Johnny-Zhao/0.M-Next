@@ -14,6 +14,7 @@ import { CanvasVersionsPanel } from "../canvas/inspector-versions-panel";
 import { ChatPanel } from "../chat/chat-panel";
 import { DocView } from "../doc/doc-view";
 import { buildDocViewModel } from "../doc/doc-view-model";
+import { LineageDrawer } from "../lineage/lineage-drawer";
 import { MatrixBoard } from "../matrix/matrix-board";
 import type { CanvasNodeConfig } from "../model/view-layer";
 import { UsMonoTag } from "../primitives";
@@ -61,6 +62,7 @@ export function ExprPage() {
   const split = search.get("layout") === "split";
   const chatOpen = search.get("drawer") === "chat";
   const reviewOpen = search.get("drawer") === "review";
+  const lineageOpen = search.get("drawer") === "lineage";
   const runOpen = search.get("run") === "1";
   const [simNetwork, setSimNetwork] = useState<SimNetwork>("normal");
   const [simPlayhead, setSimPlayhead] = useState(0);
@@ -136,6 +138,11 @@ export function ExprPage() {
     (item) => item.entityType === "object",
   ).length;
   const annotationTarget = selection.current ?? selection.selected[0] ?? null;
+  const lineageTarget =
+    selection.current?.entityType === "field"
+      ? selection.current
+      : (selection.selected.find((item) => item.entityType === "field") ??
+        null);
 
   const closeDrawer = () => {
     const next = new URLSearchParams(search);
@@ -146,6 +153,12 @@ export function ExprPage() {
   const openReviewDrawer = () => {
     const next = new URLSearchParams(search);
     next.set("drawer", "review");
+    setSearch(next);
+  };
+
+  const openLineageDrawer = () => {
+    const next = new URLSearchParams(search);
+    next.set("drawer", "lineage");
     setSearch(next);
   };
 
@@ -225,6 +238,12 @@ export function ExprPage() {
       open={reviewOpen}
       onClose={closeDrawer}
       target={annotationTarget}
+    />
+  ) : lineageOpen ? (
+    <LineageDrawer
+      open={lineageOpen}
+      onClose={closeDrawer}
+      target={lineageTarget}
     />
   ) : chatOpen ? (
     <ChatPanel onClose={closeDrawer} />
@@ -307,15 +326,26 @@ export function ExprPage() {
         },
         people,
         actions: (
-          <button
-            aria-pressed={reviewOpen}
-            className="us-topbar__review"
-            onClick={openReviewDrawer}
-            title="打开评审批注"
-            type="button"
-          >
-            评审
-          </button>
+          <>
+            <button
+              aria-pressed={lineageOpen}
+              className="us-topbar__review us-topbar__lineage"
+              onClick={openLineageDrawer}
+              title="打开字段血缘"
+              type="button"
+            >
+              血缘
+            </button>
+            <button
+              aria-pressed={reviewOpen}
+              className="us-topbar__review"
+              onClick={openReviewDrawer}
+              title="打开评审批注"
+              type="button"
+            >
+              评审
+            </button>
+          </>
         ),
         aiHref: `/expr/${expr?.id ?? exprId}?form=${form}&drawer=chat`,
       }}

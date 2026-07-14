@@ -39,6 +39,7 @@ import type {
   ExchangeApplyOutcome,
   ExchangeDiff,
   ExchangeFormat,
+  Lineage,
   UnisourceGateway,
 } from "./gateway";
 
@@ -308,6 +309,21 @@ export class MockUnisourceGateway implements UnisourceGateway {
     void format;
     void payload;
     throw new Error("结构化导入需连接内核");
+  }
+
+  async lineage(
+    objectId: DataObjectId,
+    fieldCode: FieldCode,
+  ): Promise<Lineage> {
+    return {
+      objectId,
+      fieldCode,
+      upstream: [],
+      downstream: [],
+      algorithm: { kind: "stored", ref: "Mock 本地引用" },
+      partial: false,
+      truncated: false,
+    };
   }
 
   async listAiChanges(): Promise<readonly ChangeSet[]> {
