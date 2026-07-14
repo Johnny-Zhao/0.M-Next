@@ -73,7 +73,11 @@ export function RefChip({
       onClick={activate}
       onKeyDown={onKeyDown}
       tabIndex={chip.state === "dangling" ? 0 : -1}
-      title={`${chip.label} · ${chip.fieldName}`}
+      title={
+        chip.state === "dangling"
+          ? chip.valueText
+          : `${chip.label} · ${chip.fieldName}`
+      }
       type="button"
     >
       {chip.state === "justSynced" ? <IconCheck size={12} /> : null}

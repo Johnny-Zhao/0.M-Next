@@ -47,6 +47,24 @@ describe("doc-view-model", () => {
     expect(vm.howLabel).toBe("刚刚同步 2 处引用");
   });
 
+  it("keeps an unmatched document binding visible as dangling", () => {
+    const workspace = new WorkspaceStore(cloneDemoSeed()).getSnapshot();
+    const source = workspace.docModels.find(
+      (item) => item.exprId === "exp-spec-doc",
+    )!;
+    const doc = {
+      ...source,
+      binding: { objectId: "missing-object", state: "dangling" as const },
+    };
+
+    const vm = buildDocViewModel(workspace, doc);
+
+    expect(vm.bindingObject).toBeNull();
+    expect(vm.bindingState).toBe("dangling");
+    expect(vm.bindingMessage).toBe("引用对象不存在");
+    expect(vm.howState).toBe("danger");
+  });
+
   it("filters field options and counts document text", () => {
     const seed = cloneDemoSeed();
     const fields = seed.objectTypes.find(

@@ -13,6 +13,7 @@ export type PermissionAction = "read" | "editData" | "editView" | "admin";
 
 export interface SessionState {
   readonly currentMemberId: MemberId;
+  readonly permissionSource: "demo" | "kernel";
 }
 
 export type WriteRequestResult =
@@ -28,7 +29,10 @@ type Listener = () => void;
 const writeLevels = new Set<PermLevel>(["admin", "edit", "owner"]);
 
 export class SessionStore {
-  private state: SessionState = { currentMemberId: "wangyun" };
+  private state: SessionState = {
+    currentMemberId: "wangyun",
+    permissionSource: "demo",
+  };
   private readonly listeners = new Set<Listener>();
   private changeSetSequence = 0;
 
@@ -45,13 +49,20 @@ export class SessionStore {
   getSnapshot = (): SessionState => this.state;
 
   switchMember(memberId: Exclude<MemberId, "ai">): void {
-    this.state = { currentMemberId: memberId };
+    this.state = { ...this.state, currentMemberId: memberId };
     this.emit();
   }
 
   reset(memberId: Exclude<MemberId, "ai"> = "wangyun"): void {
-    this.state = { currentMemberId: memberId };
+    this.state = { ...this.state, currentMemberId: memberId };
     this.changeSetSequence = 0;
+    this.emit();
+  }
+
+  setPermissionSource(
+    permissionSource: SessionState["permissionSource"],
+  ): void {
+    this.state = { ...this.state, permissionSource };
     this.emit();
   }
 
@@ -60,6 +71,7 @@ export class SessionStore {
     resourceCode: string,
     action: PermissionAction,
   ): boolean {
+    if (this.state.permissionSource === "kernel") return action !== "admin";
     const effectiveMember =
       memberId === "ai" ? this.state.currentMemberId : memberId;
     const level =
@@ -72,6 +84,7 @@ export class SessionStore {
   }
 
   canDragCards(memberId: MemberId): boolean {
+    if (this.state.permissionSource === "kernel") return true;
     // 演示身份策略:陈默=数据只读可转审批;周然/AI=纯只读禁拖,超出权限矩阵表达力。
     return memberId !== "zhouran" && memberId !== "ai";
   }

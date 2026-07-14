@@ -14,16 +14,35 @@ export interface IdentityRemapResult {
   readonly report: IdentityRemapReport;
 }
 
+export interface PresentationObjectBinding {
+  readonly presentationId: string;
+  readonly objectTypeCode: string;
+  readonly fields: Readonly<Partial<Record<"code" | "sku" | "name", string>>>;
+}
+
+export interface PresentationRelationBinding {
+  readonly presentationId: string;
+  readonly relationTypeCode: string;
+  readonly sourceId: string;
+  readonly targetId: string;
+}
+
 export function remapSeedPresentation(params: {
   readonly seed: DemoSeed;
   readonly kernelObjects: readonly DataObject[];
   readonly kernelRelations: readonly DataRelation[];
+  readonly objectBindings?: readonly PresentationObjectBinding[];
+  readonly relationBindings?: readonly PresentationRelationBinding[];
 }): IdentityRemapResult {
-  const objectMap = buildObjectIdMap(params.seed.objects, params.kernelObjects);
+  const objectBindings =
+    params.objectBindings ?? params.seed.objects.map(toPresentationBinding);
+  const relationBindings =
+    params.relationBindings ?? params.seed.relations.map(toRelationBinding);
+  const objectMap = buildObjectIdMap(objectBindings, params.kernelObjects);
   const relationMap = buildRelationIdMap({
-    seedObjects: params.seed.objects,
+    seedObjects: objectBindings,
     kernelObjects: params.kernelObjects,
-    seedRelations: params.seed.relations,
+    seedRelations: relationBindings,
     kernelRelations: params.kernelRelations,
   });
   const counter = { unmatchedRefs: 0 };
@@ -43,9 +62,7 @@ export function remapSeedPresentation(params: {
     })),
     docModels: params.seed.docModels.map((doc) => ({
       ...doc,
-      binding: {
-        objectId: objectMap.get(doc.binding.objectId) ?? doc.binding.objectId,
-      },
+      binding: remapDocBinding(doc.binding, objectMap, counter),
     })),
     slotBindings: params.seed.slotBindings.map((binding) =>
       remapSlotBinding(binding, objectMap, counter),
@@ -60,14 +77,17 @@ export function remapSeedPresentation(params: {
       matchedObjects: objectMap.size,
       unmatchedRefs: counter.unmatchedRefs,
       matchedRelations: relationMap.size,
-      unmatchedRelations: params.seed.relations.length - relationMap.size,
+      unmatchedRelations: relationBindings.length - relationMap.size,
     },
   };
 }
 
 export function objectBusinessKey(object: DataObject): string | null {
-  const label = readBusinessValue(object, "name");
-  return label ? `${object.objectTypeCode}:${label}` : null;
+  for (const fieldCode of ["code", "sku", "name"] as const) {
+    const value = readBusinessValue(object, fieldCode);
+    if (value) return `${object.objectTypeCode}:${fieldCode}:${value}`;
+  }
+  return null;
 }
 
 export function relationBusinessKey(
@@ -84,7 +104,7 @@ export function relationBusinessKey(
 }
 
 function buildObjectIdMap(
-  seedObjects: readonly DataObject[],
+  seedObjects: readonly PresentationObjectBinding[],
   kernelObjects: readonly DataObject[],
 ): ReadonlyMap<string, string> {
   const kernelByKey = new Map<string, DataObject>();
@@ -94,20 +114,22 @@ function buildObjectIdMap(
   }
   const result = new Map<string, string>();
   for (const object of seedObjects) {
-    const key = objectBusinessKey(object);
+    const key = bindingBusinessKey(object);
     const kernelObject = key ? kernelByKey.get(key) : undefined;
-    if (kernelObject) result.set(object.id, kernelObject.id);
+    if (kernelObject) result.set(object.presentationId, kernelObject.id);
   }
   return result;
 }
 
 function buildRelationIdMap(params: {
-  readonly seedObjects: readonly DataObject[];
+  readonly seedObjects: readonly PresentationObjectBinding[];
   readonly kernelObjects: readonly DataObject[];
-  readonly seedRelations: readonly DataRelation[];
+  readonly seedRelations: readonly PresentationRelationBinding[];
   readonly kernelRelations: readonly DataRelation[];
 }): ReadonlyMap<string, string> {
-  const seedObjectsById = byId(params.seedObjects);
+  const seedObjectsById = new Map(
+    params.seedObjects.map((object) => [object.presentationId, object]),
+  );
   const kernelObjectsById = byId(params.kernelObjects);
   const kernelByKey = new Map<string, DataRelation>();
   for (const relation of params.kernelRelations) {
@@ -116,9 +138,16 @@ function buildRelationIdMap(params: {
   }
   const result = new Map<string, string>();
   for (const relation of params.seedRelations) {
-    const key = relationBusinessKey(relation, seedObjectsById);
+    const source = seedObjectsById.get(relation.sourceId);
+    const target = seedObjectsById.get(relation.targetId);
+    const sourceKey = source ? bindingBusinessKey(source) : null;
+    const targetKey = target ? bindingBusinessKey(target) : null;
+    const key =
+      sourceKey && targetKey
+        ? `${relation.relationTypeCode}:${sourceKey}->${targetKey}`
+        : null;
     const kernelRelation = key ? kernelByKey.get(key) : undefined;
-    if (kernelRelation) result.set(relation.id, kernelRelation.id);
+    if (kernelRelation) result.set(relation.presentationId, kernelRelation.id);
   }
   return result;
 }
@@ -132,9 +161,22 @@ function remapSlotBinding(
   const objectId = objectMap.get(binding.objectId);
   if (!objectId) {
     counter.unmatchedRefs += 1;
-    return { ...binding, objectId: null };
+    return { ...binding, objectId: null, state: "dangling" };
   }
-  return { ...binding, objectId };
+  return { ...binding, objectId, state: "fresh" };
+}
+
+function remapDocBinding(
+  binding: { readonly objectId: string },
+  objectMap: ReadonlyMap<string, string>,
+  counter: { unmatchedRefs: number },
+): { readonly objectId: string; readonly state: "fresh" | "dangling" } {
+  const objectId = objectMap.get(binding.objectId);
+  if (!objectId) {
+    counter.unmatchedRefs += 1;
+    return { ...binding, state: "dangling" };
+  }
+  return { objectId, state: "fresh" };
 }
 
 function remapSimScenario(
@@ -166,6 +208,10 @@ function remapSimEvent(
   return {
     ...event,
     nodeObjectId: nodeObjectId ?? event.nodeObjectId,
+    state:
+      nodeObjectId && (!event.viaRelationId || viaRelationId)
+        ? "fresh"
+        : "dangling",
     ...(event.viaRelationId ? { viaRelationId } : {}),
   };
 }
@@ -194,9 +240,9 @@ function remapCanvasNode(
   const objectId = objectMap.get(node.objectId);
   if (!objectId) {
     counter.unmatchedRefs += 1;
-    return node;
+    return { ...node, state: "dangling" };
   }
-  return { ...node, objectId };
+  return { ...node, objectId, state: "fresh" };
 }
 
 function remapCanvasEdge(
@@ -208,9 +254,9 @@ function remapCanvasEdge(
   const relationId = relationMap.get(edge.relationId);
   if (!relationId) {
     counter.unmatchedRefs += 1;
-    return edge;
+    return { ...edge, state: "dangling" };
   }
-  return { ...edge, relationId };
+  return { ...edge, relationId, state: "fresh" };
 }
 
 function readBusinessValue(
@@ -222,6 +268,38 @@ function readBusinessValue(
   if (typeof value === "number" || typeof value === "boolean")
     return String(value);
   return null;
+}
+
+function bindingBusinessKey(binding: PresentationObjectBinding): string | null {
+  for (const fieldCode of ["code", "sku", "name"] as const) {
+    const value = binding.fields[fieldCode]?.trim();
+    if (value) return `${binding.objectTypeCode}:${fieldCode}:${value}`;
+  }
+  return null;
+}
+
+function toPresentationBinding(object: DataObject): PresentationObjectBinding {
+  return {
+    presentationId: object.id,
+    objectTypeCode: object.objectTypeCode,
+    fields: Object.fromEntries(
+      ["code", "sku", "name"].flatMap((fieldCode) => {
+        const value = readBusinessValue(object, fieldCode);
+        return value ? [[fieldCode, value]] : [];
+      }),
+    ),
+  };
+}
+
+function toRelationBinding(
+  relation: DataRelation,
+): PresentationRelationBinding {
+  return {
+    presentationId: relation.id,
+    relationTypeCode: relation.relationTypeCode,
+    sourceId: relation.sourceId,
+    targetId: relation.targetId,
+  };
 }
 
 function byId(objects: readonly DataObject[]): ReadonlyMap<string, DataObject> {

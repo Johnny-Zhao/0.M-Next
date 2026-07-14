@@ -321,6 +321,13 @@ export function CanvasView({ exprId }: { exprId: string }) {
             连线模式：从卡片右侧拖到另一张卡片
           </span>
         ) : null}
+        {vm.danglingRefs.length > 0 ? (
+          <span className="us-canvas-hint" role="status">
+            {Array.from(
+              new Set(vm.danglingRefs.map((ref) => ref.message)),
+            ).join(" · ")}
+          </span>
+        ) : null}
         {addOpen ? (
           <AddNodePopover
             objects={workspace.objects}

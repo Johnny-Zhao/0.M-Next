@@ -42,6 +42,12 @@ export interface CanvasEdgeVm {
   readonly label: string;
 }
 
+export interface CanvasDanglingRefVm {
+  readonly id: string;
+  readonly kind: "object" | "relation";
+  readonly message: string;
+}
+
 export interface GotoTargetVm {
   readonly id: string;
   readonly label: string;
@@ -52,6 +58,7 @@ export interface CanvasViewModel {
   readonly viewId: string;
   readonly nodes: readonly CanvasNodeVm[];
   readonly edges: readonly CanvasEdgeVm[];
+  readonly danglingRefs: readonly CanvasDanglingRefVm[];
 }
 
 const defaultNodeSize = { w: 210, h: 124 } as const;
@@ -79,11 +86,19 @@ export function buildCanvasViewModel(
   view: ViewDef,
 ): CanvasViewModel {
   const config = parseCanvasConfig(view);
+  const danglingRefs: CanvasDanglingRefVm[] = [];
   const nodes = config.nodes.flatMap((node, index) => {
     const object = workspace.objects.find(
       (candidate) => candidate.id === node.objectId,
     );
-    if (!object) return [];
+    if (!object || node.state === "dangling") {
+      danglingRefs.push({
+        id: node.objectId,
+        kind: "object",
+        message: "引用对象不存在",
+      });
+      return [];
+    }
     const type = workspace.objectTypes.find(
       (candidate) => candidate.code === object.objectTypeCode,
     );
@@ -136,15 +151,25 @@ export function buildCanvasViewModel(
       (candidate) =>
         candidate.id === edge.relationId && candidate.status === "active",
     );
-    if (
-      !relation ||
-      !nodeIds.has(relation.sourceId) ||
-      !nodeIds.has(relation.targetId)
-    )
+    if (!relation || edge.state === "dangling") {
+      danglingRefs.push({
+        id: edge.relationId,
+        kind: "relation",
+        message: "引用关系不存在",
+      });
       return [];
+    }
+    if (!nodeIds.has(relation.sourceId) || !nodeIds.has(relation.targetId)) {
+      danglingRefs.push({
+        id: edge.relationId,
+        kind: "relation",
+        message: "引用关系端点不存在",
+      });
+      return [];
+    }
     return [relationToEdge(relation)];
   });
-  return { viewId: view.id, nodes, edges };
+  return { viewId: view.id, nodes, edges, danglingRefs };
 }
 
 export function deriveGotoTargets(

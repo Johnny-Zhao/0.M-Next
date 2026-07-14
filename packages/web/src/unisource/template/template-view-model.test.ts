@@ -50,6 +50,27 @@ describe("template view model", () => {
     ).toBe("violated");
   });
 
+  it("exposes an unmatched slot binding as dangling", () => {
+    const workspace = new WorkspaceStore(cloneDemoSeed()).getSnapshot();
+    const view = workspace.views.find(
+      (candidate) => candidate.id === "view-build-z890-canvas",
+    )!;
+    const state = {
+      ...workspace,
+      slotBindings: workspace.slotBindings.map((binding) =>
+        binding.exprId === view.exprId && binding.slotId === "slot-cpu"
+          ? { ...binding, objectId: null, state: "dangling" as const }
+          : binding,
+      ),
+    };
+
+    const vm = buildTemplateViewModel(state, view, "slot-cpu");
+    const slot = vm.slots.find((candidate) => candidate.slotId === "slot-cpu");
+
+    expect(slot?.state).toBe("dangling");
+    expect(slot?.violationReason).toBe("引用对象不存在");
+  });
+
   it("shows mismatch candidates beyond mainboards", () => {
     const workspace = new WorkspaceStore(cloneDemoSeed()).getSnapshot();
     const view = workspace.views.find(

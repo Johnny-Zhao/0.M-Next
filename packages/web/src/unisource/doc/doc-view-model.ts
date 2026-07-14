@@ -65,6 +65,8 @@ export interface DocViewModel {
   readonly doc: DocModel;
   readonly bindingObject: DataObject | null;
   readonly bindingType: ObjectTypeDef | null;
+  readonly bindingState: "fresh" | "dangling";
+  readonly bindingMessage: string | null;
   readonly blocks: readonly DocBlockVm[];
   readonly refs: readonly DocRefVm[];
   readonly fields: readonly DocFieldRefGroupVm[];
@@ -94,12 +96,16 @@ export function buildDocViewModel(
     workspace.objectTypes.find(
       (type) => type.code === bindingObject?.objectTypeCode,
     ) ?? null;
+  const bindingState =
+    doc.binding.state === "dangling" || !bindingObject ? "dangling" : "fresh";
   const blocks = doc.blocks.map((block) => resolveBlock(block, refMap));
   const refs = Array.from(refMap.values());
   const justSyncedCount = refs.filter(
     (ref) => ref.state === "justSynced",
   ).length;
-  const danglingCount = refs.filter((ref) => ref.state === "dangling").length;
+  const danglingCount =
+    refs.filter((ref) => ref.state === "dangling").length +
+    (bindingState === "dangling" ? 1 : 0);
   const how =
     danglingCount > 0
       ? { state: "danger" as const, label: `${danglingCount} 处引用悬空` }
@@ -116,6 +122,8 @@ export function buildDocViewModel(
     doc,
     bindingObject,
     bindingType,
+    bindingState,
+    bindingMessage: bindingState === "dangling" ? "引用对象不存在" : null,
     blocks,
     refs,
     fields: groupFieldRefs(refs),
@@ -230,6 +238,7 @@ function resolveRef(workspace: WorkspaceState, ref: FieldRef): DocRefVm {
   const value = object?.fields[ref.fieldCode]?.value ?? null;
   const state: FieldRefState =
     ref.state === "dangling" || !object || !field ? "dangling" : ref.state;
+  const danglingMessage = !object ? "引用对象不存在" : "字段引用已失效";
   return {
     refId: ref.id,
     objectId: ref.objectId,
@@ -237,7 +246,7 @@ function resolveRef(workspace: WorkspaceState, ref: FieldRef): DocRefVm {
     fieldName: field?.name ?? ref.fieldCode,
     value,
     valueText:
-      state === "dangling" ? "字段已删除" : formatMaybeField(value, field),
+      state === "dangling" ? danglingMessage : formatMaybeField(value, field),
     state,
     label: ref.label,
     chipDomId: `ref-${ref.id}`,
@@ -255,7 +264,7 @@ function missingRef(refId: string): DocRefVm {
     fieldCode: "",
     fieldName: "未知字段",
     value: null,
-    valueText: "字段已删除",
+    valueText: "字段引用已失效",
     state: "dangling",
     label: "悬空引用",
     chipDomId: `ref-${refId}`,

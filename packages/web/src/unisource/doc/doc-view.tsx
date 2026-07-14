@@ -37,11 +37,9 @@ export function DocView({
     [doc, workspace],
   );
   const fields = vm?.bindingType?.fields ?? [];
-  const canEditView = sessionStore.can(
-    session.currentMemberId,
-    exprId,
-    "editView",
-  );
+  const canEditView =
+    sessionStore.can(session.currentMemberId, exprId, "editView") &&
+    vm?.bindingState !== "dangling";
 
   const locateRef = useCallback((refId: string) => {
     const id = `ref-${refId}`;
@@ -56,6 +54,7 @@ export function DocView({
 
   if (!doc || !vm) return null;
   const insertField = (field: FieldDef) => {
+    if (vm.bindingState === "dangling") return;
     const ref = workspaceStore.addFieldRef(
       exprId,
       doc.binding.objectId,
@@ -97,10 +96,14 @@ export function DocView({
           <div className="us-doc-meta">
             <span>{doc.docNo}</span>
             <span>模板:{doc.template}</span>
-            <span>
-              绑定:{vm.bindingType?.name} ›{" "}
-              {vm.bindingObject?.fields.name?.value}
-            </span>
+            {vm.bindingState === "dangling" ? (
+              <span role="alert">绑定:{vm.bindingMessage}</span>
+            ) : (
+              <span>
+                绑定:{vm.bindingType?.name} ›{" "}
+                {vm.bindingObject?.fields.name?.value}
+              </span>
+            )}
           </div>
           <p className="us-doc-author">{doc.authorLine}</p>
           {vm.blocks.map((block, index) => (

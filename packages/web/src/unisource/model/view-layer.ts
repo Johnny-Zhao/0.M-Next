@@ -66,6 +66,7 @@ export interface DocModel {
   readonly template: string;
   readonly binding: {
     readonly objectId: DataObjectId;
+    readonly state?: "fresh" | "dangling";
   };
   readonly authorLine: string;
   readonly blocks: readonly DocBlock[];
@@ -123,12 +124,14 @@ export interface SlotBinding {
   readonly slotId: string;
   readonly exprId: string;
   readonly objectId: DataObjectId | null;
+  readonly state?: "fresh" | "dangling";
   readonly updatedBy: MemberId;
   readonly updatedAt: string;
 }
 
 export interface CanvasNodeConfig {
   readonly objectId: DataObjectId;
+  readonly state?: "fresh" | "dangling";
   readonly x: number;
   readonly y: number;
   readonly w?: number;
@@ -150,6 +153,7 @@ export interface CanvasNodeConfig {
 
 export interface CanvasEdgeConfig {
   readonly relationId: DataRelationId;
+  readonly state?: "fresh" | "dangling";
 }
 
 export interface CanvasConfig {
@@ -206,6 +210,7 @@ export interface SimEvent {
   readonly id: string;
   readonly nodeObjectId: DataObjectId;
   readonly viaRelationId?: DataRelationId;
+  readonly state?: "fresh" | "dangling";
   readonly label: string;
   readonly kind: "source" | "relay" | "action";
   readonly check?: boolean;

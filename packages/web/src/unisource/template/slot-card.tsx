@@ -58,6 +58,7 @@ export function SlotCard({ data, selected }: NodeProps) {
 }
 
 function stateLabel(state: TemplateSlotVm["state"]): string {
+  if (state === "dangling") return "引用失效";
   if (state === "instantiated") return "已实例化";
   if (state === "activated") return "拖入实例化";
   if (state === "violated") return "需处理";

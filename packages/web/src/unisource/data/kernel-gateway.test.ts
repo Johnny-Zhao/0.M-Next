@@ -52,6 +52,54 @@ describe("KernelGateway", () => {
     expect(api.objectPageCalls).toEqual([0, 1]);
   });
 
+  it("selects the pc procurement preset without mixing hardware demo content", async () => {
+    const api = new FakeKernelApi();
+    api.seedPcProcurement();
+    const gateway = new KernelGateway("", "ws-kernel", "wangyun", api.fetch);
+
+    const seed = await gateway.loadWorkspace();
+
+    expect(seed.workspace.name).toBe("电脑采购工作空间");
+    expect(seed.objectTypes.map((type) => type.code)).toEqual([
+      "procurement_requirement",
+      "build_plan",
+    ]);
+    expect(seed.objects.map((object) => object.id)).toEqual([
+      "kernel-pc-requirement",
+      "kernel-pc-valid",
+      "kernel-pc-invalid",
+    ]);
+    expect(seed.expressions.map((expression) => expression.name)).toContain(
+      "电脑采购总览",
+    );
+    expect(JSON.stringify(seed)).not.toMatch(/智能门锁|渠道经营看板|S3/);
+    expect(
+      seed.fieldRefs.every((ref) => ref.objectId === "kernel-pc-valid"),
+    ).toBe(true);
+    expect(seed.fieldRefs.every((ref) => ref.state !== "dangling")).toBe(true);
+  });
+
+  it("uses the minimal generic preset for an unknown profile", async () => {
+    const api = new FakeKernelApi();
+    api.templateCode = "future_profile";
+    api.seedObjects(2);
+    const gateway = new KernelGateway("", "ws-kernel", "wangyun", api.fetch);
+
+    const seed = await gateway.loadWorkspace();
+
+    expect(seed.expressions).toEqual([
+      expect.objectContaining({ id: "exp-generic-data", name: "数据工作台" }),
+    ]);
+    expect(seed.views).toEqual([
+      expect.objectContaining({ id: "view-generic-grid", kind: "grid" }),
+    ]);
+    expect(seed.docModels).toEqual([]);
+    expect(seed.fieldRefs).toEqual([]);
+    expect(seed.kpis).toEqual([]);
+    expect(seed.anaReports).toEqual([]);
+    expect(seed.objects).toHaveLength(2);
+  });
+
   it("seeds demo data idempotently and skips missing types", async () => {
     const api = new FakeKernelApi();
     const gateway = new KernelGateway("", "ws-kernel", "wangyun", api.fetch);
@@ -69,6 +117,21 @@ describe("KernelGateway", () => {
     expect(second.skippedRelations).toBeGreaterThanOrEqual(
       first.createdRelations,
     );
+  });
+
+  it("never submits the door demo seed for pc or unknown profiles", async () => {
+    for (const templateCode of ["pc_procurement", "future_profile"]) {
+      const api = new FakeKernelApi();
+      api.templateCode = templateCode;
+      const gateway = new KernelGateway("", "ws-kernel", "wangyun", api.fetch);
+
+      const report = await gateway.seedDemoData();
+
+      expect(api.commands).toEqual([]);
+      expect(report.createdObjects).toBe(0);
+      expect(report.createdRelations).toBe(0);
+      expect(report.failed[0]).toContain(templateCode);
+    }
   });
 
   it("posts UpdateFields with object version locking and no field version", async () => {
@@ -482,9 +545,28 @@ describe("KernelGateway", () => {
       ],
     });
   });
+
+  it("preserves backend permission rejections", async () => {
+    const api = new FakeKernelApi();
+    api.seedObjects(2);
+    api.failNextForbidden = true;
+    const gateway = new KernelGateway("", "ws-kernel", "wangyun", api.fetch);
+
+    await expect(
+      gateway.updateField("kernel-prod-s3", "price", 1000, {
+        actor: "wangyun",
+        expectedObjectVersion: 1,
+      }),
+    ).rejects.toMatchObject({
+      code: "PERM-403-FIELD-DENIED",
+      title: "字段级权限拒绝",
+    });
+  });
 });
 
 class FakeKernelApi {
+  templateCode: string | null = "hardware_products";
+  workspaceName = "Kernel Workspace";
   readonly objectTypes = [
     {
       id: "type-product",
@@ -574,6 +656,7 @@ class FakeKernelApi {
   checkResults: CheckResultFixture[] = [];
   readonly checkResultPageCalls: number[] = [];
   failNextUpdate = false;
+  failNextForbidden = false;
   failNextSnapshot = false;
   failNextExchangePreview = false;
   failNextExchangeApply = false;
@@ -587,6 +670,16 @@ class FakeKernelApi {
     init?: RequestInit,
   ): Promise<Response> => {
     const url = new URL(String(input), "http://localhost");
+    if (url.pathname.endsWith("/views/workspaces")) {
+      return json([
+        {
+          workspaceId: "ws-kernel",
+          name: this.workspaceName,
+          templateCode: this.templateCode,
+          updatedAt: "2026-07-10T10:24:00+08:00",
+        },
+      ]);
+    }
     if (url.pathname.endsWith("/views/object-types")) {
       return json(this.objectTypes);
     }
@@ -596,9 +689,13 @@ class FakeKernelApi {
     if (url.pathname.endsWith("/views/objects")) {
       const page = Number(url.searchParams.get("page") ?? "0");
       const pageSize = Number(url.searchParams.get("pageSize") ?? "100");
+      const objectType = url.searchParams.get("objectType");
+      const objects = this.objects.filter(
+        (object) => !objectType || object.objectType === objectType,
+      );
       this.objectPageCalls.push(page);
-      const items = this.objects.slice(page * pageSize, (page + 1) * pageSize);
-      return json({ items, page, pageSize, total: this.objects.length });
+      const items = objects.slice(page * pageSize, (page + 1) * pageSize);
+      return json({ items, page, pageSize, total: objects.length });
     }
     const objectDetail = url.pathname.match(/\/views\/objects\/([^/]+)$/);
     if (objectDetail) {
@@ -784,6 +881,54 @@ class FakeKernelApi {
     return json({ message: "not found" }, 404);
   };
 
+  seedPcProcurement(): void {
+    this.templateCode = "pc_procurement";
+    this.workspaceName = "电脑采购工作空间";
+    this.objectTypes.splice(
+      0,
+      this.objectTypes.length,
+      {
+        id: "type-requirement",
+        code: "procurement_requirement",
+        name: "采购需求",
+        fields: [
+          fieldType("code", "编码", "text"),
+          fieldType("name", "名称", "text"),
+          fieldType("budget_cny", "预算", "number"),
+        ],
+      },
+      {
+        id: "type-plan",
+        code: "build_plan",
+        name: "装机方案",
+        fields: [
+          fieldType("code", "编码", "text"),
+          fieldType("name", "名称", "text"),
+          fieldType("status", "生命周期状态", "text"),
+        ],
+      },
+    );
+    this.relationTypes.splice(0, this.relationTypes.length);
+    this.objects.splice(0, this.objects.length);
+    this.objects.push(
+      viewObject("kernel-pc-requirement", "procurement_requirement", {
+        code: "REQ-PC-001",
+        name: "研发工作站采购需求",
+        budget_cny: 10000,
+      }),
+      viewObject("kernel-pc-valid", "build_plan", {
+        code: "PLAN-PC-VALID",
+        name: "兼容工作站方案",
+        status: "PROPOSED",
+      }),
+      viewObject("kernel-pc-invalid", "build_plan", {
+        code: "PLAN-PC-INVALID",
+        name: "超预算不兼容方案",
+        status: "PROPOSED",
+      }),
+    );
+  }
+
   seedObjects(count: number): void {
     const seed = cloneDemoSeed();
     const s3 = seed.objects.find((object) => object.id === "prod-s3")!;
@@ -816,6 +961,18 @@ class FakeKernelApi {
       payload,
     });
     if (body.commandType === "UpdateFields") {
+      if (this.failNextForbidden) {
+        this.failNextForbidden = false;
+        return json(
+          {
+            error: {
+              code: "PERM-403-FIELD-DENIED",
+              title: "无权限修改字段",
+            },
+          },
+          403,
+        );
+      }
       if (this.failNextUpdate) {
         this.failNextUpdate = false;
         return json(
@@ -1064,6 +1221,27 @@ interface ReviewAnnotationFixture {
   readonly createdAt: string;
   readonly resolvedBy: string | null;
   readonly resolvedAt: string | null;
+}
+
+function fieldType(code: string, name: string, dataType: string) {
+  return { code, name, dataType, required: false, constraints: {} };
+}
+
+function viewObject(
+  objectId: string,
+  objectType: string,
+  fields: Record<string, unknown>,
+): ViewObjectFixture {
+  return {
+    objectId,
+    objectType,
+    status: "ACTIVE",
+    version: 1,
+    fields,
+    updatedAt: "2026-07-10T10:24:00+08:00",
+    source: "manual",
+    ruleStatus: "OK",
+  };
 }
 
 function toViewObject(object: DataObject, objectId: string): ViewObjectFixture {

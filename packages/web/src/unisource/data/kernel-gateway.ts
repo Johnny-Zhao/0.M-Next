@@ -7,6 +7,7 @@ import {
   type ObjectType,
   type RelationSummary,
   type ViewObject,
+  type WorkspaceSummary,
 } from "@m-next/views";
 
 import type {
@@ -29,6 +30,10 @@ import type {
   SlotBinding,
 } from "../model/view-layer";
 import { cloneDemoSeed, type DemoSeed } from "../seed/demo-seed";
+import {
+  PresentationPresetRegistry,
+  type PresentationPreset,
+} from "../presentation/presentation-preset-registry";
 import type { ChangeSetResult } from "../state/changeset-store";
 import type {
   FieldWriteMeta,
@@ -101,19 +106,23 @@ interface KernelGraph {
 export class KernelGateway implements UnisourceGateway {
   private readonly viewClient: ViewClient;
   private readonly commandClient: CommandClient;
+  private readonly presetRegistry: PresentationPresetRegistry;
   private lastLoadReport: KernelGatewayLoadReport | null = null;
   private currentActor: MemberId;
   private objectTypesByCode: ReadonlyMap<string, ObjectType> | null = null;
   private relationTypeIdsByCode: ReadonlyMap<string, string> | null = null;
+  private workspaceTemplateCode: string | null = null;
 
   constructor(
     baseUrl: string,
     private readonly workspaceId: string,
     actorId: MemberId,
     fetchFn?: FetchFn,
+    presetRegistry = new PresentationPresetRegistry(),
   ) {
     this.viewClient = new ViewClient(baseUrl, fetchFn);
     this.commandClient = new CommandClient(baseUrl, fetchFn);
+    this.presetRegistry = presetRegistry;
     this.currentActor = actorId;
     this.commandClient.setActorId(actorId);
   }
@@ -127,12 +136,23 @@ export class KernelGateway implements UnisourceGateway {
     return this.lastLoadReport;
   }
 
+  getWorkspaceTemplateCode(): string | null {
+    return this.workspaceTemplateCode;
+  }
+
   async loadWorkspace(): Promise<DemoSeed> {
-    const graph = await this.loadKernelGraph();
+    const [graph, workspaceSummary] = await Promise.all([
+      this.loadKernelGraph(),
+      this.loadWorkspaceSummary(),
+    ]);
+    const preset = this.presetRegistry.resolve(workspaceSummary?.templateCode);
+    this.workspaceTemplateCode = workspaceSummary?.templateCode ?? null;
     const remapped = remapSeedPresentation({
-      seed: cloneDemoSeed(),
+      seed: kernelPresentationSeed(preset, this.workspaceId, workspaceSummary),
       kernelObjects: graph.objects,
       kernelRelations: graph.relations,
+      objectBindings: preset.objectBindings,
+      relationBindings: preset.relationBindings,
     });
     this.lastLoadReport = {
       ...remapped.report,
@@ -145,8 +165,10 @@ export class KernelGateway implements UnisourceGateway {
       workspace: {
         ...remapped.seed.workspace,
         id: this.workspaceId,
+        name: workspaceSummary?.name ?? remapped.seed.workspace.name,
         updatedAt:
           latestChangeAt(graph.changeEvents) ??
+          workspaceSummary?.updatedAt ??
           remapped.seed.workspace.updatedAt,
       },
       objectTypes: graph.objectTypes,
@@ -158,9 +180,20 @@ export class KernelGateway implements UnisourceGateway {
     };
   }
 
-  async seedDemoData(
-    seed: DemoSeed = cloneDemoSeed(),
-  ): Promise<KernelSeedReport> {
+  private async loadWorkspaceSummary(): Promise<WorkspaceSummary | undefined> {
+    const workspaces = await this.viewClient.workspaces();
+    return workspaces.find(
+      (workspace) => workspace.workspaceId === this.workspaceId,
+    );
+  }
+
+  async seedDemoData(seed?: DemoSeed): Promise<KernelSeedReport> {
+    const workspace = await this.loadWorkspaceSummary();
+    this.workspaceTemplateCode = workspace?.templateCode ?? null;
+    if (this.workspaceTemplateCode !== "hardware_products") {
+      return disabledSeedReport(this.workspaceTemplateCode);
+    }
+    const demoSeed = seed ?? cloneDemoSeed();
     const report = mutableSeedReport();
     const objectTypes = await this.viewClient.objectTypes(this.workspaceId);
     this.objectTypesByCode = new Map(
@@ -172,7 +205,7 @@ export class KernelGateway implements UnisourceGateway {
       existingObjects.map(objectBusinessKey).filter(isString),
     );
 
-    for (const object of seed.objects) {
+    for (const object of demoSeed.objects) {
       const typeId = typeIds.get(object.objectTypeCode);
       const key = objectBusinessKey(object);
       if (!typeId || !key) {
@@ -218,12 +251,12 @@ export class KernelGateway implements UnisourceGateway {
     );
     this.relationTypeIdsByCode = relationTypeIds;
 
-    for (const relation of seed.relations) {
+    for (const relation of demoSeed.relations) {
       const relationTypeId = relationTypeIds.get(relation.relationTypeCode);
-      const sourceSeed = seed.objects.find(
+      const sourceSeed = demoSeed.objects.find(
         (object) => object.id === relation.sourceId,
       );
-      const targetSeed = seed.objects.find(
+      const targetSeed = demoSeed.objects.find(
         (object) => object.id === relation.targetId,
       );
       const source = sourceSeed
@@ -828,6 +861,50 @@ export class KernelGateway implements UnisourceGateway {
   }
 }
 
+function kernelPresentationSeed(
+  preset: PresentationPreset,
+  workspaceId: string,
+  workspace: WorkspaceSummary | undefined,
+): DemoSeed {
+  const base = cloneDemoSeed();
+  return {
+    ...base,
+    workspace: {
+      ...base.workspace,
+      id: workspaceId,
+      name: workspace?.name ?? "统一数据工作空间",
+      updatedAt: workspace?.updatedAt ?? base.workspace.updatedAt,
+    },
+    objectTypes: [],
+    objects: [],
+    relationTypes: [],
+    relations: [],
+    comments: [],
+    permissions:
+      preset.code === "hardware_products"
+        ? base.permissions
+        : { wangyun: {}, lixiao: {}, chenmo: {}, zhouran: {}, ai: {} },
+    sceneTemplates: [],
+    expressions: preset.expressions,
+    views: preset.views,
+    docModels: preset.docModels,
+    fieldRefs: preset.fieldRefs,
+    kpis: preset.kpis,
+    biBars: preset.biBars,
+    anaReports: preset.anaReports,
+    rawImport: { text: "", spans: [], semanticChips: [], recent: [] },
+    chatMessages: [],
+    reviewRecords: [],
+    slotBindings: preset.slotBindings,
+    changeSets: [],
+    changeEvents: [],
+    activity: [],
+    outputSnapshots: [],
+    plugins: [],
+    simScenarios: [],
+  };
+}
+
 function objectsOfTypeLoaded(
   page: { readonly items: readonly ViewObject[]; readonly total: number },
   pageIndex: number,
@@ -1005,5 +1082,16 @@ function freezeSeedReport(
     skippedRelations: report.skippedRelations,
     missingTypes: [...report.missingTypes].sort(),
     failed: report.failed,
+  };
+}
+
+function disabledSeedReport(templateCode: string | null): KernelSeedReport {
+  return {
+    createdObjects: 0,
+    skippedObjects: 0,
+    createdRelations: 0,
+    skippedRelations: 0,
+    missingTypes: [],
+    failed: [`门锁演示 Seeder 不适用于 ${templateCode ?? "unknown"} Profile`],
   };
 }

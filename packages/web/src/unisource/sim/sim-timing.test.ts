@@ -62,4 +62,25 @@ describe("sim timing", () => {
     expect(store.getChangeEvents()).toHaveLength(beforeEvents);
     expect(store.getWorkspace().updatedAt).toBe(beforeVersion);
   });
+
+  it("reports dangling simulation events without playing them", () => {
+    const workspace = new WorkspaceStore(cloneDemoSeed()).getSnapshot();
+    const scenario = {
+      ...workspace.simScenarios[0]!,
+      events: [
+        {
+          ...workspace.simScenarios[0]!.events[0]!,
+          nodeObjectId: "missing-object",
+          state: "dangling" as const,
+        },
+      ],
+    };
+
+    const timeline = deriveSimTimeline(scenario, workspace, "normal");
+
+    expect(timeline.events).toEqual([]);
+    expect(timeline.danglingEvents).toEqual([
+      { id: scenario.events[0]!.id, message: "引用对象不存在" },
+    ]);
+  });
 });

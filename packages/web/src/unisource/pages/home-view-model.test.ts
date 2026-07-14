@@ -11,7 +11,10 @@ describe("deriveHomeVm", () => {
     const seed = cloneDemoSeed();
     const workspace = new WorkspaceStore(seed).getSnapshot();
     const changeSets: ChangeSetState = changeSetState(seed.changeSets);
-    const session: SessionState = { currentMemberId: "wangyun" };
+    const session: SessionState = {
+      currentMemberId: "wangyun",
+      permissionSource: "demo",
+    };
 
     const vm = deriveHomeVm(workspace, changeSets, session);
 
@@ -35,6 +38,7 @@ describe("deriveHomeVm", () => {
     const workspace = new WorkspaceStore(seed).getSnapshot();
     const vm = deriveHomeVm(workspace, changeSetState(seed.changeSets), {
       currentMemberId: "chenmo",
+      permissionSource: "demo",
     });
 
     expect(vm.currentMemberName).toBe("陈默");

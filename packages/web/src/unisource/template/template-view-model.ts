@@ -9,7 +9,12 @@ import type {
 import type { SlotBinding } from "../model/view-layer";
 import type { WorkspaceState } from "../state/workspace-store";
 
-export type SlotState = "instantiated" | "activated" | "empty" | "violated";
+export type SlotState =
+  | "instantiated"
+  | "activated"
+  | "empty"
+  | "violated"
+  | "dangling";
 export type LibraryMatchState = "match" | "mismatch" | "bound";
 
 export interface TemplateSlotNodeConfig {
@@ -116,6 +121,7 @@ export function buildTemplateViewModel(
       ? workspace.objects.find((candidate) => candidate.id === binding.objectId)
       : undefined;
     const violation = object ? firstConstraintViolation(object, slot) : null;
+    const bindingDangling = binding.state === "dangling";
     const node = slotNodes.find((candidate) => candidate.slotId === slot.id);
     return {
       id: slot.id,
@@ -123,18 +129,24 @@ export function buildTemplateViewModel(
       bindingId: binding.id,
       label: slot.label,
       abstractType: slot.abstractType,
-      state: object
-        ? violation
-          ? "violated"
-          : "instantiated"
-        : slot.id === effectiveActive
-          ? "activated"
-          : "empty",
+      state: bindingDangling
+        ? "dangling"
+        : object
+          ? violation
+            ? "violated"
+            : "instantiated"
+          : slot.id === effectiveActive
+            ? "activated"
+            : "empty",
       objectId: object?.id ?? null,
       objectName: objectName(object),
-      sourceLabel: object ? "硬件产品库" : "模板槽位",
+      sourceLabel: bindingDangling
+        ? "引用对象不存在"
+        : object
+          ? "硬件产品库"
+          : "模板槽位",
       constraintText: slotConstraintText(slot),
-      violationReason: violation,
+      violationReason: bindingDangling ? "引用对象不存在" : violation,
       fields: object ? shownFieldRows(workspace, object, slot.shownFields) : [],
       x: node?.x ?? 100,
       y: node?.y ?? 100,

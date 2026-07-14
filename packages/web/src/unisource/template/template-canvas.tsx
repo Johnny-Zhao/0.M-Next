@@ -94,7 +94,7 @@ export function TemplateCanvas({ exprId }: { exprId: string }) {
       height: slot.h,
       data: { slot },
       selected: slot.slotId === activeSlot?.slotId,
-      draggable: canEdit,
+      draggable: canEdit && slot.state !== "dangling",
     })) ?? [];
   const edges: Edge[] =
     vm?.edges.map((edge) => ({
@@ -109,6 +109,10 @@ export function TemplateCanvas({ exprId }: { exprId: string }) {
 
   const bindObject = (item: LibraryItemVm) => {
     if (!canEdit || !activeSlot) return;
+    if (activeSlot.state === "dangling") {
+      pushToast({ title: "引用对象不存在" });
+      return;
+    }
     const object = workspace.objects.find(
       (candidate) => candidate.id === item.objectId,
     );
@@ -141,6 +145,8 @@ export function TemplateCanvas({ exprId }: { exprId: string }) {
 
   const onNodeDragStop: OnNodeDrag = (_event, node) => {
     if (!canEdit) return;
+    if (vm.slots.find((slot) => slot.slotId === node.id)?.state === "dangling")
+      return;
     const current = parseTemplateSlotNodes(
       view,
       workspace.sceneTemplates.find((item) => item.id === vm.templateId)

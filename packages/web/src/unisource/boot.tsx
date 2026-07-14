@@ -41,6 +41,7 @@ void boot(root, bootMode);
 
 async function boot(root: Root, mode: BootMode): Promise<void> {
   if (!mode.backend) {
+    sessionStore.setPermissionSource("demo");
     configureBackendReload(null);
     workspaceStore.setWriteSink(null);
     validationStore.setKernelSource(null);
@@ -52,6 +53,7 @@ async function boot(root: Root, mode: BootMode): Promise<void> {
     setKernelRuntimeState({
       backend: false,
       workspaceId: null,
+      templateCode: null,
       reportLabel: null,
     });
     renderApp(root);
@@ -72,6 +74,7 @@ async function boot(root: Root, mode: BootMode): Promise<void> {
   const load = async (notify: boolean): Promise<void> => {
     const seed = await gateway.loadWorkspace();
     const report = gateway.getLastLoadReport();
+    sessionStore.setPermissionSource("kernel");
     applyDemoSeed(seed, notify ? { toastTitle: "已从内核重载工作空间" } : {});
     workspaceStore.setWriteSink(writeBridge);
     validationStore.setKernelSource(gateway);
@@ -86,6 +89,7 @@ async function boot(root: Root, mode: BootMode): Promise<void> {
     setKernelRuntimeState({
       backend: true,
       workspaceId,
+      templateCode: gateway.getWorkspaceTemplateCode(),
       reportLabel: report ? formatReport(report) : null,
     });
   };
@@ -147,6 +151,7 @@ function renderBootError(
 
 function fallbackToMock(root: Root): void {
   clearBrowserBackendPreference();
+  sessionStore.setPermissionSource("demo");
   configureBackendReload(null);
   workspaceStore.setWriteSink(null);
   validationStore.setKernelSource(null);
@@ -158,6 +163,7 @@ function fallbackToMock(root: Root): void {
   setKernelRuntimeState({
     backend: false,
     workspaceId: null,
+    templateCode: null,
     reportLabel: null,
   });
   renderApp(root);

@@ -10,6 +10,10 @@ export interface TimedSimEvent extends SimEvent {
 
 export interface SimTimeline {
   readonly events: readonly TimedSimEvent[];
+  readonly danglingEvents: readonly {
+    readonly id: string;
+    readonly message: string;
+  }[];
   readonly duration: number;
   readonly endToEnd: number;
   readonly retries: number;
@@ -37,6 +41,7 @@ export function deriveSimTimeline(
   network: SimNetwork,
 ): SimTimeline {
   const timed: TimedSimEvent[] = [];
+  const danglingEvents: { id: string; message: string }[] = [];
   const relationById = new Map(
     workspace.relations.map((relation) => [relation.id, relation]),
   );
@@ -46,6 +51,20 @@ export function deriveSimTimeline(
     const relation = event.viaRelationId
       ? relationById.get(event.viaRelationId)
       : undefined;
+    const objectExists = workspace.objects.some(
+      (object) => object.id === event.nodeObjectId,
+    );
+    if (
+      event.state === "dangling" ||
+      !objectExists ||
+      (event.viaRelationId !== undefined && !relation)
+    ) {
+      danglingEvents.push({
+        id: event.id,
+        message: !objectExists ? "引用对象不存在" : "引用关系不存在",
+      });
+      continue;
+    }
     const predecessor = relation
       ? predecessorForRelation(timed, event.nodeObjectId, relation)
       : timed[timed.length - 1];
@@ -65,11 +84,12 @@ export function deriveSimTimeline(
 
   return {
     events: timed,
+    danglingEvents,
     duration: scenario.duration,
     endToEnd,
     retries:
       network === "weak"
-        ? scenario.events.filter((event) => Boolean(event.viaRelationId)).length
+        ? timed.filter((event) => Boolean(event.viaRelationId)).length
         : 0,
   };
 }

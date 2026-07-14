@@ -120,6 +120,13 @@ export function SimView({
           <UsMonoTag active>LIVE</UsMonoTag>
           连线流动 = 事件传播;延迟取自节点「协议」字段的实测参数。
         </div>
+        {timeline.danglingEvents.length > 0 ? (
+          <div className="us-sim-hint" role="status">
+            {Array.from(
+              new Set(timeline.danglingEvents.map((event) => event.message)),
+            ).join(" · ")}
+          </div>
+        ) : null}
         <PlayBar
           duration={timeline.duration}
           loop={loop}

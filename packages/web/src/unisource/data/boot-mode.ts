@@ -12,6 +12,7 @@ export interface BootMode {
 export interface KernelRuntimeState {
   readonly backend: boolean;
   readonly workspaceId: string | null;
+  readonly templateCode: string | null;
   readonly reportLabel: string | null;
 }
 
@@ -21,6 +22,7 @@ type Listener = () => void;
 let runtimeState: KernelRuntimeState = {
   backend: false,
   workspaceId: null,
+  templateCode: null,
   reportLabel: null,
 };
 const listeners = new Set<Listener>();

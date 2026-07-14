@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useParams, useSearchParams } from "react-router-dom";
+import { Navigate, useParams, useSearchParams } from "react-router-dom";
 
 import { BiBoard } from "../bi/bi-board";
 import { AnaView } from "../ana/ana-view";
@@ -35,6 +35,7 @@ import { workspaceStore, useWorkspaceSnapshot } from "../state/workspace-store";
 import { TemplateCanvas } from "../template/template-canvas";
 import { TemplateConfigDoc } from "../template/template-config-doc";
 import { PageSkeleton } from "./page-skeleton";
+import { resolveExpressionGridFallback } from "./expression-grid-fallback";
 
 const FORM_LABEL: Record<string, string> = {
   grid: "表格",
@@ -59,6 +60,9 @@ export function ExprPage() {
     (candidate) => candidate.id === exprId,
   );
   const form = parseFormParam(search, expr?.defaultForm ?? "doc");
+  const gridFallback = exprId
+    ? resolveExpressionGridFallback(snapshot, exprId)
+    : undefined;
   const split = search.get("layout") === "split";
   const chatOpen = search.get("drawer") === "chat";
   const reviewOpen = search.get("drawer") === "review";
@@ -374,7 +378,19 @@ export function ExprPage() {
         </FormRow>
       }
     >
-      {form === "doc" && split && expr ? (
+      {form === "grid" && gridFallback !== undefined ? (
+        gridFallback ? (
+          <Navigate
+            replace
+            to={`/source/${encodeURIComponent(gridFallback)}`}
+          />
+        ) : (
+          <section className="us-canvas-empty" role="status">
+            <h2>暂无可查看的数据源</h2>
+            <p>当前工作空间尚未提供对象类型。</p>
+          </section>
+        )
+      ) : form === "doc" && split && expr ? (
         <SplitView exprId={expr.id} />
       ) : form === "doc" && expr && isTemplateConfigDoc ? (
         <TemplateConfigDoc exprId={expr.id} />

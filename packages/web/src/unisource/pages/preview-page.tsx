@@ -28,10 +28,10 @@ import {
   persistBrowserBootMode,
   readBrowserWorkspacePreference,
   resolveBrowserBootMode,
+  useKernelRuntimeState,
   type BootMode,
 } from "../data/boot-mode";
 import { KernelGateway, type KernelSeedReport } from "../data/kernel-gateway";
-import { cloneDemoSeed } from "../seed/demo-seed";
 import { changeSetStore, useChangeSetSnapshot } from "../state/changeset-store";
 import { useValidationSnapshot } from "../state/validation-store";
 import { useWorkspaceSnapshot } from "../state/workspace-store";
@@ -76,6 +76,16 @@ export function PreviewPage() {
     initialBootMode.workspaceId ?? readBrowserWorkspacePreference(),
   );
   const [seedReport, setSeedReport] = useState<KernelSeedReport | null>(null);
+  const kernelRuntime = useKernelRuntimeState();
+  const seedEnabled =
+    backendEnabled &&
+    kernelRuntime.backend &&
+    workspaceId.trim() === kernelRuntime.workspaceId &&
+    kernelRuntime.templateCode === "hardware_products";
+  const seedDisabledReason =
+    kernelRuntime.templateCode === "pc_procurement"
+      ? "电脑采购工作空间使用后端真实 Seeder，不写入门锁演示数据。"
+      : "仅已加载的 hardware_products Kernel 工作空间可写入门锁演示数据。";
   const workspace = useWorkspaceSnapshot();
   const validation = useValidationSnapshot();
   const changeSets = useChangeSetSnapshot();
@@ -183,7 +193,7 @@ export function PreviewPage() {
                 保存模式偏好
               </UsButton>
               <UsButton
-                disabled={!workspaceId.trim()}
+                disabled={!seedEnabled}
                 onClick={() => {
                   const gateway = new KernelGateway(
                     "",
@@ -191,7 +201,7 @@ export function PreviewPage() {
                     "wangyun",
                   );
                   void gateway
-                    .seedDemoData(cloneDemoSeed())
+                    .seedDemoData()
                     .then((report) => {
                       setSeedReport(report);
                       pushToast({ title: "演示数据写入请求已完成" });
@@ -206,11 +216,17 @@ export function PreviewPage() {
                       });
                     });
                 }}
+                title={seedEnabled ? undefined : seedDisabledReason}
                 variant="primary"
               >
                 写入演示数据到后端
               </UsButton>
             </div>
+            {!seedEnabled ? (
+              <span className="us-data" role="status">
+                {seedDisabledReason}
+              </span>
+            ) : null}
             {seedReport ? (
               <div className="us-kernel-dev__report">
                 <span className="us-data">

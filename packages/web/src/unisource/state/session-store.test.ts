@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { buildGridViewModel } from "../grid/grid-view-model";
 import { cloneDemoSeed } from "../seed/demo-seed";
 import { ChangeSetStore } from "./changeset-store";
 import { SessionStore } from "./session-store";
@@ -53,5 +54,48 @@ describe("SessionStore", () => {
     expect(workspace.getChangeEvents()).toHaveLength(beforeDeniedEvents);
     expect(changes.getPending()[0]?.source).toBe("manual");
     expect(changes.getPending()[0]?.actor).toBe("chenmo");
+  });
+
+  it("defers permission decisions to the backend in kernel mode", () => {
+    const seed = {
+      ...cloneDemoSeed(),
+      permissions: {
+        wangyun: {},
+        lixiao: {},
+        chenmo: {},
+        zhouran: {},
+        ai: {},
+      },
+    };
+    const workspace = new WorkspaceStore(seed);
+    const changes = new ChangeSetStore(seed, workspace);
+    const session = new SessionStore(workspace, changes);
+    session.setPermissionSource("kernel");
+    const beforePending = changes.getPending().length;
+
+    expect(session.can("zhouran", "product_specs", "read")).toBe(true);
+    expect(session.can("zhouran", "product_specs", "editData")).toBe(true);
+    expect(session.can("zhouran", "product_specs", "admin")).toBe(false);
+    expect(session.canDragCards("zhouran")).toBe(true);
+    const objectType = seed.objectTypes.find(
+      (type) => type.code === "product_specs",
+    )!;
+    const grid = buildGridViewModel({
+      objectType,
+      objects: seed.objects.filter(
+        (object) => object.objectTypeCode === objectType.code,
+      ),
+      maskValues: !session.can("zhouran", objectType.code, "read"),
+    });
+    expect(grid.rows[0]?.cells.every((cell) => !cell.masked)).toBe(true);
+    expect(
+      session.requestWrite({
+        resourceCode: "product_specs",
+        objectId: "prod-s3",
+        fieldCode: "price",
+        value: 1099,
+      }).queued,
+    ).toBe(false);
+    expect(changes.getPending()).toHaveLength(beforePending);
   });
 });

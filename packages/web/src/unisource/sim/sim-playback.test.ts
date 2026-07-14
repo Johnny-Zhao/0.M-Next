@@ -4,6 +4,7 @@ import type { SimTimeline } from "./sim-timing";
 import { advancePlayhead, deriveSimPhase } from "./sim-playback";
 
 const timeline: SimTimeline = {
+  danglingEvents: [],
   duration: 10,
   endToEnd: 3.2,
   retries: 0,

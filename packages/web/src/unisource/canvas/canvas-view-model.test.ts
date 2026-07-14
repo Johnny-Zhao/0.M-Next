@@ -34,6 +34,7 @@ describe("canvas view model", () => {
       "price",
       "battery_months",
     ]);
+    expect(vm.danglingRefs).toEqual([]);
   });
 
   it("filters dangling config entries and derives cross-form goto targets", () => {
@@ -63,6 +64,18 @@ describe("canvas view model", () => {
     expect(vm.edges.some((edge) => edge.relationId === "missing-rel")).toBe(
       false,
     );
+    expect(vm.danglingRefs).toEqual([
+      {
+        id: "missing",
+        kind: "object",
+        message: "引用对象不存在",
+      },
+      {
+        id: "missing-rel",
+        kind: "relation",
+        message: "引用关系不存在",
+      },
+    ]);
     expect(
       deriveGotoTargets(workspace, "prod-s3").map((target) => target.href),
     ).toContain("/source/product_specs?focus=prod-s3");
