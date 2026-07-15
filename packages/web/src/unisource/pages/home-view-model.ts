@@ -82,7 +82,7 @@ export function deriveHomeVm(
         };
       }),
     sources: workspace.objectTypes
-      .filter((type) => type.code !== "hardware_products")
+      .filter((type) => !isWorkshopOnlySource(workspace, type.code))
       .map((type) => {
         const objects = workspace.objects.filter(
           (object) => object.objectTypeCode === type.code,
@@ -98,10 +98,34 @@ export function deriveHomeVm(
           name: type.name,
           count: objects.length,
           refCount,
-          ...sourceStatus(type.code),
+          ...sourceStatus(refCount),
         };
       }),
   };
+}
+
+function isWorkshopOnlySource(
+  workspace: WorkspaceState,
+  objectTypeCode: string,
+): boolean {
+  const objectIds = new Set(
+    workspace.objects
+      .filter((object) => object.objectTypeCode === objectTypeCode)
+      .map((object) => object.id),
+  );
+  const expressionIds = new Set(
+    workspace.fieldRefs
+      .filter((ref) => objectIds.has(ref.objectId))
+      .map((ref) => ref.exprId),
+  );
+  return (
+    expressionIds.size > 0 &&
+    [...expressionIds].every(
+      (exprId) =>
+        workspace.expressions.find((expression) => expression.id === exprId)
+          ?.space === "workshop",
+    )
+  );
 }
 
 function preferDefaultForm(
@@ -115,18 +139,11 @@ function preferDefaultForm(
   ];
 }
 
-function sourceStatus(code: string): {
+function sourceStatus(refCount: number): {
   readonly status: string;
   readonly tone: HomeSourceTileVm["tone"];
 } {
-  if (code === "product_specs") {
-    return { status: "今日 改 2 · 全部已同步", tone: "change" };
-  }
-  if (code === "channel_sales") {
-    return { status: "自动刷新 5min", tone: "ok" };
-  }
-  if (code === "contracts") {
-    return { status: "今日 增 1(AI 导入)", tone: "ok" };
-  }
-  return { status: "未被引用", tone: "muted" };
+  return refCount > 0
+    ? { status: `已用于 ${refCount} 个表达`, tone: "ok" }
+    : { status: "未被引用", tone: "muted" };
 }

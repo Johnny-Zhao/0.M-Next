@@ -14,7 +14,7 @@ const nodeTypes = { unisource: NodeCard };
 const edgeTypes = { labeled: EdgeLabeled };
 
 export function SimView({
-  exprId,
+  viewId,
   loop,
   onLoopChange,
   onPlayingChange,
@@ -25,7 +25,7 @@ export function SimView({
   speed,
   timeline,
 }: {
-  readonly exprId: string;
+  readonly viewId: string;
   readonly loop: boolean;
   readonly onLoopChange: (loop: boolean) => void;
   readonly onPlayingChange: (playing: boolean) => void;
@@ -38,7 +38,7 @@ export function SimView({
 }) {
   const workspace = useWorkspaceSnapshot();
   const view = workspace.views.find(
-    (candidate) => candidate.exprId === exprId && candidate.kind === "canvas",
+    (candidate) => candidate.id === viewId && candidate.kind === "canvas",
   );
   const vm = view ? buildCanvasViewModel(workspace, view) : null;
   const phase = useMemo(
@@ -97,7 +97,7 @@ export function SimView({
     );
   }, [vm, phase]);
 
-  if (!vm) return null;
+  if (!vm) return <p role="status">当前仿真视图不可用。</p>;
 
   return (
     <section className="us-sim-shell">

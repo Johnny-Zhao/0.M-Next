@@ -1,18 +1,15 @@
+import type { ViewDef } from "../model/kernel";
 import type { WorkspaceState } from "../state/workspace-store";
 
 type GridFallbackState = Pick<WorkspaceState, "objectTypes" | "views">;
 
 export function resolveExpressionGridFallback(
   workspace: GridFallbackState,
-  exprId: string,
+  view: ViewDef,
 ): string | null | undefined {
-  const view = workspace.views.find(
-    (candidate) =>
-      candidate.exprId === exprId &&
-      candidate.kind === "grid" &&
-      candidate.config.sourceFallback === true,
-  );
-  if (!view) return undefined;
+  if (view.kind !== "grid" || view.config.sourceFallback !== true) {
+    return undefined;
+  }
   const configured = view.config.objectTypeCode;
   if (
     typeof configured === "string" &&

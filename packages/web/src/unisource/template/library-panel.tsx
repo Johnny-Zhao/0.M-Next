@@ -18,9 +18,9 @@ export function LibraryPanel({
   onDragEnd: () => void;
   onDragStart: (objectId: string) => void;
 }) {
-  const [chipset, setChipset] = useState<string | null>(null);
-  const items = chipset
-    ? library.items.filter((item) => item.chipset === chipset)
+  const [group, setGroup] = useState<string | null>(null);
+  const items = group
+    ? library.items.filter((item) => item.group === group)
     : library.items;
   return (
     <aside className="us-library-panel" aria-label="模板库面板">
@@ -33,19 +33,19 @@ export function LibraryPanel({
       <div className="us-library-chips">
         <button
           type="button"
-          aria-pressed={chipset === null}
-          onClick={() => setChipset(null)}
+          aria-pressed={group === null}
+          onClick={() => setGroup(null)}
         >
           符合约束 <span className="us-data">{library.matching}</span>
         </button>
-        {library.chipsetCounts.map((item) => (
+        {library.groupCounts.map((item) => (
           <button
-            key={item.chipset}
+            key={item.group}
             type="button"
-            aria-pressed={chipset === item.chipset}
-            onClick={() => setChipset(item.chipset)}
+            aria-pressed={group === item.group}
+            onClick={() => setGroup(item.group)}
           >
-            {item.chipset} · <span className="us-data">{item.count}</span>
+            {item.group} · <span className="us-data">{item.count}</span>
           </button>
         ))}
       </div>
@@ -71,11 +71,11 @@ export function LibraryPanel({
               {item.matchState !== "match" ? <em>{item.reason}</em> : null}
               {draggingId === item.objectId ? <em>拖拽中…</em> : null}
             </span>
-            <span className="us-data">{item.priceText}</span>
+            <span className="us-data">{item.valueText}</span>
           </button>
         ))}
       </div>
-      <p>点击或拖入槽位即可实例化。字段随硬件产品库更新。</p>
+      <p>{library.footer}</p>
     </aside>
   );
 }

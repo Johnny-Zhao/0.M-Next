@@ -272,17 +272,21 @@ export interface AnaReport {
   readonly scopeLabel: string;
   readonly question: string;
   readonly sourcesLabel: string;
+  readonly factorTitle: string;
+  readonly factorMetricLabel: string;
   readonly factors: readonly {
     readonly label: string;
     readonly deltaText: string;
     readonly widthPct: number;
     readonly tone: "change" | "change-soft" | "primary" | "ink";
   }[];
-  readonly drillRows: readonly {
-    readonly channel: string;
-    readonly deltaText: string;
-    readonly accessoryShare: string;
+  readonly drillTitle: string;
+  readonly drillTraceLabel: string;
+  readonly drillColumns: readonly {
+    readonly key: string;
+    readonly label: string;
   }[];
+  readonly drillRows: readonly Readonly<Record<string, string>>[];
   readonly insights: readonly {
     readonly title: string;
     readonly segments: readonly {
@@ -292,4 +296,5 @@ export interface AnaReport {
   }[];
   readonly pinKpiId: string;
   readonly childKpiIds: readonly string[];
+  readonly childActionLabel: string;
 }

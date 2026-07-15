@@ -6,29 +6,20 @@ import { workspaceStore, useWorkspaceSnapshot } from "../state/workspace-store";
 
 type TrackFilter = "all" | "data" | "view";
 
-export function CanvasVersionsPanel({ exprId }: { exprId: string }) {
+export function CanvasVersionsPanel({ viewId }: { viewId: string }) {
   const workspace = useWorkspaceSnapshot();
   const session = useSessionSnapshot();
   const [filter, setFilter] = useState<TrackFilter>("all");
-  const viewIds = useMemo(
-    () =>
-      new Set(
-        workspace.views
-          .filter((view) => view.exprId === exprId)
-          .map((view) => view.id),
-      ),
-    [workspace.views, exprId],
-  );
   const events = useMemo(
     () =>
       workspace.changeEvents.filter((event) => {
         if (filter !== "all" && event.track !== filter) return false;
-        if (event.track === "view") return viewIds.has(event.target.entityId);
+        if (event.track === "view") return event.target.entityId === viewId;
         if (event.target.entityType === "object") return true;
         if (event.target.entityType === "relation") return true;
         return true;
       }),
-    [workspace.changeEvents, filter, viewIds],
+    [workspace.changeEvents, filter, viewId],
   );
 
   return (

@@ -13,7 +13,7 @@ describe("expression grid fallback", () => {
 
     const source = resolveExpressionGridFallback(
       { objectTypes, views: preset.views },
-      "exp-pc-overview",
+      preset.views.find((view) => view.id === "view-pc-grid")!,
     );
     expect(source).toBe("build_plan");
   });
@@ -21,7 +21,7 @@ describe("expression grid fallback", () => {
     const preset = registry.resolve("future_profile");
     const source = resolveExpressionGridFallback(
       { objectTypes: [demoType], views: preset.views },
-      "exp-generic-data",
+      preset.views[0]!,
     );
     expect(source).toBe(demoType.code);
   });
@@ -29,7 +29,7 @@ describe("expression grid fallback", () => {
     const preset = registry.resolve("hardware_products");
     const source = resolveExpressionGridFallback(
       { objectTypes: [demoType], views: preset.views },
-      "exp-dashboard",
+      preset.views.find((view) => view.id === "view-dashboard-grid")!,
     );
     expect(source).toBeUndefined();
   });

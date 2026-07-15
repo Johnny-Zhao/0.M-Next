@@ -19,6 +19,7 @@ import { MatrixBoard } from "../matrix/matrix-board";
 import type { CanvasNodeConfig } from "../model/view-layer";
 import { UsMonoTag } from "../primitives";
 import { AnnotationDrawer } from "../review/annotation-drawer";
+import { resolveExpressionView } from "../presentation/expression-runtime";
 import { parseFormParam } from "../routes-paths";
 import { FormRow, nextFormSearch } from "../shell/form-row";
 import { LayoutToggle, nextLayoutSearch } from "../shell/layout-toggle";
@@ -56,12 +57,18 @@ export function ExprPage() {
   const snapshot = useWorkspaceSnapshot();
   const session = useSessionSnapshot();
   const selection = useSelectionSnapshot();
-  const expr = snapshot.expressions.find(
+  const configuredExpression = snapshot.expressions.find(
     (candidate) => candidate.id === exprId,
   );
-  const form = parseFormParam(search, expr?.defaultForm ?? "doc");
-  const gridFallback = exprId
-    ? resolveExpressionGridFallback(snapshot, exprId)
+  const form = parseFormParam(
+    search,
+    configuredExpression?.defaultForm ?? "doc",
+  );
+  const resolution = resolveExpressionView(snapshot, exprId, form);
+  const expr = resolution.expression;
+  const view = resolution.view;
+  const gridFallback = view
+    ? resolveExpressionGridFallback(snapshot, view)
     : undefined;
   const split = search.get("layout") === "split";
   const chatOpen = search.get("drawer") === "chat";
@@ -73,17 +80,7 @@ export function ExprPage() {
   const [simPlaying, setSimPlaying] = useState(true);
   const [simSpeed, setSimSpeed] = useState<1 | 2>(1);
   const [simLoop, setSimLoop] = useState(true);
-  const forms = Array.from(
-    new Set(
-      expr?.viewIds
-        .map(
-          (viewId) => snapshot.views.find((view) => view.id === viewId)?.kind,
-        )
-        .filter((value): value is NonNullable<typeof value> =>
-          Boolean(value),
-        ) ?? ["doc"],
-    ),
-  );
+  const forms = resolution.forms;
   const people = snapshot.members.slice(0, 2).map((member) => ({
     member: member.avatar,
     label: member.name.slice(0, 1),
@@ -96,29 +93,14 @@ export function ExprPage() {
       : snapshot.fieldRefs.filter(
           (ref) => ref.exprId === exprId && ref.state === "justSynced",
         ).length;
-  const inventoryDocRefs = new Set(
-    snapshot.fieldRefs
-      .filter((ref) =>
-        snapshot.objects.some(
-          (object) =>
-            object.id === ref.objectId &&
-            object.objectTypeCode === "product_specs",
-        ),
-      )
-      .map((ref) => ref.exprId),
-  ).size;
   const docModel =
-    exprId === undefined
+    view?.kind !== "doc"
       ? undefined
-      : snapshot.docModels.find((candidate) => candidate.exprId === exprId);
-  const docVm = docModel ? buildDocViewModel(snapshot, docModel) : null;
-  const canvasView =
-    exprId === undefined
-      ? undefined
-      : snapshot.views.find(
-          (candidate) =>
-            candidate.exprId === exprId && candidate.kind === "canvas",
+      : snapshot.docModels.find(
+          (candidate) => candidate.exprId === view.exprId,
         );
+  const docVm = docModel ? buildDocViewModel(snapshot, docModel) : null;
+  const canvasView = view?.kind === "canvas" ? view : undefined;
   const isTemplateCanvas = Boolean(canvasView?.config.templateId);
   const isSimulationOpen = form === "canvas" && runOpen && !isTemplateCanvas;
   const simScenario = snapshot.simScenarios[0] ?? null;
@@ -128,13 +110,7 @@ export function ExprPage() {
     [simScenario, snapshot, simNetwork],
   );
   const isTemplateConfigDoc =
-    form === "doc" &&
-    snapshot.views.some(
-      (view) =>
-        view.exprId === exprId &&
-        view.kind === "doc" &&
-        typeof view.config.sourceExprId === "string",
-    );
+    view?.kind === "doc" && typeof view.config.sourceExprId === "string";
   const canvasCanEdit =
     exprId !== undefined &&
     sessionStore.can(session.currentMemberId, exprId, "editView");
@@ -268,7 +244,7 @@ export function ExprPage() {
           label: "属性",
           content: (
             <CanvasPropsPanel
-              exprId={exprId ?? ""}
+              viewId={canvasView?.id ?? ""}
               canEdit={canvasCanEdit}
               onRemove={removeCanvasNodes}
               onDelete={(objectId) =>
@@ -282,7 +258,7 @@ export function ExprPage() {
           label: "样式",
           content: (
             <CanvasStylePanel
-              exprId={exprId ?? ""}
+              viewId={canvasView?.id ?? ""}
               canEdit={canvasCanEdit}
               onPatchNodes={patchCanvasNodes}
             />
@@ -291,7 +267,7 @@ export function ExprPage() {
         {
           key: "versions",
           label: "版本",
-          content: <CanvasVersionsPanel exprId={exprId ?? ""} />,
+          content: <CanvasVersionsPanel viewId={canvasView?.id ?? ""} />,
         },
       ]}
     />
@@ -320,13 +296,11 @@ export function ExprPage() {
                 : "ok",
           label: isSimulationOpen
             ? "仿真 · 运行中"
-            : form === "matrix" && exprId === "exp-inventory"
-              ? `已同步 · ${inventoryDocRefs} 篇关联文档`
-              : form === "doc" && docVm
-                ? docVm.howLabel
-                : syncedRefs > 0
-                  ? `刚刚同步 ${syncedRefs} 处引用`
-                  : (expr?.lastActivity ?? "已同步"),
+            : form === "doc" && docVm
+              ? docVm.howLabel
+              : syncedRefs > 0
+                ? `刚刚同步 ${syncedRefs} 处引用`
+                : (expr?.lastActivity ?? "已同步"),
         },
         people,
         actions: (
@@ -378,7 +352,12 @@ export function ExprPage() {
         </FormRow>
       }
     >
-      {form === "grid" && gridFallback !== undefined ? (
+      {resolution.state !== "ready" ? (
+        <section className="us-canvas-empty" role="status">
+          <h2>当前表达不可用</h2>
+          <p>{resolution.message}</p>
+        </section>
+      ) : form === "grid" && gridFallback !== undefined ? (
         gridFallback ? (
           <Navigate
             replace
@@ -391,22 +370,22 @@ export function ExprPage() {
           </section>
         )
       ) : form === "doc" && split && expr ? (
-        <SplitView exprId={expr.id} />
+        <SplitView exprId={expr.id} viewId={view!.id} />
       ) : form === "doc" && expr && isTemplateConfigDoc ? (
-        <TemplateConfigDoc exprId={expr.id} />
+        <TemplateConfigDoc viewId={view!.id} />
       ) : form === "doc" && expr ? (
-        <DocView exprId={expr.id} />
+        <DocView exprId={expr.id} viewId={view!.id} />
       ) : form === "bi" && expr ? (
-        <BiBoard />
+        <BiBoard viewId={view!.id} />
       ) : form === "matrix" && expr ? (
-        <MatrixBoard exprId={expr.id} />
+        <MatrixBoard viewId={view!.id} />
       ) : form === "ana" && expr ? (
-        <AnaView exprId={expr.id} />
+        <AnaView viewId={view!.id} />
       ) : form === "canvas" && expr && isTemplateCanvas && !runOpen ? (
-        <TemplateCanvas exprId={expr.id} />
+        <TemplateCanvas exprId={expr.id} viewId={view!.id} />
       ) : form === "canvas" && expr && isSimulationOpen && simTimeline ? (
         <SimView
-          exprId={expr.id}
+          viewId={view!.id}
           loop={simLoop}
           onLoopChange={setSimLoop}
           onPlayingChange={setSimPlaying}
@@ -418,7 +397,7 @@ export function ExprPage() {
           timeline={simTimeline}
         />
       ) : form === "canvas" && expr && !runOpen ? (
-        <CanvasView exprId={expr.id} />
+        <CanvasView exprId={expr.id} viewId={view!.id} />
       ) : form === "canvas" && runOpen ? (
         <PageSkeleton
           kicker="SIMULATION"

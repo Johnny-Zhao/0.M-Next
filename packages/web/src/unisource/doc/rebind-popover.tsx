@@ -20,7 +20,9 @@ export function RebindPopover({
         onCancel={onCancel}
         onInsert={onRebind}
         onQuery={() => undefined}
+        objectLabel={refVm.objectId}
         query=""
+        sourceLabel="当前工作空间"
       />
       <p>悬空引用「{refVm.label}」也可在校验中心批量处理(006)</p>
     </div>

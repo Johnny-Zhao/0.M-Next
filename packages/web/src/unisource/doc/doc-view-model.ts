@@ -67,6 +67,8 @@ export interface DocViewModel {
   readonly bindingType: ObjectTypeDef | null;
   readonly bindingState: "fresh" | "dangling";
   readonly bindingMessage: string | null;
+  readonly bindingLabel: string;
+  readonly bindingCode: string;
   readonly blocks: readonly DocBlockVm[];
   readonly refs: readonly DocRefVm[];
   readonly fields: readonly DocFieldRefGroupVm[];
@@ -124,6 +126,20 @@ export function buildDocViewModel(
     bindingType,
     bindingState,
     bindingMessage: bindingState === "dangling" ? "引用对象不存在" : null,
+    bindingLabel: bindingObject
+      ? String(
+          bindingObject.fields.name?.value ??
+            bindingObject.fields.code?.value ??
+            bindingObject.id,
+        )
+      : "未绑定对象",
+    bindingCode: bindingObject
+      ? String(
+          bindingObject.fields.code?.value ??
+            bindingObject.fields.sku?.value ??
+            bindingObject.id,
+        )
+      : "—",
     blocks,
     refs,
     fields: groupFieldRefs(refs),

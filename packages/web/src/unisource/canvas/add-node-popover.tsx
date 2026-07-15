@@ -1,17 +1,19 @@
 import { useState } from "react";
 
-import type { DataObject } from "../model/kernel";
+import type { DataObject, ObjectTypeDef } from "../model/kernel";
 import { UsStatusPill } from "../primitives";
 
 export function AddNodePopover({
   existingObjectIds,
   objects,
+  objectTypes,
   onAdd,
   onClose,
   onDragAdd,
 }: {
   readonly existingObjectIds: readonly string[];
   readonly objects: readonly DataObject[];
+  readonly objectTypes: readonly ObjectTypeDef[];
   readonly onAdd: (objectId: string) => void;
   readonly onClose: () => void;
   readonly onDragAdd: (objectId: string) => void;
@@ -21,13 +23,17 @@ export function AddNodePopover({
   return (
     <div className="us-addnode" role="dialog" aria-label="从数据源添加">
       <header>
-        <span>从产品规格库添加</span>
+        <span>从工作空间数据源添加</span>
         <button type="button" onClick={onClose} aria-label="关闭">
           ×
         </button>
       </header>
+      {objects.length === 0 ? <p>暂无可添加对象</p> : null}
       {objects.map((object) => {
         const exists = existingIds.has(object.id);
+        const objectType = objectTypes.find(
+          (type) => type.code === object.objectTypeCode,
+        );
         return (
           <button
             data-dragging={draggingId === object.id || undefined}
@@ -51,7 +57,14 @@ export function AddNodePopover({
           >
             <span>
               <strong>{String(object.fields.name?.value ?? object.id)}</strong>
-              <small className="us-data">{object.fields.sku?.value}</small>
+              <small className="us-data">
+                {objectType?.name ?? object.objectTypeCode} ·{" "}
+                {String(
+                  object.fields.code?.value ??
+                    object.fields.sku?.value ??
+                    object.id,
+                )}
+              </small>
             </span>
             <UsStatusPill
               tone={

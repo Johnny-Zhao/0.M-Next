@@ -27,8 +27,11 @@ export function MatrixRecordCard({
       }}
     >
       <strong>{card.name}</strong>
-      <span className="us-data">{card.priceText}</span>
-      <small className="us-data">{card.docRefs} DOC</small>
+      {card.fields.map((field) => (
+        <span className="us-data" key={field.code}>
+          {field.label}:{field.text}
+        </span>
+      ))}
     </article>
   );
 }

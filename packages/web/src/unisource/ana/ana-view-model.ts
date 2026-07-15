@@ -22,7 +22,7 @@ export function buildAnaViewModel(
     actions: [
       {
         id: "child",
-        label: "生成子看板:主机 / 配件口径",
+        label: report.childActionLabel,
         kpiIds: report.childKpiIds,
         alreadyVisible: report.childKpiIds.every((id) =>
           isKpiVisible(workspace, id),

@@ -6,12 +6,12 @@ import { useWorkspaceSnapshot } from "../state/workspace-store";
 import { buildCanvasViewModel } from "./canvas-view-model";
 
 export function CanvasPropsPanel({
-  exprId,
+  viewId,
   canEdit,
   onRemove,
   onDelete,
 }: {
-  exprId: string;
+  viewId: string;
   canEdit: boolean;
   onRemove: (objectIds: readonly string[]) => void;
   onDelete: (objectId: string) => void;
@@ -19,7 +19,7 @@ export function CanvasPropsPanel({
   const workspace = useWorkspaceSnapshot();
   const selection = useSelectionSnapshot();
   const view = workspace.views.find(
-    (candidate) => candidate.exprId === exprId && candidate.kind === "canvas",
+    (candidate) => candidate.id === viewId && candidate.kind === "canvas",
   );
   const selectedKey = selection.selected
     .filter((item) => item.entityType === "object")

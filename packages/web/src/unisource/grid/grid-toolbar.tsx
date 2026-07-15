@@ -2,24 +2,30 @@ import { IconSearch, UsButton, UsInput, pushToast } from "../primitives";
 
 export function GridToolbar({
   search,
+  recordSetLabel = "记录集",
+  searchPlaceholder = "搜索记录…",
   hideEol,
   onSearch,
   onToggleHideEol,
 }: {
   readonly search: string;
+  readonly recordSetLabel?: string;
+  readonly searchPlaceholder?: string;
   readonly hideEol: boolean;
   readonly onSearch: (value: string) => void;
   readonly onToggleHideEol: () => void;
 }) {
   return (
     <div className="us-grid-toolbar">
-      <span className="us-grid-toolbar__recordset">记录集 · 产品规格</span>
+      <span className="us-grid-toolbar__recordset">
+        记录集 · {recordSetLabel}
+      </span>
       <UsInput
         aria-label="搜索记录"
         containerClassName="us-grid-toolbar__search"
         kind="search"
         onChange={(event) => onSearch(event.currentTarget.value)}
-        placeholder="搜索产品名…"
+        placeholder={searchPlaceholder}
         value={search}
       />
       <UsButton

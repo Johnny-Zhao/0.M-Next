@@ -17,8 +17,10 @@ export function DataPanel({
         <span>{vm.bindingType?.name ?? "数据源"}</span>
       </header>
       <section className="us-datapanel__record">
-        <small>{vm.bindingType?.name ?? "产品规格库"} · 记录 001</small>
-        <strong>{vm.bindingObject?.fields.name?.value ?? "智能门锁 S3"}</strong>
+        <small>
+          {vm.bindingType?.name ?? "未指定数据源"} · {vm.bindingCode}
+        </small>
+        <strong>{vm.bindingLabel}</strong>
         <div>
           <UsButton
             onClick={() => vm.refs[0] && onLocate(vm.refs[0].refId)}

@@ -41,7 +41,13 @@ import { NodeCard } from "./node-card";
 const nodeTypes = { unisource: NodeCard };
 const edgeTypes = { labeled: EdgeLabeled };
 
-export function CanvasView({ exprId }: { exprId: string }) {
+export function CanvasView({
+  exprId,
+  viewId,
+}: {
+  exprId: string;
+  viewId: string;
+}) {
   const workspace = useWorkspaceSnapshot();
   const session = useSessionSnapshot();
   const selection = useSelectionSnapshot();
@@ -58,7 +64,7 @@ export function CanvasView({ exprId }: { exprId: string }) {
   } | null>(null);
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
   const view = workspace.views.find(
-    (candidate) => candidate.exprId === exprId && candidate.kind === "canvas",
+    (candidate) => candidate.id === viewId && candidate.kind === "canvas",
   );
   const vm = view ? buildCanvasViewModel(workspace, view) : null;
   const selectedKey = selection.selected
@@ -236,6 +242,10 @@ export function CanvasView({ exprId }: { exprId: string }) {
   ) => {
     const config = parseCanvasConfig(view);
     if (config.nodes.some((node) => node.objectId === objectId)) return;
+    const object = workspace.objects.find((item) => item.id === objectId);
+    const objectType = workspace.objectTypes.find(
+      (type) => type.code === object?.objectTypeCode,
+    );
     const fallback = {
       x: 140 + config.nodes.length * 42,
       y: 120 + config.nodes.length * 34,
@@ -249,7 +259,9 @@ export function CanvasView({ exprId }: { exprId: string }) {
           y: Math.round(position?.y ?? fallback.y),
           w: 210,
           h: 124,
-          shownFields: ["price", "battery_months"],
+          shownFields: objectType?.fields
+            .slice(0, 2)
+            .map((field) => field.code),
         },
       ],
       `添加卡片 ${objectId}`,
@@ -331,6 +343,7 @@ export function CanvasView({ exprId }: { exprId: string }) {
         {addOpen ? (
           <AddNodePopover
             objects={workspace.objects}
+            objectTypes={workspace.objectTypes}
             existingObjectIds={vm.nodes.map((node) => node.objectId)}
             onAdd={addObjectToCanvas}
             onClose={() => setAddOpen(false)}

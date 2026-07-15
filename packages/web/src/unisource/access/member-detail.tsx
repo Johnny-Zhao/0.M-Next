@@ -2,24 +2,23 @@ import type { MemberId, PermissionMatrix } from "../model/kernel";
 import type { Member } from "../model/view-layer";
 import { UsAvatar, UsMonoTag } from "../primitives";
 import { deriveCapabilities, permissionLabel } from "./capability-list";
-import { permissionResources } from "./permission-matrix";
+import type { PermissionResource } from "./permission-matrix";
 import { projectSpaceRole, SPACE_ROLE_LABEL } from "./space-role";
 
 export function MemberDetail({
   member,
   permissions,
+  resources,
 }: {
   readonly member: Member;
   readonly permissions: PermissionMatrix;
+  readonly resources: readonly PermissionResource[];
 }) {
-  const resource = permissionResources[0];
+  const resource = resources.find((candidate) => candidate.kind === "data");
+  if (!resource) return <p role="status">暂无可展示权限资源。</p>;
   const level = permissions[member.id as MemberId]?.[resource.code] ?? "none";
   const viewResource =
-    permissionResources.find(
-      (candidate) => candidate.code === "exp-dashboard",
-    ) ??
-    permissionResources[2] ??
-    resource;
+    resources.find((candidate) => candidate.kind === "expression") ?? resource;
   const viewLevel =
     permissions[member.id as MemberId]?.[viewResource.code] ?? "none";
   const role = projectSpaceRole(member.id as MemberId, permissions);

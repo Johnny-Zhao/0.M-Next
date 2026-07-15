@@ -8,22 +8,26 @@ import { moveMatrixCardColumn } from "./matrix-actions";
 import { MatrixRecordCard } from "./record-card";
 import { buildMatrixViewModel } from "./matrix-view-model";
 
-export function MatrixBoard({ exprId }: { readonly exprId: string }) {
+export function MatrixBoard({ viewId }: { readonly viewId: string }) {
   const workspace = useWorkspaceSnapshot();
   const session = useSessionSnapshot();
   const navigate = useNavigate();
   const [dragOver, setDragOver] = useState<string | null>(null);
   const [dragging, setDragging] = useState<string | null>(null);
   const view = workspace.views.find(
-    (candidate) => candidate.exprId === exprId && candidate.kind === "matrix",
+    (candidate) => candidate.id === viewId && candidate.kind === "matrix",
   );
   const vm = useMemo(
     () => (view ? buildMatrixViewModel(workspace, view) : null),
     [workspace, view],
   );
-  if (!view || !vm) return null;
+  if (!view || !vm) return <p role="status">当前矩阵视图不可用。</p>;
+  if (vm.state === "unavailable") return <p role="status">{vm.message}</p>;
 
-  const canDrag = sessionStore.canDragCards(session.currentMemberId);
+  const canDrag =
+    vm.allowColumnMove &&
+    vm.colField.dataType === "enum" &&
+    sessionStore.canDragCards(session.currentMemberId);
   const dropCard = (objectId: string, targetValue: string) => {
     const card = vm.cards.find((candidate) => candidate.objectId === objectId);
     if (!card) return;
@@ -68,7 +72,7 @@ export function MatrixBoard({ exprId }: { readonly exprId: string }) {
           卡片字段:<b className="us-data">{vm.cardFieldLabels.join(" · ")}</b>
         </span>
         <span>
-          汇总:<b className="us-data">记录数</b>
+          汇总:<b className="us-data">{vm.summaryLabel}</b>
         </span>
       </header>
       <div
@@ -77,7 +81,9 @@ export function MatrixBoard({ exprId }: { readonly exprId: string }) {
           gridTemplateColumns: `150px repeat(${vm.columns.length}, minmax(160px, 1fr))`,
         }}
       >
-        <span className="us-matrix-corner">负责人 × 状态</span>
+        <span className="us-matrix-corner">
+          {vm.rowField.name} × {vm.colField.name}
+        </span>
         {vm.columns.map((column) => (
           <div
             className="us-matrix-colhead"
@@ -103,6 +109,7 @@ export function MatrixBoard({ exprId }: { readonly exprId: string }) {
             <span className="us-data">{column.count}</span>
           </div>
         ))}
+        {vm.state === "empty" ? <p role="status">{vm.message}</p> : null}
         {vm.rows.map((row) => (
           <MatrixRow
             canDrag={canDrag}
@@ -126,8 +133,7 @@ export function MatrixBoard({ exprId }: { readonly exprId: string }) {
       </div>
       <footer className="us-matrix-foot">
         <UsMonoTag active>LIVE</UsMonoTag>
-        矩阵即描述形式:拖动卡片跨列 =
-        修改『状态』字段,表格与所有文档引用同步更新。
+        {vm.interactionHint}
       </footer>
     </section>
   );

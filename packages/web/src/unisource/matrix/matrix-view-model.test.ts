@@ -28,10 +28,12 @@ describe("matrix view model", () => {
       ["陈默", 2],
       ["周然", 1],
     ]);
-    expect(vm.cards.find((card) => card.objectId === "prod-s3")).toMatchObject({
-      priceText: "¥1,199",
-      docRefs: 3,
-    });
+    expect(
+      vm.cards.find((card) => card.objectId === "prod-s3")?.fields,
+    ).toEqual([
+      { code: "price", label: "权威售价", text: "¥1,199" },
+      { code: "docRefs", label: "关联文档", text: "3" },
+    ]);
     expect(vm.cards.find((card) => card.objectId === "prod-p1")?.dim).toBe(
       true,
     );
@@ -55,6 +57,22 @@ describe("matrix view model", () => {
     expect(vm.rowField.code).toBe("lifecycle");
     expect(vm.colField.code).toBe("owner");
     expect(vm.columns.map((column) => column.label)).toContain("王芸");
+  });
+
+  it("returns a diagnosable state for missing configured fields", () => {
+    const workspace = new WorkspaceStore(cloneDemoSeed()).getSnapshot();
+    const view = workspace.views.find(
+      (candidate) => candidate.id === "view-inventory-matrix",
+    )!;
+
+    const vm = buildMatrixViewModel(workspace, {
+      ...view,
+      config: { ...view.config, rowField: "missing_field" },
+    });
+
+    expect(vm.state).toBe("unavailable");
+    expect(vm.message).toBe("矩阵配置引用的字段不存在");
+    expect(vm.cards).toEqual([]);
   });
 
   it("writes direct moves, queues denied writes and treats same-column drops as noop", () => {

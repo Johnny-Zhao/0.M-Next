@@ -8,6 +8,7 @@ import { useWorkspaceSnapshot } from "../state/workspace-store";
 import { ApprovalCard } from "./approval-card";
 import { MemberDetail } from "./member-detail";
 import { PermissionMatrixView } from "./permission-matrix";
+import type { PermissionResource } from "./permission-matrix";
 
 export function AccessView() {
   const workspace = useWorkspaceSnapshot();
@@ -20,9 +21,26 @@ export function AccessView() {
   const pending = useMemo(
     () =>
       changes.changeSets.filter((changeSet) =>
-        isApprovalPending(changeSet, workspace),
+        isApprovalPending(changeSet, workspace, workspace.objectTypes[0]?.code),
       ),
     [changes.changeSets, workspace],
+  );
+  const resources = useMemo<readonly PermissionResource[]>(
+    () => [
+      ...workspace.objectTypes.slice(0, 2).map((type, index) => ({
+        code: type.code,
+        label: type.name,
+        icon: index === 0 ? "▦" : "▤",
+        kind: "data" as const,
+      })),
+      ...workspace.expressions.slice(0, 2).map((expression, index) => ({
+        code: expression.id,
+        label: expression.name,
+        icon: index === 0 ? "▥" : "▧",
+        kind: "expression" as const,
+      })),
+    ],
+    [workspace.expressions, workspace.objectTypes],
   );
   if (!selected) return null;
   return (
@@ -39,23 +57,27 @@ export function AccessView() {
           <div className="us-access-note">
             <strong>数据源权限与表达权限相互独立。</strong>
             <span>
-              能编辑看板布局的人,不一定能修改售价;字段引用永远按数据源权限鉴权。
+              能编辑表达布局的人,不一定能修改数据字段;字段引用始终按数据源权限鉴权。
             </span>
           </div>
           <PermissionMatrixView
             members={workspace.members}
             onSelectMember={setSelectedMemberId}
             permissions={workspace.permissions}
+            resources={resources}
             selectedMemberId={selectedMemberId}
           />
           <p className="us-access-foot">
-            陈默(琥珀行):数据只读 + 表达可编辑 — 能重排看板,改不了售价。
-            空间角色为前端 G2 投影,仅用于演示可见性;内核仍按当前 actor
-            自行鉴权。
+            数据源与表达权限分别展示。空间角色为前端 G2
+            投影,仅用于演示可见性;内核仍按当前 actor 自行鉴权。
           </p>
         </main>
         <aside className="us-access-side">
-          <MemberDetail member={selected} permissions={workspace.permissions} />
+          <MemberDetail
+            member={selected}
+            permissions={workspace.permissions}
+            resources={resources}
+          />
           <ApprovalCard
             approver={session.currentMemberId}
             members={workspace.members}
@@ -71,9 +93,12 @@ export function AccessView() {
 function isApprovalPending(
   changeSet: ChangeSet,
   workspace: ReturnType<typeof useWorkspaceSnapshot>,
+  primaryResourceCode: string | undefined,
 ): boolean {
   if (changeSet.status !== "pending") return false;
   if (changeSet.source === "manual") return true;
-  const level = workspace.permissions[changeSet.actor]?.product_specs ?? "none";
+  const level = primaryResourceCode
+    ? (workspace.permissions[changeSet.actor]?.[primaryResourceCode] ?? "none")
+    : "none";
   return changeSet.source === "ai" && level !== "admin";
 }

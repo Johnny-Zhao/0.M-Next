@@ -7,9 +7,15 @@ import { buildBiBoardVm } from "./bi-view-model";
 describe("buildBiBoardVm", () => {
   it("derives visible KPI cards and bars", () => {
     const store = new WorkspaceStore(cloneDemoSeed());
+    const workspace = store.getSnapshot();
+    const view = workspace.views.find(
+      (candidate) => candidate.id === "view-dashboard-bi",
+    )!;
 
-    const vm = buildBiBoardVm(store.getSnapshot());
+    const vm = buildBiBoardVm(workspace, view);
 
+    expect(vm.title).toBe("各渠道销量 · 本月");
+    expect(vm.sourceLabel).toBe("渠道销量表");
     expect(vm.kpis).toHaveLength(4);
     expect(vm.kpis.find((kpi) => kpi.aiAdded)?.id).toBe("kpi-active-channels");
     expect(vm.kpis.some((kpi) => kpi.id === "kpi-ana-aov-net")).toBe(false);

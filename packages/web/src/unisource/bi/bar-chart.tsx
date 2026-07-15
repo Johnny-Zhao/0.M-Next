@@ -1,13 +1,24 @@
 import type { BiBarDef } from "../model/view-layer";
 import { UsMonoTag } from "../primitives";
 
-export function BarChart({ bars }: { readonly bars: readonly BiBarDef[] }) {
+export function BarChart({
+  bars,
+  title,
+  sourceLabel,
+  emptyLabel,
+}: {
+  readonly bars: readonly BiBarDef[];
+  readonly title: string;
+  readonly sourceLabel: string;
+  readonly emptyLabel: string;
+}) {
   return (
     <section className="us-bi-bars">
       <header>
-        <strong>各渠道销量 · 本月</strong>
-        <UsMonoTag>渠道销量表</UsMonoTag>
+        <strong>{title}</strong>
+        <UsMonoTag>{sourceLabel}</UsMonoTag>
       </header>
+      {bars.length === 0 ? <p role="status">{emptyLabel}</p> : null}
       {bars.map((bar) => (
         <div className="us-bi-bar" data-tone={bar.tone} key={bar.label}>
           <span>{bar.label}</span>

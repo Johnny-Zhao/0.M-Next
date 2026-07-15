@@ -887,7 +887,12 @@ export const demoSeed: DemoSeed = {
       id: "view-dashboard-bi",
       exprId: "exp-dashboard",
       kind: "bi",
-      config: {},
+      config: {
+        title: "各渠道销量 · 本月",
+        sourceLabel: "渠道销量表",
+        emptyLabel: "暂无渠道销量数据",
+        objectTypeCodes: ["product_specs"],
+      },
     },
     {
       id: "view-dashboard-grid",
@@ -905,7 +910,7 @@ export const demoSeed: DemoSeed = {
       id: "view-dashboard-ana",
       exprId: "exp-dashboard",
       kind: "ana",
-      config: { reportId: "ana-aov-july" },
+      config: { reportId: "ana-aov-july", allowReanalysis: true },
     },
     { id: "view-spec-doc", exprId: "exp-spec-doc", kind: "doc", config: {} },
     { id: "view-spec-grid", exprId: "exp-spec-doc", kind: "grid", config: {} },
@@ -922,7 +927,16 @@ export const demoSeed: DemoSeed = {
       config: {},
     },
     { id: "view-weekly-doc", exprId: "exp-weekly", kind: "doc", config: {} },
-    { id: "view-weekly-bi", exprId: "exp-weekly", kind: "bi", config: {} },
+    {
+      id: "view-weekly-bi",
+      exprId: "exp-weekly",
+      kind: "bi",
+      config: {
+        title: "各渠道销量 · 本月",
+        sourceLabel: "渠道销量表",
+        emptyLabel: "暂无渠道销量数据",
+      },
+    },
     {
       id: "view-portal-canvas",
       exprId: "exp-portal",
@@ -975,6 +989,20 @@ export const demoSeed: DemoSeed = {
       kind: "canvas",
       config: {
         templateId: "tpl-install-v1",
+        libraryObjectTypeCode: "hardware_products",
+        libraryCategoryFieldCode: "part_type",
+        librarySpecFieldCodes: ["chipset", "form_factor", "vrm", "socket"],
+        libraryValueFieldCode: "price",
+        libraryGroupFieldCode: "chipset",
+        outputFileBaseName: "装机配置单",
+        libraryFooter: "点击或拖入槽位即可实例化。字段随硬件产品库更新。",
+        hint: "模板只保存抽象槽位；拖入库记录后，字段随硬件产品库更新。",
+        edgeLabels: {
+          "slot-cpu:slot-mainboard": "socket",
+          "slot-mainboard:slot-memory": "DDR5",
+          "slot-mainboard:slot-gpu": "PCIe",
+          "slot-psu:slot-mainboard": "结构",
+        },
         slotNodes: [
           { slotId: "slot-cpu", x: 120, y: 96 },
           { slotId: "slot-mainboard", x: 420, y: 96 },
@@ -990,6 +1018,20 @@ export const demoSeed: DemoSeed = {
       kind: "canvas",
       config: {
         templateId: "tpl-install-v1",
+        libraryObjectTypeCode: "hardware_products",
+        libraryCategoryFieldCode: "part_type",
+        librarySpecFieldCodes: ["chipset", "form_factor", "vrm", "socket"],
+        libraryValueFieldCode: "price",
+        libraryGroupFieldCode: "chipset",
+        outputFileBaseName: "装机配置单",
+        libraryFooter: "点击或拖入槽位即可实例化。字段随硬件产品库更新。",
+        hint: "模板只保存抽象槽位；拖入库记录后，字段随硬件产品库更新。",
+        edgeLabels: {
+          "slot-cpu:slot-mainboard": "socket",
+          "slot-mainboard:slot-memory": "DDR5",
+          "slot-mainboard:slot-gpu": "PCIe",
+          "slot-psu:slot-mainboard": "结构",
+        },
         slotNodes: [
           { slotId: "slot-cpu", x: 120, y: 96 },
           { slotId: "slot-mainboard", x: 420, y: 96 },
@@ -1003,13 +1045,39 @@ export const demoSeed: DemoSeed = {
       id: "view-build-z890-doc",
       exprId: "exp-build-z890-doc",
       kind: "doc",
-      config: { sourceExprId: "exp-build-z890", templateId: "tpl-install-v1" },
+      config: {
+        sourceExprId: "exp-build-z890",
+        templateId: "tpl-install-v1",
+        documentNo: "BUILD-Z890-001",
+        title: "装机配置单·Z890",
+        authorLine: "王芸 · 供应链 | 字段来自硬件产品库",
+        intro:
+          "本配置单由模板槽位实时生成。任一硬件产品库字段更新后，价格与合计同步刷新。",
+        tableTitle: "配置明细 · 来自槽位绑定",
+        nameFieldCode: "name",
+        valueFieldCode: "price",
+        totalLabel: "合计",
+        totalPrefix: "¥",
+      },
     },
     {
       id: "view-build-b860-doc",
       exprId: "exp-build-b860-doc",
       kind: "doc",
-      config: { sourceExprId: "exp-build-b860", templateId: "tpl-install-v1" },
+      config: {
+        sourceExprId: "exp-build-b860",
+        templateId: "tpl-install-v1",
+        documentNo: "BUILD-B860-001",
+        title: "装机配置单·B860",
+        authorLine: "王芸 · 供应链 | 字段来自硬件产品库",
+        intro:
+          "本配置单由模板槽位实时生成。任一硬件产品库字段更新后，价格与合计同步刷新。",
+        tableTitle: "配置明细 · 来自槽位绑定",
+        nameFieldCode: "name",
+        valueFieldCode: "price",
+        totalLabel: "合计",
+        totalPrefix: "¥",
+      },
     },
     {
       id: "view-inventory-matrix",
@@ -1021,6 +1089,10 @@ export const demoSeed: DemoSeed = {
         colField: "lifecycle",
         cardFields: ["price", "docRefs"],
         summary: "count",
+        allowColumnMove: true,
+        dimValues: ["停产"],
+        interactionHint:
+          "矩阵即描述形式:拖动卡片跨列 = 修改『状态』字段,表格与所有文档引用同步更新。",
       },
     },
   ],
@@ -1359,6 +1431,8 @@ export const demoSeed: DemoSeed = {
       scopeLabel: "近 30 天 · 全部渠道",
       question: "为什么 7 月平均客单价下降 2.1%?",
       sourcesLabel: "渠道销量表 + 产品规格库",
+      factorTitle: "贡献度拆解",
+      factorMetricLabel: "客单价 Δ · 按因素",
       factors: [
         {
           label: "配件占比下降",
@@ -1385,10 +1459,17 @@ export const demoSeed: DemoSeed = {
           tone: "ink",
         },
       ],
+      drillTitle: "下钻 · 渠道变动 Top",
+      drillTraceLabel: "记录级可追溯",
+      drillColumns: [
+        { key: "channel", label: "渠道" },
+        { key: "delta", label: "客单价 Δ" },
+        { key: "share", label: "配件占比" },
+      ],
       drillRows: [
-        { channel: "线上直营", deltaText: "-5.2%", accessoryShare: "31%" },
-        { channel: "京东", deltaText: "-1.8%", accessoryShare: "24%" },
-        { channel: "线下经销", deltaText: "+0.9%", accessoryShare: "12%" },
+        { channel: "线上直营", delta: "-5.2%", share: "31%" },
+        { channel: "京东", delta: "-1.8%", share: "24%" },
+        { channel: "线下经销", delta: "+0.9%", share: "12%" },
       ],
       insights: [
         {
@@ -1412,6 +1493,7 @@ export const demoSeed: DemoSeed = {
       ],
       pinKpiId: "kpi-ana-aov-net",
       childKpiIds: ["kpi-ana-host", "kpi-ana-accessory"],
+      childActionLabel: "生成子看板:主机 / 配件口径",
     },
   ],
   rawImport: {

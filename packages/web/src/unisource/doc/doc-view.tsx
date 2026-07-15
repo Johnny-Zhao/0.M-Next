@@ -14,17 +14,22 @@ import { buildDocViewModel } from "./doc-view-model";
 
 export function DocView({
   exprId,
+  viewId,
   compact = false,
   showDataPanel = true,
 }: {
   readonly exprId: string;
+  readonly viewId: string;
   readonly compact?: boolean;
   readonly showDataPanel?: boolean;
 }) {
   const workspace = useWorkspaceSnapshot();
   const session = useSessionSnapshot();
+  const view = workspace.views.find(
+    (candidate) => candidate.id === viewId && candidate.kind === "doc",
+  );
   const doc = workspace.docModels.find(
-    (candidate) => candidate.exprId === exprId,
+    (candidate) => candidate.exprId === view?.exprId,
   );
   const [insertOpen, setInsertOpen] = useState(false);
   const [searchParams] = useSearchParams();
@@ -52,7 +57,7 @@ export function DocView({
     if (locateParam) window.setTimeout(() => locateRef(locateParam), 60);
   }, [locateParam, locateRef]);
 
-  if (!doc || !vm) return null;
+  if (!view || !doc || !vm) return <p role="status">当前文档视图不可用。</p>;
   const insertField = (field: FieldDef) => {
     if (vm.bindingState === "dangling") return;
     const ref = workspaceStore.addFieldRef(
@@ -100,8 +105,7 @@ export function DocView({
               <span role="alert">绑定:{vm.bindingMessage}</span>
             ) : (
               <span>
-                绑定:{vm.bindingType?.name} ›{" "}
-                {vm.bindingObject?.fields.name?.value}
+                绑定:{vm.bindingType?.name} › {vm.bindingLabel}
               </span>
             )}
           </div>
@@ -132,10 +136,12 @@ export function DocView({
               />
               <RefInsertPopover
                 fields={fields}
+                objectLabel={vm.bindingLabel}
                 onCancel={() => setInsertOpen(false)}
                 onInsert={insertField}
                 onQuery={setQuery}
                 query={query}
+                sourceLabel={vm.bindingType?.name ?? "未指定数据源"}
               />
             </div>
           ) : null}
@@ -225,10 +231,14 @@ function DocBlock({
 }) {
   if (block.kind === "meta") return null;
   if (block.kind === "h1") {
+    const [before, after] = block.text.split("{{ref}}", 2);
     return (
       <h1 className="us-doc-title">
-        {block.text}
-        {block.ref ? <span title={block.ref.fieldName} /> : null}
+        {before}
+        {block.ref && block.text.includes("{{ref}}") ? (
+          <RefChip onActivateDangling={onActivateDangling} refVm={block.ref} />
+        ) : null}
+        {block.text.includes("{{ref}}") ? after : null}
       </h1>
     );
   }

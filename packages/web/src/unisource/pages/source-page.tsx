@@ -103,6 +103,8 @@ export function SourcePage() {
             onSearch={setQuery}
             onToggleHideEol={() => setHideEol((value) => !value)}
             search={query}
+            recordSetLabel={objectType.name}
+            searchPlaceholder={`搜索${objectType.name}…`}
           />
           {maskValues ? (
             <div className="us-grid-masknotice">

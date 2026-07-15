@@ -7,19 +7,21 @@ import { workspaceStore, useWorkspaceSnapshot } from "../state/workspace-store";
 import { buildAnaViewModel } from "./ana-view-model";
 import { scheduleAnaReanalysis } from "./reanalyze";
 
-export function AnaView({ exprId }: { readonly exprId: string }) {
+export function AnaView({ viewId }: { readonly viewId: string }) {
   const workspace = useWorkspaceSnapshot();
   const session = useSessionSnapshot();
   const navigate = useNavigate();
   const [analyzing, setAnalyzing] = useState(false);
   const view = workspace.views.find(
-    (candidate) => candidate.exprId === exprId && candidate.kind === "ana",
+    (candidate) => candidate.id === viewId && candidate.kind === "ana",
   );
   const report = workspace.anaReports.find(
     (candidate) => candidate.id === view?.config.reportId,
   );
   const vm = report ? buildAnaViewModel(workspace, report) : null;
-  if (!vm) return null;
+  if (!view || !vm) return <p role="status">当前分析视图不可用。</p>;
+  const exprId = view.exprId;
+  const dashboardExprId = String(view.config.dashboardExprId ?? exprId);
 
   const revealKpis = (ids: readonly string[]) => {
     if (
@@ -28,7 +30,7 @@ export function AnaView({ exprId }: { readonly exprId: string }) {
       )
     ) {
       pushToast({ title: "已在看板" });
-      navigate(`/expr/${exprId}?form=bi`);
+      navigate(`/expr/${dashboardExprId}?form=bi`);
       return;
     }
     for (const id of ids) {
@@ -37,7 +39,7 @@ export function AnaView({ exprId }: { readonly exprId: string }) {
       }
     }
     pushToast({ title: "已钉回看板" });
-    navigate(`/expr/${exprId}?form=bi`);
+    navigate(`/expr/${dashboardExprId}?form=bi`);
   };
 
   return (
@@ -46,20 +48,22 @@ export function AnaView({ exprId }: { readonly exprId: string }) {
         <UsMonoTag active>{vm.report.scopeLabel}</UsMonoTag>
         <h1>{vm.report.question}</h1>
         <span className="us-data">{vm.report.sourcesLabel}</span>
-        <UsButton
-          disabled={analyzing}
-          onClick={() => {
-            scheduleAnaReanalysis({
-              setAnalyzing,
-              onDone: () =>
-                pushToast({ title: "分析结果已刷新", desc: "Mock 固定结果" }),
-            });
-          }}
-          size="sm"
-          variant="secondary"
-        >
-          {analyzing ? "分析中…" : "重新分析"}
-        </UsButton>
+        {view.config.allowReanalysis === true ? (
+          <UsButton
+            disabled={analyzing}
+            onClick={() => {
+              scheduleAnaReanalysis({
+                setAnalyzing,
+                onDone: () =>
+                  pushToast({ title: "分析结果已刷新", desc: "Mock 固定结果" }),
+              });
+            }}
+            size="sm"
+            variant="secondary"
+          >
+            {analyzing ? "分析中…" : "重新分析"}
+          </UsButton>
+        ) : null}
       </header>
       {analyzing ? (
         <div className="us-ana-skeleton" aria-label="分析中" />
@@ -67,10 +71,13 @@ export function AnaView({ exprId }: { readonly exprId: string }) {
         <>
           <section className="us-ana-card">
             <header>
-              <span>贡献度拆解</span>
-              <strong>客单价 Δ · 按因素</strong>
+              <span>{vm.report.factorTitle}</span>
+              <strong>{vm.report.factorMetricLabel}</strong>
             </header>
             <div className="us-ana-factors">
+              {vm.report.factors.length === 0 ? (
+                <p role="status">暂无可展示数据</p>
+              ) : null}
               {vm.report.factors.map((factor) => (
                 <div className="us-ana-factor" key={factor.label}>
                   <span>{factor.label}</span>
@@ -85,33 +92,40 @@ export function AnaView({ exprId }: { readonly exprId: string }) {
           </section>
           <section className="us-ana-card">
             <header>
-              <span>下钻 · 渠道变动 Top</span>
-              <strong>记录级可追溯</strong>
+              <span>{vm.report.drillTitle}</span>
+              <strong>{vm.report.drillTraceLabel}</strong>
             </header>
-            <table className="us-ana-table">
-              <thead>
-                <tr>
-                  <th>渠道</th>
-                  <th>客单价 Δ</th>
-                  <th>配件占比</th>
-                </tr>
-              </thead>
-              <tbody>
-                {vm.report.drillRows.map((row) => (
-                  <tr key={row.channel}>
-                    <td>{row.channel}</td>
-                    <td
-                      className="us-data"
-                      data-negative={row.deltaText.startsWith("-")}
-                      data-positive={row.deltaText.startsWith("+")}
-                    >
-                      {row.deltaText}
-                    </td>
-                    <td className="us-data">{row.accessoryShare}</td>
+            {vm.report.drillRows.length === 0 ? (
+              <p role="status">暂无可展示数据</p>
+            ) : (
+              <table className="us-ana-table">
+                <thead>
+                  <tr>
+                    {vm.report.drillColumns.map((column) => (
+                      <th key={column.key}>{column.label}</th>
+                    ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {vm.report.drillRows.map((row, rowIndex) => (
+                    <tr
+                      key={String(
+                        row[vm.report.drillColumns[0]?.key ?? ""] ?? rowIndex,
+                      )}
+                    >
+                      {vm.report.drillColumns.map((column) => {
+                        const value = row[column.key] ?? "—";
+                        return (
+                          <td className="us-data" key={column.key}>
+                            {value}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
           </section>
           <section className="us-ana-card us-ana-insights">
             <header>

@@ -19,6 +19,12 @@ describe("ana view model", () => {
       "+2.5%",
       "-2.1%",
     ]);
+    expect(vm.report.factorTitle).toBe("贡献度拆解");
+    expect(vm.report.drillColumns.map((column) => column.label)).toEqual([
+      "渠道",
+      "客单价 Δ",
+      "配件占比",
+    ]);
     expect(vm.actions.map((action) => action.alreadyVisible)).toEqual([
       false,
       false,

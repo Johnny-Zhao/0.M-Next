@@ -61,8 +61,8 @@ export interface LibraryItemVm {
   readonly objectId: string;
   readonly name: string;
   readonly specLine: string;
-  readonly priceText: string;
-  readonly chipset: string;
+  readonly valueText: string;
+  readonly group: string;
   readonly matchState: LibraryMatchState;
   readonly reason: string;
 }
@@ -72,11 +72,12 @@ export interface TemplateLibraryVm {
   readonly sourceLabel: string;
   readonly total: number;
   readonly matching: number;
-  readonly chipsetCounts: readonly {
-    readonly chipset: string;
+  readonly groupCounts: readonly {
+    readonly group: string;
     readonly count: number;
   }[];
   readonly items: readonly LibraryItemVm[];
+  readonly footer: string;
 }
 
 export interface TemplateViewModel {
@@ -89,6 +90,7 @@ export interface TemplateViewModel {
   readonly pendingCount: number;
   readonly totalCount: number;
   readonly library: TemplateLibraryVm;
+  readonly hint: string;
 }
 
 const defaultSize = { w: 224, h: 142 } as const;
@@ -143,7 +145,7 @@ export function buildTemplateViewModel(
       sourceLabel: bindingDangling
         ? "引用对象不存在"
         : object
-          ? "硬件产品库"
+          ? objectTypeName(workspace, object)
           : "模板槽位",
       constraintText: slotConstraintText(slot),
       violationReason: bindingDangling ? "引用对象不存在" : violation,
@@ -163,10 +165,14 @@ export function buildTemplateViewModel(
     templateId: template.id,
     templateName: template.name,
     slots,
-    edges: deriveTemplateEdges(template.slots, slots),
+    edges: deriveTemplateEdges(template.slots, slots, edgeLabels(view)),
     pendingCount: slots.filter((slot) => slot.objectId === null).length,
     totalCount: slots.length,
-    library: buildLibraryVm(workspace, librarySlot, bindings),
+    library: buildLibraryVm(workspace, view, librarySlot, bindings),
+    hint: String(
+      view.config.hint ??
+        "模板只保存抽象槽位；拖入数据源记录后，字段随工作空间更新。",
+    ),
   };
 }
 
@@ -221,13 +227,22 @@ function emptyTemplateVm(view: ViewDef, templateId: string): TemplateViewModel {
     totalCount: 0,
     library: {
       title: "库",
-      sourceLabel: "硬件产品库",
+      sourceLabel: "当前工作空间",
       total: 0,
       matching: 0,
-      chipsetCounts: [],
+      groupCounts: [],
       items: [],
+      footer: "点击或拖入槽位即可实例化。",
     },
+    hint: "当前模板不可用。",
   };
+}
+
+function objectTypeName(workspace: WorkspaceState, object: DataObject): string {
+  return (
+    workspace.objectTypes.find((type) => type.code === object.objectTypeCode)
+      ?.name ?? object.objectTypeCode
+  );
 }
 
 function bindingForSlot(
@@ -312,6 +327,7 @@ function shownFieldRows(
 function deriveTemplateEdges(
   slots: readonly SlotDef[],
   slotVms: readonly TemplateSlotVm[],
+  labels: Readonly<Record<string, string>>,
 ): readonly TemplateEdgeVm[] {
   const byId = new Map(slotVms.map((slot) => [slot.slotId, slot]));
   return slots.flatMap((slot) =>
@@ -324,7 +340,7 @@ function deriveTemplateEdges(
           id: `${slot.id}-${targetId}`,
           source: slot.id,
           target: targetId,
-          label: edgeLabel(slot.id, targetId),
+          label: labels[`${slot.id}:${targetId}`] ?? "关联",
           solid: Boolean(source.objectId && target.objectId),
         },
       ];
@@ -332,28 +348,42 @@ function deriveTemplateEdges(
   );
 }
 
-function edgeLabel(source: string, target: string): string {
-  if ([source, target].includes("slot-cpu")) return "socket";
-  if ([source, target].includes("slot-memory")) return "DDR5";
-  if ([source, target].includes("slot-gpu")) return "PCIe";
-  return "结构";
+function edgeLabels(view: ViewDef): Readonly<Record<string, string>> {
+  const labels = view.config.edgeLabels;
+  return labels && typeof labels === "object" && !Array.isArray(labels)
+    ? (labels as Readonly<Record<string, string>>)
+    : {};
 }
 
 function buildLibraryVm(
   workspace: WorkspaceState,
+  view: ViewDef,
   slot: SlotDef,
   bindings: readonly SlotBinding[],
 ): TemplateLibraryVm {
   const boundIds = new Set(
     bindings.flatMap((binding) => binding.objectId ?? []),
   );
-  const partType = slot.constraints.find(
-    (constraint) => constraint.field === "part_type" && constraint.op === "eq",
+  const sourceTypeCode = String(view.config.libraryObjectTypeCode ?? "");
+  const categoryField = String(view.config.libraryCategoryFieldCode ?? "");
+  const category = slot.constraints.find(
+    (constraint) =>
+      constraint.field === categoryField && constraint.op === "eq",
   )?.value;
   const objects = workspace.objects.filter(
     (object) =>
-      object.objectTypeCode === "hardware_products" &&
-      (partType === undefined || object.fields.part_type?.value === partType),
+      object.objectTypeCode === sourceTypeCode &&
+      (category === undefined ||
+        object.fields[categoryField]?.value === category),
+  );
+  const objectType = workspace.objectTypes.find(
+    (type) => type.code === sourceTypeCode,
+  );
+  const specFields = stringList(view.config.librarySpecFieldCodes);
+  const valueFieldCode = String(view.config.libraryValueFieldCode ?? "");
+  const groupFieldCode = String(view.config.libraryGroupFieldCode ?? "");
+  const valueField = objectType?.fields.find(
+    (field) => field.code === valueFieldCode,
   );
   const items = objects.map((object) => {
     const match = matchSlotConstraints(object, slot);
@@ -361,34 +391,40 @@ function buildLibraryVm(
     return {
       objectId: object.id,
       name: String(object.fields.name?.value ?? object.id),
-      specLine: [
-        object.fields.chipset?.value,
-        object.fields.form_factor?.value,
-        object.fields.vrm?.value,
-        object.fields.socket?.value,
-      ]
+      specLine: specFields
+        .map((code) => object.fields[code]?.value)
         .filter(Boolean)
         .join(" · "),
-      priceText: formatValue(object.fields.price?.value ?? null, "CNY"),
-      chipset: String(object.fields.chipset?.value ?? "其他"),
+      valueText: formatValue(
+        object.fields[valueFieldCode]?.value ?? null,
+        valueField?.unit,
+      ),
+      group: String(object.fields[groupFieldCode]?.value ?? "其他"),
       matchState: bound ? "bound" : match.ok ? "match" : "mismatch",
       reason: bound ? "已在图中" : match.reason,
     } satisfies LibraryItemVm;
   });
-  const chipsetCounts = Array.from(
+  const groupCounts = Array.from(
     items.reduce((map, item) => {
-      map.set(item.chipset, (map.get(item.chipset) ?? 0) + 1);
+      map.set(item.group, (map.get(item.group) ?? 0) + 1);
       return map;
     }, new Map<string, number>()),
-  ).map(([chipset, count]) => ({ chipset, count }));
+  ).map(([group, count]) => ({ group, count }));
   return {
     title: `库 · ${slot.label}`,
-    sourceLabel: `硬件产品库 › ${slot.label}`,
+    sourceLabel: `${objectType?.name ?? "当前数据源"} › ${slot.label}`,
     total: items.length,
     matching: items.filter((item) => item.matchState === "match").length,
-    chipsetCounts,
+    groupCounts,
     items,
+    footer: String(view.config.libraryFooter ?? "点击或拖入槽位即可实例化。"),
   };
+}
+
+function stringList(value: unknown): readonly string[] {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string")
+    : [];
 }
 
 function formatValue(value: DataFieldPrimitive, unit?: string): string {

@@ -56,7 +56,13 @@ export function resolveTemplateConfigDocHref(
   return `/expr/${targetView?.exprId ?? fallbackView?.exprId ?? sourceExprId}?form=doc`;
 }
 
-export function TemplateCanvas({ exprId }: { exprId: string }) {
+export function TemplateCanvas({
+  exprId,
+  viewId,
+}: {
+  exprId: string;
+  viewId: string;
+}) {
   const workspace = useWorkspaceSnapshot();
   const session = useSessionSnapshot();
   const validation = useValidationSnapshot();
@@ -64,7 +70,7 @@ export function TemplateCanvas({ exprId }: { exprId: string }) {
   const outputs = useOutputsSnapshot();
   const navigate = useNavigate();
   const view = workspace.views.find(
-    (candidate) => candidate.exprId === exprId && candidate.kind === "canvas",
+    (candidate) => candidate.id === viewId && candidate.kind === "canvas",
   );
   const [activeSlotId, setActiveSlotId] = useState<string | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
@@ -105,7 +111,7 @@ export function TemplateCanvas({ exprId }: { exprId: string }) {
       data: { label: edge.label, solid: edge.solid },
     })) ?? [];
 
-  if (!view || !vm) return null;
+  if (!view || !vm) return <p role="status">当前模板画布不可用。</p>;
 
   const bindObject = (item: LibraryItemVm) => {
     if (!canEdit || !activeSlot) return;
@@ -172,13 +178,14 @@ export function TemplateCanvas({ exprId }: { exprId: string }) {
       pushToast({ title: availability.reason ?? "暂不可导出" });
       return;
     }
+    const sourceTypeCode = String(view.config.libraryObjectTypeCode ?? "");
     void outputsStore.exportToKernel(
       format,
       {
-        scopeObjectType: "hardware_products",
-        objectType: "hardware_products",
+        scopeObjectType: sourceTypeCode,
+        objectType: sourceTypeCode,
         templateId: vm.templateId,
-        fileBaseName: `装机配置单-${vm.templateName}`,
+        fileBaseName: `${String(view.config.outputFileBaseName ?? "配置单")}-${vm.templateName}`,
       },
       session.currentMemberId,
     );
@@ -298,7 +305,7 @@ export function TemplateCanvas({ exprId }: { exprId: string }) {
           </ReactFlow>
           <div className="us-template-hint">
             <UsMonoTag>LIVE</UsMonoTag>
-            模板只保存抽象槽位；拖入库记录后，字段随硬件产品库更新。
+            {vm.hint}
           </div>
         </div>
       </main>

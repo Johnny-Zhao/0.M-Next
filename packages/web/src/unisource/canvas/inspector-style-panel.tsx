@@ -12,11 +12,11 @@ import {
 const fillOptions = ["paper", "primary", "change", "danger"] as const;
 
 export function CanvasStylePanel({
-  exprId,
+  viewId,
   canEdit,
   onPatchNodes,
 }: {
-  exprId: string;
+  viewId: string;
   canEdit: boolean;
   onPatchNodes: (
     objectIds: readonly string[],
@@ -27,7 +27,7 @@ export function CanvasStylePanel({
   const workspace = useWorkspaceSnapshot();
   const selection = useSelectionSnapshot();
   const view = workspace.views.find(
-    (candidate) => candidate.exprId === exprId && candidate.kind === "canvas",
+    (candidate) => candidate.id === viewId && candidate.kind === "canvas",
   );
   const selectedIds = useMemo(
     () =>

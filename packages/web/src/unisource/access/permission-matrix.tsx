@@ -4,21 +4,23 @@ import { UsAvatar, UsMonoTag } from "../primitives";
 import { permissionLabel } from "./capability-list";
 import { projectSpaceRole } from "./space-role";
 
-const resources = [
-  { code: "product_specs", label: "产品规格库", icon: "▦" },
-  { code: "channel_sales", label: "渠道销量表", icon: "▤" },
-  { code: "exp-dashboard", label: "渠道经营看板", icon: "▥" },
-  { code: "exp-spec-doc", label: "S3 规格书", icon: "▧" },
-] as const;
+export interface PermissionResource {
+  readonly code: string;
+  readonly label: string;
+  readonly icon: string;
+  readonly kind: "data" | "expression";
+}
 
 export function PermissionMatrixView({
   members,
   permissions,
+  resources,
   selectedMemberId,
   onSelectMember,
 }: {
   readonly members: readonly Member[];
   readonly permissions: PermissionMatrix;
+  readonly resources: readonly PermissionResource[];
   readonly selectedMemberId: MemberId;
   readonly onSelectMember: (memberId: MemberId) => void;
 }) {
@@ -89,5 +91,3 @@ function PermissionBadge({ level }: { readonly level: PermLevel }) {
     </span>
   );
 }
-
-export { resources as permissionResources };

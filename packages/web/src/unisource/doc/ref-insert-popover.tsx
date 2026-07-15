@@ -10,12 +10,16 @@ import {
 
 export function RefInsertPopover({
   fields,
+  sourceLabel,
+  objectLabel,
   query,
   onQuery,
   onInsert,
   onCancel,
 }: {
   readonly fields: readonly FieldDef[];
+  readonly sourceLabel: string;
+  readonly objectLabel: string;
   readonly query: string;
   readonly onQuery: (value: string) => void;
   readonly onInsert: (field: FieldDef) => void;
@@ -69,7 +73,9 @@ export function RefInsertPopover({
       ref={rootRef}
     >
       <header>
-        <strong>@引用字段 · 产品规格库 › 智能门锁 S3</strong>
+        <strong>
+          @引用字段 · {sourceLabel} › {objectLabel}
+        </strong>
         <UsMonoTag>@{query}</UsMonoTag>
       </header>
       <input

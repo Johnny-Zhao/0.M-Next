@@ -500,9 +500,11 @@ export function PreviewPage() {
                 name: "门锁 S3",
                 columnValue: "预售",
                 rowValue: "王芸",
-                priceText: "¥1,199",
-                docRefs: 3,
                 dim: false,
+                fields: [
+                  { code: "price", label: "价格", text: "¥1,199" },
+                  { code: "docRefs", label: "关联文档", text: "3" },
+                ],
               }}
               onClick={() => undefined}
               onDragStart={() => undefined}

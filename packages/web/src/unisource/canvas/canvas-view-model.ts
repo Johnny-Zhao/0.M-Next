@@ -102,14 +102,20 @@ export function buildCanvasViewModel(
     const type = workspace.objectTypes.find(
       (candidate) => candidate.code === object.objectTypeCode,
     );
-    const shownFields = node.shownFields ?? ["price", "battery_months"];
+    const shownFields =
+      node.shownFields ??
+      type?.fields.slice(0, 2).map((field) => field.code) ??
+      [];
     return [
       {
         id: object.id,
         objectId: object.id,
         indexLabel: `#${String(index + 1).padStart(3, "0")}`,
         name: String(
-          object.fields.name?.value ?? object.fields.sku?.value ?? object.id,
+          object.fields.name?.value ??
+            object.fields.code?.value ??
+            object.fields.sku?.value ??
+            object.id,
         ),
         sourceLabel: type?.name ?? object.objectTypeCode,
         status: object.status,
@@ -167,7 +173,7 @@ export function buildCanvasViewModel(
       });
       return [];
     }
-    return [relationToEdge(relation)];
+    return [relationToEdge(workspace, relation)];
   });
   return { viewId: view.id, nodes, edges, danglingRefs };
 }
@@ -198,11 +204,21 @@ export function deriveGotoTargets(
       href: `/expr/${ref.exprId}?form=doc&locate=${ref.id}`,
     });
   }
-  if (workspace.kpis.some((kpi) => kpi.sourceLabel === "产品规格库")) {
+  const biViews = workspace.views.filter(
+    (view) =>
+      view.kind === "bi" &&
+      Array.isArray(view.config.objectTypeCodes) &&
+      view.config.objectTypeCodes.includes(object?.objectTypeCode),
+  );
+  for (const view of biViews) {
+    const expression = workspace.expressions.find((candidate) =>
+      candidate.viewIds.includes(view.id),
+    );
+    if (!expression) continue;
     targets.push({
-      id: `${objectId}-bi`,
-      label: "渠道经营看板 · BI",
-      href: "/expr/exp-dashboard?form=bi",
+      id: `${objectId}-${view.id}`,
+      label: `${expression.name} · BI`,
+      href: `/expr/${expression.id}?form=bi`,
     });
   }
   return targets;
@@ -233,13 +249,23 @@ export function screenToCanvasPosition(
   };
 }
 
-function relationToEdge(relation: DataRelation): CanvasEdgeVm {
+function relationToEdge(
+  workspace: WorkspaceState,
+  relation: DataRelation,
+): CanvasEdgeVm {
+  const relationType = workspace.relationTypes.find(
+    (candidate) => candidate.code === relation.relationTypeCode,
+  );
   return {
     id: relation.id,
     relationId: relation.id,
     source: relation.sourceId,
     target: relation.targetId,
-    label: String(relation.fields.protocol?.value ?? "Wi-Fi"),
+    label: String(
+      relation.fields.label?.value ??
+        relationType?.name ??
+        relation.relationTypeCode,
+    ),
   };
 }
 

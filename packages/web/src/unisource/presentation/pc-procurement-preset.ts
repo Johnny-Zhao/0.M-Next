@@ -62,7 +62,13 @@ export const pcProcurementPreset: PresentationPreset = {
       id: "view-pc-bi",
       exprId: "exp-pc-overview",
       kind: "bi",
-      config: { layout: "procurement-summary" },
+      config: {
+        layout: "procurement-summary",
+        title: "采购指标",
+        sourceLabel: "当前电脑采购工作空间",
+        emptyLabel: "暂无可展示图表数据",
+        objectTypeCodes: ["build_plan", "procurement_requirement"],
+      },
     },
     {
       id: "view-pc-canvas",
@@ -89,7 +95,10 @@ export const pcProcurementPreset: PresentationPreset = {
             shownFields: ["code", "name", "status"],
           },
         ],
-        edges: [],
+        edges: [
+          { relationId: "pc-rel-valid-satisfies" },
+          { relationId: "pc-rel-invalid-satisfies" },
+        ],
       },
     },
     {
@@ -106,13 +115,18 @@ export const pcProcurementPreset: PresentationPreset = {
           "total_performance_score_fx",
         ],
         summary: "count",
+        interactionHint: "矩阵直接读取工作空间字段，不在前端重新计算派生值。",
       },
     },
     {
       id: "view-pc-ana",
       exprId: "exp-pc-compare",
       kind: "ana",
-      config: { reportId: "ana-pc-plan-comparison" },
+      config: {
+        reportId: "ana-pc-plan-comparison",
+        allowReanalysis: false,
+        dashboardExprId: "exp-pc-overview",
+      },
     },
     {
       id: "view-pc-doc",
@@ -135,7 +149,7 @@ export const pcProcurementPreset: PresentationPreset = {
         },
         {
           kind: "h1",
-          text: "电脑采购方案",
+          text: "采购方案 · {{ref}}",
           refId: "ref-pc-plan-name",
         },
         { kind: "h2", text: "一、方案概况" },
@@ -253,11 +267,7 @@ export const pcProcurementPreset: PresentationPreset = {
       visible: true,
     },
   ],
-  biBars: [
-    { label: "预算", value: 0, percent: 0, tone: "high" },
-    { label: "报价", value: 0, percent: 0, tone: "mid" },
-    { label: "功耗", value: 0, percent: 0, tone: "low" },
-  ],
+  biBars: [],
   anaReports: [
     {
       id: "ana-pc-plan-comparison",
@@ -265,7 +275,12 @@ export const pcProcurementPreset: PresentationPreset = {
       scopeLabel: "当前电脑采购工作空间",
       question: "方案在预算、兼容性、功耗与性能上有何差异？",
       sourcesLabel: "采购需求 + 装机方案 + 供应商报价",
+      factorTitle: "方案因素",
+      factorMetricLabel: "当前预设未提供分析算法",
       factors: [],
+      drillTitle: "方案明细",
+      drillTraceLabel: "数据来自当前工作空间",
+      drillColumns: [],
       drillRows: [],
       insights: [
         {
@@ -277,6 +292,7 @@ export const pcProcurementPreset: PresentationPreset = {
       ],
       pinKpiId: "kpi-pc-price",
       childKpiIds: ["kpi-pc-power", "kpi-pc-performance"],
+      childActionLabel: "生成指标子看板",
     },
   ],
   slotBindings: [],
@@ -297,5 +313,18 @@ export const pcProcurementPreset: PresentationPreset = {
       fields: { code: "PLAN-PC-INVALID", name: "超预算不兼容方案" },
     },
   ],
-  relationBindings: [],
+  relationBindings: [
+    {
+      presentationId: "pc-rel-valid-satisfies",
+      relationTypeCode: "build_plan_satisfies_requirement",
+      sourceId: "pc-ref-valid-plan",
+      targetId: "pc-ref-requirement",
+    },
+    {
+      presentationId: "pc-rel-invalid-satisfies",
+      relationTypeCode: "build_plan_satisfies_requirement",
+      sourceId: "pc-ref-invalid-plan",
+      targetId: "pc-ref-requirement",
+    },
+  ],
 };

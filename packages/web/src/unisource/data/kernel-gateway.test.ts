@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
 
+import { buildAnaViewModel } from "../ana/ana-view-model";
+import { buildBiBoardVm } from "../bi/bi-view-model";
+import { buildCanvasViewModel } from "../canvas/canvas-view-model";
+import { buildDocViewModel } from "../doc/doc-view-model";
+import { buildMatrixViewModel } from "../matrix/matrix-view-model";
 import type { DataObject } from "../model/kernel";
 import { cloneDemoSeed } from "../seed/demo-seed";
 import { KernelGateway } from "./kernel-gateway";
@@ -77,6 +82,57 @@ describe("KernelGateway", () => {
       seed.fieldRefs.every((ref) => ref.objectId === "kernel-pc-valid"),
     ).toBe(true);
     expect(seed.fieldRefs.every((ref) => ref.state !== "dangling")).toBe(true);
+    expect(seed.relations).toHaveLength(2);
+
+    const doc = buildDocViewModel(seed, seed.docModels[0]!);
+    expect(doc.refs.map((ref) => [ref.fieldCode, ref.value])).toEqual(
+      expect.arrayContaining([
+        ["code", "PLAN-PC-VALID"],
+        ["name", "兼容工作站方案"],
+        ["status", "PROPOSED"],
+        ["total_price_cny_fx", 8783],
+        ["total_power_w_fx", 460],
+        ["total_performance_score_fx", 560],
+      ]),
+    );
+    expect(doc.danglingCount).toBe(0);
+
+    const canvasView = seed.views.find((view) => view.id === "view-pc-canvas")!;
+    const canvas = buildCanvasViewModel(seed, canvasView);
+    expect(canvas.nodes.map((node) => node.objectId)).toEqual([
+      "kernel-pc-requirement",
+      "kernel-pc-valid",
+      "kernel-pc-invalid",
+    ]);
+    expect(canvas.edges.map((edge) => edge.relationId)).toEqual([
+      "kernel-rel-pc-valid-satisfies",
+      "kernel-rel-pc-invalid-satisfies",
+    ]);
+    expect(canvas.danglingRefs).toEqual([]);
+
+    const matrixView = seed.views.find((view) => view.id === "view-pc-matrix")!;
+    const matrix = buildMatrixViewModel(seed, matrixView);
+    expect(matrix.state).toBe("ready");
+    expect(matrix.allowColumnMove).toBe(false);
+    expect(matrix.cards[0]?.fields.map((field) => field.text)).toEqual([
+      "8783",
+      "460",
+      "560",
+    ]);
+
+    const biView = seed.views.find((view) => view.id === "view-pc-bi")!;
+    const bi = buildBiBoardVm(seed, biView);
+    expect(bi.title).toBe("采购指标");
+    expect(bi.sourceLabel).toBe("当前电脑采购工作空间");
+    expect(bi.bars).toEqual([]);
+
+    const report = seed.anaReports.find(
+      (item) => item.id === "ana-pc-plan-comparison",
+    )!;
+    const analysis = buildAnaViewModel(seed, report);
+    expect(analysis.report.factorTitle).toBe("方案因素");
+    expect(analysis.report.drillColumns).toEqual([]);
+    expect(analysis.report.drillRows).toEqual([]);
   });
 
   it("uses the minimal generic preset for an unknown profile", async () => {
@@ -905,10 +961,18 @@ class FakeKernelApi {
           fieldType("code", "编码", "text"),
           fieldType("name", "名称", "text"),
           fieldType("status", "生命周期状态", "text"),
+          fieldType("total_price_cny_fx", "方案总价", "number"),
+          fieldType("total_power_w_fx", "方案总功耗", "number"),
+          fieldType("total_performance_score_fx", "方案性能分", "number"),
         ],
       },
     );
-    this.relationTypes.splice(0, this.relationTypes.length);
+    this.relationTypes.splice(0, this.relationTypes.length, {
+      id: "reltype-pc-satisfies",
+      code: "build_plan_satisfies_requirement",
+      name: "满足需求",
+      hierarchical: false,
+    });
     this.objects.splice(0, this.objects.length);
     this.objects.push(
       viewObject("kernel-pc-requirement", "procurement_requirement", {
@@ -920,12 +984,36 @@ class FakeKernelApi {
         code: "PLAN-PC-VALID",
         name: "兼容工作站方案",
         status: "PROPOSED",
+        total_price_cny_fx: 8783,
+        total_power_w_fx: 460,
+        total_performance_score_fx: 560,
       }),
       viewObject("kernel-pc-invalid", "build_plan", {
         code: "PLAN-PC-INVALID",
         name: "超预算不兼容方案",
         status: "PROPOSED",
+        total_price_cny_fx: 12872,
+        total_power_w_fx: 690,
+        total_performance_score_fx: 518,
       }),
+    );
+    this.relations.splice(
+      0,
+      this.relations.length,
+      {
+        relationId: "kernel-rel-pc-valid-satisfies",
+        relationType: "build_plan_satisfies_requirement",
+        sourceId: "kernel-pc-valid",
+        targetId: "kernel-pc-requirement",
+        version: 1,
+      },
+      {
+        relationId: "kernel-rel-pc-invalid-satisfies",
+        relationType: "build_plan_satisfies_requirement",
+        sourceId: "kernel-pc-invalid",
+        targetId: "kernel-pc-requirement",
+        version: 1,
+      },
     );
   }
 

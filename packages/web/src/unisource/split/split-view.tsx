@@ -7,26 +7,43 @@ import { IconSync } from "../primitives";
 import { useWorkspaceSnapshot } from "../state/workspace-store";
 import { ChangeLog, deriveChangeLogItems } from "./change-log";
 
-const PRODUCT_TYPE = "product_specs";
-
-export function SplitView({ exprId }: { readonly exprId: string }) {
+export function SplitView({
+  exprId,
+  viewId,
+}: {
+  readonly exprId: string;
+  readonly viewId: string;
+}) {
   const workspace = useWorkspaceSnapshot();
   const [search, setSearch] = useState("");
   const [hideEol, setHideEol] = useState(false);
+  const expression = workspace.expressions.find((item) => item.id === exprId);
+  const gridView = workspace.views.find(
+    (view) => expression?.viewIds.includes(view.id) && view.kind === "grid",
+  );
+  const doc = workspace.docModels.find((item) => item.exprId === exprId);
+  const boundObject = workspace.objects.find(
+    (object) => object.id === doc?.binding.objectId,
+  );
+  const sourceTypeCode = String(
+    gridView?.config.objectTypeCode ?? boundObject?.objectTypeCode ?? "",
+  );
   const objectType = workspace.objectTypes.find(
-    (type) => type.code === PRODUCT_TYPE,
+    (type) => type.code === sourceTypeCode,
   );
   const objects = workspace.objects.filter(
-    (object) => object.objectTypeCode === PRODUCT_TYPE,
+    (object) => object.objectTypeCode === sourceTypeCode,
   );
   const logItems = deriveChangeLogItems({
     events: workspace.changeEvents,
     objects: workspace.objects,
     members: workspace.members,
-    objectTypeCode: PRODUCT_TYPE,
+    objectTypeCode: sourceTypeCode,
   });
 
-  if (!objectType) return null;
+  if (!objectType) {
+    return <p role="status">当前表达未指定可用数据源。</p>;
+  }
 
   return (
     <section className="us-splitview">
@@ -36,6 +53,8 @@ export function SplitView({ exprId }: { readonly exprId: string }) {
           onSearch={setSearch}
           onToggleHideEol={() => setHideEol((value) => !value)}
           search={search}
+          recordSetLabel={objectType.name}
+          searchPlaceholder={`搜索${objectType.name}…`}
         />
         <DataGrid
           compact
@@ -51,7 +70,7 @@ export function SplitView({ exprId }: { readonly exprId: string }) {
           <IconSync size={13} />
         </span>
       </div>
-      <DocView compact exprId={exprId} showDataPanel={false} />
+      <DocView compact exprId={exprId} viewId={viewId} showDataPanel={false} />
     </section>
   );
 }
