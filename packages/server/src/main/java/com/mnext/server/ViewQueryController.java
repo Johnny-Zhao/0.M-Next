@@ -73,7 +73,9 @@ public class ViewQueryController {
   @GetMapping("/workspaces/{workspaceId}/views/object-types")
   public List<ObjectTypeView> objectTypes(@PathVariable("workspaceId") UUID workspaceId) {
     authorize(workspaceId);
-    return repository.objectTypes(workspaceId);
+    return repository.objectTypes(workspaceId).stream()
+        .map(type -> withDerivedFields(workspaceId, type))
+        .toList();
   }
 
   @GetMapping("/workspaces/{workspaceId}/views/relation-types")
@@ -447,6 +449,23 @@ public class ViewQueryController {
 
   private ObjectView withDerivedValues(UUID workspaceId, ObjectView object) {
     return withDerivedValues(workspaceId, object, new HashMap<>());
+  }
+
+  private ObjectTypeView withDerivedFields(UUID workspaceId, ObjectTypeView type) {
+    var fields = new ArrayList<>(type.fields());
+    var codes = new java.util.HashSet<String>();
+    fields.forEach(field -> codes.add(field.code()));
+    for (var derived : derivedFields.definitionsForObjectType(workspaceId, type.code())) {
+      if (!codes.add(derived.code())) continue;
+      fields.add(
+          new FieldDefinitionView(
+              derived.code(),
+              derived.name(),
+              derived.resultType(),
+              false,
+              Map.of("computed", true, "readOnly", true)));
+    }
+    return new ObjectTypeView(type.id(), type.code(), type.name(), List.copyOf(fields));
   }
 
   private ObjectView withDerivedValues(

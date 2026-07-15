@@ -6,12 +6,14 @@ import {
   type ConflictField,
 } from "../api/command-client";
 import { updateSingleField } from "../api/update-single-field";
-import type {
-  FieldDefinition,
-  ObjectPage,
-  ObjectType,
-  ViewClient,
-  ViewObject,
+import {
+  isFieldDefinitionReadOnly,
+  viewObjectFieldValue,
+  type FieldDefinition,
+  type ObjectPage,
+  type ObjectType,
+  type ViewClient,
+  type ViewObject,
 } from "../api/view-client";
 import { ConflictDialog } from "../conflict/conflict-dialog";
 import { fieldLabel } from "../display-labels";
@@ -112,6 +114,9 @@ export async function commitTableCellEdit({
   cell,
   onSaved,
 }: CommitTableCellEditRequest): Promise<ObjectPage> {
+  if (isFieldDefinitionReadOnly(cell.field)) {
+    throw new Error("计算字段只读");
+  }
   // 经唯一出口 updateSingleField 完成"按字段类型转换 + 提交"(数值字段发 number,否则内核
   // KERNEL-422-FIELD-VALUE-INVALID);非法数字则抛错,由调用方 handleFailure 提示「请输入数字」。
   // 仅按对象版本乐观锁(row.version 充当 expectedObjectVersion,不传字段版本——前端无 per-field 版本)。
@@ -372,7 +377,7 @@ function Cell(props: CellProps): ReactElement {
   const active =
     props.editing?.objectId === props.row.objectId &&
     props.editing.field.code === props.field.code;
-  const value = String(props.row.fields[props.field.code] ?? "");
+  const value = String(viewObjectFieldValue(props.row, props.field.code) ?? "");
   const selection: SelectionRef | null = props.highlighted
     ? {
         entityType: "field",
@@ -390,7 +395,10 @@ function Cell(props: CellProps): ReactElement {
     <td
       className={className}
       onDoubleClick={() => {
-        if (!isTerminalStatus(props.row.status)) {
+        if (
+          !isTerminalStatus(props.row.status) &&
+          !isFieldDefinitionReadOnly(props.field)
+        ) {
           props.onEdit({
             objectId: props.row.objectId,
             field: props.field,

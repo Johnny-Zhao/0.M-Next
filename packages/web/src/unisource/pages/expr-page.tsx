@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Navigate, useParams, useSearchParams } from "react-router-dom";
+import { useParams, useSearchParams } from "react-router-dom";
 
 import { BiBoard } from "../bi/bi-board";
 import { AnaView } from "../ana/ana-view";
@@ -14,6 +14,7 @@ import { CanvasVersionsPanel } from "../canvas/inspector-versions-panel";
 import { ChatPanel } from "../chat/chat-panel";
 import { DocView } from "../doc/doc-view";
 import { buildDocViewModel } from "../doc/doc-view-model";
+import { ExpressionGridView } from "../grid/expression-grid-view";
 import { LineageDrawer } from "../lineage/lineage-drawer";
 import { MatrixBoard } from "../matrix/matrix-board";
 import type { CanvasNodeConfig } from "../model/view-layer";
@@ -36,7 +37,6 @@ import { workspaceStore, useWorkspaceSnapshot } from "../state/workspace-store";
 import { TemplateCanvas } from "../template/template-canvas";
 import { TemplateConfigDoc } from "../template/template-config-doc";
 import { PageSkeleton } from "./page-skeleton";
-import { resolveExpressionGridFallback } from "./expression-grid-fallback";
 
 const FORM_LABEL: Record<string, string> = {
   grid: "表格",
@@ -67,9 +67,6 @@ export function ExprPage() {
   const resolution = resolveExpressionView(snapshot, exprId, form);
   const expr = resolution.expression;
   const view = resolution.view;
-  const gridFallback = view
-    ? resolveExpressionGridFallback(snapshot, view)
-    : undefined;
   const split = search.get("layout") === "split";
   const chatOpen = search.get("drawer") === "chat";
   const reviewOpen = search.get("drawer") === "review";
@@ -357,18 +354,8 @@ export function ExprPage() {
           <h2>当前表达不可用</h2>
           <p>{resolution.message}</p>
         </section>
-      ) : form === "grid" && gridFallback !== undefined ? (
-        gridFallback ? (
-          <Navigate
-            replace
-            to={`/source/${encodeURIComponent(gridFallback)}`}
-          />
-        ) : (
-          <section className="us-canvas-empty" role="status">
-            <h2>暂无可查看的数据源</h2>
-            <p>当前工作空间尚未提供对象类型。</p>
-          </section>
-        )
+      ) : form === "grid" && expr ? (
+        <ExpressionGridView viewId={view!.id} />
       ) : form === "doc" && split && expr ? (
         <SplitView exprId={expr.id} viewId={view!.id} />
       ) : form === "doc" && expr && isTemplateConfigDoc ? (

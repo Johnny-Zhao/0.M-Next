@@ -9,6 +9,8 @@ describe("expression runtime", () => {
 
   it.each([
     ["hardware_products", "exp-dashboard", "bi", "view-dashboard-bi"],
+    ["hardware_products", "exp-dashboard", "grid", "view-dashboard-grid"],
+    ["pc_procurement", "exp-pc-overview", "grid", "view-pc-grid"],
     ["pc_procurement", "exp-pc-document", "doc", "view-pc-doc"],
   ] as const)(
     "resolves %s views from expression config",

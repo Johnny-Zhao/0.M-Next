@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 
-import type { ObjectType } from "../api/view-client";
+import {
+  isFieldDefinitionReadOnly,
+  viewObjectFieldValue,
+  type ObjectType,
+} from "../api/view-client";
 import {
   cellClassName,
   commitTableCellEdit,
@@ -40,6 +44,41 @@ describe("TableView behavior", () => {
     expect(isTerminalStatus("CONFIRMED")).toBe(true);
     expect(isTerminalStatus("FILED")).toBe(true);
     expect(isTerminalStatus("DRAFT")).toBe(false);
+  });
+
+  it("reads derived values but never edits computed definitions", async () => {
+    const updateFields = vi.fn();
+    const field = {
+      code: "total_fx",
+      name: "Total",
+      dataType: "number",
+      required: false,
+      constraints: { computed: true, readOnly: true },
+    };
+    const row = {
+      objectId: "plan",
+      objectType: "build_plan",
+      status: "ACTIVE",
+      version: 1,
+      fields: { name: "Plan" },
+      derived: { total_fx: 8783 },
+      updatedAt: "2026-07-15T00:00:00Z",
+      source: "manual",
+      ruleStatus: "OK" as const,
+    };
+
+    expect(viewObjectFieldValue(row, field.code)).toBe(8783);
+    expect(isFieldDefinitionReadOnly(field)).toBe(true);
+    await expect(
+      commitTableCellEdit({
+        workspaceId: "workspace",
+        commandClient: { updateFields },
+        page: { items: [row], page: 0, pageSize: 50, total: 1 },
+        row,
+        cell: { objectId: row.objectId, field, value: "1" },
+      }),
+    ).rejects.toThrow("计算字段只读");
+    expect(updateFields).not.toHaveBeenCalled();
   });
 
   it("outlines only the selected field cell", () => {

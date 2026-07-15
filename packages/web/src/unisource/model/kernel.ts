@@ -51,6 +51,8 @@ export interface FieldDef {
   readonly dataType: FieldDataType;
   readonly enumValues?: readonly string[];
   readonly unit?: string;
+  readonly computed?: boolean;
+  readonly readOnly?: boolean;
 }
 
 export interface ObjectTypeDef {

@@ -6,6 +6,12 @@ export interface FieldDefinition {
   readonly constraints: Readonly<Record<string, unknown>>;
 }
 
+export function isFieldDefinitionReadOnly(field: FieldDefinition): boolean {
+  return (
+    field.constraints.computed === true || field.constraints.readOnly === true
+  );
+}
+
 export interface ObjectType {
   readonly id: string;
   readonly code: string;
@@ -32,6 +38,14 @@ export interface ViewObject {
   readonly updatedAt: string;
   readonly source: string | null;
   readonly ruleStatus: RuleStatus;
+}
+
+export function viewObjectFieldValue(
+  object: ViewObject,
+  fieldCode: string,
+): unknown {
+  if (Object.hasOwn(object.fields, fieldCode)) return object.fields[fieldCode];
+  return object.derived?.[fieldCode];
 }
 
 export interface RuleStatusItem {

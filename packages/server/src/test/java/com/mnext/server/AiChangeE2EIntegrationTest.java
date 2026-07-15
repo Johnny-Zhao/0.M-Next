@@ -239,8 +239,7 @@ class AiChangeE2EIntegrationTest {
         post(command("ConfirmAiChange", "ai-confirm-priority", payload), REVIEWER.toString());
     assertEquals(200, confirmed.getStatusCode().value(), String.valueOf(confirmed.getBody()));
     assertEquals(
-        List.of(setId, "applied=1", "skipped=0", "errors=0"),
-        confirmed.getBody().get("events"));
+        List.of(setId, "applied=1", "skipped=0", "errors=0"), confirmed.getBody().get("events"));
     projectOutbox();
 
     var partial = single(get("/views/ai-changes?setId=" + setId, REVIEWER.toString()));
@@ -263,8 +262,7 @@ class AiChangeE2EIntegrationTest {
             REVIEWER.toString());
     assertEquals(200, finalConfirm.getStatusCode().value(), String.valueOf(finalConfirm.getBody()));
     assertEquals(
-        List.of(setId, "applied=1", "skipped=1", "errors=0"),
-        finalConfirm.getBody().get("events"));
+        List.of(setId, "applied=1", "skipped=1", "errors=0"), finalConfirm.getBody().get("events"));
     projectOutbox();
 
     var finalized = single(get("/views/ai-changes?setId=" + setId, REVIEWER.toString()));
@@ -296,8 +294,7 @@ class AiChangeE2EIntegrationTest {
 
     assertEquals(200, confirmed.getStatusCode().value(), String.valueOf(confirmed.getBody()));
     assertEquals(
-        List.of(setId, "applied=0", "skipped=1", "errors=0"),
-        confirmed.getBody().get("events"));
+        List.of(setId, "applied=0", "skipped=1", "errors=0"), confirmed.getBody().get("events"));
     var view = single(get("/views/ai-changes?setId=" + setId, REVIEWER.toString()));
     assertEquals("PROPOSED", view.get("status"));
     assertEquals(0, ((Number) view.get("applied")).intValue());
@@ -425,7 +422,8 @@ class AiChangeE2EIntegrationTest {
     for (var item : (List<Map<String, Object>>) view.get("items")) {
       var payload = (Map<String, Object>) item.get("payload");
       var field = (Map<String, Object>) ((List<?>) payload.get("fields")).getFirst();
-      if (fieldCode.equals(field.get("fieldDefCode"))) return String.valueOf(item.get("itemStatus"));
+      if (fieldCode.equals(field.get("fieldDefCode")))
+        return String.valueOf(item.get("itemStatus"));
     }
     throw new AssertionError("missing AI item for field " + fieldCode);
   }

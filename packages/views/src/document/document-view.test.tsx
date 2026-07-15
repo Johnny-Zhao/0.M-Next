@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { CommandFailure, type CommandClient } from "../api/command-client";
+import { isFieldDefinitionReadOnly } from "../api/view-client";
 import type {
   ObjectPage,
   ObjectType,
@@ -156,6 +157,28 @@ describe("DocumentView", () => {
       documentDerivedFields(sections[0]!.object).map((field) => field.code),
     ).toEqual(["total_power_fx"]);
     expect(documentDerivedFields(sections[0]!.object)[0]?.value).toBe(42);
+  });
+
+  it("uses derived values for computed metadata and keeps it read-only", () => {
+    const computed = {
+      code: "total_power_fx",
+      name: "总功耗",
+      dataType: "number",
+      required: false,
+      constraints: { computed: true, readOnly: true },
+    };
+    const sections = buildDocumentSections(
+      "child",
+      [],
+      [page({ ...object("child", "Child"), derived: { total_power_fx: 42 } })],
+      [{ ...types[0]!, fields: [...types[0]!.fields, computed] }],
+    );
+    const field = sections[0]!.fields.find(
+      (candidate) => candidate.definition.code === "total_power_fx",
+    )!;
+
+    expect(field.value).toBe(42);
+    expect(isFieldDefinitionReadOnly(field.definition)).toBe(true);
   });
 
   it("formats table values for document display", () => {

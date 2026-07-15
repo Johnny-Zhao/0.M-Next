@@ -278,6 +278,42 @@ class DevSeedRunnerIntegrationTest {
   }
 
   @Test
+  @SuppressWarnings("unchecked")
+  void pcProcurementViewsExposeDerivedMetadataAndValues() {
+    var types =
+        http.getForEntity(
+                base() + "/workspaces/" + PC_PROCUREMENT_WORKSPACE + "/views/object-types",
+                Map[].class)
+            .getBody();
+    var planType =
+        Arrays.stream(types)
+            .filter(type -> "build_plan".equals(type.get("code")))
+            .findFirst()
+            .orElseThrow();
+    var fields = (List<Map<String, Object>>) planType.get("fields");
+    var derived =
+        fields.stream()
+            .filter(field -> String.valueOf(field.get("code")).startsWith("total_"))
+            .collect(java.util.stream.Collectors.toMap(field -> field.get("code"), field -> field));
+
+    assertDerivedDefinition(derived, "total_price_cny_fx", "方案总价（元）");
+    assertDerivedDefinition(derived, "total_power_w_fx", "方案总功耗（瓦）");
+    assertDerivedDefinition(derived, "total_performance_score_fx", "方案性能分");
+
+    var page =
+        http.getForEntity(
+                base()
+                    + "/workspaces/"
+                    + PC_PROCUREMENT_WORKSPACE
+                    + "/views/objects?objectType=build_plan&page=0&pageSize=10",
+                Map.class)
+            .getBody();
+    var first = (Map<String, Object>) ((List<?>) page.get("items")).getFirst();
+    assertTrue(((Map<?, ?>) first.get("fields")).containsKey("code"));
+    assertTrue(((Map<?, ?>) first.get("derived")).containsKey("total_price_cny_fx"));
+  }
+
+  @Test
   void pcProcurementTotalsUseSupplierQuotesAndExposeCompatibility() {
     var validPlan =
         objectIdByField(PC_PROCUREMENT_WORKSPACE, "build_plan", "code", "PLAN-PC-VALID");
@@ -705,6 +741,18 @@ class DevSeedRunnerIntegrationTest {
 
   private void assertDecimal(String expected, Object actual) {
     assertEquals(0, new BigDecimal(expected).compareTo(new BigDecimal(String.valueOf(actual))));
+  }
+
+  @SuppressWarnings("unchecked")
+  private void assertDerivedDefinition(
+      Map<Object, Map<String, Object>> definitions, String code, String name) {
+    var definition = definitions.get(code);
+    assertEquals(name, definition.get("name"));
+    assertEquals("number", definition.get("dataType"));
+    var constraints = (Map<String, Object>) definition.get("constraints");
+    assertEquals(true, constraints.get("computed"));
+    assertEquals(true, constraints.get("readOnly"));
+    assertFalse(definition.containsKey("derivation"));
   }
 
   private String base() {

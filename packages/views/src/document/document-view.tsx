@@ -6,13 +6,15 @@ import {
   type ConflictField,
 } from "../api/command-client";
 import { updateSingleField } from "../api/update-single-field";
-import type {
-  FieldDefinition,
-  ObjectPage,
-  ObjectType,
-  TreeNodeSummary,
-  ViewClient,
-  ViewObject,
+import {
+  isFieldDefinitionReadOnly,
+  viewObjectFieldValue,
+  type FieldDefinition,
+  type ObjectPage,
+  type ObjectType,
+  type TreeNodeSummary,
+  type ViewClient,
+  type ViewObject,
 } from "../api/view-client";
 import { ConflictDialog } from "../conflict/conflict-dialog";
 import {
@@ -274,7 +276,7 @@ export function buildDocumentSections(
     const fields = (definitions.get(object.objectType) ?? []).map(
       (definition) => ({
         definition,
-        value: object.fields[definition.code],
+        value: viewObjectFieldValue(object, definition.code),
       }),
     );
     return [documentSection(object, depth, fields)];
@@ -832,7 +834,12 @@ function DocumentSectionView(props: {
     !props.section.terminal && props.commandClient !== undefined;
   const headingLevel = documentHeadingLevel(props.section.depth);
   const parameterFields = documentParameterFields(props.section.fields);
-  const derivedFields = documentDerivedFields(props.section.object);
+  const definedCodes = new Set(
+    props.section.fields.map((field) => field.definition.code),
+  );
+  const derivedFields = documentDerivedFields(props.section.object).filter(
+    (field) => !definedCodes.has(field.code),
+  );
 
   async function archive(): Promise<void> {
     if (!props.commandClient) return;
@@ -972,7 +979,9 @@ function DocumentSectionView(props: {
       {bodyField ? (
         <DocumentBodyBlock
           editable={
-            !props.section.terminal && props.commandClient !== undefined
+            !props.section.terminal &&
+            props.commandClient !== undefined &&
+            !isFieldDefinitionReadOnly(bodyField.definition)
           }
           onSave={(json) => void saveBody(json)}
           value={bodyField.value}
@@ -1077,7 +1086,10 @@ function DocumentFieldView(props: {
   const [editing, setEditing] = useState(false);
   const [conflict, setConflict] = useState<DocumentFieldConflict | null>(null);
   const [draft, setDraft] = useState("");
-  const editable = !props.terminal && props.commandClient !== undefined;
+  const editable =
+    !props.terminal &&
+    props.commandClient !== undefined &&
+    !isFieldDefinitionReadOnly(props.field.definition);
 
   async function save(raw: string): Promise<void> {
     if (!props.commandClient) return;
@@ -1201,7 +1213,10 @@ function DocumentFieldView(props: {
             编辑
           </button>
         ) : null}
-        {!editable && !props.terminal && props.onEditField ? (
+        {!editable &&
+        !props.terminal &&
+        props.onEditField &&
+        !isFieldDefinitionReadOnly(props.field.definition) ? (
           <button
             className="document-field-edit"
             onClick={() => {

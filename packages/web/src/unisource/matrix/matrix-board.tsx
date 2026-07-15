@@ -27,6 +27,8 @@ export function MatrixBoard({ viewId }: { readonly viewId: string }) {
   const canDrag =
     vm.allowColumnMove &&
     vm.colField.dataType === "enum" &&
+    !vm.colField.computed &&
+    !vm.colField.readOnly &&
     sessionStore.canDragCards(session.currentMemberId);
   const dropCard = (objectId: string, targetValue: string) => {
     const card = vm.cards.find((candidate) => candidate.objectId === objectId);

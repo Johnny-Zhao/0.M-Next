@@ -180,10 +180,20 @@ class ReadModelQueryIntegrationTest {
     var derived = (Map<?, ?>) item.get("derived");
     var detail = get("/views/objects/" + FIRST);
     var detailDerived = (Map<?, ?>) ((Map<?, ?>) detail.get("object")).get("derived");
+    var type =
+        getList("/views/object-types").stream()
+            .filter(candidate -> "demo_object".equals(candidate.get("code")))
+            .findFirst()
+            .orElseThrow();
+    var derivedDefinition = fieldsByCode(type).get("budget_double_fx");
 
     assertEquals(10, ((Number) derived.get("budget_double_fx")).intValue());
     assertFalse(derived.containsKey("broken_fx"));
     assertEquals(10, ((Number) detailDerived.get("budget_double_fx")).intValue());
+    assertEquals("number", derivedDefinition.get("dataType"));
+    assertTrue((Boolean) constraints(derivedDefinition).get("computed"));
+    assertTrue((Boolean) constraints(derivedDefinition).get("readOnly"));
+    assertFalse(derivedDefinition.containsKey("derivation"));
   }
 
   @Test

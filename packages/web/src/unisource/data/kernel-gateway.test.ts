@@ -60,6 +60,9 @@ describe("KernelGateway", () => {
   it("selects the pc procurement preset without mixing hardware demo content", async () => {
     const api = new FakeKernelApi();
     api.seedPcProcurement();
+    const rawPlan = api.objects.find(
+      (object) => object.objectId === "kernel-pc-valid",
+    )!;
     const gateway = new KernelGateway("", "ws-kernel", "wangyun", api.fetch);
 
     const seed = await gateway.loadWorkspace();
@@ -83,6 +86,8 @@ describe("KernelGateway", () => {
     ).toBe(true);
     expect(seed.fieldRefs.every((ref) => ref.state !== "dangling")).toBe(true);
     expect(seed.relations).toHaveLength(2);
+    expect(rawPlan.fields).not.toHaveProperty("total_price_cny_fx");
+    expect(rawPlan.derived).toMatchObject({ total_price_cny_fx: 8783 });
 
     const doc = buildDocViewModel(seed, seed.docModels[0]!);
     expect(doc.refs.map((ref) => [ref.fieldCode, ref.value])).toEqual(
@@ -961,9 +966,18 @@ class FakeKernelApi {
           fieldType("code", "编码", "text"),
           fieldType("name", "名称", "text"),
           fieldType("status", "生命周期状态", "text"),
-          fieldType("total_price_cny_fx", "方案总价", "number"),
-          fieldType("total_power_w_fx", "方案总功耗", "number"),
-          fieldType("total_performance_score_fx", "方案性能分", "number"),
+          fieldType("total_price_cny_fx", "方案总价", "number", {
+            computed: true,
+            readOnly: true,
+          }),
+          fieldType("total_power_w_fx", "方案总功耗", "number", {
+            computed: true,
+            readOnly: true,
+          }),
+          fieldType("total_performance_score_fx", "方案性能分", "number", {
+            computed: true,
+            readOnly: true,
+          }),
         ],
       },
     );
@@ -980,22 +994,34 @@ class FakeKernelApi {
         name: "研发工作站采购需求",
         budget_cny: 10000,
       }),
-      viewObject("kernel-pc-valid", "build_plan", {
-        code: "PLAN-PC-VALID",
-        name: "兼容工作站方案",
-        status: "PROPOSED",
-        total_price_cny_fx: 8783,
-        total_power_w_fx: 460,
-        total_performance_score_fx: 560,
-      }),
-      viewObject("kernel-pc-invalid", "build_plan", {
-        code: "PLAN-PC-INVALID",
-        name: "超预算不兼容方案",
-        status: "PROPOSED",
-        total_price_cny_fx: 12872,
-        total_power_w_fx: 690,
-        total_performance_score_fx: 518,
-      }),
+      viewObject(
+        "kernel-pc-valid",
+        "build_plan",
+        {
+          code: "PLAN-PC-VALID",
+          name: "兼容工作站方案",
+          status: "PROPOSED",
+        },
+        {
+          total_price_cny_fx: 8783,
+          total_power_w_fx: 460,
+          total_performance_score_fx: 560,
+        },
+      ),
+      viewObject(
+        "kernel-pc-invalid",
+        "build_plan",
+        {
+          code: "PLAN-PC-INVALID",
+          name: "超预算不兼容方案",
+          status: "PROPOSED",
+        },
+        {
+          total_price_cny_fx: 12872,
+          total_power_w_fx: 690,
+          total_performance_score_fx: 518,
+        },
+      ),
     );
     this.relations.splice(
       0,
@@ -1233,6 +1259,7 @@ interface ViewObjectFixture {
   readonly status: string;
   readonly version: number;
   readonly fields: Readonly<Record<string, unknown>>;
+  readonly derived?: Readonly<Record<string, unknown>>;
   readonly updatedAt: string;
   readonly source: string | null;
   readonly ruleStatus: "BLOCK" | "WARN" | "OK" | "UNKNOWN";
@@ -1311,14 +1338,20 @@ interface ReviewAnnotationFixture {
   readonly resolvedAt: string | null;
 }
 
-function fieldType(code: string, name: string, dataType: string) {
-  return { code, name, dataType, required: false, constraints: {} };
+function fieldType(
+  code: string,
+  name: string,
+  dataType: string,
+  constraints: Readonly<Record<string, unknown>> = {},
+) {
+  return { code, name, dataType, required: false, constraints };
 }
 
 function viewObject(
   objectId: string,
   objectType: string,
   fields: Record<string, unknown>,
+  derived: Record<string, unknown> = {},
 ): ViewObjectFixture {
   return {
     objectId,
@@ -1326,6 +1359,7 @@ function viewObject(
     status: "ACTIVE",
     version: 1,
     fields,
+    derived,
     updatedAt: "2026-07-10T10:24:00+08:00",
     source: "manual",
     ruleStatus: "OK",

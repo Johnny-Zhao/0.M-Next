@@ -3153,6 +3153,46 @@
   min-height: var(--us-h-statusbar);
   padding: 0 var(--us-sp-5);
 }
+.us-expression-grid__heading {
+  align-items: center;
+  border-bottom: 1px solid var(--us-border);
+  display: flex;
+  justify-content: space-between;
+  padding: var(--us-sp-4) var(--us-sp-5);
+}
+.us-expression-grid__heading h2,
+.us-expression-grid__heading p {
+  margin: 0;
+}
+.us-expression-grid__heading p,
+.us-expression-grid__heading > span {
+  color: var(--us-text-3);
+  font-size: var(--us-fs-12);
+}
+.us-expression-grid__toolbar {
+  flex-wrap: wrap;
+}
+.us-expression-grid__toolbar label {
+  align-items: center;
+  display: inline-flex;
+  gap: var(--us-sp-2);
+}
+.us-expression-grid__toolbar input,
+.us-expression-grid__toolbar select {
+  border: 1px solid var(--us-border);
+  border-radius: var(--us-radius-control);
+  min-height: var(--us-h-control);
+}
+.us-expression-grid__empty {
+  color: var(--us-text-3);
+  padding: var(--us-sp-8) var(--us-sp-5);
+}
+.us-expression-grid__status > div {
+  align-items: center;
+  display: flex;
+  gap: var(--us-sp-2);
+  margin-left: auto;
+}
 .us-grid[data-compact="true"] table {
   min-width: 700px;
 }

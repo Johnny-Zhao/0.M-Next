@@ -33,4 +33,24 @@ describe("PresentationPresetRegistry", () => {
     expect(first).not.toBe(second);
     expect(first.expressions).not.toBe(second.expressions);
   });
+
+  it("configures all profiles for the same generic grid runtime", () => {
+    const hardware = registry
+      .resolve("hardware_products")
+      .views.find((view) => view.id === "view-dashboard-grid")!;
+    const procurement = registry
+      .resolve("pc_procurement")
+      .views.find((view) => view.id === "view-pc-grid")!;
+    const unknown = registry
+      .resolve("future")
+      .views.find((view) => view.id === "view-generic-grid")!;
+
+    expect(hardware.config.objectTypeCode).toBe("product_specs");
+    expect(procurement.config.objectTypeCode).toBe("build_plan");
+    expect(unknown.config.objectTypeCode).toBeUndefined();
+    expect(
+      [hardware, procurement, unknown].every((view) => view.kind === "grid"),
+    ).toBe(true);
+    expect(JSON.stringify(unknown.config)).not.toMatch(/门锁|电脑采购|S3/);
+  });
 });

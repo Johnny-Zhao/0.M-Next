@@ -368,10 +368,7 @@ class AiChangeRepository implements AiChangeSetSubmitter {
     for (var item : allItems) known.add(item.id());
     for (var itemId : requestedItemIds) {
       if (!known.contains(itemId)) {
-        throw rejected(
-            "AI-422-ITEM-NOT-IN-SET",
-            "AI 变更项不属于该变更集",
-            "刷新变更集后重新选择条目");
+        throw rejected("AI-422-ITEM-NOT-IN-SET", "AI 变更项不属于该变更集", "刷新变更集后重新选择条目");
       }
     }
     var requested = new HashSet<>(requestedItemIds);

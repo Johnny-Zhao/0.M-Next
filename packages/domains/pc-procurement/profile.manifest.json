@@ -85,7 +85,15 @@
       "dataType": "enum",
       "required": true,
       "constraints": {
-        "enumValues": ["CPU", "MAINBOARD", "MEMORY", "GPU", "PSU", "STORAGE", "CASE"]
+        "enumValues": [
+          "CPU",
+          "MAINBOARD",
+          "MEMORY",
+          "GPU",
+          "PSU",
+          "STORAGE",
+          "CASE"
+        ]
       }
     },
     {

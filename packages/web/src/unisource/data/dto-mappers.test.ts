@@ -58,6 +58,7 @@ describe("dto mappers", () => {
       source: "ai",
     });
     expect(object.fields.price?.value).toBe(1199);
+    expect(object.fields.total?.value).toBe(1199);
   });
 
   it("keeps empty ViewObject fields empty and falls back to active/manual", () => {
@@ -107,6 +108,13 @@ describe("dto mappers", () => {
           required: false,
           constraints: { enumValues: ["draft", "active"] },
         },
+        {
+          code: "total_fx",
+          name: "Total",
+          dataType: "number",
+          required: false,
+          constraints: { computed: true, readOnly: true },
+        },
       ],
     } as const);
 
@@ -115,9 +123,30 @@ describe("dto mappers", () => {
       "number",
       "text",
       "enum",
+      "number",
     ]);
     expect(mapped.fields[0]?.unit).toBe("CNY");
     expect(mapped.fields[2]?.enumValues).toEqual(["draft", "active"]);
+    expect(mapped.fields[3]).toMatchObject({ computed: true, readOnly: true });
+  });
+
+  it("keeps stored fields when a malformed response reuses a derived code", () => {
+    const object = mapViewObject(
+      {
+        objectId: "conflict",
+        objectType: "product_specs",
+        status: "ACTIVE",
+        version: 1,
+        fields: { price: 12 },
+        derived: { price: 99 },
+        updatedAt: "2026-07-10T10:24:00+08:00",
+        source: "manual",
+        ruleStatus: "UNKNOWN",
+      },
+      productType,
+    );
+
+    expect(object.fields.price?.value).toBe(12);
   });
 
   it("maps edit history entries with inverse field values", () => {

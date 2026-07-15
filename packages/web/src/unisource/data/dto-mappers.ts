@@ -79,6 +79,16 @@ export function mapViewObject(
       mapFieldValue(value, dto.version, updatedBy, dto.updatedAt, source),
     ]),
   );
+  Object.entries(dto.derived ?? {}).forEach(([fieldCode, value]) => {
+    if (Object.hasOwn(fields, fieldCode)) return;
+    fields[fieldCode] = mapFieldValue(
+      value,
+      dto.version,
+      updatedBy,
+      dto.updatedAt,
+      source,
+    );
+  });
   return {
     id: dto.objectId,
     objectTypeCode: type.code,
@@ -384,6 +394,7 @@ function shortId(value: string): string {
 }
 
 function mapFieldDefinition(field: ObjectType["fields"][number]): FieldDef {
+  const computed = field.constraints.computed === true;
   return {
     code: field.code,
     name: field.name,
@@ -393,6 +404,8 @@ function mapFieldDefinition(field: ObjectType["fields"][number]): FieldDef {
       typeof field.constraints.unit === "string"
         ? field.constraints.unit
         : undefined,
+    computed,
+    readOnly: computed || field.constraints.readOnly === true,
   };
 }
 

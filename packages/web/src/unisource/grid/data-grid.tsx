@@ -26,6 +26,7 @@ export function DataGrid({
   hideEol,
   compact = false,
   maskValues = false,
+  showCreatePlaceholder = true,
 }: {
   readonly objectType: ObjectTypeDef;
   readonly objects: readonly DataObject[];
@@ -33,6 +34,7 @@ export function DataGrid({
   readonly hideEol?: boolean;
   readonly compact?: boolean;
   readonly maskValues?: boolean;
+  readonly showCreatePlaceholder?: boolean;
 }) {
   const workspace = useWorkspaceSnapshot();
   const selection = useSelectionSnapshot();
@@ -57,6 +59,10 @@ export function DataGrid({
   });
 
   const submit = (objectId: string, cell: GridCellVm, value: string) => {
+    if (!canEditGridField(cell.field, cell.masked)) {
+      setEditing(null);
+      return;
+    }
     commitCellEdit({
       objectTypeCode: objectType.code,
       objectId,
@@ -134,6 +140,7 @@ export function DataGrid({
                 return (
                   <td
                     data-masked={cell.masked || undefined}
+                    data-readonly={cell.field.readOnly || undefined}
                     data-ref-state={cell.refState ?? undefined}
                     key={cell.field.code}
                     onClick={(event) => {
@@ -150,7 +157,7 @@ export function DataGrid({
                       selectionStore.set(ref);
                     }}
                     onDoubleClick={() => {
-                      if (cell.masked) return;
+                      if (!canEditGridField(cell.field, cell.masked)) return;
                       setEditing({
                         objectId: row.objectId,
                         fieldCode: cell.field.code,
@@ -200,20 +207,29 @@ export function DataGrid({
               })}
             </tr>
           ))}
-          <tr className="us-grid__newrow">
-            <td colSpan={vm.columns.length + 2}>
-              <button
-                onClick={() => pushToast({ title: "新建记录将在 P2 接入" })}
-                type="button"
-              >
-                + 新建记录
-              </button>
-            </td>
-          </tr>
+          {showCreatePlaceholder ? (
+            <tr className="us-grid__newrow">
+              <td colSpan={vm.columns.length + 2}>
+                <button
+                  onClick={() => pushToast({ title: "新建记录将在 P2 接入" })}
+                  type="button"
+                >
+                  + 新建记录
+                </button>
+              </td>
+            </tr>
+          ) : null}
         </tbody>
       </table>
     </div>
   );
+}
+
+export function canEditGridField(
+  field: ObjectTypeDef["fields"][number],
+  masked = false,
+): boolean {
+  return !masked && !field.computed && !field.readOnly;
 }
 
 function ColumnTypeMark({ mark }: { readonly mark: string }) {

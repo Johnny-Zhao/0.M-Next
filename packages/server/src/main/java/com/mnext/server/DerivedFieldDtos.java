@@ -12,3 +12,5 @@ record DefineDerivedFieldRequest(
     String name,
     String resultType,
     String derivation) {}
+
+record DerivedFieldDefinitionView(String code, String name, String resultType) {}

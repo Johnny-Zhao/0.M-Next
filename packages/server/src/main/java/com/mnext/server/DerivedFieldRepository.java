@@ -49,6 +49,13 @@ class DerivedFieldRepository {
   }
 
   List<String> codesForObjectType(UUID workspaceId, String objectTypeCode) {
+    return definitionsForObjectType(workspaceId, objectTypeCode).stream()
+        .map(DerivedFieldDefinitionView::code)
+        .toList();
+  }
+
+  List<DerivedFieldDefinitionView> definitionsForObjectType(
+      UUID workspaceId, String objectTypeCode) {
     if (workspaceId == null || blank(objectTypeCode)) return List.of();
     return jdbc.query(
         """
@@ -62,13 +69,15 @@ class DerivedFieldRepository {
           JOIN type_chain child ON parent.id = child.parent_type_id
           WHERE parent.workspace_id = ? AND child.depth < 32
         )
-        SELECT DISTINCT ON (derived.code) derived.code
+        SELECT DISTINCT ON (derived.code)
+               derived.code, derived.name, derived.result_type
         FROM derived_field derived
         JOIN type_chain type ON type.id = derived.object_type_id
         WHERE derived.workspace_id = ?
         ORDER BY derived.code, type.depth ASC
         """,
-        (row, ignored) -> row.getString(1),
+        (row, ignored) ->
+            new DerivedFieldDefinitionView(row.getString(1), row.getString(2), row.getString(3)),
         workspaceId,
         objectTypeCode,
         workspaceId,

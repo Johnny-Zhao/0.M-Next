@@ -148,7 +148,7 @@ function buildStatus(
     averageLabel:
       average === null || !numericField
         ? null
-        : `${numericField.name} AVG ¥${average}`,
+        : `${numericField.name} AVG ${formatCellValue(average, numericField)}`,
   };
 }
 
@@ -160,7 +160,9 @@ export function formatCellValue(
   if (field.dataType === "number" && typeof value === "number") {
     return field.unit === "CNY"
       ? `¥${value.toLocaleString("zh-CN")}`
-      : String(value);
+      : field.unit
+        ? `${value.toLocaleString("zh-CN")} ${field.unit}`
+        : String(value);
   }
   return String(value);
 }
