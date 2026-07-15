@@ -288,13 +288,13 @@ describe("KernelGateway", () => {
     const gateway = new KernelGateway("", "ws-kernel", "wangyun", api.fetch);
     gateway.setActor("lixiao");
 
-    const runId = await gateway.runRuleCheck();
+    const runId = await gateway.runRuleCheck("build_plan");
 
     expect(runId).toBe("kernel-run-1");
     expect(api.ruleCommands[0]).toMatchObject({
       actorId: "lixiao",
       commandType: "RunRuleCheck",
-      payload: {},
+      payload: { scope: { objectTypeCode: "build_plan" } },
     });
   });
 
@@ -320,6 +320,8 @@ describe("KernelGateway", () => {
     ]);
     expect(results[0]).toMatchObject({
       level: "error",
+      runId: "kernel-run-1",
+      createdAt: "2026-07-10T10:24:00+08:00",
       target: {
         entityType: "field",
         entityId: "prod-s3",

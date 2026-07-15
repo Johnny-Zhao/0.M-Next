@@ -29,6 +29,12 @@ export interface ExpressionGridFilterVm {
   readonly options: readonly string[];
 }
 
+export interface ExpressionGridValidationConfig {
+  readonly objectTypeCode: string | null;
+  readonly position: "bottom";
+  readonly allowManualRun: boolean;
+}
+
 export interface ExpressionGridViewModel {
   readonly state: "ready" | "empty" | "unavailable";
   readonly message: string | null;
@@ -45,6 +51,7 @@ export interface ExpressionGridViewModel {
   readonly total: number;
   readonly rangeStart: number;
   readonly rangeEnd: number;
+  readonly validation: ExpressionGridValidationConfig | null;
 }
 
 interface ParsedExpressionGridConfig {
@@ -56,6 +63,7 @@ interface ParsedExpressionGridConfig {
   readonly title: string;
   readonly description: string | null;
   readonly emptyLabel: string;
+  readonly validation: ExpressionGridValidationConfig | null;
 }
 
 const DEFAULT_PAGE_SIZE = 25;
@@ -99,6 +107,7 @@ export function buildExpressionGridViewModel(
     total,
     rangeStart: total === 0 ? 0 : offset + 1,
     rangeEnd: Math.min(total, offset + parsed.pageSize),
+    validation: parsed.validation,
   };
 }
 
@@ -124,6 +133,8 @@ function parseExpressionGridConfig(
   if (pageSize === null) return "pageSize 必须是 1 到 200 的整数。";
   const defaultSort = parseSort(view.config.defaultSort, columns);
   if (typeof defaultSort === "string") return defaultSort;
+  const validation = parseValidation(view.config.validation, workspace);
+  if (typeof validation === "string") return validation;
   return {
     objectType,
     columns,
@@ -133,6 +144,7 @@ function parseExpressionGridConfig(
     title: readString(view.config.title) ?? objectType.name,
     description: readString(view.config.description),
     emptyLabel: readString(view.config.emptyLabel) ?? "暂无符合条件的记录。",
+    validation,
   };
 }
 
@@ -214,6 +226,37 @@ function parseSort(
     return "defaultSort 必须引用已展示的列。";
   }
   return { fieldCode, direction };
+}
+
+function parseValidation(
+  value: unknown,
+  workspace: ExpressionGridViewModelInput["workspace"],
+): ExpressionGridValidationConfig | null | string {
+  if (value === undefined) return null;
+  if (!isRecord(value)) return "validation 配置无效。";
+  if (value.enabled === false) return null;
+  if (value.enabled !== true) return "validation.enabled 必须是布尔值。";
+  const objectTypeCode = readString(value.objectTypeCode);
+  if (
+    objectTypeCode &&
+    !workspace.objectTypes.some((type) => type.code === objectTypeCode)
+  ) {
+    return `校验对象类型 ${objectTypeCode} 不存在。`;
+  }
+  if (value.position !== undefined && value.position !== "bottom") {
+    return "validation.position 当前仅支持 bottom。";
+  }
+  if (
+    value.allowManualRun !== undefined &&
+    typeof value.allowManualRun !== "boolean"
+  ) {
+    return "validation.allowManualRun 必须是布尔值。";
+  }
+  return {
+    objectTypeCode,
+    position: "bottom",
+    allowManualRun: value.allowManualRun === true,
+  };
 }
 
 function filterViewModels(
@@ -337,6 +380,7 @@ function unavailable(view: ViewDef, message: string): ExpressionGridViewModel {
     total: 0,
     rangeStart: 0,
     rangeEnd: 0,
+    validation: null,
   };
 }
 

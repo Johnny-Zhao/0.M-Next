@@ -512,11 +512,11 @@ export class KernelGateway implements UnisourceGateway {
     );
   }
 
-  async runRuleCheck(): Promise<string> {
+  async runRuleCheck(objectTypeCode?: string | null): Promise<string> {
     return this.viewClient.runRuleCheck(
       this.workspaceId,
       this.currentActor,
-      undefined,
+      objectTypeCode,
     );
   }
 

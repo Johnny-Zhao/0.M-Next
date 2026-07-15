@@ -39,6 +39,8 @@ export interface RuleOutcome {
   };
   readonly impact: readonly string[];
   readonly fixes: readonly FixActionDef[];
+  readonly runId?: string;
+  readonly createdAt?: string;
 }
 
 type RuleFn = (state: WorkspaceState) => RuleOutcome;

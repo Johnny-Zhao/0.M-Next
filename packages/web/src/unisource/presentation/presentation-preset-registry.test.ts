@@ -48,6 +48,12 @@ describe("PresentationPresetRegistry", () => {
     expect(hardware.config.objectTypeCode).toBe("product_specs");
     expect(procurement.config.objectTypeCode).toBe("build_plan");
     expect(unknown.config.objectTypeCode).toBeUndefined();
+    expect(procurement.config.validation).toMatchObject({
+      enabled: true,
+      objectTypeCode: "build_plan",
+      position: "bottom",
+    });
+    expect(unknown.config.validation).toBeUndefined();
     expect(
       [hardware, procurement, unknown].every((view) => view.kind === "grid"),
     ).toBe(true);

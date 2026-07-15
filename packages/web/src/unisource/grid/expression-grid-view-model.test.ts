@@ -131,6 +131,31 @@ describe("buildExpressionGridViewModel", () => {
     expect(generic.objectType?.code).toBe("build_plan");
     expect(generic.objectType?.fields).toEqual(planType.fields);
   });
+
+  it("enables a configured bottom validation panel without defaulting it on", () => {
+    const configured = build({
+      view: {
+        ...view,
+        config: {
+          ...view.config,
+          validation: {
+            enabled: true,
+            objectTypeCode: "build_plan",
+            position: "bottom",
+            allowManualRun: true,
+          },
+        },
+      },
+    });
+    const generic = build();
+
+    expect(configured.validation).toEqual({
+      objectTypeCode: "build_plan",
+      position: "bottom",
+      allowManualRun: true,
+    });
+    expect(generic.validation).toBeNull();
+  });
 });
 
 function build(

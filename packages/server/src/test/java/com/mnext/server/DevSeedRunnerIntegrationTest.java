@@ -17,6 +17,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -385,6 +387,76 @@ class DevSeedRunnerIntegrationTest {
     assertEquals(
         Set.of("R-PC-BUDGET", "R-PC-POWER", "R-PC-CPU-MAINBOARD", "R-PC-MEMORY"),
         blockingRuleCodes(runId, invalidPlan));
+  }
+
+  @Test
+  @SuppressWarnings("unchecked")
+  void pcProcurementRuleHttpFlowReturnsScopedResults() {
+    var headers = new HttpHeaders();
+    headers.set("X-Actor-Id", "author");
+    var body =
+        Map.of(
+            "commandType",
+            "RunRuleCheck",
+            "workspaceId",
+            PC_PROCUREMENT_WORKSPACE.toString(),
+            "correlationId",
+            UUID.randomUUID().toString(),
+            "idempotencyKey",
+            "test-pc-http-" + UUID.randomUUID(),
+            "payload",
+            Map.of("scope", Map.of("objectTypeCode", "build_plan")));
+    var command =
+        http.postForEntity(
+            base() + "/workspaces/" + PC_PROCUREMENT_WORKSPACE + "/rule-commands",
+            new HttpEntity<>(body, headers),
+            Map.class);
+
+    assertEquals(200, command.getStatusCode().value(), String.valueOf(command.getBody()));
+    var runId = String.valueOf(((List<?>) command.getBody().get("events")).getFirst());
+    var page =
+        http.getForEntity(
+                base()
+                    + "/workspaces/"
+                    + PC_PROCUREMENT_WORKSPACE
+                    + "/views/check-results?runId="
+                    + runId
+                    + "&page=0&size=20",
+                Map.class)
+            .getBody();
+    var items = (List<Map<String, Object>>) page.get("items");
+    var validPlan =
+        objectIdByField(PC_PROCUREMENT_WORKSPACE, "build_plan", "code", "PLAN-PC-VALID");
+    var invalidPlan =
+        objectIdByField(PC_PROCUREMENT_WORKSPACE, "build_plan", "code", "PLAN-PC-INVALID");
+
+    assertEquals(4, ((Number) page.get("total")).intValue());
+    assertTrue(items.stream().noneMatch(item -> validPlan.toString().equals(item.get("objectId"))));
+    assertEquals(
+        Set.of("R-PC-BUDGET", "R-PC-POWER", "R-PC-CPU-MAINBOARD", "R-PC-MEMORY"),
+        items.stream()
+            .filter(item -> invalidPlan.toString().equals(item.get("objectId")))
+            .map(item -> String.valueOf(item.get("ruleCode")))
+            .collect(java.util.stream.Collectors.toSet()));
+    assertTrue(
+        items.stream()
+            .allMatch(
+                item ->
+                    item.get("severity") != null
+                        && item.get("message") != null
+                        && item.get("objectId") != null
+                        && item.get("createdAt") != null));
+    var isolated =
+        http.getForEntity(
+                base()
+                    + "/workspaces/"
+                    + HARDWARE_WORKSPACE
+                    + "/views/check-results?runId="
+                    + runId
+                    + "&page=0&size=20",
+                Map.class)
+            .getBody();
+    assertEquals(0, ((Number) isolated.get("total")).intValue());
   }
 
   @Test

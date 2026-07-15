@@ -5,6 +5,7 @@ import type { RuleGroup } from "./rules";
 import { CompareDiff } from "./compare-diff";
 import { RuleNav } from "./rule-nav";
 import { ValidationCardList } from "./validation-card";
+import { KernelValidationPanel } from "./kernel-validation-panel";
 import { useKernelRuntimeState } from "../data/boot-mode";
 import { IconSync, UsButton, UsMonoTag, pushToast } from "../primitives";
 import { useSessionSnapshot } from "../state/session-store";
@@ -47,6 +48,19 @@ export function ValidateView() {
       result.level === "passed" && !validation.ignored.has(result.ruleCode),
   ).length;
   const kernelSummary = kernelValidationSummary(validation.kernelResults);
+  if (validation.source === "kernel") {
+    return (
+      <section className="us-validate">
+        <KernelValidationPanel
+          config={{
+            objectTypeCode: null,
+            position: "bottom",
+            allowManualRun: true,
+          }}
+        />
+      </section>
+    );
+  }
   const runNow = () => {
     setRunning(true);
     validationStore.runAll("0.2s");

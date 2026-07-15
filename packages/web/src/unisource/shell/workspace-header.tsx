@@ -16,7 +16,10 @@ import {
 } from "../primitives";
 import { UsLogo } from "./logo";
 import { ShareDialog } from "./share-dialog";
-import { useValidationSnapshot } from "../state/validation-store";
+import {
+  validationStore,
+  useValidationSnapshot,
+} from "../state/validation-store";
 
 export interface HeaderPerson {
   member: UsMember;
@@ -51,16 +54,10 @@ export function WorkspaceHeader({
   className?: string;
 }) {
   const [shareOpen, setShareOpen] = useState(false);
-  const validation = useValidationSnapshot();
+  useValidationSnapshot();
   const kernelRuntime = useKernelRuntimeState();
   const derivedShareReason =
-    shareDisabledReason ??
-    (validation.results.some(
-      (result) =>
-        result.level === "error" && !validation.ignored.has(result.ruleCode),
-    )
-      ? "存在校验错误,修复后可分享"
-      : null);
+    shareDisabledReason ?? validationStore.shareDisabledReason();
   return (
     <header
       className={cx(

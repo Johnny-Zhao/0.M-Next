@@ -61,6 +61,12 @@ export const pcProcurementPreset: PresentationPreset = {
         title: "电脑采购方案清单",
         description: "方案数据与派生指标来自当前工作空间。",
         emptyLabel: "当前工作空间暂无采购方案。",
+        validation: {
+          enabled: true,
+          objectTypeCode: "build_plan",
+          position: "bottom",
+          allowManualRun: true,
+        },
       },
     },
     {

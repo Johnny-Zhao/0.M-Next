@@ -159,6 +159,8 @@ export function mapCheckResult(dto: CheckResultItem): RuleOutcome {
     target,
     impact: [],
     fixes: [],
+    runId: dto.runId,
+    createdAt: dto.createdAt,
   };
 }
 

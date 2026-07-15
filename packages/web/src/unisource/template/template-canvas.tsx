@@ -85,9 +85,13 @@ export function TemplateCanvas({
     vm?.slots.find((slot) => slot.objectId === null) ??
     vm?.slots[0] ??
     null;
+  const validationResults =
+    validation.source === "kernel"
+      ? validation.kernelResults
+      : validation.results;
   const availability = deriveConfigDocAvailability({
     pendingCount: vm?.pendingCount ?? 0,
-    errorCount: validation.results.filter((result) => result.level === "error")
+    errorCount: validationResults.filter((result) => result.level === "error")
       .length,
     canEdit,
   });

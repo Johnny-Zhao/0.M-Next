@@ -12,6 +12,7 @@ import {
 import { workspaceStore, type WorkspaceStore } from "./workspace-store";
 
 export interface ValidationState {
+  readonly source: "demo" | "kernel";
   readonly results: readonly RuleOutcome[];
   readonly runAt: string;
   readonly durationLabel: string;
@@ -19,6 +20,9 @@ export interface ValidationState {
   readonly kernelResults: readonly RuleOutcome[];
   readonly kernelRunAt: string | null;
   readonly kernelRunning: boolean;
+  readonly kernelStatus: "idle" | "running" | "ready" | "error";
+  readonly kernelError: string | null;
+  readonly kernelRunId: string | null;
 }
 
 export type FixResult =
@@ -36,7 +40,7 @@ const runClock = "2026-07-10T10:32:00+08:00";
 
 export interface KernelValidationSource {
   setActor(actorId: MemberId): void;
-  runRuleCheck(): Promise<string>;
+  runRuleCheck(objectTypeCode?: string | null): Promise<string>;
   checkResults(runId: string): Promise<readonly RuleOutcome[]>;
 }
 
@@ -71,13 +75,18 @@ export class ValidationStore {
   getSnapshot = (): ValidationState => this.state;
 
   setKernelSource(source: KernelValidationSource | null): void {
+    const nextSource = source ? "kernel" : "demo";
     this.kernelSource = source;
-    if (source === null && this.state.kernelResults.length > 0) {
+    if (this.state.source !== nextSource) {
       this.state = {
         ...this.state,
+        source: nextSource,
         kernelResults: [],
         kernelRunAt: null,
         kernelRunning: false,
+        kernelStatus: "idle",
+        kernelError: null,
+        kernelRunId: null,
       };
       this.emit();
     }
@@ -89,6 +98,9 @@ export class ValidationStore {
       kernelResults: [],
       kernelRunAt: null,
       kernelRunning: false,
+      kernelStatus: "idle",
+      kernelError: null,
+      kernelRunId: null,
     };
     this.emit();
   }
@@ -99,6 +111,7 @@ export class ValidationStore {
   }
 
   runAll(durationLabel = "0.2s"): void {
+    if (this.state.source !== "demo") return;
     this.state = this.evaluate(new Set(this.state.ignored), durationLabel);
     this.emit();
   }
@@ -124,6 +137,11 @@ export class ValidationStore {
   }
 
   shareDisabledReason(): string | null {
+    if (this.state.source === "kernel") {
+      return this.state.kernelResults.some((result) => result.level === "error")
+        ? "内核校验存在阻断项,修复后可分享"
+        : null;
+    }
     return (
       deriveShareBlocked(this.state.results, this.state.ignored) ??
       (this.state.kernelResults.some(
@@ -135,30 +153,52 @@ export class ValidationStore {
     );
   }
 
-  async runKernelCheck(actor: MemberId): Promise<void> {
-    if (!this.kernelSource) return;
+  async runKernelCheck(
+    actor: MemberId,
+    objectTypeCode?: string | null,
+  ): Promise<void> {
+    if (
+      !this.kernelSource ||
+      this.state.source !== "kernel" ||
+      this.state.kernelRunning
+    )
+      return;
     this.kernelSource.setActor(actor);
-    this.state = { ...this.state, kernelRunning: true };
+    this.state = {
+      ...this.state,
+      kernelRunning: true,
+      kernelStatus: "running",
+      kernelError: null,
+    };
     this.emit();
     try {
-      const runId = await this.kernelSource.runRuleCheck();
+      const runId = await this.kernelSource.runRuleCheck(objectTypeCode);
       const results = await this.kernelSource.checkResults(runId);
       this.state = {
         ...this.state,
         kernelResults: results,
         kernelRunAt: this.kernelRunAt(),
         kernelRunning: false,
+        kernelStatus: "ready",
+        kernelError: null,
+        kernelRunId: runId,
       };
       this.emit();
       this.showToast({
         title: `内核校验:${results.length} 命中`,
       });
     } catch (error) {
-      this.state = { ...this.state, kernelRunning: false };
+      const message = error instanceof Error ? error.message : String(error);
+      this.state = {
+        ...this.state,
+        kernelRunning: false,
+        kernelStatus: "error",
+        kernelError: message,
+      };
       this.emit();
       this.showToast({
         title: "内核校验失败",
-        desc: error instanceof Error ? error.message : String(error),
+        desc: message,
       });
     }
   }
@@ -231,6 +271,7 @@ export class ValidationStore {
   }
 
   private activeResults(): readonly RuleOutcome[] {
+    if (this.state.source === "kernel") return this.state.kernelResults;
     return this.state.results.filter(
       (result) => !this.state.ignored.has(result.ruleCode),
     );
@@ -242,6 +283,7 @@ export class ValidationStore {
   ): ValidationState {
     this.runSequence += 1;
     return {
+      source: this.kernelSource ? "kernel" : "demo",
       results: runValidationRules(this.workspace.getSnapshot()),
       runAt: runClock.replace(
         ":00+08:00",
@@ -252,6 +294,9 @@ export class ValidationStore {
       kernelResults: this.state?.kernelResults ?? [],
       kernelRunAt: this.state?.kernelRunAt ?? null,
       kernelRunning: this.state?.kernelRunning ?? false,
+      kernelStatus: this.state?.kernelStatus ?? "idle",
+      kernelError: this.state?.kernelError ?? null,
+      kernelRunId: this.state?.kernelRunId ?? null,
     };
   }
 

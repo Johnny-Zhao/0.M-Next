@@ -76,16 +76,20 @@ describe("ValidationStore", () => {
     });
     const localBefore = store.getSnapshot().results;
 
-    await store.runKernelCheck("lixiao");
+    await store.runKernelCheck("lixiao", "build_plan");
 
     expect(source.actors).toEqual(["lixiao"]);
     expect(source.runCount).toBe(1);
     expect(source.checkedRunIds).toEqual(["kernel-run-1"]);
+    expect(source.scopes).toEqual(["build_plan"]);
+    expect(store.getSnapshot().source).toBe("kernel");
     expect(store.getSnapshot().results).toBe(localBefore);
     expect(store.getSnapshot().kernelResults.map((r) => r.ruleCode)).toEqual([
       "KERNEL-BLOCK",
     ]);
     expect(store.getSnapshot().kernelRunning).toBe(false);
+    expect(store.getSnapshot().kernelStatus).toBe("ready");
+    expect(store.getSnapshot().kernelRunId).toBe("kernel-run-1");
     expect(store.getSnapshot().kernelRunAt).toContain("T10:32");
     expect(pushToast).toHaveBeenCalledWith({ title: "内核校验:1 命中" });
     store.dispose();
@@ -110,7 +114,7 @@ describe("ValidationStore", () => {
     store.dispose();
   });
 
-  it("keeps no-source mode local-only and clears kernel state on reset", async () => {
+  it("clears kernel results on reload and keeps no-source mode local-only", async () => {
     const workspace = new WorkspaceStore(cloneDemoSeed());
     const store = new ValidationStore(workspace, {
       kernelSource: new FakeKernelValidationSource([
@@ -121,13 +125,19 @@ describe("ValidationStore", () => {
 
     await store.runKernelCheck("wangyun");
     expect(store.getSnapshot().kernelResults).toHaveLength(1);
+    store.reset();
+    expect(store.getSnapshot()).toMatchObject({
+      source: "kernel",
+      kernelResults: [],
+      kernelStatus: "idle",
+      kernelRunId: null,
+    });
     store.setKernelSource(null);
     await store.runKernelCheck("wangyun");
 
     expect(store.getSnapshot().kernelResults).toEqual([]);
     expect(store.getSnapshot().kernelRunAt).toBeNull();
-    store.reset();
-    expect(store.getSnapshot().kernelResults).toEqual([]);
+    expect(store.getSnapshot().source).toBe("demo");
     store.dispose();
   });
 
@@ -135,19 +145,62 @@ describe("ValidationStore", () => {
     const workspace = new WorkspaceStore(cloneDemoSeed());
     const pushToast = vi.fn();
     const source = new FakeKernelValidationSource([]);
-    source.failure = new Error("rule service unavailable");
     const store = new ValidationStore(workspace, {
       kernelSource: source,
       pushToast,
     });
+    source.results = [kernelOutcome("PREVIOUS-BLOCK", "error")];
+    await store.runKernelCheck("wangyun");
+    source.failure = new Error("rule service unavailable");
 
     await expect(store.runKernelCheck("wangyun")).resolves.toBeUndefined();
 
     expect(store.getSnapshot().kernelRunning).toBe(false);
+    expect(store.getSnapshot().kernelStatus).toBe("error");
+    expect(store.getSnapshot().kernelError).toBe("rule service unavailable");
+    expect(store.getSnapshot().kernelResults[0]?.ruleCode).toBe(
+      "PREVIOUS-BLOCK",
+    );
     expect(pushToast).toHaveBeenCalledWith({
       title: "内核校验失败",
       desc: "rule service unavailable",
     });
+    store.dispose();
+  });
+
+  it("does not treat an idle or empty kernel run as a fabricated pass", async () => {
+    const store = new ValidationStore(new WorkspaceStore(cloneDemoSeed()), {
+      kernelSource: new FakeKernelValidationSource([]),
+      pushToast: vi.fn(),
+    });
+
+    expect(store.getSnapshot().kernelStatus).toBe("idle");
+    expect(store.passed()).toEqual([]);
+    await store.runKernelCheck("wangyun");
+
+    expect(store.getSnapshot().kernelStatus).toBe("ready");
+    expect(store.passed()).toEqual([]);
+    store.dispose();
+  });
+
+  it("prevents duplicate kernel runs while one is loading", async () => {
+    const source = new FakeKernelValidationSource([]);
+    let release!: () => void;
+    source.runGate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const store = new ValidationStore(new WorkspaceStore(cloneDemoSeed()), {
+      kernelSource: source,
+      pushToast: vi.fn(),
+    });
+
+    const first = store.runKernelCheck("wangyun", "build_plan");
+    const duplicate = store.runKernelCheck("wangyun", "build_plan");
+    expect(source.runCount).toBe(1);
+    release();
+    await Promise.all([first, duplicate]);
+
+    expect(source.runCount).toBe(1);
     store.dispose();
   });
 });
@@ -155,17 +208,21 @@ describe("ValidationStore", () => {
 class FakeKernelValidationSource implements KernelValidationSource {
   readonly actors: MemberId[] = [];
   readonly checkedRunIds: string[] = [];
+  readonly scopes: (string | null | undefined)[] = [];
   runCount = 0;
   failure: Error | null = null;
+  runGate: Promise<void> | null = null;
 
-  constructor(private readonly results: readonly RuleOutcome[]) {}
+  constructor(public results: readonly RuleOutcome[]) {}
 
   setActor(actorId: MemberId): void {
     this.actors.push(actorId);
   }
 
-  async runRuleCheck(): Promise<string> {
+  async runRuleCheck(objectTypeCode?: string | null): Promise<string> {
     this.runCount += 1;
+    this.scopes.push(objectTypeCode);
+    await this.runGate;
     if (this.failure) throw this.failure;
     return `kernel-run-${this.runCount}`;
   }

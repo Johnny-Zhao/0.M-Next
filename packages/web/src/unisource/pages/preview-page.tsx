@@ -88,6 +88,10 @@ export function PreviewPage() {
       : "仅已加载的 hardware_products Kernel 工作空间可写入门锁演示数据。";
   const workspace = useWorkspaceSnapshot();
   const validation = useValidationSnapshot();
+  const validationCount =
+    validation.source === "kernel"
+      ? validation.kernelResults.length
+      : validation.results.length;
   const changeSets = useChangeSetSnapshot();
   const pending = changeSets.changeSets.filter(
     (changeSet) => changeSet.status === "pending",
@@ -122,11 +126,10 @@ export function PreviewPage() {
               {workspace.relations.length} RELATIONS
             </UsMonoTag>
             <UsMonoTag tone="change">{pending.length} CHANGESETS</UsMonoTag>
-            <UsMonoTag>{validation.results.length} CHECKS</UsMonoTag>
+            <UsMonoTag>{validationCount} CHECKS</UsMonoTag>
           </div>
           <div className="us-preview__note">
-            这些数字来自 seed/demo-seed.ts → workspace-store /
-            changeset-store;侧栏与页面 chrome 也从同一份 snapshot 读取。
+            这些数字来自当前工作空间 snapshot；校验数量按当前运行来源读取。
           </div>
           <div className="us-preview__row">
             <UsButton

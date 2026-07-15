@@ -425,7 +425,7 @@ export interface UnisourceGateway {
    * @mock Run the local validation rule engine and cache results by run id.
    * @gap G9: server-side incremental rule results are wired in T-US-017.
    */
-  runRuleCheck(): Promise<string>;
+  runRuleCheck(objectTypeCode?: string | null): Promise<string>;
 
   /**
    * Read validation results for one run.

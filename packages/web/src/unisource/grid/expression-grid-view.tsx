@@ -1,10 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
+import type { ReactNode } from "react";
 
 import { UsButton, UsInput } from "../primitives";
+import { useKernelRuntimeState } from "../data/boot-mode";
 import { useSelectionSnapshot } from "../state/selection-store";
 import { sessionStore, useSessionSnapshot } from "../state/session-store";
 import { useWorkspaceSnapshot } from "../state/workspace-store";
 import { DataGrid } from "./data-grid";
+import { KernelValidationPanel } from "../validation/kernel-validation-panel";
 import {
   buildExpressionGridViewModel,
   type ExpressionGridSort,
@@ -14,6 +17,7 @@ export function ExpressionGridView({ viewId }: { readonly viewId: string }) {
   const workspace = useWorkspaceSnapshot();
   const session = useSessionSnapshot();
   const selection = useSelectionSnapshot();
+  const kernelRuntime = useKernelRuntimeState();
   const [search, setSearch] = useState("");
   const [filters, setFilters] = useState<Record<string, string>>({});
   const [sort, setSort] = useState<ExpressionGridSort>();
@@ -69,7 +73,13 @@ export function ExpressionGridView({ viewId }: { readonly viewId: string }) {
   };
 
   return (
-    <section className="us-grid-shell us-expression-grid">
+    <ExpressionGridFrame
+      validationPanel={
+        kernelRuntime.backend && vm.validation ? (
+          <KernelValidationPanel config={vm.validation} />
+        ) : null
+      }
+    >
       <header className="us-expression-grid__heading">
         <div>
           <h2>{vm.title}</h2>
@@ -193,6 +203,21 @@ export function ExpressionGridView({ viewId }: { readonly viewId: string }) {
           </UsButton>
         </div>
       </footer>
+    </ExpressionGridFrame>
+  );
+}
+
+export function ExpressionGridFrame({
+  children,
+  validationPanel,
+}: {
+  readonly children: ReactNode;
+  readonly validationPanel: ReactNode;
+}) {
+  return (
+    <section className="us-grid-shell us-expression-grid">
+      <div className="us-expression-grid__scroll">{children}</div>
+      {validationPanel}
     </section>
   );
 }
