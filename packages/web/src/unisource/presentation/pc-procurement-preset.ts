@@ -143,7 +143,47 @@ export const pcProcurementPreset: PresentationPreset = {
       id: "view-pc-doc",
       exprId: "exp-pc-document",
       kind: "doc",
-      config: { template: "电脑采购方案说明书" },
+      config: {
+        template: "电脑采购方案说明书",
+        structuredDocument: {
+          root: {
+            objectTypeCode: "build_plan",
+            fields: [
+              "code",
+              "name",
+              "status",
+              "total_price_cny_fx",
+              "total_power_w_fx",
+              "total_performance_score_fx",
+            ],
+            editableFields: ["name", "status"],
+          },
+          sections: [
+            {
+              relationTypeCode: "build_plan_contains_item",
+              title: "方案明细",
+              objectTypeCode: "build_plan_item",
+              fields: [
+                "code",
+                "name",
+                "quantity",
+                "selected_unit_price_cny_fx",
+                "total_price_cny_fx",
+                "power_w_fx",
+                "selected_performance_score_fx",
+              ],
+              editableFields: ["name", "quantity"],
+            },
+            {
+              relationTypeCode: "build_plan_satisfies_requirement",
+              title: "采购需求",
+              objectTypeCode: "procurement_requirement",
+              fields: ["code", "name", "budget_cny", "max_total_power_w"],
+              editableFields: ["budget_cny", "max_total_power_w"],
+            },
+          ],
+        },
+      },
     },
   ],
   docModels: [

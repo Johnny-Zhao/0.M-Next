@@ -78,7 +78,10 @@ export type DataObjectStatus =
   | "presale"
   | "dev"
   | "sale"
-  | "eol";
+  | "eol"
+  | "archived"
+  | "deleted"
+  | "soft-deleted";
 
 export interface DataObject {
   readonly id: DataObjectId;

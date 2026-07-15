@@ -3622,6 +3622,48 @@
   padding: var(--us-sp-3) var(--us-sp-4);
   text-align: left;
 }
+.us-structured-doc__table {
+  border-collapse: collapse;
+  font-family: var(--us-font-ui);
+  margin: var(--us-sp-4) 0;
+  width: 100%;
+}
+.us-structured-doc__main {
+  grid-template-rows: minmax(0, 1fr);
+}
+.us-structured-doc__table th,
+.us-structured-doc__table td {
+  border-bottom: 1px solid var(--us-border-soft);
+  padding: var(--us-sp-3) var(--us-sp-4);
+  text-align: left;
+}
+.us-structured-doc__field {
+  background: transparent;
+  border: 0;
+  color: var(--us-text);
+  cursor: pointer;
+  font: inherit;
+  padding: 0;
+  text-align: left;
+}
+.us-structured-doc__field[data-writable="true"]:hover,
+.us-structured-doc__field[data-selected="true"] {
+  color: var(--us-primary-deep);
+  text-decoration: underline;
+}
+.us-structured-doc__editor {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--us-sp-2);
+}
+.us-structured-doc__row + .us-structured-doc__row {
+  border-top: 1px solid var(--us-border);
+  margin-top: var(--us-sp-5);
+}
+.us-structured-doc__row h3 small {
+  margin-left: var(--us-sp-3);
+}
 .us-doc-inserting,
 .us-doc-inserted {
   font-family: var(--us-font-ui);

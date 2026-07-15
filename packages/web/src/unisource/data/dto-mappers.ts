@@ -62,6 +62,9 @@ const OBJECT_STATUSES: readonly DataObjectStatus[] = [
   "dev",
   "sale",
   "eol",
+  "archived",
+  "deleted",
+  "soft-deleted",
 ];
 
 const DEFAULT_RULE_GROUP: RuleOutcome["group"] = "字段约束";

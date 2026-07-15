@@ -1,4 +1,4 @@
-import type { MemberId } from "../model/kernel";
+import type { DataObject, MemberId } from "../model/kernel";
 import { pushToast, type UsToastInput } from "../primitives";
 import { sessionStore, type SessionStore } from "../state/session-store";
 import {
@@ -19,7 +19,9 @@ type WriteGateway = Pick<
   | "createObject"
   | "createRelation"
   | "deleteObject"
->;
+> & {
+  refreshObject?(objectId: string): Promise<DataObject>;
+};
 
 export interface KernelWriteBridgeOptions {
   readonly workspace?: WorkspaceStore;
@@ -49,7 +51,7 @@ export class KernelWriteBridge implements WriteSink {
       try {
         const actor = this.applyActor();
         const objectId = this.resolveObjectId(descriptor.objectId);
-        await this.gateway.updateField(
+        const result = await this.gateway.updateField(
           objectId,
           descriptor.fieldCode,
           descriptor.value,
@@ -59,6 +61,8 @@ export class KernelWriteBridge implements WriteSink {
             expectedObjectVersion: descriptor.expectedObjectVersion,
           },
         );
+        this.workspace.reconcileObject(result.object);
+        await this.refreshRelatedObjects(objectId);
       } catch (error) {
         const objectId = this.resolveObjectId(descriptor.objectId);
         this.workspace.rollbackField({
@@ -169,6 +173,30 @@ export class KernelWriteBridge implements WriteSink {
     const actor = this.session.getSnapshot().currentMemberId;
     this.gateway.setActor(actor);
     return actor;
+  }
+
+  private async refreshRelatedObjects(objectId: string): Promise<void> {
+    if (!this.gateway.refreshObject) return;
+    const relatedIds = new Set(
+      this.workspace
+        .getRelations(objectId)
+        .map((relation) =>
+          relation.sourceId === objectId
+            ? relation.targetId
+            : relation.sourceId,
+        ),
+    );
+    await Promise.all(
+      [...relatedIds].map(async (relatedId) => {
+        try {
+          this.workspace.reconcileObject(
+            await this.gateway.refreshObject!(relatedId),
+          );
+        } catch {
+          // The saved object remains authoritative even if an adjacent read model lags.
+        }
+      }),
+    );
   }
 
   private resolveObjectId(objectId: string): string {

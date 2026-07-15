@@ -71,6 +71,61 @@ describe("KernelWriteBridge", () => {
     });
   });
 
+  it("replaces the optimistic object with the authoritative field projection", async () => {
+    const seed = cloneDemoSeed();
+    const before = seed.objects.find((object) => object.id === "prod-s3")!;
+    const authoritative: DataObject = {
+      ...before,
+      version: 8,
+      fields: {
+        ...before.fields,
+        price: { ...before.fields.price!, value: 1099 },
+        read_model_fx: { ...before.fields.price!, value: 2198 },
+      },
+    };
+    const harness = createHarness({ updateFieldObject: authoritative });
+    harness.workspace.setWriteSink(harness.bridge);
+
+    harness.workspace.updateField("prod-s3", "price", 1099, {
+      actor: "wangyun",
+    });
+    await harness.bridge.whenIdle();
+
+    expect(harness.workspace.getObject("prod-s3")).toMatchObject({
+      version: 8,
+      fields: { price: { value: 1099 }, read_model_fx: { value: 2198 } },
+    });
+  });
+
+  it("refreshes loaded direct neighbors after a successful field write", async () => {
+    const seed = cloneDemoSeed();
+    const gatewayObject = seed.objects.find(
+      (object) => object.id === "prod-g2",
+    )!;
+    const harness = createHarness({
+      refreshedObjects: {
+        "prod-g2": {
+          ...gatewayObject,
+          fields: {
+            ...gatewayObject.fields,
+            refreshed_fx: { ...gatewayObject.fields.name!, value: 42 },
+          },
+        },
+      },
+    });
+    harness.workspace.setWriteSink(harness.bridge);
+
+    harness.workspace.updateField("prod-s3", "price", 1099, {
+      actor: "wangyun",
+    });
+    await harness.bridge.whenIdle();
+
+    expect(harness.gateway.refreshObjectCalls).toContain("prod-g2");
+    expect(
+      harness.workspace.getObject("prod-g2")?.fields.refreshed_fx?.value,
+    ).toBe(42);
+  });
+
   it("reconciles temporary object ids after createObject succeeds", async () => {
     const harness = createHarness();
     harness.workspace.setWriteSink(harness.bridge);
@@ -163,6 +218,8 @@ function createHarness(options: FakeGatewayOptions = {}): {
 
 interface FakeGatewayOptions {
   readonly updateFieldError?: WriteRejection;
+  readonly updateFieldObject?: DataObject;
+  readonly refreshedObjects?: Readonly<Record<string, DataObject>>;
   readonly firstUpdateGate?: Promise<void>;
   readonly onUpdateCall?: () => void;
 }
@@ -179,6 +236,7 @@ class FakeGateway
     >
 {
   readonly actors: MemberId[] = [];
+  readonly refreshObjectCalls: string[] = [];
   readonly updateFieldCalls: {
     readonly objectId: string;
     readonly fieldCode: FieldCode;
@@ -230,8 +288,18 @@ class FakeGateway
         inverse: null,
       },
       syncedRefs: 0,
-      object: this.seed.objects.find((object) => object.id === objectId)!,
+      object:
+        this.options.updateFieldObject ??
+        this.seed.objects.find((object) => object.id === objectId)!,
     };
+  }
+
+  async refreshObject(objectId: string): Promise<DataObject> {
+    this.refreshObjectCalls.push(objectId);
+    return (
+      this.options.refreshedObjects?.[objectId] ??
+      this.seed.objects.find((object) => object.id === objectId)!
+    );
   }
 
   async createObject(

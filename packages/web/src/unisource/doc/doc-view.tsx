@@ -11,6 +11,8 @@ import { UsButton, UsMonoTag, pushToast } from "../primitives";
 import { useSessionSnapshot, sessionStore } from "../state/session-store";
 import { workspaceStore, useWorkspaceSnapshot } from "../state/workspace-store";
 import { buildDocViewModel } from "./doc-view-model";
+import { StructuredDocumentView } from "./structured-document-view";
+import { readStructuredDocumentConfig } from "./structured-document-view-model";
 
 export function DocView({
   exprId,
@@ -58,6 +60,19 @@ export function DocView({
   }, [locateParam, locateRef]);
 
   if (!view || !doc || !vm) return <p role="status">当前文档视图不可用。</p>;
+  const structuredConfig = readStructuredDocumentConfig(view.config);
+  if (structuredConfig.state === "invalid") {
+    return <p role="alert">{structuredConfig.message}</p>;
+  }
+  if (structuredConfig.state === "ready") {
+    return (
+      <StructuredDocumentView
+        compact={compact}
+        config={structuredConfig.config}
+        doc={doc}
+      />
+    );
+  }
   const insertField = (field: FieldDef) => {
     if (vm.bindingState === "dangling") return;
     const ref = workspaceStore.addFieldRef(

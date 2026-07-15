@@ -324,6 +324,10 @@ export class KernelGateway implements UnisourceGateway {
     });
   }
 
+  async refreshObject(objectId: string): Promise<DataObject> {
+    return this.loadObjectById(objectId);
+  }
+
   async updateRelationField(
     ...args: Parameters<UnisourceGateway["updateRelationField"]>
   ): Promise<RelationWriteResult> {

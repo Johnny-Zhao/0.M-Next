@@ -70,6 +70,9 @@ const statusLabels: Record<DataObject["status"], string> = {
   dev: "研发中",
   sale: "在售",
   eol: "停产",
+  archived: "已归档",
+  deleted: "已删除",
+  "soft-deleted": "已软删除",
 };
 
 const statusTones: Record<DataObject["status"], UsPillTone> = {
@@ -79,6 +82,9 @@ const statusTones: Record<DataObject["status"], UsPillTone> = {
   dev: "dev",
   sale: "sale",
   eol: "eol",
+  archived: "eol",
+  deleted: "eol",
+  "soft-deleted": "eol",
 };
 
 export function buildGridViewModel(input: GridViewModelInput): GridViewModel {

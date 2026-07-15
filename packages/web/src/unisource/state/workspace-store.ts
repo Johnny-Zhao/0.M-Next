@@ -991,6 +991,16 @@ export class WorkspaceStore {
     this.emit();
   }
 
+  reconcileObject(object: DataObject): void {
+    this.state = {
+      ...this.state,
+      objects: this.state.objects.map((candidate) =>
+        candidate.id === object.id ? object : candidate,
+      ),
+    };
+    this.emit();
+  }
+
   removeObject(objectId: string): void {
     const affectedRefIds = new Set(
       this.state.fieldRefs

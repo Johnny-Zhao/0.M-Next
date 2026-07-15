@@ -81,6 +81,24 @@ describe("dto mappers", () => {
     expect(object.fields).toEqual({});
   });
 
+  it("preserves terminal object status for read-only document fields", () => {
+    const object = mapViewObject(
+      {
+        objectId: "archived-plan",
+        objectType: "product_specs",
+        status: "ARCHIVED",
+        version: 1,
+        fields: { name: "Archived" },
+        updatedAt: "2026-07-10T10:24:00+08:00",
+        source: null,
+        ruleStatus: "OK",
+      } as const,
+      productType,
+    );
+
+    expect(object.status).toBe("archived");
+  });
+
   it("maps ObjectType fields and downgrades unknown data types to text", () => {
     const mapped = mapObjectType({
       id: "type-uuid",
