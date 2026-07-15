@@ -256,6 +256,7 @@ class DevSeedRunnerIntegrationTest {
   @Test
   void pcProcurementProfileAndSeedAreInstalled() {
     assertEquals(PC_PROCUREMENT_TYPES, runtimeObjectTypeCodes(PC_PROCUREMENT_WORKSPACE));
+    assertTrue(enumFieldAllows(PC_PROCUREMENT_WORKSPACE, "hardware_product", "category", "CASE"));
     assertEquals(1, objectCount(PC_PROCUREMENT_WORKSPACE, "procurement_requirement"));
     assertEquals(14, objectCount(PC_PROCUREMENT_WORKSPACE, "hardware_product"));
     assertEquals(3, objectCount(PC_PROCUREMENT_WORKSPACE, "supplier"));
@@ -710,6 +711,23 @@ class DevSeedRunnerIntegrationTest {
             String.class,
             workspaceId,
             objectTypeCode));
+  }
+
+  private boolean enumFieldAllows(
+      UUID workspaceId, String objectTypeCode, String fieldCode, String value) {
+    return Boolean.TRUE.equals(
+        jdbc.queryForObject(
+            """
+            SELECT jsonb_exists(field.constraints -> 'enumValues', ?)
+            FROM field_def field
+            JOIN object_type type ON type.id = field.object_type_id
+            WHERE type.workspace_id = ? AND type.code = ? AND field.code = ?
+            """,
+            Boolean.class,
+            value,
+            workspaceId,
+            objectTypeCode,
+            fieldCode));
   }
 
   private UUID objectIdByField(

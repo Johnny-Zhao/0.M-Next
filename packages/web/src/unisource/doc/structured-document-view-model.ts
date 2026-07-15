@@ -18,7 +18,7 @@ export interface StructuredDocumentSectionConfig
   extends StructuredDocumentPartConfig {
   readonly relationTypeCode: string;
   readonly title: string;
-  readonly createFlow?: "procurement-item";
+  readonly createAction?: string;
 }
 
 export interface StructuredDocumentConfig {
@@ -58,7 +58,7 @@ export type StructuredDocumentSectionVm =
       readonly state: "missing";
       readonly title: string;
       readonly relationTypeCode: string;
-      readonly createFlow?: "procurement-item";
+      readonly createAction?: string;
       readonly message: string;
       readonly rows: readonly [];
     }
@@ -66,7 +66,7 @@ export type StructuredDocumentSectionVm =
       readonly state: "ready";
       readonly title: string;
       readonly relationTypeCode: string;
-      readonly createFlow?: "procurement-item";
+      readonly createAction?: string;
       readonly message: null;
       readonly rows: readonly StructuredDocumentSectionRowVm[];
     };
@@ -182,7 +182,7 @@ function resolveSection(
       state: "missing",
       title: section.title,
       relationTypeCode: section.relationTypeCode,
-      createFlow: section.createFlow,
+      createAction: section.createAction,
       message: "引用关系不存在",
       rows: [],
     };
@@ -191,7 +191,7 @@ function resolveSection(
     state: "ready",
     title: section.title,
     relationTypeCode: section.relationTypeCode,
-    createFlow: section.createFlow,
+    createAction: section.createAction,
     message: null,
     rows: relations.map((relation) => {
       const object = workspace.objects.find(
@@ -293,16 +293,11 @@ function readSection(value: unknown): StructuredDocumentSectionConfig | null {
   const part = readPart(value);
   const relationTypeCode = readNonEmptyString(value.relationTypeCode);
   const title = readNonEmptyString(value.title);
-  const createFlow = value.createFlow;
-  if (
-    !part ||
-    !relationTypeCode ||
-    !title ||
-    (createFlow !== undefined && createFlow !== "procurement-item")
-  ) {
+  const createAction = readOptionalNonEmptyString(value.createAction);
+  if (!part || !relationTypeCode || !title || createAction === null) {
     return null;
   }
-  return { ...part, relationTypeCode, title, createFlow };
+  return { ...part, relationTypeCode, title, createAction };
 }
 
 function readStringArray(value: unknown): readonly string[] | null {
@@ -313,6 +308,10 @@ function readStringArray(value: unknown): readonly string[] | null {
 
 function readNonEmptyString(value: unknown): string | null {
   return typeof value === "string" && value.length > 0 ? value : null;
+}
+
+function readOptionalNonEmptyString(value: unknown): string | null | undefined {
+  return value === undefined ? undefined : readNonEmptyString(value);
 }
 
 function invalidConfig(): StructuredDocumentConfigResult {

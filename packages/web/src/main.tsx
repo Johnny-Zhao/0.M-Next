@@ -1,10 +1,15 @@
 /**
- * 入口分流:/us/* → 同源 UniSource 壳;其余 → 现有 M-Next 工作台。
+ * 入口分流:/ → /us/home; /us/* → 同源 UniSource 壳;其余 → 现有 M-Next 工作台。
  * 动态 import 保证两套全局样式互不加载(styles.css vs us-tokens.css)。
  */
-const path = window.location.pathname;
+import { isUnisourceLocation, rootUnisourceLocation } from "./entry-route";
 
-if (path === "/us" || path.startsWith("/us/")) {
+const { hash, pathname, search } = window.location;
+const defaultLocation = rootUnisourceLocation(pathname, search, hash);
+
+if (defaultLocation !== null) {
+  window.location.replace(defaultLocation);
+} else if (isUnisourceLocation(pathname)) {
   void import("./unisource/boot");
 } else {
   void import("./workbench-boot");

@@ -162,7 +162,7 @@ export const pcProcurementPreset: PresentationPreset = {
             {
               relationTypeCode: "build_plan_contains_item",
               title: "方案明细",
-              createFlow: "procurement-item",
+              createAction: "pc_procurement.procurement-item",
               objectTypeCode: "build_plan_item",
               fields: [
                 "code",

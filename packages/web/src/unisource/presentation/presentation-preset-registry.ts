@@ -2,7 +2,9 @@ import type {
   PresentationObjectBinding,
   PresentationRelationBinding,
 } from "../data/identity-remap";
+import { structuredDocumentActionRegistry } from "../doc/structured-document-action-registry";
 import { cloneDemoSeed, type DemoSeed } from "../seed/demo-seed";
+import { registerPcProcurementDocumentActions } from "./pc-procurement-document-actions";
 import { pcProcurementPreset } from "./pc-procurement-preset";
 
 export type PresentationPresetCode =
@@ -29,7 +31,14 @@ export interface PresentationPreset extends PresentationFields {
 }
 
 export class PresentationPresetRegistry {
+  constructor(
+    private readonly documentActions = structuredDocumentActionRegistry,
+  ) {}
+
   resolve(templateCode: string | null | undefined): PresentationPreset {
+    if (templateCode === "pc_procurement") {
+      registerPcProcurementDocumentActions(this.documentActions);
+    }
     const preset =
       templateCode === "hardware_products"
         ? hardwareProductsPreset()

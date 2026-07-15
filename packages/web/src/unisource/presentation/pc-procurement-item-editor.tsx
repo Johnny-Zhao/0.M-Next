@@ -9,7 +9,7 @@ import {
   createInitialProcurementItemDraft,
   createProcurementItem,
   type ProcurementItemDraft,
-} from "./procurement-item-flow";
+} from "./pc-procurement-item-flow";
 
 export function ProcurementItemEditor({ planId }: { readonly planId: string }) {
   const workspace = useWorkspaceSnapshot();

@@ -1,5 +1,6 @@
 package com.mnext.server;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mnext.kernel.api.Actor;
 import com.mnext.kernel.api.CommandResult;
@@ -13,7 +14,9 @@ import com.mnext.server.plugin.ProfileManifest;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -90,6 +93,7 @@ class PcProcurementDevSeeder implements ApplicationRunner {
         throw new IllegalStateException(
             "DEV SEED: pc procurement workspace exists without its runtime profile");
       }
+      ensureRuntimeProfileMatches(manifest);
       return;
     }
     lifecycle.instantiateWorkspace(
@@ -102,6 +106,67 @@ class PcProcurementDevSeeder implements ApplicationRunner {
             WORKSPACE_ID,
             "电脑采购 Demo"),
         actor);
+    ensureRuntimeProfileMatches(manifest);
+  }
+
+  private void ensureRuntimeProfileMatches(ProfileManifest manifest) {
+    var expected = enumValues(manifest, "hardware_product", "category");
+    var actual = runtimeEnumValues("hardware_product", "category");
+    if (expected.equals(actual)) return;
+    throw new IllegalStateException(
+        "DEV SEED: pc-procurement workspace profile drift for hardware_product.category; "
+            + "expected "
+            + expected
+            + " but found "
+            + actual
+            + ". For the local development database only, run corepack pnpm dev:down, docker compose down, "
+            + "confirm m-next_postgres-data, remove that volume, then run corepack pnpm dev:up.");
+  }
+
+  private Set<String> enumValues(ProfileManifest manifest, String objectType, String fieldCode) {
+    return manifest.fieldsOrEmpty().stream()
+        .filter(field -> objectType.equals(field.objectType()) && fieldCode.equals(field.code()))
+        .findFirst()
+        .map(ProfileManifest.Field::constraints)
+        .map(this::enumValues)
+        .orElseThrow(
+            () ->
+                new IllegalStateException(
+                    "DEV SEED: pc-procurement manifest is missing "
+                        + objectType
+                        + "."
+                        + fieldCode));
+  }
+
+  private Set<String> runtimeEnumValues(String objectType, String fieldCode) {
+    var constraints =
+        jdbc.query(
+            """
+            SELECT field.constraints::text
+            FROM object_type type
+            JOIN field_def field ON field.object_type_id = type.id
+            WHERE type.workspace_id = ?
+              AND type.template_version_id IS NULL
+              AND type.code = ?
+              AND field.code = ?
+            """,
+            result -> result.next() ? result.getString(1) : null,
+            WORKSPACE_ID,
+            objectType,
+            fieldCode);
+    if (constraints == null) return Set.of();
+    try {
+      return enumValues(mapper.readTree(constraints));
+    } catch (com.fasterxml.jackson.core.JsonProcessingException failure) {
+      throw new IllegalStateException(
+          "DEV SEED: runtime profile constraints are unreadable", failure);
+    }
+  }
+
+  private Set<String> enumValues(JsonNode constraints) {
+    var values = new LinkedHashSet<String>();
+    constraints.path("enumValues").forEach(value -> values.add(value.asText()));
+    return Set.copyOf(values);
   }
 
   private boolean workspaceExists() {

@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 
+import { StructuredDocumentActionRegistry } from "../doc/structured-document-action-registry";
+import { pcProcurementItemActionId } from "./pc-procurement-document-actions";
 import { PresentationPresetRegistry } from "./presentation-preset-registry";
 
 describe("PresentationPresetRegistry", () => {
@@ -32,6 +34,35 @@ describe("PresentationPresetRegistry", () => {
 
     expect(first).not.toBe(second);
     expect(first.expressions).not.toBe(second.expressions);
+  });
+
+  it("registers pc document actions through the presentation composition layer", () => {
+    const actions = new StructuredDocumentActionRegistry();
+    const isolatedRegistry = new PresentationPresetRegistry(actions);
+    isolatedRegistry.resolve("pc_procurement");
+    isolatedRegistry.resolve("pc_procurement");
+
+    expect(actions.resolve(pcProcurementItemActionId)).not.toBeNull();
+  });
+
+  it("does not register pc actions while resolving hardware or unknown presets", () => {
+    const actions = new StructuredDocumentActionRegistry();
+    const isolatedRegistry = new PresentationPresetRegistry(actions);
+
+    isolatedRegistry.resolve("hardware_products");
+    isolatedRegistry.resolve("future_profile");
+
+    expect(actions.resolve(pcProcurementItemActionId)).toBeNull();
+  });
+
+  it("keeps hardware presentation unchanged after pc actions are registered", () => {
+    const actions = new StructuredDocumentActionRegistry();
+    const isolatedRegistry = new PresentationPresetRegistry(actions);
+    isolatedRegistry.resolve("pc_procurement");
+    const hardware = isolatedRegistry.resolve("hardware_products");
+
+    expect(actions.resolve(pcProcurementItemActionId)).not.toBeNull();
+    expect(JSON.stringify(hardware)).not.toContain(pcProcurementItemActionId);
   });
 
   it("configures all profiles for the same generic grid runtime", () => {

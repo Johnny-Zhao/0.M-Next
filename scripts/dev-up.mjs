@@ -10,8 +10,6 @@ const logsDir = path.join(root, "logs");
 const stateDir = path.join(root, ".dev");
 const serverLog = path.join(logsDir, "server.log");
 const serverPidFile = path.join(stateDir, "server.pid");
-const demoWorkspaceId = "11111111-1111-1111-1111-111111111111";
-const serverReadyText = "DEV SEED: interior-design installed, demo workspace";
 const dotEnv = loadDotEnv();
 
 main().catch((error) => {
@@ -25,7 +23,7 @@ async function main() {
   run("docker", ["compose", "up", "-d"], "启动 docker compose 失败");
   await waitForPostgres();
   // 已有运行中的后端就复用,绝不重启——重启前端不会再误杀后端
-  if (await httpReady(serverReadyUrl())) {
+  if (await httpReady(serverHealthUrl())) {
     console.log("检测到 8080 已有运行中的后端,直接复用(不重启后端)。");
   } else {
     const jar = findServerJar();
@@ -46,8 +44,8 @@ async function main() {
   process.exit(status);
 }
 
-function serverReadyUrl() {
-  return `http://localhost:8080/workspaces/${demoWorkspaceId}/views/objects?objectType=room&page=0&pageSize=1`;
+function serverHealthUrl() {
+  return "http://localhost:8080/api/health";
 }
 
 function run(command, args, message) {
@@ -202,22 +200,38 @@ function isJavaProcess(pid) {
 }
 
 async function waitForServerReady() {
-  const url = `http://localhost:8080/workspaces/${demoWorkspaceId}/views/objects?objectType=room&page=0&pageSize=1`;
-  await waitUntil(() => httpReady(url), "等待后端 8080 就绪超时", 120_000);
   await waitUntil(
-    () =>
-      fs.existsSync(serverLog) &&
-      fs.readFileSync(serverLog, "utf8").includes(serverReadyText),
-    `等待 DEV SEED ready 超时，请查看 ${serverLog}`,
+    () => {
+      throwIfServerStartupFailed();
+      return httpReady(serverHealthUrl());
+    },
+    "等待后端健康检查超时",
     120_000,
   );
+}
+
+function throwIfServerStartupFailed() {
+  if (!fs.existsSync(serverLog)) return false;
+  const log = fs.readFileSync(serverLog, "utf8");
+  if (log.includes("Application run failed")) {
+    const cause = log
+      .split(/\r?\n/)
+      .find((line) => line.includes("Exception:"));
+    throw new Error(
+      `后端 Dev Seeder 失败: ${cause?.trim() ?? "请查看"} ${serverLog}`,
+    );
+  }
 }
 
 function httpReady(url) {
   return new Promise((resolve) => {
     const request = http.get(url, (response) => {
       response.resume();
-      resolve(response.statusCode !== undefined && response.statusCode < 500);
+      resolve(
+        response.statusCode !== undefined &&
+          response.statusCode >= 200 &&
+          response.statusCode < 300,
+      );
     });
     request.on("error", () => resolve(false));
     request.setTimeout(1500, () => {

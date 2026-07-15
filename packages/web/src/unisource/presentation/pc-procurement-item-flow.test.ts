@@ -16,7 +16,7 @@ import {
   buildProcurementItemFormModel,
   createInitialProcurementItemDraft,
   createProcurementItem,
-} from "./procurement-item-flow";
+} from "./pc-procurement-item-flow";
 
 describe("procurement item flow", () => {
   it("starts with quantity 1 and filters active compatible quotes", () => {

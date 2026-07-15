@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { parseFormParam, usPaths } from "./routes-paths";
+import { parseFormParam, US_BASENAME, usPaths } from "./routes-paths";
 
 describe("usPaths(交接规格 §01 路由建议)", () => {
   it("独立路由", () => {
@@ -16,6 +16,9 @@ describe("usPaths(交接规格 §01 路由建议)", () => {
     expect(usPaths.expr("exp-spec-doc")).toBe("/expr/exp-spec-doc");
     expect(usPaths.expr("exp-spec-doc", "doc")).toBe(
       "/expr/exp-spec-doc?form=doc",
+    );
+    expect(`${US_BASENAME}${usPaths.expr("exp-pc-plan-map", "canvas")}`).toBe(
+      "/us/expr/exp-pc-plan-map?form=canvas",
     );
   });
 });

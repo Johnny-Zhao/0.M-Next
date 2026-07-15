@@ -163,7 +163,32 @@ describe("structured-document-view-model", () => {
     expect(
       parsed.config.sections.map((section) => section.relationTypeCode),
     ).toEqual(["build_plan_contains_item", "build_plan_satisfies_requirement"]);
-    expect(parsed.config.sections[0]?.createFlow).toBe("procurement-item");
+    expect(parsed.config.sections[0]?.createAction).toBe(
+      "pc_procurement.procurement-item",
+    );
+  });
+
+  it("keeps document action ids opaque to the generic model", () => {
+    const parsed = readStructuredDocumentConfig({
+      structuredDocument: {
+        root: { objectTypeCode: "sample", fields: [], editableFields: [] },
+        sections: [
+          {
+            relationTypeCode: "contains",
+            title: "明细",
+            createAction: "future-domain-action",
+            objectTypeCode: "sample_item",
+            fields: [],
+            editableFields: [],
+          },
+        ],
+      },
+    });
+
+    expect(parsed).toMatchObject({
+      state: "ready",
+      config: { sections: [{ createAction: "future-domain-action" }] },
+    });
   });
 });
 
