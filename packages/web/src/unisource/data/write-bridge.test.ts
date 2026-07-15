@@ -170,6 +170,21 @@ describe("KernelWriteBridge", () => {
     ).toBe(true);
   });
 
+  it("refreshes only the relation endpoints after a relation write", async () => {
+    const harness = createHarness();
+    harness.workspace.setWriteSink(harness.bridge);
+
+    harness.workspace.createRelation({
+      relationTypeCode: "interconnects_with",
+      sourceId: "prod-s3",
+      targetId: "prod-m1",
+      actor: "wangyun",
+    });
+    await harness.bridge.whenIdle();
+
+    expect(harness.gateway.refreshObjectCalls).toEqual(["prod-s3", "prod-m1"]);
+  });
+
   it("serializes writes for the same object id", async () => {
     const first = deferred<void>();
     const firstStarted = deferred<void>();

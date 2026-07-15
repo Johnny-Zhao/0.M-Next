@@ -163,6 +163,7 @@ describe("structured-document-view-model", () => {
     expect(
       parsed.config.sections.map((section) => section.relationTypeCode),
     ).toEqual(["build_plan_contains_item", "build_plan_satisfies_requirement"]);
+    expect(parsed.config.sections[0]?.createFlow).toBe("procurement-item");
   });
 });
 

@@ -7,6 +7,7 @@ import {
   type ObjectCreateDescriptor,
   type ObjectDeleteDescriptor,
   type RelationCreateDescriptor,
+  type WriteCompletion,
   type WorkspaceStore,
   type WriteSink,
 } from "../state/workspace-store";
@@ -74,8 +75,8 @@ export class KernelWriteBridge implements WriteSink {
     });
   }
 
-  createObject(descriptor: ObjectCreateDescriptor): void {
-    this.enqueue([descriptor.temporaryObjectId], async () => {
+  createObject(descriptor: ObjectCreateDescriptor): Promise<WriteCompletion> {
+    return this.enqueue([descriptor.temporaryObjectId], async () => {
       try {
         const actor = this.applyActor();
         const object = await this.gateway.createObject({
@@ -87,15 +88,19 @@ export class KernelWriteBridge implements WriteSink {
         });
         this.objectIdMap.set(descriptor.temporaryObjectId, object.id);
         this.workspace.reconcileObjectId(descriptor.temporaryObjectId, object);
+        return { state: "synced", objectId: object.id };
       } catch (error) {
         this.workspace.removeObject(descriptor.temporaryObjectId);
         this.reportWriteFailure(error);
+        return writeFailure(error);
       }
     });
   }
 
-  createRelation(descriptor: RelationCreateDescriptor): void {
-    this.enqueue(
+  createRelation(
+    descriptor: RelationCreateDescriptor,
+  ): Promise<WriteCompletion> {
+    return this.enqueue(
       [
         descriptor.params.sourceId,
         descriptor.params.targetId,
@@ -116,9 +121,15 @@ export class KernelWriteBridge implements WriteSink {
             descriptor.temporaryRelationId,
             result.relation,
           );
+          await this.refreshObjects([
+            descriptor.params.sourceId,
+            descriptor.params.targetId,
+          ]);
+          return { state: "synced", relationId: result.relation.id };
         } catch (error) {
           this.workspace.removeRelation(descriptor.temporaryRelationId);
           this.reportWriteFailure(error);
+          return writeFailure(error);
         }
       },
     );
@@ -145,7 +156,34 @@ export class KernelWriteBridge implements WriteSink {
     return this.idle;
   }
 
-  private enqueue(keys: readonly string[], task: () => Promise<void>): void {
+  async refreshObjects(objectIds: readonly string[]): Promise<WriteCompletion> {
+    if (!this.gateway.refreshObject) return { state: "synced" };
+    try {
+      await Promise.all(
+        [
+          ...new Set(
+            objectIds.map((objectId) => this.resolveObjectId(objectId)),
+          ),
+        ].map(async (objectId) =>
+          this.workspace.reconcileObject(
+            await this.gateway.refreshObject!(objectId),
+          ),
+        ),
+      );
+      return { state: "synced" };
+    } catch (error) {
+      this.reportWriteFailure(error);
+      return {
+        state: "failed",
+        message: "派生字段同步失败，请重新加载工作空间",
+      };
+    }
+  }
+
+  private enqueue(
+    keys: readonly string[],
+    task: () => Promise<WriteCompletion | void>,
+  ): Promise<WriteCompletion> {
     const uniqueKeys = [
       ...new Set(keys.map((key) => this.resolveObjectId(key))),
     ];
@@ -154,19 +192,26 @@ export class KernelWriteBridge implements WriteSink {
         (key) => this.queueByObjectId.get(key) ?? Promise.resolve(),
       ),
     );
-    const run = previous.then(task).catch(() => {
-      // Each task owns rollback and toast reporting; never leak to callers.
-    });
-    const tracked = run.finally(() => {
-      for (const key of uniqueKeys) {
-        if (this.queueByObjectId.get(key) === tracked) {
-          this.queueByObjectId.delete(key);
+    const run = previous
+      .then(task)
+      .then((completion) => completion ?? { state: "synced" as const })
+      .catch((error) => {
+        this.reportWriteFailure(error);
+        return writeFailure(error);
+      });
+    const tracked = run
+      .then(() => undefined)
+      .finally(() => {
+        for (const key of uniqueKeys) {
+          if (this.queueByObjectId.get(key) === tracked) {
+            this.queueByObjectId.delete(key);
+          }
         }
-      }
-    });
+      });
     for (const key of uniqueKeys) this.queueByObjectId.set(key, tracked);
     this.idle = Promise.all([this.idle, tracked]).then(() => undefined);
     void tracked;
+    return run;
   }
 
   private applyActor(): MemberId {
@@ -226,6 +271,10 @@ function toWriteRejection(error: unknown): WriteRejection {
     title: "内核写入失败",
     conflictingFields: [],
   };
+}
+
+function writeFailure(error: unknown): WriteCompletion {
+  return { state: "failed", message: toWriteRejection(error).title };
 }
 
 function isWriteRejection(value: unknown): value is WriteRejection {

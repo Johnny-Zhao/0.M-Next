@@ -18,6 +18,7 @@ export interface StructuredDocumentSectionConfig
   extends StructuredDocumentPartConfig {
   readonly relationTypeCode: string;
   readonly title: string;
+  readonly createFlow?: "procurement-item";
 }
 
 export interface StructuredDocumentConfig {
@@ -57,6 +58,7 @@ export type StructuredDocumentSectionVm =
       readonly state: "missing";
       readonly title: string;
       readonly relationTypeCode: string;
+      readonly createFlow?: "procurement-item";
       readonly message: string;
       readonly rows: readonly [];
     }
@@ -64,6 +66,7 @@ export type StructuredDocumentSectionVm =
       readonly state: "ready";
       readonly title: string;
       readonly relationTypeCode: string;
+      readonly createFlow?: "procurement-item";
       readonly message: null;
       readonly rows: readonly StructuredDocumentSectionRowVm[];
     };
@@ -179,6 +182,7 @@ function resolveSection(
       state: "missing",
       title: section.title,
       relationTypeCode: section.relationTypeCode,
+      createFlow: section.createFlow,
       message: "引用关系不存在",
       rows: [],
     };
@@ -187,6 +191,7 @@ function resolveSection(
     state: "ready",
     title: section.title,
     relationTypeCode: section.relationTypeCode,
+    createFlow: section.createFlow,
     message: null,
     rows: relations.map((relation) => {
       const object = workspace.objects.find(
@@ -288,8 +293,16 @@ function readSection(value: unknown): StructuredDocumentSectionConfig | null {
   const part = readPart(value);
   const relationTypeCode = readNonEmptyString(value.relationTypeCode);
   const title = readNonEmptyString(value.title);
-  if (!part || !relationTypeCode || !title) return null;
-  return { ...part, relationTypeCode, title };
+  const createFlow = value.createFlow;
+  if (
+    !part ||
+    !relationTypeCode ||
+    !title ||
+    (createFlow !== undefined && createFlow !== "procurement-item")
+  ) {
+    return null;
+  }
+  return { ...part, relationTypeCode, title, createFlow };
 }
 
 function readStringArray(value: unknown): readonly string[] | null {

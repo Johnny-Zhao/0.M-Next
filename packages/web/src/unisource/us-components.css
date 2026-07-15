@@ -3664,6 +3664,32 @@
 .us-structured-doc__row h3 small {
   margin-left: var(--us-sp-3);
 }
+.us-procurement-item-editor {
+  align-items: flex-start;
+  display: flex;
+  flex-direction: column;
+  gap: var(--us-sp-2);
+  padding: var(--us-sp-3) var(--us-sp-4);
+}
+.us-procurement-item-editor__form {
+  background: var(--us-surface);
+  border: 1px solid var(--us-border-soft);
+  display: grid;
+  gap: var(--us-sp-3);
+  padding: var(--us-sp-4);
+}
+.us-procurement-item-editor__form label {
+  display: grid;
+  gap: var(--us-sp-1);
+}
+.us-procurement-item-editor__form input,
+.us-procurement-item-editor__form select {
+  max-width: 100%;
+}
+.us-procurement-item-editor__actions {
+  display: flex;
+  gap: var(--us-sp-2);
+}
 .us-doc-inserting,
 .us-doc-inserted {
   font-family: var(--us-font-ui);

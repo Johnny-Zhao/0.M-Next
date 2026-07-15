@@ -13,6 +13,7 @@ import {
   type StructuredDocumentConfig,
   type StructuredDocumentFieldVm,
 } from "./structured-document-view-model";
+import { ProcurementItemEditor } from "./procurement-item-editor";
 
 export function StructuredDocumentView({
   compact,
@@ -76,6 +77,7 @@ export function StructuredDocumentView({
             <DocumentSection
               key={section.relationTypeCode}
               onSave={saveField}
+              planId={root.objectId}
               section={section}
               selection={selection.current}
             />
@@ -88,10 +90,12 @@ export function StructuredDocumentView({
 
 function DocumentSection({
   onSave,
+  planId,
   section,
   selection,
 }: {
   readonly onSave: (field: StructuredDocumentFieldVm, rawValue: string) => void;
+  readonly planId: string;
   readonly section: ReturnType<
     typeof buildStructuredDocumentViewModel
   >["sections"][number];
@@ -102,6 +106,9 @@ function DocumentSection({
       <header>
         <strong>{section.title}</strong>
       </header>
+      {section.createFlow === "procurement-item" ? (
+        <ProcurementItemEditor planId={planId} />
+      ) : null}
       {section.state === "missing" ? (
         <p role="alert">{section.message}</p>
       ) : (

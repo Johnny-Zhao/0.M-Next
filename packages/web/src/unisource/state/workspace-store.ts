@@ -147,11 +147,29 @@ export interface ObjectDeleteDescriptor {
   readonly snapshot: DeletedObjectSnapshot;
 }
 
+export type WriteCompletion =
+  | { readonly state: "local" }
+  | {
+      readonly state: "synced";
+      readonly objectId?: string;
+      readonly relationId?: string;
+    }
+  | { readonly state: "failed"; readonly message: string };
+
 export interface WriteSink {
-  updateField(descriptor: FieldWriteDescriptor): void;
-  createObject(descriptor: ObjectCreateDescriptor): void;
-  createRelation(descriptor: RelationCreateDescriptor): void;
-  deleteObject(descriptor: ObjectDeleteDescriptor): void;
+  updateField(
+    descriptor: FieldWriteDescriptor,
+  ): void | Promise<WriteCompletion>;
+  createObject(
+    descriptor: ObjectCreateDescriptor,
+  ): void | Promise<WriteCompletion>;
+  createRelation(
+    descriptor: RelationCreateDescriptor,
+  ): void | Promise<WriteCompletion>;
+  deleteObject(
+    descriptor: ObjectDeleteDescriptor,
+  ): void | Promise<WriteCompletion>;
+  refreshObjects?(objectIds: readonly string[]): Promise<WriteCompletion>;
 }
 
 type Listener = () => void;
@@ -186,6 +204,7 @@ export class WorkspaceStore {
   private readonly refTimers = new Map<string, ReturnType<typeof setTimeout>>();
   private sequence = 0;
   private writeSink: WriteSink | null = null;
+  private lastWriteCompletion: Promise<WriteCompletion> | null = null;
 
   constructor(seed: DemoSeed = cloneDemoSeed()) {
     this.state = seedToState(seed);
@@ -200,11 +219,29 @@ export class WorkspaceStore {
 
   setWriteSink(sink: WriteSink | null): void {
     this.writeSink = sink;
+    this.lastWriteCompletion = null;
+  }
+
+  waitForLastWrite(): Promise<WriteCompletion> {
+    return this.lastWriteCompletion ?? Promise.resolve({ state: "local" });
+  }
+
+  async refreshObjects(objectIds: readonly string[]): Promise<WriteCompletion> {
+    if (!this.writeSink?.refreshObjects) return { state: "local" };
+    try {
+      return await this.writeSink.refreshObjects(objectIds);
+    } catch {
+      return {
+        state: "failed",
+        message: "派生字段同步失败，请重新加载工作空间",
+      };
+    }
   }
 
   reset(seed: DemoSeed = cloneDemoSeed()): void {
     this.clearRefTimers();
     this.sequence = 0;
+    this.lastWriteCompletion = null;
     this.state = seedToState(seed);
     this.emit();
   }
@@ -1378,12 +1415,23 @@ export class WorkspaceStore {
     this.refTimers.clear();
   }
 
-  private notifyWriteSink(callback: (sink: WriteSink) => void): void {
+  private notifyWriteSink(
+    callback: (sink: WriteSink) => void | Promise<WriteCompletion>,
+  ): void {
+    this.lastWriteCompletion = null;
     if (!this.writeSink) return;
     try {
-      callback(this.writeSink);
+      const completion = callback(this.writeSink);
+      if (!completion) return;
+      this.lastWriteCompletion = Promise.resolve(completion).catch(() => ({
+        state: "failed" as const,
+        message: "写入同步失败，请重新加载工作空间",
+      }));
     } catch {
-      // WriteSink is a background bridge. Local writes stay synchronous.
+      this.lastWriteCompletion = Promise.resolve({
+        state: "failed" as const,
+        message: "写入同步失败，请重新加载工作空间",
+      });
     }
   }
 
