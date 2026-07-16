@@ -79,6 +79,8 @@ import {
 } from "./identity-remap";
 
 const PAGE_SIZE = 100;
+const CLAIM_READ_ATTEMPTS = 5;
+const CLAIM_READ_DELAY_MS = 100;
 
 export interface KernelGatewayLoadReport extends IdentityRemapReport {
   readonly objectCount: number;
@@ -755,12 +757,15 @@ export class KernelGateway implements UnisourceGateway {
     const type = await this.requireObjectType(objectTypeCode);
     const expectedKey = objectBusinessKey(objectStub(objectTypeCode, fields));
     if (!expectedKey) throw new Error("无法按业务键认领新对象");
-    const objects = await this.loadObjectsForTypes([type]);
-    const object = objects.find(
-      (candidate) => objectBusinessKey(candidate) === expectedKey,
-    );
-    if (!object) throw new Error("内核对象创建成功,但读模型尚未认领到新对象");
-    return object;
+    for (let attempt = 0; attempt < CLAIM_READ_ATTEMPTS; attempt += 1) {
+      const objects = await this.loadObjectsForTypes([type]);
+      const object = objects.find(
+        (candidate) => objectBusinessKey(candidate) === expectedKey,
+      );
+      if (object) return object;
+      if (attempt + 1 < CLAIM_READ_ATTEMPTS) await nextReadModelTurn();
+    }
+    throw new Error("内核对象创建成功,但读模型尚未认领到新对象");
   }
 
   private async claimRelation(params: {
@@ -768,20 +773,23 @@ export class KernelGateway implements UnisourceGateway {
     readonly sourceId: string;
     readonly targetId: string;
   }): Promise<DataRelation> {
-    const details = await Promise.all([
-      this.viewClient.object(this.workspaceId, params.sourceId),
-      this.viewClient.object(this.workspaceId, params.targetId),
-    ]);
-    const relation = details
-      .flatMap((detail) => detail.relations)
-      .find(
-        (candidate) =>
-          candidate.relationType === params.relationTypeCode &&
-          candidate.sourceId === params.sourceId &&
-          candidate.targetId === params.targetId,
-      );
-    if (!relation) throw new Error("内核关系创建成功,但读模型尚未认领到新关系");
-    return mapRelationSummary(relation);
+    for (let attempt = 0; attempt < CLAIM_READ_ATTEMPTS; attempt += 1) {
+      const details = await Promise.all([
+        this.viewClient.object(this.workspaceId, params.sourceId),
+        this.viewClient.object(this.workspaceId, params.targetId),
+      ]);
+      const relation = details
+        .flatMap((detail) => detail.relations)
+        .find(
+          (candidate) =>
+            candidate.relationType === params.relationTypeCode &&
+            candidate.sourceId === params.sourceId &&
+            candidate.targetId === params.targetId,
+        );
+      if (relation) return mapRelationSummary(relation);
+      if (attempt + 1 < CLAIM_READ_ATTEMPTS) await nextReadModelTurn();
+    }
+    throw new Error("内核关系创建成功,但读模型尚未认领到新关系");
   }
 
   private async loadKernelGraph(): Promise<KernelGraph> {
@@ -916,6 +924,12 @@ function objectsOfTypeLoaded(
   return (pageIndex + 1) * PAGE_SIZE >= page.total;
 }
 
+function nextReadModelTurn(): Promise<void> {
+  return new Promise((resolve) => {
+    globalThis.setTimeout(resolve, CLAIM_READ_DELAY_MS);
+  });
+}
+
 function mapRelationSummary(relation: RelationSummary): DataRelation {
   return {
     id: relation.relationId,
@@ -930,7 +944,11 @@ function mapRelationSummary(relation: RelationSummary): DataRelation {
 }
 
 function mapRelationTypes(
-  relationTypes: readonly { readonly code: string; readonly name: string }[],
+  relationTypes: readonly {
+    readonly code: string;
+    readonly name: string;
+    readonly hierarchical?: boolean;
+  }[],
   relations: readonly DataRelation[],
   objects: readonly DataObject[],
 ): readonly RelationType[] {
@@ -948,6 +966,7 @@ function mapRelationTypes(
       targetTypeCode: sample
         ? (objectsById.get(sample.targetId)?.objectTypeCode ?? "")
         : "",
+      hierarchical: type.hierarchical,
     };
   });
 }

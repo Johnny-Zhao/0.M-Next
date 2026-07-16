@@ -19,7 +19,7 @@ import {
 } from "./pc-procurement-item-flow";
 
 describe("procurement item flow", () => {
-  it("starts with quantity 1 and filters active compatible quotes", () => {
+  it("starts with quantity 1 and keeps compatible kernel-draft quotes selectable", () => {
     const workspace = fixtureWorkspace();
     const model = buildProcurementItemFormModel(
       workspace.getSnapshot(),
@@ -53,6 +53,7 @@ describe("procurement item flow", () => {
       { ...validDraft(), productId: null },
       { ...validDraft(), quoteId: null },
       { ...validDraft(), quoteId: "quote-gpu" },
+      { ...validDraft(), quoteId: "quote-archived" },
     ];
 
     for (const draft of invalidDrafts) {
@@ -274,7 +275,10 @@ function fixtureWorkspace(): WorkspaceStore {
         productFields("GPU-001", "GPU", 2999, 90, 220),
       ),
       object("supplier-1", "supplier", { code: "SUP-001", name: "供应商甲" }),
-      object("quote-cpu", "supplier_quote", quoteFields("QUOTE-CPU")),
+      {
+        ...object("quote-cpu", "supplier_quote", quoteFields("QUOTE-CPU")),
+        status: "draft",
+      },
       object("quote-gpu", "supplier_quote", quoteFields("QUOTE-GPU")),
       {
         ...object("quote-archived", "supplier_quote", quoteFields("QUOTE-OLD")),
@@ -299,6 +303,12 @@ function fixtureWorkspace(): WorkspaceStore {
         "supplier_quote_offered_by_supplier",
         "quote-cpu",
         "supplier-1",
+      ),
+      relation(
+        "quote-archived-product",
+        "supplier_quote_for_product",
+        "quote-archived",
+        "product-cpu",
       ),
     ],
   });

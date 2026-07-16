@@ -12,6 +12,7 @@ const selectsProduct = "build_plan_item_selects_product";
 const usesQuote = "build_plan_item_uses_supplier_quote";
 const quoteForProduct = "supplier_quote_for_product";
 const quoteOfferedBy = "supplier_quote_offered_by_supplier";
+const terminalObjectStatuses = new Set(["archived", "deleted", "soft-deleted"]);
 
 export interface ProcurementItemDraft {
   readonly code: string;
@@ -79,7 +80,7 @@ export function buildProcurementItemFormModel(
     .filter(
       (object) =>
         object.objectTypeCode === "supplier_quote" &&
-        object.status === "active",
+        !terminalObjectStatuses.has(object.status),
     )
     .filter((quote) =>
       quoteMatchesProduct(workspace, quote.id, selectedProductId),
@@ -227,7 +228,7 @@ export function validateProcurementItem(
     (object) =>
       object.id === draft.quoteId && object.objectTypeCode === "supplier_quote",
   );
-  if (!quote || quote.status !== "active") {
+  if (!quote || terminalObjectStatuses.has(quote.status)) {
     return { state: "invalid", message: "所选供应商报价不可用" };
   }
   if (!quoteMatchesProduct(workspace, quote.id, product.id)) {

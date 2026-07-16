@@ -404,6 +404,7 @@ function mapFieldDefinition(field: ObjectType["fields"][number]): FieldDef {
     code: field.code,
     name: field.name,
     dataType: mapFieldDataType(field.dataType),
+    required: field.required,
     enumValues: readStringArray(field.constraints.enumValues),
     unit:
       typeof field.constraints.unit === "string"
@@ -424,6 +425,7 @@ function mapFieldDataType(value: string): FieldDataType {
     return "number";
   }
   if (normalized === "enum" || normalized === "select") return "enum";
+  if (normalized === "boolean" || normalized === "bool") return "boolean";
   if (normalized === "date" || normalized === "datetime") return "date";
   if (normalized === "person" || normalized === "user") return "person";
   if (

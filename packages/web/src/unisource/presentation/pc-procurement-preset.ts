@@ -105,10 +105,32 @@ export const pcProcurementPreset: PresentationPreset = {
             y: 280,
             shownFields: ["code", "name", "status"],
           },
+          {
+            objectId: "pc-ref-valid-cpu-item",
+            x: 80,
+            y: 496,
+            shownFields: ["code", "name", "quantity"],
+          },
+          {
+            objectId: "pc-ref-valid-cpu-product",
+            x: 324,
+            y: 496,
+            shownFields: ["code", "name", "category"],
+          },
+          {
+            objectId: "pc-ref-valid-cpu-quote",
+            x: 568,
+            y: 496,
+            shownFields: ["code", "name", "unit_price_cny"],
+          },
         ],
         edges: [
           { relationId: "pc-rel-valid-satisfies" },
           { relationId: "pc-rel-invalid-satisfies" },
+          { relationId: "pc-rel-valid-contains-cpu" },
+          { relationId: "pc-rel-valid-cpu-selects-product" },
+          { relationId: "pc-rel-valid-cpu-uses-quote" },
+          { relationId: "pc-rel-valid-cpu-quote-for-product" },
         ],
       },
     },
@@ -364,6 +386,21 @@ export const pcProcurementPreset: PresentationPreset = {
       objectTypeCode: "build_plan",
       fields: { code: "PLAN-PC-INVALID", name: "超预算不兼容方案" },
     },
+    {
+      presentationId: "pc-ref-valid-cpu-item",
+      objectTypeCode: "build_plan_item",
+      fields: { code: "ITEM-V-CPU" },
+    },
+    {
+      presentationId: "pc-ref-valid-cpu-product",
+      objectTypeCode: "hardware_product",
+      fields: { code: "HW-CPU-I5-14600K" },
+    },
+    {
+      presentationId: "pc-ref-valid-cpu-quote",
+      objectTypeCode: "supplier_quote",
+      fields: { code: "Q-CPU-I5" },
+    },
   ],
   relationBindings: [
     {
@@ -377,6 +414,30 @@ export const pcProcurementPreset: PresentationPreset = {
       relationTypeCode: "build_plan_satisfies_requirement",
       sourceId: "pc-ref-invalid-plan",
       targetId: "pc-ref-requirement",
+    },
+    {
+      presentationId: "pc-rel-valid-contains-cpu",
+      relationTypeCode: "build_plan_contains_item",
+      sourceId: "pc-ref-valid-plan",
+      targetId: "pc-ref-valid-cpu-item",
+    },
+    {
+      presentationId: "pc-rel-valid-cpu-selects-product",
+      relationTypeCode: "build_plan_item_selects_product",
+      sourceId: "pc-ref-valid-cpu-item",
+      targetId: "pc-ref-valid-cpu-product",
+    },
+    {
+      presentationId: "pc-rel-valid-cpu-uses-quote",
+      relationTypeCode: "build_plan_item_uses_supplier_quote",
+      sourceId: "pc-ref-valid-cpu-item",
+      targetId: "pc-ref-valid-cpu-quote",
+    },
+    {
+      presentationId: "pc-rel-valid-cpu-quote-for-product",
+      relationTypeCode: "supplier_quote_for_product",
+      sourceId: "pc-ref-valid-cpu-quote",
+      targetId: "pc-ref-valid-cpu-product",
     },
   ],
 };

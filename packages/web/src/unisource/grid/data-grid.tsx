@@ -1,23 +1,10 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 
 import type { DataObject, ObjectTypeDef } from "../model/kernel";
-import {
-  IconCalendar,
-  IconDoc,
-  IconPerson,
-  UsStatusPill,
-  pushToast,
-} from "../primitives";
+import { IconCalendar, IconDoc, IconPerson, UsStatusPill } from "../primitives";
 import { selectionStore, useSelectionSnapshot } from "../state/selection-store";
 import { useWorkspaceSnapshot } from "../state/workspace-store";
-import { commitCellEdit } from "./grid-actions";
-import { buildGridViewModel, type GridCellVm } from "./grid-view-model";
-
-interface EditingCell {
-  readonly objectId: string;
-  readonly fieldCode: string;
-  readonly value: string;
-}
+import { buildGridViewModel } from "./grid-view-model";
 
 export function DataGrid({
   objectType,
@@ -27,6 +14,9 @@ export function DataGrid({
   compact = false,
   maskValues = false,
   showCreatePlaceholder = true,
+  onCreate,
+  createDisabled = false,
+  createDisabledReason,
 }: {
   readonly objectType: ObjectTypeDef;
   readonly objects: readonly DataObject[];
@@ -35,10 +25,12 @@ export function DataGrid({
   readonly compact?: boolean;
   readonly maskValues?: boolean;
   readonly showCreatePlaceholder?: boolean;
+  readonly onCreate?: () => void;
+  readonly createDisabled?: boolean;
+  readonly createDisabledReason?: string;
 }) {
   const workspace = useWorkspaceSnapshot();
   const selection = useSelectionSnapshot();
-  const [editing, setEditing] = useState<EditingCell | null>(null);
   const selectedIds = useMemo(
     () =>
       new Set(
@@ -57,21 +49,6 @@ export function DataGrid({
     hideEol,
     maskValues,
   });
-
-  const submit = (objectId: string, cell: GridCellVm, value: string) => {
-    if (!canEditGridField(cell.field, cell.masked)) {
-      setEditing(null);
-      return;
-    }
-    commitCellEdit({
-      objectTypeCode: objectType.code,
-      objectId,
-      fieldCode: cell.field.code,
-      dataType: cell.field.dataType,
-      rawValue: value,
-    });
-    setEditing(null);
-  };
 
   return (
     <div className="us-grid" data-compact={compact}>
@@ -93,7 +70,6 @@ export function DataGrid({
         <tbody>
           {vm.rows.map((row) => (
             <tr
-              data-editing={editing?.objectId === row.objectId || undefined}
               data-selected={row.selected}
               id={`us-row-${row.objectId}`}
               key={row.objectId}
@@ -134,9 +110,6 @@ export function DataGrid({
                 </UsStatusPill>
               </td>
               {row.cells.map((cell) => {
-                const active =
-                  editing?.objectId === row.objectId &&
-                  editing.fieldCode === cell.field.code;
                 return (
                   <td
                     data-masked={cell.masked || undefined}
@@ -156,66 +129,23 @@ export function DataGrid({
                       }
                       selectionStore.set(ref);
                     }}
-                    onDoubleClick={() => {
-                      if (!canEditGridField(cell.field, cell.masked)) return;
-                      setEditing({
-                        objectId: row.objectId,
-                        fieldCode: cell.field.code,
-                        value: cell.value === null ? "" : String(cell.value),
-                      });
-                    }}
                   >
-                    {active ? (
-                      <span className="us-grid__editwrap">
-                        <em className="us-grid__editbadge">确认写入</em>
-                        <input
-                          autoFocus
-                          className="us-grid__editor"
-                          onBlur={(event) =>
-                            submit(
-                              row.objectId,
-                              cell,
-                              event.currentTarget.value,
-                            )
-                          }
-                          onChange={(event) =>
-                            setEditing({
-                              objectId: row.objectId,
-                              fieldCode: cell.field.code,
-                              value: event.currentTarget.value,
-                            })
-                          }
-                          onClick={(event) => event.stopPropagation()}
-                          onKeyDown={(event) => {
-                            if (event.key === "Escape") setEditing(null);
-                            if (event.key === "Enter") {
-                              submit(
-                                row.objectId,
-                                cell,
-                                event.currentTarget.value,
-                              );
-                            }
-                          }}
-                          value={editing.value}
-                        />
-                      </span>
-                    ) : (
-                      <span className="us-grid__cell">{cell.text}</span>
-                    )}
+                    <span className="us-grid__cell">{cell.text}</span>
                   </td>
                 );
               })}
             </tr>
           ))}
-          {showCreatePlaceholder ? (
+          {showCreatePlaceholder && onCreate ? (
             <tr className="us-grid__newrow">
               <td colSpan={vm.columns.length + 2}>
-                <button
-                  onClick={() => pushToast({ title: "新建记录将在 P2 接入" })}
-                  type="button"
-                >
-                  + 新建记录
-                </button>
+                {createDisabled ? (
+                  <small>{createDisabledReason}</small>
+                ) : (
+                  <button onClick={onCreate} type="button">
+                    + 新建记录
+                  </button>
+                )}
               </td>
             </tr>
           ) : null}

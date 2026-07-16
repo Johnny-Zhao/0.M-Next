@@ -58,6 +58,7 @@ const typeMarks: Record<FieldDataType, string> = {
   text: "Aa",
   number: "#",
   enum: "Aa",
+  boolean: "Aa",
   date: "date",
   person: "person",
   docLink: "doc",

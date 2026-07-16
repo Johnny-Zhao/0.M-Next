@@ -41,6 +41,7 @@ export type FieldDataType =
   | "text"
   | "number"
   | "enum"
+  | "boolean"
   | "date"
   | "person"
   | "docLink";
@@ -50,6 +51,7 @@ export interface FieldDef {
   readonly name: string;
   readonly dataType: FieldDataType;
   readonly enumValues?: readonly string[];
+  readonly required?: boolean;
   readonly unit?: string;
   readonly computed?: boolean;
   readonly readOnly?: boolean;
@@ -100,6 +102,7 @@ export interface RelationType {
   readonly name: string;
   readonly sourceTypeCode: string;
   readonly targetTypeCode: string;
+  readonly hierarchical?: boolean;
 }
 
 export type DataRelationStatus = "active" | "unlinked";

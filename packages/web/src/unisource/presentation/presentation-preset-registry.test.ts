@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { StructuredDocumentActionRegistry } from "../doc/structured-document-action-registry";
+import { DataSourceCreateActionRegistry } from "./data-source-create-action-registry";
 import { pcProcurementItemActionId } from "./pc-procurement-document-actions";
 import { PresentationPresetRegistry } from "./presentation-preset-registry";
 
@@ -45,6 +46,21 @@ describe("PresentationPresetRegistry", () => {
     expect(actions.resolve(pcProcurementItemActionId)).not.toBeNull();
   });
 
+  it("registers the PC build-plan create action only for the PC preset", () => {
+    const sourceActions = new DataSourceCreateActionRegistry();
+    const isolatedRegistry = new PresentationPresetRegistry(
+      new StructuredDocumentActionRegistry(),
+      sourceActions,
+    );
+
+    isolatedRegistry.resolve("pc_procurement");
+    expect(
+      sourceActions.resolve("pc_procurement", "build_plan"),
+    ).not.toBeNull();
+    isolatedRegistry.resolve("future_profile");
+    expect(sourceActions.resolve("future_profile", "build_plan")).toBeNull();
+  });
+
   it("does not register pc actions while resolving hardware or unknown presets", () => {
     const actions = new StructuredDocumentActionRegistry();
     const isolatedRegistry = new PresentationPresetRegistry(actions);
@@ -63,6 +79,38 @@ describe("PresentationPresetRegistry", () => {
 
     expect(actions.resolve(pcProcurementItemActionId)).not.toBeNull();
     expect(JSON.stringify(hardware)).not.toContain(pcProcurementItemActionId);
+  });
+
+  it("binds the plan map to real procurement item, product and quote data", () => {
+    const procurement = registry.resolve("pc_procurement");
+    const canvas = procurement.views.find(
+      (view) => view.id === "view-pc-canvas",
+    )!;
+
+    expect(canvas.config.nodes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ objectId: "pc-ref-valid-cpu-item" }),
+        expect.objectContaining({ objectId: "pc-ref-valid-cpu-product" }),
+        expect.objectContaining({ objectId: "pc-ref-valid-cpu-quote" }),
+      ]),
+    );
+    expect(procurement.objectBindings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ fields: { code: "ITEM-V-CPU" } }),
+        expect.objectContaining({ fields: { code: "HW-CPU-I5-14600K" } }),
+        expect.objectContaining({ fields: { code: "Q-CPU-I5" } }),
+      ]),
+    );
+    expect(procurement.relationBindings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          relationTypeCode: "build_plan_item_selects_product",
+        }),
+        expect.objectContaining({
+          relationTypeCode: "build_plan_item_uses_supplier_quote",
+        }),
+      ]),
+    );
   });
 
   it("configures all profiles for the same generic grid runtime", () => {

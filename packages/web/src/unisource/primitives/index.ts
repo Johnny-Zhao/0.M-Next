@@ -17,6 +17,7 @@ export {
 } from "./icons";
 export { UsButton, type UsButtonProps, type UsButtonVariant } from "./button";
 export { UsInput, type UsInputProps } from "./input";
+export { UsSelect, type UsSelectProps } from "./select";
 export { UsSegmented, UsUnderlineTabs, type UsTabItem } from "./tabs";
 export {
   UsAiBadge,

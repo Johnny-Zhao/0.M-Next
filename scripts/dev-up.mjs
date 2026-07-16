@@ -4,6 +4,8 @@ import http from "node:http";
 import path from "node:path";
 import process from "node:process";
 
+import { evaluateServerReadiness } from "./dev-up-readiness.mjs";
+
 const root = path.resolve(import.meta.dirname, "..");
 const windows = process.platform === "win32";
 const logsDir = path.join(root, "logs");
@@ -24,13 +26,14 @@ async function main() {
   await waitForPostgres();
   // 已有运行中的后端就复用,绝不重启——重启前端不会再误杀后端
   if (await httpReady(serverHealthUrl())) {
+    if (!hasJavaOnPort(8080)) throw serverExitedError();
     console.log("检测到 8080 已有运行中的后端,直接复用(不重启后端)。");
   } else {
     const jar = findServerJar();
     await killJavaOnPort(8080);
     const pid = startServer(jar);
     console.log(`后端已后台启动 pid=${pid}, 日志: ${serverLog}`);
-    await waitForServerReady();
+    await waitForServerReady(pid);
   }
   console.log(
     "后端就绪,启动前端 http://localhost:5173/ … (Ctrl+C 只停前端,后端继续运行;停后端用 corepack pnpm dev:down)",
@@ -199,28 +202,42 @@ function isJavaProcess(pid) {
   return /java/i.test(`${result.stdout} ${result.stderr}`);
 }
 
-async function waitForServerReady() {
+function hasJavaOnPort(port) {
+  const pids = windows ? windowsPidsOnPort(port) : unixPidsOnPort(port);
+  return pids.some(isJavaProcess);
+}
+
+async function waitForServerReady(serverPid) {
   await waitUntil(
-    () => {
-      throwIfServerStartupFailed();
-      return httpReady(serverHealthUrl());
+    async () => {
+      const readiness = evaluateServerReadiness({
+        healthReady: await httpReady(serverHealthUrl()),
+        javaRunning: isJavaProcess(serverPid),
+        log: readServerLog(),
+      });
+      if (readiness.state === "failed") {
+        throw serverFailedError(readiness.detail);
+      }
+      if (readiness.state === "exited") throw serverExitedError();
+      return readiness.state === "ready";
     },
-    "等待后端健康检查超时",
+    `等待后端启动完成超时，请查看 ${serverLog}`,
     120_000,
   );
 }
 
-function throwIfServerStartupFailed() {
-  if (!fs.existsSync(serverLog)) return false;
-  const log = fs.readFileSync(serverLog, "utf8");
-  if (log.includes("Application run failed")) {
-    const cause = log
-      .split(/\r?\n/)
-      .find((line) => line.includes("Exception:"));
-    throw new Error(
-      `后端 Dev Seeder 失败: ${cause?.trim() ?? "请查看"} ${serverLog}`,
-    );
-  }
+function readServerLog() {
+  return fs.existsSync(serverLog) ? fs.readFileSync(serverLog, "utf8") : "";
+}
+
+function serverFailedError(detail) {
+  return new Error(
+    `后端启动失败: ${detail ?? "Application run failed"}。日志: ${serverLog}`,
+  );
+}
+
+function serverExitedError() {
+  return new Error(`后端 Java 进程已退出。日志: ${serverLog}`);
 }
 
 function httpReady(url) {

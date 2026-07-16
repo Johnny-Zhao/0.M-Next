@@ -4,7 +4,9 @@ import type {
 } from "../data/identity-remap";
 import { structuredDocumentActionRegistry } from "../doc/structured-document-action-registry";
 import { cloneDemoSeed, type DemoSeed } from "../seed/demo-seed";
+import { dataSourceCreateActionRegistry } from "./data-source-create-action-registry";
 import { registerPcProcurementDocumentActions } from "./pc-procurement-document-actions";
+import { registerPcProcurementSourceActions } from "./pc-procurement-source-actions";
 import { pcProcurementPreset } from "./pc-procurement-preset";
 
 export type PresentationPresetCode =
@@ -33,11 +35,13 @@ export interface PresentationPreset extends PresentationFields {
 export class PresentationPresetRegistry {
   constructor(
     private readonly documentActions = structuredDocumentActionRegistry,
+    private readonly sourceActions = dataSourceCreateActionRegistry,
   ) {}
 
   resolve(templateCode: string | null | undefined): PresentationPreset {
     if (templateCode === "pc_procurement") {
       registerPcProcurementDocumentActions(this.documentActions);
+      registerPcProcurementSourceActions(this.sourceActions);
     }
     const preset =
       templateCode === "hardware_products"

@@ -120,6 +120,13 @@ describe("dto mappers", () => {
           constraints: {},
         },
         {
+          code: "enabled",
+          name: "Enabled",
+          dataType: "boolean",
+          required: false,
+          constraints: {},
+        },
+        {
           code: "status",
           name: "Status",
           dataType: "select",
@@ -140,12 +147,14 @@ describe("dto mappers", () => {
     expect(mapped.fields.map((field) => field.dataType)).toEqual([
       "number",
       "text",
+      "boolean",
       "enum",
       "number",
     ]);
     expect(mapped.fields[0]?.unit).toBe("CNY");
-    expect(mapped.fields[2]?.enumValues).toEqual(["draft", "active"]);
-    expect(mapped.fields[3]).toMatchObject({ computed: true, readOnly: true });
+    expect(mapped.fields[0]).toMatchObject({ required: true });
+    expect(mapped.fields[3]?.enumValues).toEqual(["draft", "active"]);
+    expect(mapped.fields[4]).toMatchObject({ computed: true, readOnly: true });
   });
 
   it("keeps stored fields when a malformed response reuses a derived code", () => {

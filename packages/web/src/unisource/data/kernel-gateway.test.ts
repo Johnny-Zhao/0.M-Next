@@ -71,11 +71,17 @@ describe("KernelGateway", () => {
     expect(seed.objectTypes.map((type) => type.code)).toEqual([
       "procurement_requirement",
       "build_plan",
+      "build_plan_item",
+      "hardware_product",
+      "supplier_quote",
     ]);
     expect(seed.objects.map((object) => object.id)).toEqual([
       "kernel-pc-requirement",
       "kernel-pc-valid",
       "kernel-pc-invalid",
+      "kernel-pc-valid-cpu-item",
+      "kernel-pc-valid-cpu-product",
+      "kernel-pc-valid-cpu-quote",
     ]);
     expect(seed.expressions.map((expression) => expression.name)).toContain(
       "电脑采购总览",
@@ -85,7 +91,7 @@ describe("KernelGateway", () => {
       seed.fieldRefs.every((ref) => ref.objectId === "kernel-pc-valid"),
     ).toBe(true);
     expect(seed.fieldRefs.every((ref) => ref.state !== "dangling")).toBe(true);
-    expect(seed.relations).toHaveLength(2);
+    expect(seed.relations).toHaveLength(6);
     expect(rawPlan.fields).not.toHaveProperty("total_price_cny_fx");
     expect(rawPlan.derived).toMatchObject({ total_price_cny_fx: 8783 });
 
@@ -108,10 +114,17 @@ describe("KernelGateway", () => {
       "kernel-pc-requirement",
       "kernel-pc-valid",
       "kernel-pc-invalid",
+      "kernel-pc-valid-cpu-item",
+      "kernel-pc-valid-cpu-product",
+      "kernel-pc-valid-cpu-quote",
     ]);
     expect(canvas.edges.map((edge) => edge.relationId)).toEqual([
       "kernel-rel-pc-valid-satisfies",
       "kernel-rel-pc-invalid-satisfies",
+      "kernel-rel-pc-valid-contains-cpu",
+      "kernel-rel-pc-valid-cpu-selects-product",
+      "kernel-rel-pc-valid-cpu-uses-quote",
+      "kernel-rel-pc-valid-cpu-quote-for-product",
     ]);
     expect(canvas.danglingRefs).toEqual([]);
 
@@ -982,13 +995,39 @@ class FakeKernelApi {
           }),
         ],
       },
+      {
+        id: "type-plan-item",
+        code: "build_plan_item",
+        name: "方案明细",
+        fields: [fieldType("code", "编码", "text")],
+      },
+      {
+        id: "type-product",
+        code: "hardware_product",
+        name: "硬件配件",
+        fields: [fieldType("code", "编码", "text")],
+      },
+      {
+        id: "type-quote",
+        code: "supplier_quote",
+        name: "供应商报价",
+        fields: [fieldType("code", "编码", "text")],
+      },
     );
-    this.relationTypes.splice(0, this.relationTypes.length, {
-      id: "reltype-pc-satisfies",
-      code: "build_plan_satisfies_requirement",
-      name: "满足需求",
-      hierarchical: false,
-    });
+    this.relationTypes.splice(
+      0,
+      this.relationTypes.length,
+      {
+        id: "reltype-pc-satisfies",
+        code: "build_plan_satisfies_requirement",
+        name: "满足需求",
+        hierarchical: false,
+      },
+      relationType("build_plan_contains_item", true),
+      relationType("build_plan_item_selects_product", false),
+      relationType("build_plan_item_uses_supplier_quote", false),
+      relationType("supplier_quote_for_product", false),
+    );
     this.objects.splice(0, this.objects.length);
     this.objects.push(
       viewObject("kernel-pc-requirement", "procurement_requirement", {
@@ -1024,6 +1063,21 @@ class FakeKernelApi {
           total_performance_score_fx: 518,
         },
       ),
+      viewObject("kernel-pc-valid-cpu-item", "build_plan_item", {
+        code: "ITEM-V-CPU",
+        name: "兼容方案 CPU",
+        quantity: 1,
+      }),
+      viewObject("kernel-pc-valid-cpu-product", "hardware_product", {
+        code: "HW-CPU-I5-14600K",
+        name: "Intel Core i5-14600K",
+        category: "CPU",
+      }),
+      viewObject("kernel-pc-valid-cpu-quote", "supplier_quote", {
+        code: "Q-CPU-I5",
+        name: "华北 i5 报价",
+        unit_price_cny: 1699,
+      }),
     );
     this.relations.splice(
       0,
@@ -1040,6 +1094,34 @@ class FakeKernelApi {
         relationType: "build_plan_satisfies_requirement",
         sourceId: "kernel-pc-invalid",
         targetId: "kernel-pc-requirement",
+        version: 1,
+      },
+      {
+        relationId: "kernel-rel-pc-valid-contains-cpu",
+        relationType: "build_plan_contains_item",
+        sourceId: "kernel-pc-valid",
+        targetId: "kernel-pc-valid-cpu-item",
+        version: 1,
+      },
+      {
+        relationId: "kernel-rel-pc-valid-cpu-selects-product",
+        relationType: "build_plan_item_selects_product",
+        sourceId: "kernel-pc-valid-cpu-item",
+        targetId: "kernel-pc-valid-cpu-product",
+        version: 1,
+      },
+      {
+        relationId: "kernel-rel-pc-valid-cpu-uses-quote",
+        relationType: "build_plan_item_uses_supplier_quote",
+        sourceId: "kernel-pc-valid-cpu-item",
+        targetId: "kernel-pc-valid-cpu-quote",
+        version: 1,
+      },
+      {
+        relationId: "kernel-rel-pc-valid-cpu-quote-for-product",
+        relationType: "supplier_quote_for_product",
+        sourceId: "kernel-pc-valid-cpu-quote",
+        targetId: "kernel-pc-valid-cpu-product",
         version: 1,
       },
     );
@@ -1365,6 +1447,15 @@ function viewObject(
     updatedAt: "2026-07-10T10:24:00+08:00",
     source: "manual",
     ruleStatus: "OK",
+  };
+}
+
+function relationType(code: string, hierarchical: boolean) {
+  return {
+    id: `reltype-${code}`,
+    code,
+    name: code,
+    hierarchical,
   };
 }
 
