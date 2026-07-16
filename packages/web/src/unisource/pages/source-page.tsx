@@ -12,6 +12,7 @@ import { GridToolbar } from "../grid/grid-toolbar";
 import { buildGridViewModel } from "../grid/grid-view-model";
 import { parseFormParam } from "../routes-paths";
 import { DataSourceCreateActionOutlet } from "../presentation/data-source-create-action-registry";
+import { DataSourceRelationActionOutlet } from "../presentation/data-source-relation-action-registry";
 import { FormRow, nextFormSearch } from "../shell/form-row";
 import { WorkspaceLayout } from "../shell/layouts";
 import { selectionStore, useSelectionSnapshot } from "../state/selection-store";
@@ -25,6 +26,7 @@ export function SourcePage() {
   const [search, setSearch] = useSearchParams();
   const [query, setQuery] = useState("");
   const [hideEol, setHideEol] = useState(false);
+  const [statusFilter, setStatusFilter] = useState("all");
   const [createOpen, setCreateOpen] = useState(false);
   const [createdObjectId, setCreatedObjectId] = useState<string | null>(null);
   const [editOpen, setEditOpen] = useState(false);
@@ -113,6 +115,7 @@ export function SourcePage() {
           fieldRefs: snapshot.fieldRefs,
           search: maskValues ? "" : query,
           hideEol,
+          status: statusFilter as (typeof objects)[number]["status"] | "all",
           maskValues,
         }).status;
   useEffect(() => {
@@ -162,13 +165,25 @@ export function SourcePage() {
             onCreate={() => setCreateOpen(true)}
             onEdit={() => setEditOpen(true)}
             onSearch={setQuery}
+            onStatusChange={setStatusFilter}
             onToggleHideEol={() => setHideEol((value) => !value)}
             editDisabled={editDisabledReason !== null}
             editDisabledReason={editDisabledReason ?? undefined}
             search={query}
             recordSetLabel={objectType.name}
+            status={statusFilter}
             searchPlaceholder={`搜索${objectType.name}…`}
           />
+          {selectedObject ? (
+            <DataSourceRelationActionOutlet
+              object={selectedObject}
+              objectType={objectType}
+              onCompleted={(objectId) =>
+                selectionStore.set({ entityType: "object", entityId: objectId })
+              }
+              templateCode={runtime.templateCode}
+            />
+          ) : null}
           {maskValues ? (
             <div className="us-grid-masknotice">
               字段值按你的数据源权限脱敏显示。

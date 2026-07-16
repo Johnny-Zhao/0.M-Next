@@ -87,10 +87,14 @@ export function updateRecord(input: {
   readonly objectType: ObjectTypeDef;
   readonly object: DataObject;
   readonly draft: CreateRecordDraft;
+  readonly objects?: readonly DataObject[];
   readonly session?: SessionStore;
 }): UpdateRecordResult {
   const session = input.session ?? sessionStore;
-  const validation = validateCreateRecord(input.objectType, input.draft);
+  const validation = validateCreateRecord(input.objectType, input.draft, {
+    objects: input.objects,
+    excludeObjectId: input.object.id,
+  });
   if (Object.keys(validation.errors).length > 0) {
     return { state: "invalid", errors: validation.errors };
   }
@@ -120,6 +124,10 @@ export function updateRecord(input: {
 export function validateCreateRecord(
   objectType: ObjectTypeDef,
   draft: CreateRecordDraft,
+  options: {
+    readonly objects?: readonly DataObject[];
+    readonly excludeObjectId?: string;
+  } = {},
 ): CreateRecordValidation {
   const fields: Record<string, DataFieldPrimitive> = {};
   const errors: Record<string, string> = {};
@@ -135,6 +143,17 @@ export function validateCreateRecord(
       continue;
     }
     fields[field.code] = parsed.value;
+  }
+  const code = fields.code;
+  if (
+    typeof code === "string" &&
+    options.objects?.some(
+      (object) =>
+        object.id !== options.excludeObjectId &&
+        object.fields.code?.value === code,
+    )
+  ) {
+    errors.code = "编码已存在，请使用其他编码";
   }
   return { fields, errors };
 }
@@ -158,7 +177,9 @@ export async function createRecord(input: {
       message: availability.reason ?? "当前类型不可创建",
     };
   }
-  const validation = validateCreateRecord(input.objectType, input.draft);
+  const validation = validateCreateRecord(input.objectType, input.draft, {
+    objects: workspace.getSnapshot().objects,
+  });
   if (Object.keys(validation.errors).length > 0) {
     return { state: "invalid", errors: validation.errors };
   }
@@ -194,6 +215,11 @@ function parseCreateValue(
   if (text === "") return { value: null };
   if (field.dataType === "number") {
     const value = Number(text);
+    if (field.code === "quantity" && Number.isFinite(value)) {
+      return Number.isInteger(value) && value > 0
+        ? { value }
+        : { value: null, error: `${field.name}必须是大于 0 的整数` };
+    }
     return Number.isFinite(value)
       ? { value }
       : { value: null, error: `${field.name}必须是有效数字` };

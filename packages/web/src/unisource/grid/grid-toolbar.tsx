@@ -1,10 +1,12 @@
-import { UsButton, UsInput } from "../primitives";
+import { UsButton, UsInput, UsSelect } from "../primitives";
 
 export function GridToolbar({
   search,
   recordSetLabel = "记录集",
   searchPlaceholder = "搜索记录…",
   hideEol,
+  status,
+  onStatusChange,
   onCreate,
   createDisabled = false,
   createDisabledReason,
@@ -18,6 +20,8 @@ export function GridToolbar({
   readonly recordSetLabel?: string;
   readonly searchPlaceholder?: string;
   readonly hideEol: boolean;
+  readonly status?: string;
+  readonly onStatusChange?: (value: string) => void;
   readonly onCreate?: () => void;
   readonly createDisabled?: boolean;
   readonly createDisabledReason?: string;
@@ -48,6 +52,20 @@ export function GridToolbar({
       >
         状态 ≠ 停产
       </UsButton>
+      {onStatusChange ? (
+        <UsSelect
+          aria-label="状态筛选"
+          onChange={(event) => onStatusChange(event.currentTarget.value)}
+          value={status ?? "all"}
+        >
+          <option value="all">全部状态</option>
+          <option value="draft">草稿</option>
+          <option value="active">有效</option>
+          <option value="archived">已归档</option>
+          <option value="deleted">已删除</option>
+          <option value="soft-deleted">已软删除</option>
+        </UsSelect>
+      ) : null}
       {onEdit ? (
         <UsButton
           disabled={editDisabled}

@@ -5,7 +5,9 @@ import type {
 import { structuredDocumentActionRegistry } from "../doc/structured-document-action-registry";
 import { cloneDemoSeed, type DemoSeed } from "../seed/demo-seed";
 import { dataSourceCreateActionRegistry } from "./data-source-create-action-registry";
+import { dataSourceRelationActionRegistry } from "./data-source-relation-action-registry";
 import { registerPcProcurementDocumentActions } from "./pc-procurement-document-actions";
+import { registerPcProcurementRelationActions } from "./pc-procurement-relation-actions";
 import { registerPcProcurementSourceActions } from "./pc-procurement-source-actions";
 import { pcProcurementPreset } from "./pc-procurement-preset";
 
@@ -36,12 +38,14 @@ export class PresentationPresetRegistry {
   constructor(
     private readonly documentActions = structuredDocumentActionRegistry,
     private readonly sourceActions = dataSourceCreateActionRegistry,
+    private readonly relationActions = dataSourceRelationActionRegistry,
   ) {}
 
   resolve(templateCode: string | null | undefined): PresentationPreset {
     if (templateCode === "pc_procurement") {
       registerPcProcurementDocumentActions(this.documentActions);
       registerPcProcurementSourceActions(this.sourceActions);
+      registerPcProcurementRelationActions(this.relationActions);
     }
     const preset =
       templateCode === "hardware_products"

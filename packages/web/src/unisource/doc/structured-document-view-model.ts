@@ -3,6 +3,7 @@ import type {
   DataObject,
   FieldDef,
   ObjectTypeDef,
+  SelectionRef,
 } from "../model/kernel";
 import type { DocModel } from "../model/view-layer";
 import type { WorkspaceState } from "../state/workspace-store";
@@ -91,6 +92,105 @@ export interface StructuredDocumentViewModel {
   readonly root: StructuredDocumentObjectVm | null;
   readonly body: StructuredDocumentFieldVm | null;
   readonly sections: readonly StructuredDocumentSectionVm[];
+}
+
+export type StructuredDocumentOutlineItem =
+  | {
+      readonly kind: "root";
+      readonly id: string;
+      readonly label: string;
+      readonly objectId: string;
+      readonly state: "ready";
+    }
+  | {
+      readonly kind: "section";
+      readonly id: string;
+      readonly label: string;
+      readonly relationTypeCode: string;
+      readonly state: "ready" | "missing";
+      readonly message: string | null;
+    }
+  | {
+      readonly kind: "row";
+      readonly id: string;
+      readonly label: string;
+      readonly objectId: string | null;
+      readonly relationId: string;
+      readonly sectionId: string;
+      readonly state: "ready" | "dangling";
+      readonly message: string | null;
+    };
+
+export function buildStructuredDocumentOutline(
+  viewModel: StructuredDocumentViewModel,
+): readonly StructuredDocumentOutlineItem[] {
+  if (!viewModel.root) return [];
+  const rootItem: StructuredDocumentOutlineItem = {
+    kind: "root",
+    id: `structured-document-root-${viewModel.root.objectId}`,
+    label: viewModel.root.label,
+    objectId: viewModel.root.objectId,
+    state: "ready",
+  };
+  const items: StructuredDocumentOutlineItem[] = [rootItem];
+  viewModel.sections.forEach((section) => {
+    const sectionId = `structured-document-section-${section.relationTypeCode}`;
+    items.push({
+      kind: "section",
+      id: sectionId,
+      label: section.title,
+      relationTypeCode: section.relationTypeCode,
+      state: section.state,
+      message: section.message,
+    });
+    if (section.state !== "ready") return;
+    section.rows.forEach((row) => {
+      items.push(
+        row.state === "ready"
+          ? {
+              kind: "row",
+              id: `structured-document-row-${row.relationId}`,
+              label: row.object.label,
+              objectId: row.object.objectId,
+              relationId: row.relationId,
+              sectionId,
+              state: "ready",
+              message: null,
+            }
+          : {
+              kind: "row",
+              id: `structured-document-row-${row.relationId}`,
+              label: "引用对象不可用",
+              objectId: null,
+              relationId: row.relationId,
+              sectionId,
+              state: "dangling",
+              message: row.message,
+            },
+      );
+    });
+  });
+  return items;
+}
+
+export function structuredDocumentOutlineSelection(
+  item: StructuredDocumentOutlineItem,
+): SelectionRef | null {
+  return item.kind !== "section" && item.objectId
+    ? { entityType: "object", entityId: item.objectId }
+    : null;
+}
+
+export function resolveStructuredDocumentActiveOutlineId(
+  items: readonly StructuredDocumentOutlineItem[],
+  activeId: string | null,
+): string | null {
+  if (activeId && items.some((item) => item.id === activeId)) return activeId;
+  return (
+    items.find((item) => item.kind === "root")?.id ??
+    items.find((item) => item.state === "ready")?.id ??
+    null
+  );
 }
 
 const terminalObjectStatuses = new Set(["archived", "deleted", "soft-deleted"]);

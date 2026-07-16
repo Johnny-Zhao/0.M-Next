@@ -13,6 +13,7 @@ import {
   updateRecord,
   type CreateRecordDraft,
 } from "./create-record-action";
+import { useWorkspaceSnapshot } from "../state/workspace-store";
 
 export function CreateRecordDialog({
   objectType,
@@ -84,6 +85,7 @@ function RecordEditorDialog({
   readonly onCreated?: (objectId: string) => void;
   readonly onUpdated?: () => void;
 }) {
+  const workspace = useWorkspaceSnapshot();
   const [draft, setDraft] = useState<CreateRecordDraft>(() =>
     initialRecordDraft(objectType, object),
   );
@@ -108,7 +110,12 @@ function RecordEditorDialog({
     }
     const result =
       mode === "edit"
-        ? updateRecord({ objectType, object: object!, draft })
+        ? updateRecord({
+            objectType,
+            object: object!,
+            draft,
+            objects: workspace.objects,
+          })
         : await createRecord({ objectType, relationTypes, draft });
     setSaving(false);
     if (result.state === "created") {

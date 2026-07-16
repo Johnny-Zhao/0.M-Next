@@ -12,8 +12,11 @@ import {
   commitStructuredDocumentBodyEdit,
   commitStructuredDocumentFieldEdit,
   enumOptionsForDocumentField,
+  StructuredDocumentOutline,
   StructuredDocumentFieldEditor,
+  structuredDocumentOutlineTargetId,
 } from "./structured-document-view";
+import type { StructuredDocumentOutlineItem } from "./structured-document-view-model";
 
 describe("structured document field editing", () => {
   afterEach(() => {
@@ -172,6 +175,98 @@ describe("structured document field editing", () => {
       }),
     ).toThrow("枚举字段配置不可用");
     expect(requestWrite).not.toHaveBeenCalled();
+  });
+
+  it("renders the document outline shell with active and unavailable states", () => {
+    const items: readonly StructuredDocumentOutlineItem[] = [
+      {
+        kind: "root",
+        id: "root",
+        label: "方案",
+        objectId: "plan-1",
+        state: "ready",
+      },
+      {
+        kind: "section",
+        id: "section-items",
+        label: "方案明细",
+        relationTypeCode: "contains",
+        state: "missing",
+        message: "引用关系不存在",
+      },
+    ];
+    const html = renderToStaticMarkup(
+      createElement(StructuredDocumentOutline, {
+        items,
+        activeId: "root",
+        onSelect: () => undefined,
+      }),
+    );
+
+    expect(html).toContain('aria-label="文档大纲"');
+    expect(html).toContain("方案明细");
+    expect(html).toContain("引用关系不存在");
+    expect(html).toContain('data-active="true"');
+    expect(html).toContain("disabled");
+  });
+
+  it("renders an explicit empty outline state", () => {
+    const html = renderToStaticMarkup(
+      createElement(StructuredDocumentOutline, {
+        items: [],
+        activeId: null,
+        onSelect: () => undefined,
+      }),
+    );
+    expect(html).toContain("暂无章节");
+  });
+
+  it("targets chapters without selecting the root and targets rows by object", () => {
+    const section: StructuredDocumentOutlineItem = {
+      kind: "section",
+      id: "section-items",
+      label: "方案明细",
+      relationTypeCode: "contains",
+      state: "ready",
+      message: null,
+    };
+    const row: StructuredDocumentOutlineItem = {
+      kind: "row",
+      id: "row-1",
+      label: "明细",
+      objectId: "item-1",
+      relationId: "rel-1",
+      sectionId: section.id,
+      state: "ready",
+      message: null,
+    };
+
+    expect(structuredDocumentOutlineTargetId(section)).toBe(
+      "structured-document-section-contains",
+    );
+    expect(structuredDocumentOutlineTargetId(row)).toBe(
+      "document-object-item-1",
+    );
+  });
+
+  it("keeps the root visible while reporting that no sections are loaded", () => {
+    const html = renderToStaticMarkup(
+      createElement(StructuredDocumentOutline, {
+        items: [
+          {
+            kind: "root",
+            id: "root",
+            label: "方案",
+            objectId: "plan-1",
+            state: "ready",
+          },
+        ],
+        activeId: "root",
+        onSelect: () => undefined,
+      }),
+    );
+    expect(html).toContain("方案");
+    expect(html).toContain("暂无章节");
   });
 });
 

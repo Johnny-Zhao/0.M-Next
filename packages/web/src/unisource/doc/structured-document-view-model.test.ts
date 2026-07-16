@@ -9,10 +9,13 @@ import { pcProcurementPreset } from "../presentation/pc-procurement-preset";
 import { cloneDemoSeed } from "../seed/demo-seed";
 import { WorkspaceStore } from "../state/workspace-store";
 import {
+  buildStructuredDocumentOutline,
   buildStructuredDocumentViewModel,
   documentFieldSelection,
   documentObjectSelection,
   readStructuredDocumentConfig,
+  resolveStructuredDocumentActiveOutlineId,
+  structuredDocumentOutlineSelection,
 } from "./structured-document-view-model";
 
 describe("structured-document-view-model", () => {
@@ -220,6 +223,83 @@ describe("structured-document-view-model", () => {
       state: "ready",
       config: { sections: [{ createAction: "future-domain-action" }] },
     });
+  });
+
+  it("builds a navigable outline from the loaded root, sections and rows", () => {
+    const { workspace, doc, config } = procurementFixture();
+    const vm = buildStructuredDocumentViewModel(workspace, doc, config);
+    const outline = buildStructuredDocumentOutline(vm);
+
+    expect(outline.map((item) => item.kind)).toEqual([
+      "root",
+      "section",
+      "row",
+      "section",
+      "row",
+    ]);
+    expect(outline[0]).toMatchObject({
+      kind: "root",
+      objectId: "plan-real-id",
+      state: "ready",
+    });
+    expect(outline[2]).toMatchObject({
+      kind: "row",
+      objectId: "item-real-id",
+      state: "ready",
+    });
+    expect(structuredDocumentOutlineSelection(outline[2]!)).toEqual({
+      entityType: "object",
+      entityId: "item-real-id",
+    });
+    expect(structuredDocumentOutlineSelection(outline[1]!)).toBeNull();
+  });
+
+  it("keeps missing sections and dangling rows visible in the outline", () => {
+    const { workspace, doc, config } = procurementFixture();
+    const danglingWorkspace = {
+      ...workspace,
+      objects: workspace.objects.filter(
+        (object) => object.id !== "item-real-id",
+      ),
+      relations: workspace.relations.filter(
+        (relation) =>
+          relation.relationTypeCode !== "build_plan_satisfies_requirement",
+      ),
+    };
+    const vm = buildStructuredDocumentViewModel(danglingWorkspace, doc, config);
+    const outline = buildStructuredDocumentOutline(vm);
+
+    expect(outline).toContainEqual(
+      expect.objectContaining({ kind: "row", state: "dangling" }),
+    );
+    expect(outline).toContainEqual(
+      expect.objectContaining({
+        kind: "section",
+        relationTypeCode: "build_plan_satisfies_requirement",
+        state: "missing",
+      }),
+    );
+    const dangling = outline.find(
+      (item) => item.kind === "row" && item.state === "dangling",
+    )!;
+    expect(structuredDocumentOutlineSelection(dangling)).toBeNull();
+  });
+
+  it("preserves an existing active outline item and falls back when it disappears", () => {
+    const { workspace, doc, config } = procurementFixture();
+    const vm = buildStructuredDocumentViewModel(workspace, doc, config);
+    const outline = buildStructuredDocumentOutline(vm);
+    const rowId = outline.find((item) => item.kind === "row")!.id;
+
+    expect(resolveStructuredDocumentActiveOutlineId(outline, rowId)).toBe(
+      rowId,
+    );
+    expect(
+      resolveStructuredDocumentActiveOutlineId(
+        outline.filter((item) => item.id !== rowId),
+        rowId,
+      ),
+    ).toBe(outline[0]!.id);
   });
 });
 

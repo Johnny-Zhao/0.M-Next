@@ -3668,7 +3668,86 @@
   width: 100%;
 }
 .us-structured-doc__main {
-  grid-template-rows: minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
+}
+.us-structured-doc__shell {
+  grid-template-columns: 220px minmax(0, 1fr);
+}
+.us-structured-doc__outline {
+  background: var(--us-surface);
+  border: 1px solid var(--us-border);
+  border-radius: var(--us-radius-card);
+  min-width: 0;
+  overflow: auto;
+  padding: var(--us-sp-4);
+}
+.us-structured-doc__outline h2 {
+  font-family: var(--us-font-ui);
+  font-size: var(--us-fs-14);
+  margin: 0 0 var(--us-sp-3);
+}
+.us-structured-doc__outline nav {
+  display: grid;
+  gap: 2px;
+}
+.us-structured-doc__outline-item {
+  align-items: flex-start;
+  background: transparent;
+  border: 0;
+  border-radius: var(--us-radius-control);
+  color: var(--us-text-2);
+  display: flex;
+  flex-direction: column;
+  font-family: var(--us-font-ui);
+  gap: 2px;
+  min-width: 0;
+  padding: var(--us-sp-2) var(--us-sp-3);
+  text-align: left;
+  width: 100%;
+}
+.us-structured-doc__outline-item:hover,
+.us-structured-doc__outline-item[data-active="true"] {
+  background: var(--us-primary-bg);
+  color: var(--us-primary-deep);
+}
+.us-structured-doc__outline-item--row {
+  padding-left: var(--us-sp-6);
+}
+.us-structured-doc__outline-item[data-state="dangling"],
+.us-structured-doc__outline-item[data-state="missing"] {
+  color: var(--us-danger);
+}
+.us-structured-doc__outline-item small {
+  font-size: var(--us-fs-11);
+  white-space: normal;
+}
+.us-structured-doc__outline-empty {
+  color: var(--us-text-muted);
+  font-family: var(--us-font-ui);
+  margin: 0;
+}
+.us-structured-doc__workspace-head {
+  align-items: center;
+  background: var(--us-topbar);
+  border-bottom: 1px solid var(--us-border);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--us-sp-3);
+  justify-content: space-between;
+  min-height: 52px;
+  padding: var(--us-sp-3) var(--us-sp-5);
+}
+.us-structured-doc__status {
+  color: var(--us-text-2);
+  font-family: var(--us-font-ui);
+  font-size: var(--us-fs-12);
+}
+.us-structured-doc__section,
+.us-structured-doc__row {
+  scroll-margin-top: var(--us-sp-6);
+}
+.us-doc-layout[data-compact="true"] .us-structured-doc__outline {
+  margin-bottom: var(--us-sp-4);
 }
 .us-structured-doc__table th,
 .us-structured-doc__table td {

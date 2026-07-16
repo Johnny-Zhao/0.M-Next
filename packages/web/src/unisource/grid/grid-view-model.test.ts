@@ -49,6 +49,19 @@ describe("buildGridViewModel", () => {
     ]);
   });
 
+  it("filters records by the selected status without changing the source type", () => {
+    const seed = cloneDemoSeed();
+    const products = seed.objects.filter(
+      (object) => object.objectTypeCode === "product_specs",
+    );
+    const vm = buildGridViewModel({
+      objectType: productType,
+      objects: products,
+      status: "eol",
+    });
+    expect(vm.rows.map((row) => row.objectId)).toEqual(["prod-p1"]);
+  });
+
   it("masks values for data sources without read permission", () => {
     const seed = cloneDemoSeed();
     const customerType = seed.objectTypes.find(

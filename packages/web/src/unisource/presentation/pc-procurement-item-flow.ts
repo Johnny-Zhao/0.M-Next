@@ -454,13 +454,7 @@ export function validateProcurementItem(
   ) {
     return { state: "invalid", message: "数量必须是大于 0 的整数" };
   }
-  if (
-    workspace.objects.some(
-      (object) =>
-        object.objectTypeCode === "build_plan_item" &&
-        textValue(object, "code") === code,
-    )
-  ) {
+  if (workspace.objects.some((object) => textValue(object, "code") === code)) {
     return { state: "invalid", message: "明细编码已存在，请使用其他编码" };
   }
   if (!draft.productId) return { state: "invalid", message: "请选择硬件配件" };

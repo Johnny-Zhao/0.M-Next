@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { DocumentBodyBlock } from "@m-next/views";
 
 import type { DataFieldPrimitive } from "../model/kernel";
@@ -12,11 +12,15 @@ import {
   type WriteCompletion,
 } from "../state/workspace-store";
 import {
+  buildStructuredDocumentOutline,
   buildStructuredDocumentViewModel,
   documentFieldSelection,
   documentObjectSelection,
+  resolveStructuredDocumentActiveOutlineId,
+  structuredDocumentOutlineSelection,
   type StructuredDocumentConfig,
   type StructuredDocumentFieldVm,
+  type StructuredDocumentOutlineItem,
 } from "./structured-document-view-model";
 import { StructuredDocumentActionOutlet } from "./structured-document-action-registry";
 
@@ -35,6 +39,11 @@ export function StructuredDocumentView({
     () => buildStructuredDocumentViewModel(workspace, doc, config),
     [config, doc, workspace],
   );
+  const outline = useMemo(() => buildStructuredDocumentOutline(vm), [vm]);
+  const [activeOutlineId, setActiveOutlineId] = useState<string | null>(null);
+  const outlineRootObjectId =
+    outline.find((item) => item.kind === "root")?.objectId ?? null;
+  const activeOutlineRootRef = useRef<string | null>(null);
 
   useEffect(() => {
     const current = selection.current;
@@ -49,6 +58,17 @@ export function StructuredDocumentView({
     element?.scrollIntoView({ block: "nearest", behavior: "smooth" });
   }, [selection]);
 
+  useEffect(() => {
+    const rootChanged = activeOutlineRootRef.current !== outlineRootObjectId;
+    activeOutlineRootRef.current = outlineRootObjectId;
+    setActiveOutlineId((current) =>
+      resolveStructuredDocumentActiveOutlineId(
+        outline,
+        rootChanged ? null : current,
+      ),
+    );
+  }, [outline, outlineRootObjectId]);
+
   if (vm.state === "dangling" || !vm.root) {
     return <p role="alert">{vm.message ?? "文档引用不可用"}</p>;
   }
@@ -59,33 +79,61 @@ export function StructuredDocumentView({
   const saveBody = async (json: string): Promise<void> => {
     await commitStructuredDocumentBodyEdit({ body: vm.body, json });
   };
+  const selectOutlineItem = (item: StructuredDocumentOutlineItem) => {
+    if (item.state !== "ready") return;
+    setActiveOutlineId(item.id);
+    const nextSelection = structuredDocumentOutlineSelection(item);
+    if (nextSelection) selectionStore.set(nextSelection);
+    const targetId = structuredDocumentOutlineTargetId(item);
+    if (targetId) {
+      document
+        .getElementById(targetId)
+        ?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    }
+  };
+  const statusField = rootField(vm.root, "status");
+  const selectObject = (
+    object: ReturnType<typeof buildStructuredDocumentViewModel>["root"],
+  ) => {
+    if (!object) return;
+    const item = outline.find(
+      (candidate) =>
+        candidate.kind !== "section" && candidate.objectId === object.objectId,
+    );
+    if (item) setActiveOutlineId(item.id);
+    selectionStore.set(documentObjectSelection(object));
+  };
   return (
-    <section className="us-doc-layout" data-compact={compact}>
+    <section
+      className="us-doc-layout us-structured-doc__shell"
+      data-compact={compact}
+    >
+      <StructuredDocumentOutline
+        items={outline}
+        activeId={activeOutlineId}
+        onSelect={selectOutlineItem}
+      />
       <main className="us-doc-main us-structured-doc__main">
-        <article className="us-doc-paper us-structured-doc">
+        <header className="us-structured-doc__workspace-head">
           <div className="us-doc-meta">
             <span>{doc.docNo}</span>
             <span>模板:{doc.template}</span>
             <UsMonoTag tone="primary">工作空间数据</UsMonoTag>
           </div>
+          {statusField ? (
+            <span className="us-structured-doc__status">
+              状态：{statusField.valueText}
+            </span>
+          ) : null}
+        </header>
+        <article className="us-doc-paper us-structured-doc">
           <p className="us-doc-author">{doc.authorLine}</p>
-          <h1
-            className="us-doc-title"
-            id={objectDomId(root.objectId)}
-            onClick={() => selectionStore.set(documentObjectSelection(root))}
-          >
-            {root.label}
-          </h1>
-          <DocumentFieldTable
-            fields={root.fields}
-            onSave={saveField}
-            selection={selection.current}
-          />
           {config.bodyFieldCode ? (
             vm.body?.state === "fresh" ? (
               <DocumentBodyBlock
                 editable={vm.body.editable}
                 onSave={saveBody}
+                showToolbar
                 value={vm.body.value}
               />
             ) : (
@@ -95,10 +143,23 @@ export function StructuredDocumentView({
               </section>
             )
           ) : null}
+          <h1
+            className="us-doc-title"
+            id={objectDomId(root.objectId)}
+            onClick={() => selectObject(root)}
+          >
+            {root.label}
+          </h1>
+          <DocumentFieldTable
+            fields={root.fields}
+            onSave={saveField}
+            selection={selection.current}
+          />
           {vm.sections.map((section) => (
             <DocumentSection
               key={section.relationTypeCode}
               onSave={saveField}
+              onSelectObject={selectObject}
               rootObjectId={root.objectId}
               section={section}
               selection={selection.current}
@@ -110,13 +171,71 @@ export function StructuredDocumentView({
   );
 }
 
+export function StructuredDocumentOutline({
+  items,
+  activeId,
+  onSelect,
+}: {
+  readonly items: readonly StructuredDocumentOutlineItem[];
+  readonly activeId: string | null;
+  readonly onSelect: (item: StructuredDocumentOutlineItem) => void;
+}) {
+  return (
+    <aside className="us-structured-doc__outline" aria-label="文档大纲">
+      <h2>大纲</h2>
+      {items.length === 0 ? (
+        <p className="us-structured-doc__outline-empty">暂无章节</p>
+      ) : (
+        <>
+          <nav>
+            {items.map((item) => (
+              <button
+                className={`us-structured-doc__outline-item us-structured-doc__outline-item--${item.kind}`}
+                data-active={activeId === item.id}
+                data-state={item.state}
+                disabled={item.state !== "ready"}
+                key={item.id}
+                onClick={() => onSelect(item)}
+                type="button"
+              >
+                <span>{item.label}</span>
+                {item.state === "dangling" || item.state === "missing" ? (
+                  <small>{item.message ?? "引用不可用"}</small>
+                ) : null}
+              </button>
+            ))}
+          </nav>
+          {!items.some((item) => item.kind === "section") ? (
+            <p className="us-structured-doc__outline-empty">暂无章节</p>
+          ) : null}
+        </>
+      )}
+    </aside>
+  );
+}
+
+export function structuredDocumentOutlineTargetId(
+  item: StructuredDocumentOutlineItem,
+): string | null {
+  if (item.state !== "ready") return null;
+  return item.kind === "section"
+    ? sectionDomId(item.relationTypeCode)
+    : item.objectId
+      ? objectDomId(item.objectId)
+      : null;
+}
+
 function DocumentSection({
   onSave,
+  onSelectObject,
   rootObjectId,
   section,
   selection,
 }: {
   readonly onSave: (field: StructuredDocumentFieldVm, rawValue: string) => void;
+  readonly onSelectObject: (
+    object: ReturnType<typeof buildStructuredDocumentViewModel>["root"],
+  ) => void;
   readonly rootObjectId: string;
   readonly section: ReturnType<
     typeof buildStructuredDocumentViewModel
@@ -124,7 +243,10 @@ function DocumentSection({
   readonly selection: ReturnType<typeof useSelectionSnapshot>["current"];
 }) {
   return (
-    <section className="us-doc-tableblock us-structured-doc__section">
+    <section
+      className="us-doc-tableblock us-structured-doc__section"
+      id={sectionDomId(section.relationTypeCode)}
+    >
       <header>
         <strong>{section.title}</strong>
       </header>
@@ -144,9 +266,7 @@ function DocumentSection({
             <section className="us-structured-doc__row" key={row.relationId}>
               <h3
                 id={objectDomId(row.object.objectId)}
-                onClick={() =>
-                  selectionStore.set(documentObjectSelection(row.object))
-                }
+                onClick={() => onSelectObject(row.object)}
               >
                 {row.object.label}
                 <small>{row.object.code}</small>
@@ -403,10 +523,21 @@ function serializeInputValue(value: DataFieldPrimitive): string {
   return value === null ? "" : String(value);
 }
 
+function rootField(
+  object: ReturnType<typeof buildStructuredDocumentViewModel>["root"],
+  fieldCode: string,
+): StructuredDocumentFieldVm | null {
+  return object?.fields.find((field) => field.fieldCode === fieldCode) ?? null;
+}
+
 function fieldDomId(objectId: string, fieldCode: string): string {
   return `document-field-${objectId}-${fieldCode}`;
 }
 
 function objectDomId(objectId: string): string {
   return `document-object-${objectId}`;
+}
+
+function sectionDomId(relationTypeCode: string): string {
+  return `structured-document-section-${relationTypeCode}`;
 }

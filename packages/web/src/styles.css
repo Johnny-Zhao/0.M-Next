@@ -4346,6 +4346,17 @@ main {
   color: var(--mn-accent);
 }
 
+.document-body-toolbar-label {
+  color: var(--mn-ink-3);
+  font-size: 0.72rem;
+  margin-right: 0.2rem;
+}
+
+.document-body-toolbar button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
 .document-body-input .ProseMirror {
   background: var(--mn-surface);
   color: var(--mn-ink);

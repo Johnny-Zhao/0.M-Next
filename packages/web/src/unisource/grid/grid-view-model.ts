@@ -51,6 +51,7 @@ export interface GridViewModelInput {
   readonly fieldRefs?: readonly FieldRef[];
   readonly search?: string;
   readonly hideEol?: boolean;
+  readonly status?: DataObject["status"] | "all";
   readonly maskValues?: boolean;
 }
 
@@ -99,6 +100,13 @@ export function buildGridViewModel(input: GridViewModelInput): GridViewModel {
   const query = input.search?.trim().toLowerCase() ?? "";
   const objects = input.objects.filter((object) => {
     if (input.hideEol && object.status === "eol") return false;
+    if (
+      input.status &&
+      input.status !== "all" &&
+      object.status !== input.status
+    ) {
+      return false;
+    }
     if (!query) return true;
     return Object.values(object.fields).some((field) =>
       String(field.value ?? "")

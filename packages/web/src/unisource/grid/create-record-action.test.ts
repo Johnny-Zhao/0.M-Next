@@ -83,6 +83,23 @@ describe("create record action", () => {
     expect(denied.sink.calls).toHaveLength(0);
   });
 
+  it("requires quantity fields to be positive integers", () => {
+    const quantityType: ObjectTypeDef = {
+      ...objectType,
+      fields: objectType.fields.map((field) =>
+        field.code === "amount" ? { ...field, code: "quantity" } : field,
+      ),
+    };
+    const validation = validateCreateRecord(quantityType, {
+      code: "ITEM-1",
+      name: "明细",
+      quantity: "1.5",
+      status: "DRAFT",
+      enabled: true,
+    });
+    expect(validation.errors.quantity).toContain("大于 0 的整数");
+  });
+
   it("creates through the WorkspaceStore and returns the reconciled object id", async () => {
     const test = harness({ objectId: "kernel-supplier-1" });
     const result = await createRecord({
@@ -122,6 +139,27 @@ describe("create record action", () => {
         .getSnapshot()
         .objects.some((item) => item.fields.code?.value === "SUP-NEW"),
     ).toBe(false);
+  });
+
+  it("rejects a duplicate code in the current workspace before creating", async () => {
+    const test = harness();
+    test.workspace.createObject({
+      objectTypeCode: "supplier",
+      fields: { code: "SUP-NEW", name: "已有供应商" },
+      actor: "wangyun",
+    });
+    const result = await createRecord({
+      objectType,
+      relationTypes: [],
+      draft: validDraft(),
+      workspace: test.workspace,
+      session: test.session,
+    });
+    expect(result).toEqual({
+      state: "invalid",
+      errors: { code: "编码已存在，请使用其他编码" },
+    });
+    expect(test.sink.calls).toHaveLength(1);
   });
 
   it("updates changed writable fields through the session write path", () => {

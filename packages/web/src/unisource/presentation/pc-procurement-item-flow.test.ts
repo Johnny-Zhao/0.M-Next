@@ -82,6 +82,7 @@ describe("procurement item flow", () => {
       { ...validDraft(), quantity: "1.5" },
       { ...validDraft(), quantity: "0" },
       { ...validDraft(), code: "ITEM-EXIST" },
+      { ...validDraft(), code: "CPU-001" },
       { ...validDraft(), productId: null },
       { ...validDraft(), quoteId: null },
       { ...validDraft(), quoteId: "quote-gpu" },

@@ -1,4 +1,4 @@
-import { type JSONContent } from "@tiptap/core";
+import { type Editor, type JSONContent } from "@tiptap/core";
 import { EditorContent, useEditor } from "@tiptap/react";
 import { useState, type ReactElement } from "react";
 
@@ -14,6 +14,7 @@ export interface DocumentBodyBlockProps {
   readonly editable: boolean;
   /** 保存正文:序列化后的 JSON 字符串走 updateSingleField 唯一出口(string 类型)。 */
   readonly onSave: (json: string) => void | Promise<void>;
+  readonly showToolbar?: boolean;
 }
 
 /**
@@ -41,6 +42,9 @@ export function DocumentBodyBlock(props: DocumentBodyBlockProps): ReactElement {
   return (
     <section aria-label="正文" className="document-body">
       <span className="document-body-label">正文</span>
+      {props.showToolbar && content.kind !== "doc" ? (
+        <DocumentBodyToolbar editor={null} disabled />
+      ) : null}
       {content.kind === "invalid" ? (
         <div className="document-body-invalid">
           <p className="document-body-hint">
@@ -64,15 +68,78 @@ export function DocumentBodyBlock(props: DocumentBodyBlockProps): ReactElement {
         <BodyReadonly
           doc={content.doc}
           onEdit={props.editable ? () => setEditing(true) : undefined}
+          showToolbar={props.showToolbar}
         />
       )}
     </section>
   );
 }
 
+export type DocumentBodyToolbarCommand = "bold" | "italic" | "bulletList";
+
+export function runDocumentBodyToolbarCommand(
+  editor: Editor,
+  command: DocumentBodyToolbarCommand,
+): boolean {
+  const chain = editor.chain();
+  if (command === "bold") return chain.toggleBold().run();
+  if (command === "italic") return chain.toggleItalic().run();
+  return chain.toggleBulletList().run();
+}
+
+export function DocumentBodyToolbar({
+  editor,
+  disabled = false,
+}: {
+  readonly editor: Editor | null;
+  readonly disabled?: boolean;
+}): ReactElement {
+  const unavailable = disabled || !editor;
+  return (
+    <div aria-label="正文格式" className="document-body-toolbar" role="toolbar">
+      <span className="document-body-toolbar-label">正文</span>
+      <button
+        aria-label="加粗"
+        aria-pressed={editor?.isActive("bold") ?? false}
+        className={editor?.isActive("bold") ? "is-active" : ""}
+        disabled={unavailable}
+        onClick={() => editor && runDocumentBodyToolbarCommand(editor, "bold")}
+        type="button"
+      >
+        B
+      </button>
+      <button
+        aria-label="斜体"
+        aria-pressed={editor?.isActive("italic") ?? false}
+        className={editor?.isActive("italic") ? "is-active" : ""}
+        disabled={unavailable}
+        onClick={() =>
+          editor && runDocumentBodyToolbarCommand(editor, "italic")
+        }
+        type="button"
+      >
+        I
+      </button>
+      <button
+        aria-label="无序列表"
+        aria-pressed={editor?.isActive("bulletList") ?? false}
+        className={editor?.isActive("bulletList") ? "is-active" : ""}
+        disabled={unavailable}
+        onClick={() =>
+          editor && runDocumentBodyToolbarCommand(editor, "bulletList")
+        }
+        type="button"
+      >
+        • 列表
+      </button>
+    </div>
+  );
+}
+
 function BodyReadonly(props: {
   readonly doc: JSONContent;
   readonly onEdit?: () => void;
+  readonly showToolbar?: boolean;
 }): ReactElement {
   const editor = useEditor(
     { extensions: bodyExtensions(), content: props.doc, editable: false },
@@ -80,6 +147,9 @@ function BodyReadonly(props: {
   );
   return (
     <div className="document-body-view">
+      {props.showToolbar ? (
+        <DocumentBodyToolbar editor={editor} disabled />
+      ) : null}
       <EditorContent className="document-body-rendered" editor={editor} />
       {props.onEdit ? (
         <button
@@ -116,39 +186,7 @@ function BodyEditorForm(props: {
 
   return (
     <div className="document-body-editor">
-      <div
-        aria-label="正文格式"
-        className="document-body-toolbar"
-        role="toolbar"
-      >
-        <button
-          aria-label="加粗"
-          aria-pressed={editor.isActive("bold")}
-          className={editor.isActive("bold") ? "is-active" : ""}
-          onClick={() => editor.chain().focus().toggleBold().run()}
-          type="button"
-        >
-          B
-        </button>
-        <button
-          aria-label="斜体"
-          aria-pressed={editor.isActive("italic")}
-          className={editor.isActive("italic") ? "is-active" : ""}
-          onClick={() => editor.chain().focus().toggleItalic().run()}
-          type="button"
-        >
-          I
-        </button>
-        <button
-          aria-label="无序列表"
-          aria-pressed={editor.isActive("bulletList")}
-          className={editor.isActive("bulletList") ? "is-active" : ""}
-          onClick={() => editor.chain().focus().toggleBulletList().run()}
-          type="button"
-        >
-          • 列表
-        </button>
-      </div>
+      <DocumentBodyToolbar editor={editor} />
       <EditorContent className="document-body-input" editor={editor} />
       <div className="document-body-actions">
         <button
