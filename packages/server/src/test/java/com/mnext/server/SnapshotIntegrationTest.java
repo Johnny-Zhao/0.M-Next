@@ -221,6 +221,60 @@ class SnapshotIntegrationTest {
     assertFalse(fields(flatPayload.getFirst()).containsKey("_tree"));
   }
 
+  @Test
+  void capturesConfiguredSideRelationsWithSnapshotRelationState() {
+    insertTreeMetadata();
+    var quote = UUID.fromString("eeeeeeee-aaaa-4eee-8eee-eeeeeeeeeeee");
+    insertObject(WORKSPACE, quote, 3, "{\"name\":\"quote-a\"}");
+    jdbc.update(
+        """
+        INSERT INTO relation_type
+          (id, workspace_id, code, source_type, target_type, direction, cardinality,
+           semantics, hierarchical, created_by, updated_by, created_at, updated_at)
+        VALUES (?, ?, 'uses_quote', ?, ?, 'directed', 'many_to_many', 'weak', FALSE,
+          'test', 'test', now(), now())
+        """,
+        UUID.fromString("eeeeeeee-bbbb-4eee-8eee-eeeeeeeeeeee"),
+        WORKSPACE,
+        UUID.fromString("eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee"),
+        UUID.fromString("eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee"));
+    jdbc.update(
+        """
+        INSERT INTO rm_relation
+          (workspace_id, relation_id, relation_type_code, source_id, target_id, fields,
+           hierarchical, status, version, updated_at)
+        VALUES (?, ?, 'uses_quote', ?, ?, '{}'::jsonb, FALSE, 'ACTIVE', 4, now())
+        """,
+        WORKSPACE,
+        UUID.fromString("eeeeeeee-cccc-4eee-8eee-eeeeeeeeeeee"),
+        OBJECT,
+        quote);
+
+    var snapshot =
+        capture(
+            WORKSPACE,
+            Map.of(
+                "treeScope",
+                Map.of(
+                    "rootId",
+                    OBJECT,
+                    "relationType",
+                    "contains",
+                    "relatedRelationTypes",
+                    List.of("uses_quote"))));
+    var payload = get(WORKSPACE, UUID.fromString((String) snapshot.get("snapshotId")));
+    var data = (Map<?, ?>) payload.get("payload");
+
+    assertTrue(
+        payloadObjects(payload).stream()
+            .anyMatch(item -> quote.toString().equals(item.get("objectId"))));
+    var relation = ((List<Map<?, ?>>) data.get("relations")).getFirst();
+    var fields = (Map<?, ?>) relation.get("fields");
+    var state = (Map<?, ?>) fields.get("_snapshot");
+    assertEquals("ACTIVE", state.get("status"));
+    assertEquals(4, ((Number) state.get("version")).intValue());
+  }
+
   @SuppressWarnings("unchecked")
   private Map<String, Object> capture(UUID workspace) {
     return capture(workspace, Map.of());

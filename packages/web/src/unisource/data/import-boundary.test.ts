@@ -16,7 +16,9 @@ const unisourceRoot = path.resolve(
 const allowedViewsImports = new Set([
   "data/kernel-gateway.ts",
   "data/dto-mappers.ts",
+  "doc/structured-document-data-blocks.tsx",
   "doc/structured-document-view.tsx",
+  "doc/structured-document-view-model.ts",
 ]);
 
 describe("unisource import boundary", () => {

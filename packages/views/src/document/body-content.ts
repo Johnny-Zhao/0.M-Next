@@ -1,6 +1,11 @@
 import { type Extensions, type JSONContent } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
 
+import {
+  documentDataBlockExtensions,
+  type DocumentDataBlockRenderer,
+} from "./body-data-blocks";
+
 /**
  * 文档正文富文本编辑子集(ADR-011 编辑能力子集):段落 / 加粗 / 斜体 / 无序列表。
  *
@@ -8,20 +13,23 @@ import StarterKit from "@tiptap/starter-kit";
  * (标题、代码、引用、有序列表、删除线、下划线、链接等)在粘贴时被 ProseMirror 依 schema 自动
  * 过滤。红线:禁止在此新增扩展(尤其标题),新增会破坏"子集外内容被过滤"的保证。
  */
-export function bodyExtensions(): Extensions {
+export function bodyExtensions(
+  dataBlockRenderer?: DocumentDataBlockRenderer,
+): Extensions {
   return [
     StarterKit.configure({
       blockquote: false,
       codeBlock: false,
-      heading: false,
+      heading: { levels: [2, 3] },
       horizontalRule: false,
-      orderedList: false,
+      orderedList: {},
       hardBreak: false,
       code: false,
       strike: false,
       underline: false,
       link: false,
     }),
+    ...documentDataBlockExtensions(dataBlockRenderer),
   ];
 }
 
@@ -69,6 +77,7 @@ function isDocNode(value: unknown): value is JSONContent {
 
 /** 文档是否含任何非空文本(判空,决定是否显示占位)。 */
 function docHasText(node: JSONContent): boolean {
+  if (node.type === "dataReference" || node.type === "dataTable") return true;
   if (typeof node.text === "string" && node.text.trim() !== "") return true;
   return Array.isArray(node.content) && node.content.some(docHasText);
 }

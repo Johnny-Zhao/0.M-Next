@@ -85,6 +85,42 @@ class OfficeRenderAdapterTest {
   }
 
   @Test
+  void rendersConfiguredRelationTablesFromSnapshotRelations() throws Exception {
+    var source = treeDataSet("OK");
+    var snapshot =
+        new DataSet(
+            source.objects(),
+            List.of(
+                new DataSet.DataRelation(
+                    "contains-1", "contains", "proposal", "system", Map.of())));
+    var template =
+        new OutputTemplate(
+            null,
+            List.of(),
+            new OutputTemplate.SectionMapping(
+                Map.of(),
+                Map.of(),
+                Map.of(),
+                List.of(
+                    new OutputTemplate.SectionMapping.RelationTable(
+                        "contains",
+                        "方案明细表",
+                        List.of(
+                            new OutputTemplate.SectionMapping.RelationColumn(
+                                "名称", "name", List.of()))))));
+
+    var bytes = new DocxRenderAdapter().render(snapshot, template);
+
+    try (var document = new XWPFDocument(new ByteArrayInputStream(bytes))) {
+      assertTrue(hasParagraph(document, "方案明细表"));
+      assertTrue(
+          document.getTables().stream()
+              .flatMap(table -> table.getRows().stream())
+              .anyMatch(row -> "协作系统".equals(row.getCell(0).getText())));
+    }
+  }
+
+  @Test
   void rendersTreeDocxBodyAfterHeadingWithRichTextAndBullets() throws Exception {
     var bytes = new DocxRenderAdapter().render(treeDataSetWithBody(), treeTemplate());
 

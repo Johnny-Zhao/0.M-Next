@@ -160,6 +160,7 @@ public class DerivedEvaluator {
         WHERE relation.workspace_id = ?
           AND relation.relation_type_code = ?
           AND relation.status = 'ACTIVE'
+          AND related.status NOT IN ('VOID', 'FILED', 'DELETED')
           AND CASE WHEN ? THEN relation.source_id = ? ELSE relation.target_id = ? END
         ORDER BY related.object_id
         LIMIT ?

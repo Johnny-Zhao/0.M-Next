@@ -159,6 +159,8 @@ export interface SnapshotTreeScope {
   readonly rootId: string;
   readonly relationType: string;
   readonly maxDepth?: number;
+  /** Additional bounded relation types captured with the tree as snapshot context. */
+  readonly relatedRelationTypes?: readonly string[];
 }
 
 export interface SnapshotDetail {
@@ -188,6 +190,26 @@ export interface OutputCreateRequest {
   readonly templateVersion?: number | null;
   readonly objectType?: string | null;
   readonly fieldOrder?: readonly string[] | null;
+  readonly sectionMapping?: OutputSectionMapping | null;
+}
+
+export interface OutputRelationColumn {
+  readonly label: string;
+  readonly fieldCode: string;
+  readonly relationPath?: readonly string[];
+}
+
+export interface OutputRelationTable {
+  readonly relationType: string;
+  readonly title: string;
+  readonly columns: readonly OutputRelationColumn[];
+}
+
+export interface OutputSectionMapping {
+  readonly headingLevels?: Readonly<Record<number, number>>;
+  readonly fieldRoles?: Readonly<Record<string, string>>;
+  readonly fieldLabels?: Readonly<Record<string, string>>;
+  readonly relationTables?: readonly OutputRelationTable[];
 }
 
 export interface OutputMeta {
@@ -593,6 +615,9 @@ export class ViewClient {
             rootId: treeScope.rootId,
             relationType: treeScope.relationType,
             maxDepth: boundedDepth(treeScope.maxDepth ?? 5),
+            ...(treeScope.relatedRelationTypes?.length
+              ? { relatedRelationTypes: treeScope.relatedRelationTypes }
+              : {}),
           },
         }
       : { scopeObjectType: scopeObjectType || null };

@@ -79,6 +79,20 @@ export const pcProcurementPreset: PresentationPreset = {
         sourceLabel: "当前电脑采购工作空间",
         emptyLabel: "暂无可展示图表数据",
         objectTypeCodes: ["build_plan", "procurement_requirement"],
+        metrics: [
+          {
+            id: "pc-build-plan-count",
+            kind: "count",
+            label: "方案数量",
+            objectTypeCode: "build_plan",
+            sourceLabel: "装机方案",
+          },
+        ],
+        recordSeries: {
+          objectTypeCode: "build_plan",
+          labelFieldCode: "name",
+          valueFieldCode: "total_price_cny_fx",
+        },
       },
     },
     {
@@ -154,8 +168,12 @@ export const pcProcurementPreset: PresentationPreset = {
         colField: "code",
         cardFields: [
           "total_price_cny_fx",
+          "requirement_budget_cny_fx",
           "total_power_w_fx",
           "total_performance_score_fx",
+          "power_supply_capacity_w_fx",
+          "cpu_mainboard_platform_span_fx",
+          "memory_platform_span_fx",
         ],
         summary: "count",
         interactionHint: "矩阵直接读取工作空间字段，不在前端重新计算派生值。",
@@ -179,6 +197,190 @@ export const pcProcurementPreset: PresentationPreset = {
         template: "电脑采购方案说明书",
         structuredDocument: {
           bodyFieldCode: "body",
+          dataReferenceTemplates: [
+            {
+              id: "plan-name",
+              label: "方案名称",
+              config: {
+                objectBinding: "document-root",
+                objectTypeCode: "build_plan",
+                fieldCode: "name",
+              },
+            },
+          ],
+          dataTableTemplates: [
+            {
+              id: "plan-items",
+              label: "方案明细表",
+              config: {
+                scope: "document-root",
+                objectTypeCode: "build_plan_item",
+                relationTypeCode: "build_plan_contains_item",
+                maxRows: 50,
+                sort: { fieldCode: "code", direction: "asc" },
+                allowRowSelection: true,
+                showDerivedBadge: true,
+                columns: [
+                  { id: "code", label: "明细编码", fieldCode: "code" },
+                  { id: "name", label: "明细名称", fieldCode: "name" },
+                  { id: "quantity", label: "数量", fieldCode: "quantity" },
+                  {
+                    id: "product",
+                    label: "硬件配件",
+                    fieldCode: "name",
+                    relationPath: ["build_plan_item_selects_product"],
+                  },
+                  {
+                    id: "quote",
+                    label: "供应商报价",
+                    fieldCode: "name",
+                    relationPath: ["build_plan_item_uses_supplier_quote"],
+                  },
+                  {
+                    id: "supplier",
+                    label: "供应商",
+                    fieldCode: "name",
+                    relationPath: [
+                      "build_plan_item_uses_supplier_quote",
+                      "supplier_quote_offered_by_supplier",
+                    ],
+                  },
+                  {
+                    id: "price",
+                    label: "单价",
+                    fieldCode: "selected_unit_price_cny_fx",
+                  },
+                  {
+                    id: "total",
+                    label: "明细总价",
+                    fieldCode: "total_price_cny_fx",
+                  },
+                  { id: "power", label: "明细功耗", fieldCode: "power_w_fx" },
+                  {
+                    id: "performance",
+                    label: "性能分",
+                    fieldCode: "selected_performance_score_fx",
+                  },
+                  {
+                    id: "inventory",
+                    label: "库存",
+                    fieldCode: "quote_inventory_fx",
+                  },
+                ],
+              },
+            },
+          ],
+          output: {
+            format: "docx",
+            relationType: "build_plan_contains_item",
+            maxDepth: 1,
+            relatedRelationTypes: [
+              "build_plan_satisfies_requirement",
+              "build_plan_contains_item",
+              "build_plan_item_selects_product",
+              "build_plan_item_uses_supplier_quote",
+              "supplier_quote_for_product",
+              "supplier_quote_offered_by_supplier",
+            ],
+            fieldOrder: [
+              "code",
+              "name",
+              "status",
+              "total_price_cny_fx",
+              "total_power_w_fx",
+              "total_performance_score_fx",
+              "power_supply_capacity_w_fx",
+            ],
+            sectionMapping: {
+              fieldRoles: {
+                code: "table",
+                name: "table",
+                status: "table",
+                total_price_cny_fx: "table",
+                total_power_w_fx: "table",
+                total_performance_score_fx: "table",
+                power_supply_capacity_w_fx: "table",
+              },
+              fieldLabels: {
+                code: "编码",
+                name: "名称",
+                status: "状态",
+                total_price_cny_fx: "方案总价（元）",
+                total_power_w_fx: "方案总功耗（瓦）",
+                total_performance_score_fx: "方案性能分",
+                power_supply_capacity_w_fx: "电源容量（瓦）",
+              },
+              relationTables: [
+                {
+                  relationType: "build_plan_satisfies_requirement",
+                  title: "采购需求摘要",
+                  columns: [
+                    { label: "需求编码", fieldCode: "code" },
+                    { label: "需求名称", fieldCode: "name" },
+                    { label: "预算（元）", fieldCode: "budget_cny" },
+                    {
+                      label: "整机最大设计功耗（瓦）",
+                      fieldCode: "max_total_power_w",
+                    },
+                    {
+                      label: "CPU/主板平台要求",
+                      fieldCode: "cpu_mainboard_platform_code",
+                    },
+                    {
+                      label: "内存平台要求",
+                      fieldCode: "memory_platform_code",
+                    },
+                  ],
+                },
+                {
+                  relationType: "build_plan_contains_item",
+                  title: "方案明细表",
+                  columns: [
+                    { label: "明细编码", fieldCode: "code" },
+                    { label: "明细名称", fieldCode: "name" },
+                    { label: "数量", fieldCode: "quantity" },
+                    {
+                      label: "产品编码",
+                      fieldCode: "code",
+                      relationPath: ["build_plan_item_selects_product"],
+                    },
+                    {
+                      label: "产品名称",
+                      fieldCode: "name",
+                      relationPath: ["build_plan_item_selects_product"],
+                    },
+                    {
+                      label: "报价编码",
+                      fieldCode: "code",
+                      relationPath: ["build_plan_item_uses_supplier_quote"],
+                    },
+                    {
+                      label: "供应商",
+                      fieldCode: "name",
+                      relationPath: [
+                        "build_plan_item_uses_supplier_quote",
+                        "supplier_quote_offered_by_supplier",
+                      ],
+                    },
+                    {
+                      label: "单价（元）",
+                      fieldCode: "selected_unit_price_cny_fx",
+                    },
+                    {
+                      label: "明细总价（元）",
+                      fieldCode: "total_price_cny_fx",
+                    },
+                    { label: "功耗（瓦）", fieldCode: "power_w_fx" },
+                    {
+                      label: "性能分",
+                      fieldCode: "selected_performance_score_fx",
+                    },
+                    { label: "报价库存", fieldCode: "quote_inventory_fx" },
+                  ],
+                },
+              ],
+            },
+          },
           preferSelectedRoot: true,
           root: {
             objectTypeCode: "build_plan",

@@ -5,6 +5,11 @@ import type {
   ObjectTypeDef,
   SelectionRef,
 } from "../model/kernel";
+import type {
+  DocumentDataReferenceConfig,
+  DocumentDataTableConfig,
+  OutputSectionMapping,
+} from "@m-next/views";
 import type { DocModel } from "../model/view-layer";
 import type { WorkspaceState } from "../state/workspace-store";
 import { formatCellValue } from "../grid/grid-view-model";
@@ -24,9 +29,33 @@ export interface StructuredDocumentSectionConfig
 
 export interface StructuredDocumentConfig {
   readonly bodyFieldCode?: string;
+  readonly output?: StructuredDocumentOutputConfig;
+  readonly dataReferenceTemplates: readonly StructuredDocumentDataReferenceTemplate[];
+  readonly dataTableTemplates: readonly StructuredDocumentDataTableTemplate[];
   readonly preferSelectedRoot?: boolean;
   readonly root: StructuredDocumentPartConfig;
   readonly sections: readonly StructuredDocumentSectionConfig[];
+}
+
+export interface StructuredDocumentOutputConfig {
+  readonly fieldOrder: readonly string[];
+  readonly format: "docx";
+  readonly maxDepth?: number;
+  readonly relationType?: string;
+  readonly relatedRelationTypes: readonly string[];
+  readonly sectionMapping?: OutputSectionMapping;
+}
+
+export interface StructuredDocumentDataReferenceTemplate {
+  readonly id: string;
+  readonly label: string;
+  readonly config: DocumentDataReferenceConfig;
+}
+
+export interface StructuredDocumentDataTableTemplate {
+  readonly id: string;
+  readonly label: string;
+  readonly config: DocumentDataTableConfig;
 }
 
 export type StructuredDocumentConfigResult =
@@ -204,17 +233,32 @@ export function readStructuredDocumentConfig(
   if (!isRecord(value)) return invalidConfig();
   const root = readPart(value.root);
   const bodyFieldCode = readOptionalNonEmptyString(value.bodyFieldCode);
+  const output = readOutputConfig(value.output);
+  const dataReferenceTemplates = readDataReferenceTemplates(
+    value.dataReferenceTemplates,
+  );
+  const dataTableTemplates = readDataTableTemplates(value.dataTableTemplates);
   const preferSelectedRoot = value.preferSelectedRoot === true;
   const sections = Array.isArray(value.sections)
     ? value.sections.map(readSection)
     : null;
-  if (!root || !sections || sections.some((section) => !section)) {
+  if (
+    !root ||
+    !sections ||
+    !dataReferenceTemplates ||
+    !dataTableTemplates ||
+    output === null ||
+    sections.some((section) => !section)
+  ) {
     return invalidConfig();
   }
   return {
     state: "ready",
     config: {
       bodyFieldCode: bodyFieldCode ?? undefined,
+      output: output ?? undefined,
+      dataReferenceTemplates,
+      dataTableTemplates,
       preferSelectedRoot,
       root,
       sections: sections as StructuredDocumentSectionConfig[],
@@ -443,6 +487,74 @@ function readSection(value: unknown): StructuredDocumentSectionConfig | null {
     return null;
   }
   return { ...part, relationTypeCode, title, createAction };
+}
+
+function readDataReferenceTemplates(
+  value: unknown,
+): readonly StructuredDocumentDataReferenceTemplate[] | null {
+  if (value === undefined) return [];
+  if (!Array.isArray(value)) return null;
+  return value.flatMap((item) => {
+    if (!isRecord(item) || !isRecord(item.config)) return [];
+    const id = readNonEmptyString(item.id);
+    const label = readNonEmptyString(item.label);
+    return id && label
+      ? [{ id, label, config: item.config as DocumentDataReferenceConfig }]
+      : [];
+  });
+}
+
+function readDataTableTemplates(
+  value: unknown,
+): readonly StructuredDocumentDataTableTemplate[] | null {
+  if (value === undefined) return [];
+  if (!Array.isArray(value)) return null;
+  return value.flatMap((item) => {
+    if (!isRecord(item) || !isRecord(item.config)) return [];
+    const id = readNonEmptyString(item.id);
+    const label = readNonEmptyString(item.label);
+    return id && label && typeof item.config.objectTypeCode === "string"
+      ? [
+          {
+            id,
+            label,
+            config: item.config as unknown as DocumentDataTableConfig,
+          },
+        ]
+      : [];
+  });
+}
+
+function readOutputConfig(
+  value: unknown,
+): StructuredDocumentOutputConfig | null | undefined {
+  if (value === undefined) return undefined;
+  if (!isRecord(value) || value.format !== "docx") return null;
+  const fieldOrder = readStringArray(value.fieldOrder);
+  const relatedRelationTypes = readStringArray(value.relatedRelationTypes);
+  const relationType = readOptionalNonEmptyString(value.relationType);
+  const maxDepth =
+    typeof value.maxDepth === "number" && Number.isInteger(value.maxDepth)
+      ? value.maxDepth
+      : undefined;
+  if (
+    !fieldOrder ||
+    !relatedRelationTypes ||
+    relationType === null ||
+    (maxDepth !== undefined && (maxDepth < 1 || maxDepth > 5))
+  ) {
+    return null;
+  }
+  return {
+    fieldOrder,
+    format: "docx",
+    maxDepth,
+    relationType: relationType ?? undefined,
+    relatedRelationTypes,
+    sectionMapping: isRecord(value.sectionMapping)
+      ? (value.sectionMapping as OutputSectionMapping)
+      : undefined,
+  };
 }
 
 function readStringArray(value: unknown): readonly string[] | null {

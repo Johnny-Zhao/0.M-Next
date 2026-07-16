@@ -141,6 +141,28 @@ describe("ValidationStore", () => {
     store.dispose();
   });
 
+  it("invalidates prior kernel results after a workspace write without rerunning checks", async () => {
+    const workspace = new WorkspaceStore(cloneDemoSeed());
+    const source = new FakeKernelValidationSource([
+      kernelOutcome("KERNEL-BLOCK", "error"),
+    ]);
+    const store = new ValidationStore(workspace, {
+      kernelSource: source,
+      pushToast: vi.fn(),
+    });
+
+    await store.runKernelCheck("wangyun", "build_plan");
+    workspace.updateField("prod-s3", "price", 1099, { actor: "wangyun" });
+
+    expect(store.getSnapshot()).toMatchObject({
+      kernelResults: [],
+      kernelStatus: "idle",
+      kernelRunAt: null,
+    });
+    expect(source.runCount).toBe(1);
+    store.dispose();
+  });
+
   it("reports kernel validation failures without throwing", async () => {
     const workspace = new WorkspaceStore(cloneDemoSeed());
     const pushToast = vi.fn();

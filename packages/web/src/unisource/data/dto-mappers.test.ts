@@ -99,6 +99,27 @@ describe("dto mappers", () => {
     expect(object.status).toBe("archived");
   });
 
+  it.each(["VOID", "FILED"])(
+    "maps kernel terminal status %s to archived",
+    (status) => {
+      const object = mapViewObject(
+        {
+          objectId: `terminal-${status}`,
+          objectType: "product_specs",
+          status,
+          version: 1,
+          fields: {},
+          updatedAt: "2026-07-10T10:24:00+08:00",
+          source: "manual",
+          ruleStatus: "UNKNOWN",
+        },
+        productType,
+      );
+
+      expect(object.status).toBe("archived");
+    },
+  );
+
   it("maps ObjectType fields and downgrades unknown data types to text", () => {
     const mapped = mapObjectType({
       id: "type-uuid",

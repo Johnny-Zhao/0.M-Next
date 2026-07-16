@@ -126,6 +126,42 @@ describe("canvas view model", () => {
     expect(vm.nodes.map((node) => node.objectId)).toEqual(["plan-a", "item-a"]);
     expect(vm.edges.map((edge) => edge.relationId)).toEqual(["contains-a"]);
   });
+
+  it("locates a selected related object through its configured root", () => {
+    const workspace = new WorkspaceStore({
+      ...cloneDemoSeed(),
+      objects: [
+        canvasObject("plan-a", "build_plan"),
+        canvasObject("item-a", "build_plan_item"),
+      ],
+      relations: [
+        canvasRelation(
+          "contains-a",
+          "build_plan_contains_item",
+          "plan-a",
+          "item-a",
+        ),
+      ],
+    }).getSnapshot();
+    const view = {
+      id: "pc",
+      exprId: "expr",
+      kind: "canvas" as const,
+      config: {
+        selectionObjectTypeCode: "build_plan",
+        selectionRelationTypeCodes: ["build_plan_contains_item"],
+      },
+    };
+
+    expect(
+      buildCanvasViewModel(workspace, view, "item-a").nodes.map(
+        (node) => node.objectId,
+      ),
+    ).toEqual(["plan-a", "item-a"]);
+    expect(
+      buildCanvasViewModel(workspace, view).nodes.map((node) => node.objectId),
+    ).toEqual(["plan-a", "item-a"]);
+  });
 });
 
 function canvasObject(id: string, objectTypeCode: string) {

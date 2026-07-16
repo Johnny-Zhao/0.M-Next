@@ -457,6 +457,7 @@ function mapFieldValue(
 
 function mapObjectStatus(value: string): DataObjectStatus {
   const normalized = value.toLowerCase();
+  if (normalized === "void" || normalized === "filed") return "archived";
   return isObjectStatus(normalized) ? normalized : "active";
 }
 

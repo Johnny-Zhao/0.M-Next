@@ -62,6 +62,7 @@ export interface CanvasViewModel {
 }
 
 const defaultNodeSize = { w: 210, h: 124 } as const;
+const terminalObjectStatuses = new Set(["archived", "deleted", "soft-deleted"]);
 const defaultVisibility = {
   sourceBadge: true,
   fieldRows: true,
@@ -188,19 +189,10 @@ function selectedCanvasConfig(
 ): CanvasConfig | null {
   const rootTypeCode = view.config.selectionObjectTypeCode;
   const relationTypeCodes = view.config.selectionRelationTypeCodes;
-  if (
-    typeof rootTypeCode !== "string" ||
-    !Array.isArray(relationTypeCodes) ||
-    !selectedRootObjectId
-  ) {
+  if (typeof rootTypeCode !== "string" || !Array.isArray(relationTypeCodes)) {
     return null;
   }
-  const root = workspace.objects.find(
-    (object) =>
-      object.id === selectedRootObjectId &&
-      object.objectTypeCode === rootTypeCode &&
-      object.status === "active",
-  );
+  const root = resolveCanvasRoot(workspace, selectedRootObjectId, rootTypeCode);
   if (!root) return null;
   const relationTypes = new Set(
     relationTypeCodes.filter(
@@ -240,6 +232,44 @@ function selectedCanvasConfig(
     nodes,
     edges: Array.from(relationIds).map((relationId) => ({ relationId })),
   };
+}
+
+function resolveCanvasRoot(
+  workspace: WorkspaceState,
+  selectedObjectId: string | null,
+  rootTypeCode: string,
+): DataObject | undefined {
+  const selected = workspace.objects.find(
+    (object) =>
+      object.id === selectedObjectId &&
+      !terminalObjectStatuses.has(object.status),
+  );
+  if (selected?.objectTypeCode === rootTypeCode) return selected;
+  const related = workspace.relations.find(
+    (relation) =>
+      relation.status === "active" &&
+      (relation.sourceId === selected?.id ||
+        relation.targetId === selected?.id) &&
+      workspace.objects.find(
+        (object) =>
+          object.id ===
+            (relation.sourceId === selected?.id
+              ? relation.targetId
+              : relation.sourceId) &&
+          object.objectTypeCode === rootTypeCode &&
+          !terminalObjectStatuses.has(object.status),
+      ),
+  );
+  if (related) {
+    const rootId =
+      related.sourceId === selected?.id ? related.targetId : related.sourceId;
+    return workspace.objects.find((object) => object.id === rootId);
+  }
+  return workspace.objects.find(
+    (object) =>
+      object.objectTypeCode === rootTypeCode &&
+      !terminalObjectStatuses.has(object.status),
+  );
 }
 
 export function deriveGotoTargets(

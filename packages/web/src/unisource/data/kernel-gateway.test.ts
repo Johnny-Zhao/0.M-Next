@@ -111,16 +111,14 @@ describe("KernelGateway", () => {
     const canvasView = seed.views.find((view) => view.id === "view-pc-canvas")!;
     const canvas = buildCanvasViewModel(seed, canvasView);
     expect(canvas.nodes.map((node) => node.objectId)).toEqual([
-      "kernel-pc-requirement",
       "kernel-pc-valid",
-      "kernel-pc-invalid",
+      "kernel-pc-requirement",
       "kernel-pc-valid-cpu-item",
       "kernel-pc-valid-cpu-product",
       "kernel-pc-valid-cpu-quote",
     ]);
     expect(canvas.edges.map((edge) => edge.relationId)).toEqual([
       "kernel-rel-pc-valid-satisfies",
-      "kernel-rel-pc-invalid-satisfies",
       "kernel-rel-pc-valid-contains-cpu",
       "kernel-rel-pc-valid-cpu-selects-product",
       "kernel-rel-pc-valid-cpu-uses-quote",
@@ -134,15 +132,20 @@ describe("KernelGateway", () => {
     expect(matrix.allowColumnMove).toBe(false);
     expect(matrix.cards[0]?.fields.map((field) => field.text)).toEqual([
       "8783",
+      "10000",
       "460",
       "560",
+      "750",
+      "0",
+      "0",
     ]);
 
     const biView = seed.views.find((view) => view.id === "view-pc-bi")!;
     const bi = buildBiBoardVm(seed, biView);
     expect(bi.title).toBe("采购指标");
     expect(bi.sourceLabel).toBe("当前电脑采购工作空间");
-    expect(bi.bars).toEqual([]);
+    expect(bi.kpis[0]).toMatchObject({ label: "方案数量", value: "2" });
+    expect(bi.bars.map((bar) => bar.value)).toEqual([8783, 12872]);
 
     const report = seed.anaReports.find(
       (item) => item.id === "ana-pc-plan-comparison",
@@ -1020,6 +1023,10 @@ class FakeKernelApi {
             computed: true,
             readOnly: true,
           }),
+          fieldType("requirement_budget_cny_fx", "预算", "number"),
+          fieldType("power_supply_capacity_w_fx", "电源容量", "number"),
+          fieldType("cpu_mainboard_platform_span_fx", "CPU平台范围", "number"),
+          fieldType("memory_platform_span_fx", "内存平台范围", "number"),
         ],
       },
       {
@@ -1074,6 +1081,10 @@ class FakeKernelApi {
           total_price_cny_fx: 8783,
           total_power_w_fx: 460,
           total_performance_score_fx: 560,
+          requirement_budget_cny_fx: 10000,
+          power_supply_capacity_w_fx: 750,
+          cpu_mainboard_platform_span_fx: 0,
+          memory_platform_span_fx: 0,
         },
       ),
       viewObject(
@@ -1088,6 +1099,10 @@ class FakeKernelApi {
           total_price_cny_fx: 12872,
           total_power_w_fx: 690,
           total_performance_score_fx: 518,
+          requirement_budget_cny_fx: 10000,
+          power_supply_capacity_w_fx: 550,
+          cpu_mainboard_platform_span_fx: 1695,
+          memory_platform_span_fx: 1,
         },
       ),
       viewObject("kernel-pc-valid-cpu-item", "build_plan_item", {

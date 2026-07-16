@@ -47,6 +47,24 @@ describe("structured-document-view-model", () => {
     expect(fieldValue(item.object.fields, "total_price_cny_fx")).toBe("¥1,699");
   });
 
+  it("reads snapshot-only DOCX output configuration from the presentation preset", () => {
+    const { config } = procurementFixture();
+
+    expect(config.output).toMatchObject({
+      format: "docx",
+      relationType: "build_plan_contains_item",
+      relatedRelationTypes: expect.arrayContaining([
+        "build_plan_satisfies_requirement",
+        "supplier_quote_offered_by_supplier",
+      ]),
+      sectionMapping: {
+        relationTables: expect.arrayContaining([
+          expect.objectContaining({ title: "方案明细表" }),
+        ]),
+      },
+    });
+  });
+
   it("keeps missing relation targets and field references diagnosable", () => {
     const { workspace, doc, config } = procurementFixture();
     const missingTarget = {
@@ -180,6 +198,13 @@ describe("structured-document-view-model", () => {
     expect(parsed.config.sections[0]?.createAction).toBe(
       "pc_procurement.procurement-item",
     );
+    expect(parsed.config.dataReferenceTemplates[0]?.config.fieldCode).toBe(
+      "name",
+    );
+    expect(parsed.config.dataTableTemplates[0]?.config).toMatchObject({
+      objectTypeCode: "build_plan_item",
+      relationTypeCode: "build_plan_contains_item",
+    });
   });
 
   it("uses the selected root object when the view configuration opts in", () => {

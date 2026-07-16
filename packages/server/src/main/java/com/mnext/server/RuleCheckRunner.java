@@ -115,6 +115,7 @@ class RuleCheckRunner {
             ON type.workspace_id = object.workspace_id
            AND type.code = object.object_type_code
           WHERE object.workspace_id = ?
+            AND object.status NOT IN ('VOID', 'FILED', 'DELETED')
           ORDER BY object.object_id
           LIMIT 1000
           """,
@@ -141,6 +142,7 @@ class RuleCheckRunner {
           ON type.workspace_id = object.workspace_id
          AND type.code = object.object_type_code
         WHERE object.workspace_id = ?
+          AND object.status NOT IN ('VOID', 'FILED', 'DELETED')
           AND type.id IN (SELECT id FROM descendants)
         ORDER BY object.object_id
         LIMIT 1000
@@ -304,6 +306,7 @@ class RuleCheckRunner {
         WHERE relation.workspace_id = ?
           AND relation.relation_type_code = ?
           AND relation.status = 'ACTIVE'
+          AND related.status NOT IN ('VOID', 'FILED', 'DELETED')
           AND CASE WHEN ? THEN relation.source_id = ? ELSE relation.target_id = ? END
         ORDER BY related.object_id
         LIMIT ?

@@ -7,6 +7,7 @@ import type {
   OutputCreateOptions,
   OutputFormat,
   SnapshotArtifact,
+  SnapshotTreeScope,
 } from "../data/gateway";
 
 export interface OutputState {
@@ -16,6 +17,7 @@ export interface OutputState {
 
 export interface OutputExportScope extends OutputCreateOptions {
   readonly scopeObjectType?: string | null;
+  readonly treeScope?: SnapshotTreeScope | null;
   readonly fileBaseName?: string;
 }
 
@@ -28,7 +30,10 @@ export interface OutputDownloadPayload {
 
 export interface KernelOutputSource {
   setActor(actorId: MemberId): void;
-  captureSnapshot(scopeObjectType?: string | null): Promise<SnapshotArtifact>;
+  captureSnapshot(
+    scopeObjectType?: string | null,
+    treeScope?: SnapshotTreeScope | null,
+  ): Promise<SnapshotArtifact>;
   createOutput(
     snapshotId: string,
     format: OutputFormat,
@@ -90,6 +95,7 @@ export class OutputsStore {
     try {
       const snapshot = await this.kernelSource.captureSnapshot(
         scope.scopeObjectType ?? null,
+        scope.treeScope ?? null,
       );
       const outputMeta = await this.kernelSource.createOutput(
         snapshot.snapshotId,
@@ -99,6 +105,7 @@ export class OutputsStore {
           templateVersion: scope.templateVersion ?? null,
           objectType: scope.objectType ?? null,
           fieldOrder: scope.fieldOrder ?? null,
+          sectionMapping: scope.sectionMapping ?? null,
         },
       );
       const outputId = readOutputId(outputMeta);

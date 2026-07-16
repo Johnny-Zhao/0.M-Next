@@ -2,6 +2,8 @@ import type { DataObject, ObjectTypeDef, SelectionRef } from "../model/kernel";
 import type { WorkspaceState } from "../state/workspace-store";
 import type { RuleOutcome } from "./rules";
 
+const terminalObjectStatuses = new Set(["archived", "deleted", "soft-deleted"]);
+
 export type KernelValidationFilter =
   | "all"
   | "block"
@@ -135,12 +137,17 @@ function resultInScope(
   result: RuleOutcome,
   scopeObjectTypeCode: string | null,
 ): boolean {
-  if (scopeObjectTypeCode === null) return true;
-  return selectionObjectIds(workspace, result.target ?? null).some(
-    (id) =>
-      workspace.objects.find((object) => object.id === id)?.objectTypeCode ===
-      scopeObjectTypeCode,
-  );
+  const objectIds = selectionObjectIds(workspace, result.target ?? null);
+  if (objectIds.length === 0) return scopeObjectTypeCode === null;
+  return objectIds.some((id) => {
+    const object = workspace.objects.find((candidate) => candidate.id === id);
+    if (object === undefined) return scopeObjectTypeCode === null;
+    return (
+      !terminalObjectStatuses.has(object.status) &&
+      (scopeObjectTypeCode === null ||
+        object.objectTypeCode === scopeObjectTypeCode)
+    );
+  });
 }
 
 function selectionObjectIds(
@@ -209,6 +216,7 @@ function buildNoIssueItems(
   return input.workspace.objects
     .filter(
       (object) =>
+        !terminalObjectStatuses.has(object.status) &&
         (input.scopeObjectTypeCode === null ||
           object.objectTypeCode === input.scopeObjectTypeCode) &&
         !issueObjectIds.has(object.id),
@@ -250,6 +258,7 @@ function isSelectionInScope(input: KernelValidationViewModelInput): boolean {
     );
     return (
       object !== undefined &&
+      !terminalObjectStatuses.has(object.status) &&
       (input.scopeObjectTypeCode === null ||
         object.objectTypeCode === input.scopeObjectTypeCode)
     );

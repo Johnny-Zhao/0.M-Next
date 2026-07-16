@@ -63,6 +63,7 @@ import type {
   OutputCreateOptions,
   OutputFormat,
   SnapshotArtifact,
+  SnapshotTreeScope,
   Annotation,
   CreateAnnotationInput,
   ExchangeApplyOutcome,
@@ -569,12 +570,14 @@ export class KernelGateway implements UnisourceGateway {
 
   async captureSnapshot(
     scopeObjectType?: string | null,
+    treeScope?: SnapshotTreeScope | null,
   ): Promise<SnapshotArtifact> {
     return this.runWrite(async () => {
       const snapshot = await this.viewClient.captureSnapshot(
         this.workspaceId,
         this.currentActor,
         scopeObjectType ?? null,
+        treeScope ?? null,
       );
       return mapSnapshotMeta(snapshot);
     });
@@ -596,6 +599,9 @@ export class KernelGateway implements UnisourceGateway {
           templateVersion: options.templateVersion ?? null,
           objectType: options.objectType ?? null,
           fieldOrder: options.fieldOrder ?? null,
+          ...(options.sectionMapping
+            ? { sectionMapping: options.sectionMapping }
+            : {}),
         },
       );
       return mapOutputMeta(output);

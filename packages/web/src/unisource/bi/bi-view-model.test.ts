@@ -44,4 +44,26 @@ describe("buildBiBoardVm", () => {
       buildBiBoardVm(store.getSnapshot()).kpis.map((kpi) => kpi.id),
     ).toContain("kpi-ana-aov-net");
   });
+
+  it("reads configured record counts and raw values from the current workspace", () => {
+    const workspace = new WorkspaceStore(cloneDemoSeed()).getSnapshot();
+    const vm = buildBiBoardVm(workspace, {
+      id: "bi-current-data",
+      exprId: "expr",
+      kind: "bi",
+      config: {
+        metrics: [
+          { kind: "count", objectTypeCode: "product_specs", label: "产品数" },
+        ],
+        recordSeries: {
+          objectTypeCode: "product_specs",
+          labelFieldCode: "name",
+          valueFieldCode: "price",
+        },
+      },
+    });
+
+    expect(vm.kpis[0]).toMatchObject({ label: "产品数", value: "8" });
+    expect(vm.bars[0]).toMatchObject({ label: "门锁 S3", value: 1199 });
+  });
 });

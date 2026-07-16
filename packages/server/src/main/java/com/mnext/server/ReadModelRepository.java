@@ -963,6 +963,7 @@ class ReadModelRepository {
                    object.version, tree.parent_id, tree.relation_id, tree.depth,
                    parent_relation.relation_type_code, parent_relation.source_id,
                    parent_relation.target_id, parent_relation.fields::text,
+                   parent_relation.status, parent_relation.version,
                    COALESCE(
                      rule_status.value,
                      CASE WHEN latest_run.run_id IS NULL THEN 'UNKNOWN' ELSE 'OK' END)
@@ -990,7 +991,9 @@ class ReadModelRepository {
                     row.getObject(10, UUID.class),
                     row.getObject(11, UUID.class),
                     optionalMap(row.getString(12)),
-                    row.getString(13)),
+                    row.getString(13),
+                    row.getLong(14),
+                    row.getString(15)),
             workspaceId,
             treeScope.rootId(),
             workspaceId,
@@ -1001,13 +1004,144 @@ class ReadModelRepository {
             workspaceId,
             workspaceId);
     if (nodes.isEmpty()) throw new IllegalArgumentException("treeScope.rootId 不存在或不可见");
+    var checks = snapshotChecks(workspaceId);
     var objects =
         java.util.stream.IntStream.range(0, nodes.size())
-            .mapToObj(index -> nodes.get(index).object(index))
+            .mapToObj(
+                index ->
+                    nodes
+                        .get(index)
+                        .object(index, checks.getOrDefault(nodes.get(index).objectId(), List.of())))
             .toList();
     var relations =
         nodes.stream().map(TreeSnapshotNode::relation).flatMap(java.util.Optional::stream).toList();
-    return new DataSet(objects, relations);
+    if (treeScope.relatedRelationTypes().isEmpty()) return new DataSet(objects, relations);
+    return expandTreeSnapshot(workspaceId, objects, relations, treeScope.relatedRelationTypes());
+  }
+
+  private Map<UUID, List<String>> snapshotChecks(UUID workspaceId) {
+    var values =
+        jdbc.query(
+            """
+            WITH latest_run AS (
+              SELECT run_id FROM check_result WHERE workspace_id = ?
+              GROUP BY run_id ORDER BY max(created_at) DESC, run_id LIMIT 1)
+            SELECT object_id, rule_code, severity, message
+            FROM check_result WHERE workspace_id = ? AND object_id IS NOT NULL
+              AND run_id = (SELECT run_id FROM latest_run)
+            ORDER BY object_id, rule_code, id
+            """,
+            (row, index) ->
+                new SnapshotCheck(
+                    row.getObject(1, UUID.class),
+                    row.getString(2),
+                    row.getString(3),
+                    row.getString(4)),
+            workspaceId,
+            workspaceId);
+    var result = new java.util.LinkedHashMap<UUID, List<String>>();
+    values.forEach(
+        value ->
+            result
+                .computeIfAbsent(value.objectId(), ignored -> new java.util.ArrayList<>())
+                .add(value.ruleCode() + " · " + value.severity() + " · " + value.message()));
+    return result;
+  }
+
+  private DataSet expandTreeSnapshot(
+      UUID workspaceId,
+      List<DataObject> treeObjects,
+      List<DataRelation> treeRelations,
+      List<String> relationTypes) {
+    var objects = new java.util.LinkedHashMap<String, DataObject>();
+    treeObjects.forEach(object -> objects.put(object.objectId(), object));
+    var relations = new java.util.LinkedHashMap<String, DataRelation>();
+    treeRelations.forEach(relation -> relations.put(relation.relationId(), relation));
+    var frontier =
+        treeObjects.stream()
+            .map(DataObject::objectId)
+            .map(UUID::fromString)
+            .collect(java.util.stream.Collectors.toCollection(java.util.LinkedHashSet::new));
+    for (var depth = 0; depth < 5 && !frontier.isEmpty(); depth++) {
+      var next = new java.util.LinkedHashSet<UUID>();
+      relatedRelations(workspaceId, frontier, relationTypes)
+          .forEach(
+              relation -> {
+                relations.putIfAbsent(relation.relationId(), relation);
+                for (var objectId : List.of(relation.sourceId(), relation.targetId())) {
+                  if (!objects.containsKey(objectId)) next.add(UUID.fromString(objectId));
+                }
+              });
+      if (next.isEmpty()) break;
+      relatedObjects(workspaceId, next).forEach(object -> objects.put(object.objectId(), object));
+      frontier = next;
+    }
+    return new DataSet(List.copyOf(objects.values()), List.copyOf(relations.values()));
+  }
+
+  private List<DataRelation> relatedRelations(
+      UUID workspaceId, java.util.Set<UUID> objectIds, List<String> relationTypes) {
+    var types = placeholders(relationTypes.size());
+    var ids = placeholders(objectIds.size());
+    var sql =
+        """
+        SELECT relation_id, relation_type_code, source_id, target_id, fields::text, status, version
+        FROM rm_relation
+        WHERE workspace_id = ? AND status = 'ACTIVE' AND relation_type_code IN (%s)
+          AND (source_id IN (%s) OR target_id IN (%s))
+        ORDER BY relation_id
+        """
+            .formatted(types, ids, ids);
+    var args = new java.util.ArrayList<Object>();
+    args.add(workspaceId);
+    args.addAll(relationTypes);
+    args.addAll(objectIds);
+    args.addAll(objectIds);
+    return jdbc.query(
+        sql,
+        (row, index) ->
+            new DataRelation(
+                row.getObject(1, UUID.class).toString(),
+                row.getString(2),
+                row.getObject(3, UUID.class).toString(),
+                row.getObject(4, UUID.class).toString(),
+                snapshotFields(map(row.getString(5)), row.getString(6), row.getLong(7))),
+        args.toArray());
+  }
+
+  private List<DataObject> relatedObjects(UUID workspaceId, java.util.Set<UUID> objectIds) {
+    var sql =
+        """
+        SELECT object_id, object_type_code, fields::text, status, version
+        FROM rm_object WHERE workspace_id = ? AND object_id IN (%s)
+        ORDER BY object_id
+        """
+            .formatted(placeholders(objectIds.size()));
+    var args = new java.util.ArrayList<Object>();
+    args.add(workspaceId);
+    args.addAll(objectIds);
+    return jdbc.query(
+        sql,
+        (row, index) ->
+            new DataObject(
+                row.getObject(1, UUID.class).toString(),
+                row.getString(2),
+                map(row.getString(3)),
+                row.getString(4),
+                row.getLong(5)),
+        args.toArray());
+  }
+
+  private static String placeholders(int count) {
+    return java.util.Collections.nCopies(count, "?").stream()
+        .collect(java.util.stream.Collectors.joining(","));
+  }
+
+  private static Map<String, Object> snapshotFields(
+      Map<String, Object> fields, String status, long version) {
+    var value = new java.util.LinkedHashMap<>(fields);
+    value.put("_snapshot", Map.of("status", status, "version", version));
+    return value;
   }
 
   UUID objectTypeId(UUID workspaceId, String code) {
@@ -1199,13 +1333,15 @@ class ReadModelRepository {
       UUID sourceId,
       UUID targetId,
       Map<String, Object> relationFields,
+      String relationStatus,
+      long relationVersion,
       String ruleStatus) {
-    DataObject object(int order) {
+    DataObject object(int order, List<String> checks) {
       return new DataObject(
-          objectId.toString(), objectTypeCode, fieldsWithTree(order), status, version);
+          objectId.toString(), objectTypeCode, fieldsWithTree(order, checks), status, version);
     }
 
-    Map<String, Object> fieldsWithTree(int order) {
+    Map<String, Object> fieldsWithTree(int order, List<String> checks) {
       var result = new java.util.LinkedHashMap<>(fields);
       var tree = new java.util.LinkedHashMap<String, Object>();
       tree.put("depth", depth);
@@ -1214,6 +1350,7 @@ class ReadModelRepository {
       tree.put("order", order);
       tree.put("ruleStatus", ruleStatus);
       result.put("_tree", tree);
+      if (!checks.isEmpty()) result.put("_checks", List.copyOf(checks));
       return result;
     }
 
@@ -1225,7 +1362,9 @@ class ReadModelRepository {
               relationTypeCode,
               sourceId.toString(),
               targetId.toString(),
-              relationFields));
+              snapshotFields(relationFields, relationStatus, relationVersion)));
     }
   }
+
+  private record SnapshotCheck(UUID objectId, String ruleCode, String severity, String message) {}
 }

@@ -26,6 +26,9 @@ type WriteGateway = Pick<
   refreshObject?(objectId: string): Promise<DataObject>;
 };
 
+const DERIVED_REFRESH_DEPTH = 2;
+const terminalObjectStatuses = new Set(["archived", "deleted", "soft-deleted"]);
+
 export interface KernelWriteBridgeOptions {
   readonly workspace?: WorkspaceStore;
   readonly session?: SessionStore;
@@ -252,15 +255,7 @@ export class KernelWriteBridge implements WriteSink {
 
   private async refreshRelatedObjects(objectId: string): Promise<void> {
     if (!this.gateway.refreshObject) return;
-    const relatedIds = new Set(
-      this.workspace
-        .getRelations(objectId)
-        .map((relation) =>
-          relation.sourceId === objectId
-            ? relation.targetId
-            : relation.sourceId,
-        ),
-    );
+    const relatedIds = this.derivedRefreshObjectIds(objectId);
     await Promise.all(
       [...relatedIds].map(async (relatedId) => {
         try {
@@ -272,6 +267,31 @@ export class KernelWriteBridge implements WriteSink {
         }
       }),
     );
+  }
+
+  private derivedRefreshObjectIds(objectId: string): ReadonlySet<string> {
+    const relatedIds = new Set<string>();
+    let frontier = new Set([objectId]);
+    for (let depth = 0; depth < DERIVED_REFRESH_DEPTH; depth += 1) {
+      const next = new Set<string>();
+      for (const relation of this.workspace.getRelations()) {
+        if (relation.status !== "active") continue;
+        const relatedId = frontier.has(relation.sourceId)
+          ? relation.targetId
+          : frontier.has(relation.targetId)
+            ? relation.sourceId
+            : null;
+        if (!relatedId || relatedIds.has(relatedId) || relatedId === objectId)
+          continue;
+        const related = this.workspace.getObject(relatedId);
+        if (!related || terminalObjectStatuses.has(related.status)) continue;
+        relatedIds.add(relatedId);
+        next.add(relatedId);
+      }
+      frontier = next;
+      if (frontier.size === 0) break;
+    }
+    return relatedIds;
   }
 
   private resolveObjectId(objectId: string): string {

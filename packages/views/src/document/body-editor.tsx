@@ -8,6 +8,14 @@ import {
   parseBody,
   serializeBody,
 } from "./body-content";
+import {
+  selectedDocumentDataBlock,
+  type DocumentBodyEditorActions,
+  type DocumentDataBlock,
+  type DocumentDataBlockRenderer,
+  type DocumentDataReferenceConfig,
+  type DocumentDataTableConfig,
+} from "./body-data-blocks";
 
 export interface DocumentBodyBlockProps {
   readonly value: unknown;
@@ -15,6 +23,10 @@ export interface DocumentBodyBlockProps {
   /** 保存正文:序列化后的 JSON 字符串走 updateSingleField 唯一出口(string 类型)。 */
   readonly onSave: (json: string) => void | Promise<void>;
   readonly showToolbar?: boolean;
+  readonly dataBlockRenderer?: DocumentDataBlockRenderer;
+  readonly renderDataBlockActions?: (
+    actions: DocumentBodyEditorActions,
+  ) => ReactElement | null;
 }
 
 /**
@@ -31,9 +43,11 @@ export function DocumentBodyBlock(props: DocumentBodyBlockProps): ReactElement {
       <section aria-label="正文" className="document-body">
         <span className="document-body-label">正文</span>
         <BodyEditorForm
+          dataBlockRenderer={props.dataBlockRenderer}
           initialDoc={initial}
           onCancel={() => setEditing(false)}
           onSave={(json) => props.onSave(json)}
+          renderDataBlockActions={props.renderDataBlockActions}
         />
       </section>
     );
@@ -67,6 +81,7 @@ export function DocumentBodyBlock(props: DocumentBodyBlockProps): ReactElement {
       ) : (
         <BodyReadonly
           doc={content.doc}
+          dataBlockRenderer={props.dataBlockRenderer}
           onEdit={props.editable ? () => setEditing(true) : undefined}
           showToolbar={props.showToolbar}
         />
@@ -75,29 +90,62 @@ export function DocumentBodyBlock(props: DocumentBodyBlockProps): ReactElement {
   );
 }
 
-export type DocumentBodyToolbarCommand = "bold" | "italic" | "bulletList";
+export type DocumentBodyToolbarCommand =
+  | "paragraph"
+  | "heading"
+  | "bold"
+  | "italic"
+  | "bulletList"
+  | "orderedList";
 
 export function runDocumentBodyToolbarCommand(
   editor: Editor,
   command: DocumentBodyToolbarCommand,
 ): boolean {
   const chain = editor.chain();
+  if (command === "paragraph") return chain.setParagraph().run();
+  if (command === "heading") return chain.toggleHeading({ level: 2 }).run();
   if (command === "bold") return chain.toggleBold().run();
   if (command === "italic") return chain.toggleItalic().run();
-  return chain.toggleBulletList().run();
+  return command === "bulletList"
+    ? chain.toggleBulletList().run()
+    : chain.toggleOrderedList().run();
 }
 
 export function DocumentBodyToolbar({
   editor,
   disabled = false,
+  children,
 }: {
   readonly editor: Editor | null;
   readonly disabled?: boolean;
+  readonly children?: ReactElement | null;
 }): ReactElement {
   const unavailable = disabled || !editor;
   return (
     <div aria-label="正文格式" className="document-body-toolbar" role="toolbar">
       <span className="document-body-toolbar-label">正文</span>
+      <button
+        aria-label="段落"
+        disabled={unavailable}
+        onClick={() =>
+          editor && runDocumentBodyToolbarCommand(editor, "paragraph")
+        }
+        type="button"
+      >
+        P
+      </button>
+      <button
+        aria-label="标题"
+        aria-pressed={editor?.isActive("heading", { level: 2 }) ?? false}
+        disabled={unavailable}
+        onClick={() =>
+          editor && runDocumentBodyToolbarCommand(editor, "heading")
+        }
+        type="button"
+      >
+        H
+      </button>
       <button
         aria-label="加粗"
         aria-pressed={editor?.isActive("bold") ?? false}
@@ -132,18 +180,63 @@ export function DocumentBodyToolbar({
       >
         • 列表
       </button>
+      <button
+        aria-label="有序列表"
+        aria-pressed={editor?.isActive("orderedList") ?? false}
+        className={editor?.isActive("orderedList") ? "is-active" : ""}
+        disabled={unavailable}
+        onClick={() =>
+          editor && runDocumentBodyToolbarCommand(editor, "orderedList")
+        }
+        type="button"
+      >
+        1. 列表
+      </button>
+      {children}
     </div>
   );
+}
+
+export function documentBodyEditorActions(
+  editor: Editor,
+): DocumentBodyEditorActions {
+  const insert = (block: DocumentDataBlock) =>
+    editor
+      .chain()
+      .insertContent({ type: block.kind, attrs: { config: block.config } })
+      .run();
+  return {
+    selectedBlock: selectedDocumentDataBlock(editor),
+    insertDataReference: (config: DocumentDataReferenceConfig) =>
+      insert({ kind: "dataReference", config }),
+    insertDataTable: (config: DocumentDataTableConfig) =>
+      insert({ kind: "dataTable", config }),
+    replaceSelectedBlock: (block) => {
+      if (!selectedDocumentDataBlock(editor)) return false;
+      return editor.commands.updateAttributes(block.kind, {
+        config: block.config,
+      });
+    },
+    removeSelectedBlock: () =>
+      selectedDocumentDataBlock(editor)
+        ? editor.commands.deleteSelection()
+        : false,
+  };
 }
 
 function BodyReadonly(props: {
   readonly doc: JSONContent;
   readonly onEdit?: () => void;
   readonly showToolbar?: boolean;
+  readonly dataBlockRenderer?: DocumentDataBlockRenderer;
 }): ReactElement {
   const editor = useEditor(
-    { extensions: bodyExtensions(), content: props.doc, editable: false },
-    [props.doc],
+    {
+      extensions: bodyExtensions(props.dataBlockRenderer),
+      content: props.doc,
+      editable: false,
+    },
+    [props.dataBlockRenderer, props.doc],
   );
   return (
     <div className="document-body-view">
@@ -168,13 +261,17 @@ function BodyEditorForm(props: {
   readonly initialDoc: JSONContent;
   readonly onSave: (json: string) => void | Promise<void>;
   readonly onCancel: () => void;
+  readonly dataBlockRenderer?: DocumentDataBlockRenderer;
+  readonly renderDataBlockActions?: (
+    actions: DocumentBodyEditorActions,
+  ) => ReactElement | null;
 }): ReactElement {
   const [, setTick] = useState(0);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const bump = () => setTick((tick) => tick + 1);
   const editor = useEditor({
-    extensions: bodyExtensions(),
+    extensions: bodyExtensions(props.dataBlockRenderer),
     content: props.initialDoc,
     autofocus: "end",
     editable: true,
@@ -183,10 +280,13 @@ function BodyEditorForm(props: {
   });
 
   if (!editor) return <div className="document-body-editor" />;
+  const dataBlockActions = documentBodyEditorActions(editor);
 
   return (
     <div className="document-body-editor">
-      <DocumentBodyToolbar editor={editor} />
+      <DocumentBodyToolbar editor={editor}>
+        {props.renderDataBlockActions?.(dataBlockActions) ?? null}
+      </DocumentBodyToolbar>
       <EditorContent className="document-body-input" editor={editor} />
       <div className="document-body-actions">
         <button

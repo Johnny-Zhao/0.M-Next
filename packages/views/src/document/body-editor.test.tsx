@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   DocumentBodyToolbar,
+  documentBodyEditorActions,
   runDocumentBodyToolbarCommand,
 } from "./body-editor";
 import { bodyExtensions } from "./body-content";
@@ -10,19 +11,21 @@ import { bodyExtensions } from "./body-content";
 describe("DocumentBodyToolbar", () => {
   it("renders only the supported body controls and disables them without an editor", () => {
     const toolbar = DocumentBodyToolbar({ editor: null, disabled: true });
-    const children = toolbar.props.children as readonly {
-      readonly props?: Record<string, unknown>;
-      readonly type?: unknown;
-    }[];
+    const children = (
+      toolbar.props.children as readonly {
+        readonly props?: Record<string, unknown>;
+        readonly type?: unknown;
+      }[]
+    ).filter(Boolean);
 
     expect(toolbar.props["aria-label"]).toBe("正文格式");
     expect(children[0]?.props?.children).toBe("正文");
     expect(children.slice(1).map((child) => child.props?.["disabled"])).toEqual(
-      [true, true, true],
+      [true, true, true, true, true, true],
     );
     expect(
       children.slice(1).map((child) => child.props?.["aria-label"]),
-    ).toEqual(["加粗", "斜体", "无序列表"]);
+    ).toEqual(["段落", "标题", "加粗", "斜体", "无序列表", "有序列表"]);
   });
 
   it("runs formatting commands against the single Tiptap editor instance", () => {
@@ -46,6 +49,23 @@ describe("DocumentBodyToolbar", () => {
     ]);
     expect(runDocumentBodyToolbarCommand(editor, "bulletList")).toBe(true);
     expect(editor.getJSON().content?.[0]?.type).toBe("bulletList");
+    editor.destroy();
+  });
+
+  it("serializes inserted data-block configuration without a data value", () => {
+    const editor = new Editor({
+      element: null,
+      extensions: bodyExtensions(),
+      content: { type: "doc", content: [{ type: "paragraph" }] },
+    });
+    expect(
+      documentBodyEditorActions(editor).insertDataReference({
+        objectBinding: "document-root",
+        fieldCode: "name",
+      }),
+    ).toBe(true);
+    expect(JSON.stringify(editor.getJSON())).toContain('"fieldCode":"name"');
+    expect(JSON.stringify(editor.getJSON())).not.toContain('"value"');
     editor.destroy();
   });
 });

@@ -69,6 +69,39 @@ describe("OutputsStore", () => {
     expect(await downloads[0]?.blob.text()).toBe("# Markdown");
   });
 
+  it("captures a bounded tree scope and forwards the snapshot-only mapping", async () => {
+    const source = new FakeOutputSource("ZG9jeA==");
+    const store = new OutputsStore({
+      kernelSource: source,
+      pushToast: vi.fn(),
+    });
+
+    await store.exportToKernel(
+      "docx",
+      {
+        treeScope: {
+          rootId: "plan-1",
+          relationType: "contains",
+          relatedRelationTypes: ["uses_quote"],
+        },
+        sectionMapping: { fieldLabels: { name: "名称" } },
+      },
+      "wangyun",
+    );
+
+    expect(source.captureArgs).toEqual([
+      null,
+      {
+        rootId: "plan-1",
+        relationType: "contains",
+        relatedRelationTypes: ["uses_quote"],
+      },
+    ]);
+    expect(source.outputOptions?.sectionMapping).toEqual({
+      fieldLabels: { name: "名称" },
+    });
+  });
+
   it("does nothing without a kernel source", async () => {
     const pushToast = vi.fn();
     const download = vi.fn();
@@ -103,6 +136,8 @@ class FakeOutputSource implements KernelOutputSource {
   readonly actorIds: MemberId[] = [];
   readonly calls: string[] = [];
   failCapture = false;
+  captureArgs: readonly unknown[] | null = null;
+  outputOptions: OutputCreateOptions | null = null;
 
   constructor(
     private readonly artifact: string,
@@ -115,8 +150,10 @@ class FakeOutputSource implements KernelOutputSource {
 
   async captureSnapshot(
     scopeObjectType?: string | null,
+    treeScope?: import("../data/gateway").SnapshotTreeScope | null,
   ): Promise<SnapshotArtifact> {
     if (this.failCapture) throw new Error("capture failed");
+    this.captureArgs = [scopeObjectType ?? null, treeScope ?? null];
     this.calls.push(`capture:${scopeObjectType ?? "all"}`);
     return {
       snapshotId: "snapshot-1",
@@ -133,6 +170,7 @@ class FakeOutputSource implements KernelOutputSource {
     format: OutputFormat,
     options: OutputCreateOptions = {},
   ): Promise<{ readonly outputId: string }> {
+    this.outputOptions = options;
     this.calls.push(
       `create:${snapshotId}:${format}:${options.templateId ?? "none"}:${options.objectType ?? "all"}`,
     );

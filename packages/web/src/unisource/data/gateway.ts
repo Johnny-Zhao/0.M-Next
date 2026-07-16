@@ -45,6 +45,28 @@ export interface SnapshotArtifact {
   readonly scopeObjectType: string | null;
 }
 
+export interface SnapshotTreeScope {
+  readonly rootId: string;
+  readonly relationType: string;
+  readonly maxDepth?: number;
+  readonly relatedRelationTypes?: readonly string[];
+}
+
+export interface OutputSectionMapping {
+  readonly headingLevels?: Readonly<Record<number, number>>;
+  readonly fieldRoles?: Readonly<Record<string, string>>;
+  readonly fieldLabels?: Readonly<Record<string, string>>;
+  readonly relationTables?: readonly {
+    readonly relationType: string;
+    readonly title: string;
+    readonly columns: readonly {
+      readonly label: string;
+      readonly fieldCode: string;
+      readonly relationPath?: readonly string[];
+    }[];
+  }[];
+}
+
 export interface OutputArtifactMeta {
   readonly outputId: string;
   readonly snapshotId: string;
@@ -63,6 +85,7 @@ export interface OutputCreateOptions {
   readonly templateVersion?: number | null;
   readonly objectType?: string | null;
   readonly fieldOrder?: readonly string[] | null;
+  readonly sectionMapping?: OutputSectionMapping | null;
 }
 
 export type ExchangeFormat = "json" | "reqif";
@@ -451,7 +474,10 @@ export interface UnisourceGateway {
    * @mock Return a synthetic snapshot meta; local demo export does not use it.
    * @gap G5: slot bindings remain frontend projection data until backend support.
    */
-  captureSnapshot(scopeObjectType?: string | null): Promise<SnapshotArtifact>;
+  captureSnapshot(
+    scopeObjectType?: string | null,
+    treeScope?: SnapshotTreeScope | null,
+  ): Promise<SnapshotArtifact>;
 
   /**
    * Create one output render task from a snapshot.

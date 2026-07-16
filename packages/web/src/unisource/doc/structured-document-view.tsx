@@ -23,6 +23,11 @@ import {
   type StructuredDocumentOutlineItem,
 } from "./structured-document-view-model";
 import { StructuredDocumentActionOutlet } from "./structured-document-action-registry";
+import {
+  StructuredDocumentDataBlock,
+  StructuredDocumentDataBlockActions,
+} from "./structured-document-data-blocks";
+import { StructuredDocumentOutputAction } from "./structured-document-output-action";
 
 export function StructuredDocumentView({
   compact,
@@ -138,11 +143,34 @@ export function StructuredDocumentView({
         </header>
         <article className="us-doc-paper us-structured-doc">
           <p className="us-doc-author">{doc.authorLine}</p>
+          {config.output ? (
+            <StructuredDocumentOutputAction
+              config={config.output}
+              rootObjectId={root.objectId}
+              title={root.label}
+            />
+          ) : null}
           {config.bodyFieldCode ? (
             vm.body?.state === "fresh" ? (
               <DocumentBodyBlock
+                dataBlockRenderer={({ block }) => (
+                  <StructuredDocumentDataBlock
+                    block={block}
+                    onSave={saveField}
+                    root={root}
+                    workspace={workspace}
+                  />
+                )}
                 editable={vm.body.editable}
                 onSave={saveBody}
+                renderDataBlockActions={(actions) => (
+                  <StructuredDocumentDataBlockActions
+                    actions={actions}
+                    config={config}
+                    root={root}
+                    workspace={workspace}
+                  />
+                )}
                 showToolbar
                 value={vm.body.value}
               />
@@ -516,7 +544,10 @@ export function parseStructuredDocumentInputValue(
     if (!enumValues.includes(value)) throw new Error("请选择有效枚举值");
     return value;
   }
-  if (value.trim().length === 0) return null;
+  if (value.trim().length === 0) {
+    if (field.field?.required) throw new Error("请填写必填字段");
+    return null;
+  }
   if (field.field?.dataType !== "number") return value;
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) throw new Error("请输入有效数字");

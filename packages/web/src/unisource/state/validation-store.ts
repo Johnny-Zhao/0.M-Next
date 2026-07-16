@@ -63,6 +63,7 @@ export class ValidationStore {
     this.showToast = options.pushToast ?? pushToast;
     this.state = this.evaluate(new Set(), "0.2s");
     this.unsubscribeWorkspace = this.workspace.subscribe(() => {
+      this.invalidateKernelResults();
       this.runAll("0.1s");
     });
   }
@@ -305,6 +306,18 @@ export class ValidationStore {
       ":00+08:00",
       `:${String(this.runSequence).padStart(2, "0")}+08:00`,
     );
+  }
+
+  private invalidateKernelResults(): void {
+    if (this.state.source !== "kernel" || this.state.kernelRunning) return;
+    this.state = {
+      ...this.state,
+      kernelResults: [],
+      kernelRunAt: null,
+      kernelStatus: "idle",
+      kernelError: null,
+      kernelRunId: null,
+    };
   }
 
   private emit(): void {

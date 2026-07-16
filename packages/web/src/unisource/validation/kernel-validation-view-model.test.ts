@@ -156,6 +156,30 @@ describe("buildKernelValidationViewModel", () => {
     expect(vm.items[0]?.ruleCode).toBeNull();
   });
 
+  it("excludes terminal objects from validation results and no-issue items", () => {
+    const terminalWorkspace = {
+      ...workspace,
+      objects: [
+        ...objects,
+        { ...object("plan-archived", "plan"), status: "archived" as const },
+      ],
+    };
+    const vm = buildKernelValidationViewModel({
+      workspace: terminalWorkspace,
+      results: [outcome("ARCHIVED", "error", "plan-archived")],
+      status: "ready",
+      error: null,
+      filter: "no-issue",
+      selection: null,
+      scopeObjectTypeCode: "plan",
+    });
+
+    expect(vm.items.map((item) => item.objectId)).not.toContain(
+      "plan-archived",
+    );
+    expect(vm.blockCount).toBe(0);
+  });
+
   it.each(["idle", "running", "error"] as const)(
     "does not synthesize no-issue objects while status is %s",
     (status) => {

@@ -90,7 +90,13 @@ class SnapshotRepository {
     if (!readModel.hierarchicalRelationType(workspaceId, relationType)) {
       throw new IllegalArgumentException("treeScope.relationType 必须为 hierarchical");
     }
-    return new SnapshotTreeScope(treeScope.rootId(), relationType, maxDepth);
+    var related =
+        treeScope.relatedRelationTypes().stream()
+            .filter(value -> value != null && !value.isBlank())
+            .map(String::trim)
+            .distinct()
+            .toList();
+    return new SnapshotTreeScope(treeScope.rootId(), relationType, maxDepth, related);
   }
 
   SnapshotDetail get(UUID workspaceId, UUID snapshotId) {

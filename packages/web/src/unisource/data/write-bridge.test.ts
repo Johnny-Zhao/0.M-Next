@@ -97,7 +97,7 @@ describe("KernelWriteBridge", () => {
     });
   });
 
-  it("refreshes loaded direct neighbors after a successful field write", async () => {
+  it("refreshes loaded derived consumers after a successful field write", async () => {
     const seed = cloneDemoSeed();
     const gatewayObject = seed.objects.find(
       (object) => object.id === "prod-g2",
@@ -121,6 +121,7 @@ describe("KernelWriteBridge", () => {
     await harness.bridge.whenIdle();
 
     expect(harness.gateway.refreshObjectCalls).toContain("prod-g2");
+    expect(harness.gateway.refreshObjectCalls).toContain("prod-d2-pro");
     expect(
       harness.workspace.getObject("prod-g2")?.fields.refreshed_fx?.value,
     ).toBe(42);

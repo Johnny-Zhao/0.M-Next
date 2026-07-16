@@ -33,20 +33,23 @@ const richDoc = {
 };
 
 describe("body-content", () => {
-  it("restricts the schema to paragraph/bold/italic/bulletList — filters headings and other extensions", () => {
+  it("supports the documented body blocks while filtering unsupported extensions", () => {
     const schema = getSchema(bodyExtensions());
 
     expect(Object.keys(schema.nodes).sort()).toEqual([
       "bulletList",
+      "dataReference",
+      "dataTable",
       "doc",
+      "heading",
       "listItem",
+      "orderedList",
       "paragraph",
       "text",
     ]);
     expect(Object.keys(schema.marks).sort()).toEqual(["bold", "italic"]);
-    // 子集外内容不在 schema 中 → 粘贴时被 ProseMirror 按 schema 过滤。
-    expect(schema.nodes.heading).toBeUndefined();
-    expect(schema.nodes.orderedList).toBeUndefined();
+    expect(schema.nodes.heading).toBeDefined();
+    expect(schema.nodes.orderedList).toBeDefined();
     expect(schema.marks.strike).toBeUndefined();
     expect(schema.marks.link).toBeUndefined();
   });
