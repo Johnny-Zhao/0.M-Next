@@ -212,6 +212,13 @@
       }
     },
     {
+      "objectType": "build_plan",
+      "code": "body",
+      "name": "正文",
+      "dataType": "string",
+      "required": false
+    },
+    {
       "objectType": "build_plan_item",
       "code": "code",
       "name": "编码",

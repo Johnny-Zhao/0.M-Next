@@ -4,6 +4,7 @@ import type {
   DataFieldValue,
   DataObject,
   DataObjectId,
+  DataRelation,
   DataRelationId,
   FieldCode,
   MemberId,
@@ -108,6 +109,20 @@ export class MockUnisourceGateway implements UnisourceGateway {
     readonly summary?: string;
   }): Promise<RelationWriteResult> {
     return this.workspace.createRelation(params);
+  }
+
+  async unlinkRelation(params: {
+    readonly relation: DataRelation;
+    readonly expectedVersion: number;
+    readonly actor?: MemberId;
+    readonly summary?: string;
+  }): Promise<RelationWriteResult> {
+    void params.expectedVersion;
+    void params.summary;
+    return this.workspace.unlinkRelation(
+      params.relation.id,
+      params.actor ?? "wangyun",
+    );
   }
 
   async deleteObject(

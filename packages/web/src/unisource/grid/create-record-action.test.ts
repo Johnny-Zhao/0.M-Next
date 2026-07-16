@@ -292,5 +292,7 @@ class CreateSink implements WriteSink {
 
   createRelation(): void {}
 
+  unlinkRelation(): void {}
+
   deleteObject(): void {}
 }

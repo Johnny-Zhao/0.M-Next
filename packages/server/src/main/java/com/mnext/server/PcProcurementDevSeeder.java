@@ -8,6 +8,8 @@ import com.mnext.kernel.api.KernelCommandService;
 import com.mnext.kernel.api.SourceInfo;
 import com.mnext.kernel.api.commands.CreateObjectCommand;
 import com.mnext.kernel.api.commands.CreateRelationCommand;
+import com.mnext.kernel.api.commands.FieldUpdate;
+import com.mnext.kernel.api.commands.UpdateFieldsCommand;
 import com.mnext.kernel.api.events.EventEnvelope;
 import com.mnext.kernel.api.metamodel.InstantiateWorkspaceCommand;
 import com.mnext.server.plugin.ProfileManifest;
@@ -15,6 +17,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -208,12 +211,31 @@ class PcProcurementDevSeeder implements ApplicationRunner {
         "PLAN-PC-VALID",
         createObject(
             "build_plan",
-            fields("code", "PLAN-PC-VALID", "name", "兼容工作站方案", "status", "PROPOSED")));
+            fields(
+                "code",
+                "PLAN-PC-VALID",
+                "name",
+                "兼容工作站方案",
+                "status",
+                "PROPOSED",
+                "body",
+                body("兼容工作站采购方案说明"))));
     plans.put(
         "PLAN-PC-INVALID",
         createObject(
             "build_plan",
-            fields("code", "PLAN-PC-INVALID", "name", "超预算不兼容方案", "status", "PROPOSED")));
+            fields(
+                "code",
+                "PLAN-PC-INVALID",
+                "name",
+                "超预算不兼容方案",
+                "status",
+                "PROPOSED",
+                "body",
+                body("超预算不兼容方案说明"))));
+
+    ensureBody(plans.get("PLAN-PC-VALID"), "PLAN-PC-VALID", "兼容工作站采购方案说明");
+    ensureBody(plans.get("PLAN-PC-INVALID"), "PLAN-PC-INVALID", "超预算不兼容方案说明");
 
     for (var plan : plans.entrySet()) {
       relate(
@@ -774,6 +796,48 @@ class PcProcurementDevSeeder implements ApplicationRunner {
     }
     return fields;
   }
+
+  private String body(String text) {
+    return "{\"type\":\"doc\",\"content\":[{\"type\":\"paragraph\",\"content\":[{\"type\":\"text\",\"text\":\""
+        + text
+        + "\"}]}]}";
+  }
+
+  private void ensureBody(UUID objectId, String code, String text) {
+    if (objectId == null) return;
+    var state = planBodyState(objectId);
+    if (state == null || state.hasValue()) return;
+    var result =
+        commands.updateFields(
+            new UpdateFieldsCommand(
+                WORKSPACE_ID,
+                UUID.randomUUID(),
+                key("body-" + code),
+                objectId,
+                state.version(),
+                List.of(new FieldUpdate("body", body(text), null))),
+            Actor.user(AUTHOR));
+    applyEvents(result);
+  }
+
+  private PlanBodyState planBodyState(UUID objectId) {
+    var rows =
+        jdbc.query(
+            """
+            SELECT object.version, value.value
+            FROM data_object object
+            JOIN object_type type ON type.id = object.object_type_id
+            LEFT JOIN field_def field ON field.object_type_id = type.id AND field.code = 'body'
+            LEFT JOIN data_field_value value ON value.object_id = object.id AND value.field_def_id = field.id
+            WHERE object.workspace_id = ? AND object.id = ? AND type.code = 'build_plan'
+            """,
+            (result, ignored) -> new PlanBodyState(result.getLong(1), result.getObject(2) != null),
+            WORKSPACE_ID,
+            objectId);
+    return rows.isEmpty() ? null : rows.getFirst();
+  }
+
+  private record PlanBodyState(long version, boolean hasValue) {}
 
   private UUID required(Map<String, UUID> values, String code) {
     var value = values.get(code);

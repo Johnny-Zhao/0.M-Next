@@ -16,6 +16,9 @@ import {
   buildProcurementItemFormModel,
   createInitialProcurementItemDraft,
   createProcurementItem,
+  removeProcurementItemFromPlan,
+  updateProcurementItem,
+  validateProcurementItemEdit,
 } from "./pc-procurement-item-flow";
 
 describe("procurement item flow", () => {
@@ -38,6 +41,35 @@ describe("procurement item flow", () => {
     expect(model.quotes).toEqual([
       expect.objectContaining({ code: "QUOTE-CPU", supplierName: "供应商甲" }),
     ]);
+  });
+
+  it("excludes terminal products from maintenance choices", () => {
+    const workspace = fixtureWorkspace();
+    const archived = object(
+      "product-archived",
+      "hardware_product",
+      productFields("CPU-OLD", "CPU", 1, 1, 1),
+    );
+    const snapshot = workspace.getSnapshot();
+    const archivedState = {
+      ...snapshot,
+      objects: [
+        ...snapshot.objects,
+        { ...archived, status: "archived" as const },
+      ],
+    };
+    const model = buildProcurementItemFormModel(archivedState, "plan-1", null);
+
+    expect(model.products.some((product) => product.id === archived.id)).toBe(
+      false,
+    );
+    expect(
+      validateProcurementItemEdit(archivedState, "plan-1", "item-existing", {
+        productId: archived.id,
+        quoteId: "quote-cpu",
+        quantity: 1,
+      }),
+    ).toMatchObject({ state: "invalid" });
   });
 
   it("rejects invalid drafts before any create command is sent", async () => {
@@ -233,9 +265,165 @@ describe("procurement item flow", () => {
         .getRelations()
         .some(
           (relation) =>
-            relation.relationTypeCode === "build_plan_item_selects_product",
+            relation.relationTypeCode === "build_plan_item_selects_product" &&
+            relation.sourceId === "kernel-item-new",
         ),
     ).toBe(false);
+  });
+
+  it("updates quantity through the field write path", async () => {
+    const workspace = fixtureWorkspace();
+    const refreshObjects = vi.fn(() =>
+      Promise.resolve({ state: "synced" as const }),
+    );
+    workspace.setWriteSink({ ...createSink(), refreshObjects });
+    const result = await updateProcurementItem({
+      planId: "plan-1",
+      itemId: "item-existing",
+      draft: { productId: "product-cpu", quoteId: "quote-cpu", quantity: 3 },
+      workspace,
+      session: allowedMockSession(workspace),
+    });
+
+    expect(result.state).toBe("updated");
+    expect(workspace.getObject("item-existing")?.fields.quantity?.value).toBe(
+      3,
+    );
+    expect(refreshObjects).toHaveBeenCalledWith(
+      expect.arrayContaining(["plan-1", "item-existing"]),
+    );
+  });
+
+  it("rejects zero, negative, fractional and non-numeric quantities", () => {
+    const workspace = fixtureWorkspace();
+    for (const quantity of [0, -1, 1.5, "not-a-number"]) {
+      expect(
+        validateProcurementItemEdit(
+          workspace.getSnapshot(),
+          "plan-1",
+          "item-existing",
+          {
+            productId: "product-cpu",
+            quoteId: "quote-cpu",
+            quantity,
+          },
+        ),
+      ).toMatchObject({ state: "invalid" });
+    }
+  });
+
+  it("requires a matching quote when changing product", () => {
+    const workspace = fixtureWorkspace();
+    expect(
+      validateProcurementItemEdit(
+        workspace.getSnapshot(),
+        "plan-1",
+        "item-existing",
+        {
+          productId: "product-gpu",
+          quoteId: "quote-cpu",
+          quantity: 1,
+        },
+      ),
+    ).toEqual({ state: "invalid", message: "供应商报价与硬件配件不匹配" });
+  });
+
+  it("replaces product and quote relations without deleting source objects", async () => {
+    const workspace = fixtureWorkspace();
+    const result = await updateProcurementItem({
+      planId: "plan-1",
+      itemId: "item-existing",
+      draft: { productId: "product-gpu", quoteId: "quote-gpu", quantity: 1 },
+      workspace,
+      session: allowedMockSession(workspace),
+    });
+
+    expect(result.state).toBe("updated");
+    expect(
+      activeTarget(
+        workspace,
+        "item-existing",
+        "build_plan_item_selects_product",
+      ),
+    ).toBe("product-gpu");
+    expect(
+      activeTarget(
+        workspace,
+        "item-existing",
+        "build_plan_item_uses_supplier_quote",
+      ),
+    ).toBe("quote-gpu");
+    expect(workspace.getObject("product-cpu")).toBeDefined();
+    expect(workspace.getObject("quote-cpu")).toBeDefined();
+  });
+
+  it("unlinks an item from the plan without deleting the item, product or quote", async () => {
+    const workspace = fixtureWorkspace();
+    const result = await removeProcurementItemFromPlan({
+      planId: "plan-1",
+      itemId: "item-existing",
+      workspace,
+      session: allowedMockSession(workspace),
+    });
+
+    expect(result.state).toBe("removed");
+    expect(
+      activeTarget(workspace, "plan-1", "build_plan_contains_item"),
+    ).toBeNull();
+    expect(workspace.getObject("item-existing")).toBeDefined();
+    expect(workspace.getObject("product-cpu")).toBeDefined();
+    expect(workspace.getObject("quote-cpu")).toBeDefined();
+  });
+
+  it("reports a partial failure after an old relation was unlinked", async () => {
+    const workspace = fixtureWorkspace();
+    workspace.setWriteSink({
+      ...createSink(),
+      createRelation: vi.fn((descriptor) => {
+        workspace.removeRelation(descriptor.temporaryRelationId);
+        return Promise.resolve({
+          state: "failed" as const,
+          message: "后端拒绝新关系",
+        });
+      }),
+    });
+    const result = await updateProcurementItem({
+      planId: "plan-1",
+      itemId: "item-existing",
+      draft: { productId: "product-gpu", quoteId: "quote-gpu", quantity: 1 },
+      workspace,
+      session: allowedMockSession(workspace),
+    });
+
+    expect(result).toMatchObject({
+      state: "partial-failure",
+      failedStep: "关联新硬件配件",
+    });
+    expect(
+      activeTarget(
+        workspace,
+        "item-existing",
+        "build_plan_item_selects_product",
+      ),
+    ).toBeNull();
+  });
+
+  it("does not send writes when the member lacks maintenance permission", async () => {
+    const workspace = fixtureWorkspace();
+    const sink = createSink();
+    workspace.setWriteSink(sink);
+    const result = await updateProcurementItem({
+      planId: "plan-1",
+      itemId: "item-existing",
+      draft: { productId: "product-cpu", quoteId: "quote-cpu", quantity: 2 },
+      workspace,
+      session: readonlySession(workspace),
+    });
+
+    expect(result.state).toBe("permission-denied");
+    expect(sink.updateField).not.toHaveBeenCalled();
+    expect(sink.createRelation).not.toHaveBeenCalled();
+    expect(sink.unlinkRelation).not.toHaveBeenCalled();
   });
 });
 
@@ -247,6 +435,22 @@ function validDraft() {
     quoteId: "quote-cpu",
     quantity: "2",
   };
+}
+
+function activeTarget(
+  workspace: WorkspaceStore,
+  sourceId: string,
+  relationTypeCode: string,
+): string | null {
+  return (
+    workspace
+      .getRelations(sourceId)
+      .find(
+        (relation) =>
+          relation.relationTypeCode === relationTypeCode &&
+          relation.status === "active",
+      )?.targetId ?? null
+  );
 }
 
 function fixtureWorkspace(): WorkspaceStore {
@@ -287,6 +491,24 @@ function fixtureWorkspace(): WorkspaceStore {
     ],
     relations: [
       relation(
+        "plan-item-existing",
+        "build_plan_contains_item",
+        "plan-1",
+        "item-existing",
+      ),
+      relation(
+        "item-existing-product",
+        "build_plan_item_selects_product",
+        "item-existing",
+        "product-cpu",
+      ),
+      relation(
+        "item-existing-quote",
+        "build_plan_item_uses_supplier_quote",
+        "item-existing",
+        "quote-cpu",
+      ),
+      relation(
         "quote-cpu-product",
         "supplier_quote_for_product",
         "quote-cpu",
@@ -319,6 +541,7 @@ function createSink(): WriteSink {
     updateField: vi.fn(),
     createObject: vi.fn(),
     createRelation: vi.fn(),
+    unlinkRelation: vi.fn(),
     deleteObject: vi.fn(),
   };
 }
@@ -427,6 +650,7 @@ class FlowGateway
       | "updateField"
       | "createObject"
       | "createRelation"
+      | "unlinkRelation"
       | "deleteObject"
     >
 {
@@ -475,6 +699,18 @@ class FlowGateway
         params.sourceId,
         params.targetId,
       ),
+    };
+  }
+
+  async unlinkRelation(
+    params: Parameters<UnisourceGateway["unlinkRelation"]>[0],
+  ): Promise<{ readonly relation: DataRelation }> {
+    return {
+      relation: {
+        ...params.relation,
+        status: "unlinked",
+        version: params.expectedVersion + 1,
+      },
     };
   }
 

@@ -168,6 +168,7 @@ export const pcProcurementPreset: PresentationPreset = {
       config: {
         template: "电脑采购方案说明书",
         structuredDocument: {
+          bodyFieldCode: "body",
           root: {
             objectTypeCode: "build_plan",
             fields: [

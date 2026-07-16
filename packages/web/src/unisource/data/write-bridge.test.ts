@@ -185,6 +185,27 @@ describe("KernelWriteBridge", () => {
     expect(harness.gateway.refreshObjectCalls).toEqual(["prod-s3", "prod-m1"]);
   });
 
+  it("sends relation unlink through the gateway and refreshes endpoints", async () => {
+    const harness = createHarness();
+    harness.workspace.setWriteSink(harness.bridge);
+    const relation = harness.workspace
+      .getRelations()
+      .find((candidate) => candidate.id === "rel-s3-g2-interconnect")!;
+
+    harness.workspace.unlinkRelation(relation.id, "wangyun");
+    await harness.bridge.whenIdle();
+
+    expect(harness.workspace.getRelations(relation.sourceId)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: relation.id, status: "unlinked" }),
+      ]),
+    );
+    expect(harness.gateway.unlinkRelationCalls).toContain(relation.id);
+    expect(harness.gateway.refreshObjectCalls).toEqual(
+      expect.arrayContaining([relation.sourceId, relation.targetId]),
+    );
+  });
+
   it("serializes writes for the same object id", async () => {
     const first = deferred<void>();
     const firstStarted = deferred<void>();
@@ -247,11 +268,13 @@ class FakeGateway
       | "updateField"
       | "createObject"
       | "createRelation"
+      | "unlinkRelation"
       | "deleteObject"
     >
 {
   readonly actors: MemberId[] = [];
   readonly refreshObjectCalls: string[] = [];
+  readonly unlinkRelationCalls: string[] = [];
   readonly updateFieldCalls: {
     readonly objectId: string;
     readonly fieldCode: FieldCode;
@@ -358,6 +381,19 @@ class FakeGateway
         fields: {},
         version: 1,
         annotationIds: [],
+      },
+    };
+  }
+
+  async unlinkRelation(
+    params: Parameters<UnisourceGateway["unlinkRelation"]>[0],
+  ): Promise<{ readonly relation: DataRelation }> {
+    this.unlinkRelationCalls.push(params.relation.id);
+    return {
+      relation: {
+        ...params.relation,
+        status: "unlinked",
+        version: params.expectedVersion + 1,
       },
     };
   }

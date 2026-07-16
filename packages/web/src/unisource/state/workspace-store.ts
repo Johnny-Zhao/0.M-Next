@@ -132,6 +132,18 @@ export interface RelationCreateDescriptor {
   };
 }
 
+export interface RelationUnlinkDescriptor {
+  readonly kind: "unlinkRelation";
+  readonly relation: DataRelation;
+  readonly previousRelation: DataRelation;
+  readonly params: {
+    readonly relationId: string;
+    readonly expectedVersion: number;
+    readonly actor?: MemberId;
+    readonly summary?: string;
+  };
+}
+
 export interface DeletedObjectSnapshot {
   readonly object: DataObject;
   readonly relations: readonly DataRelation[];
@@ -165,6 +177,9 @@ export interface WriteSink {
   ): void | Promise<WriteCompletion>;
   createRelation(
     descriptor: RelationCreateDescriptor,
+  ): void | Promise<WriteCompletion>;
+  unlinkRelation(
+    descriptor: RelationUnlinkDescriptor,
   ): void | Promise<WriteCompletion>;
   deleteObject(
     descriptor: ObjectDeleteDescriptor,
@@ -798,6 +813,19 @@ export class WorkspaceStore {
       ],
     };
     this.emit();
+    this.notifyWriteSink((sink) =>
+      sink.unlinkRelation({
+        kind: "unlinkRelation",
+        relation: nextRelation,
+        previousRelation: relation,
+        params: {
+          relationId,
+          expectedVersion: relation.version,
+          actor,
+          summary: `瑙ｉ櫎鍏崇郴 ${relation.relationTypeCode}`,
+        },
+      }),
+    );
     return { relation: nextRelation };
   }
 
@@ -1197,6 +1225,16 @@ export class WorkspaceStore {
               ),
             }
           : view,
+      ),
+    };
+    this.emit();
+  }
+
+  reconcileRelation(relation: DataRelation): void {
+    this.state = {
+      ...this.state,
+      relations: this.state.relations.map((candidate) =>
+        candidate.id === relation.id ? relation : candidate,
       ),
     };
     this.emit();

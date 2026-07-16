@@ -267,6 +267,16 @@ export interface UnisourceGateway {
   }): Promise<RelationWriteResult>;
 
   /**
+   * Unlink one relation through the registered Unlink command.
+   */
+  unlinkRelation(params: {
+    readonly relation: DataRelation;
+    readonly expectedVersion: number;
+    readonly actor?: MemberId;
+    readonly summary?: string;
+  }): Promise<RelationWriteResult>;
+
+  /**
    * Delete one object from the active demo graph.
    * @kernel POST /commands Archive plus relation unlinking.
    * @mock Delegate to WorkspaceStore.deleteObject.

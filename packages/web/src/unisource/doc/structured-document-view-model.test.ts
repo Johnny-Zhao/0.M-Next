@@ -22,6 +22,15 @@ describe("structured-document-view-model", () => {
 
     expect(vm.state).toBe("ready");
     expect(vm.root?.objectId).toBe("plan-real-id");
+    expect(vm.body).toMatchObject({
+      fieldCode: "body",
+      value: '{"type":"doc"}',
+      state: "fresh",
+      editable: true,
+    });
+    expect(vm.root?.fields.some((field) => field.fieldCode === "body")).toBe(
+      false,
+    );
     expect(fieldValue(vm.root?.fields ?? [], "total_price_cny_fx")).toBe(
       "¥8,783",
     );
@@ -160,12 +169,34 @@ describe("structured-document-view-model", () => {
     expect(parsed.state).toBe("ready");
     if (parsed.state !== "ready") throw new Error("expected structured config");
     expect(parsed.config.root.objectTypeCode).toBe("build_plan");
+    expect(parsed.config.bodyFieldCode).toBe("body");
     expect(
       parsed.config.sections.map((section) => section.relationTypeCode),
     ).toEqual(["build_plan_contains_item", "build_plan_satisfies_requirement"]);
     expect(parsed.config.sections[0]?.createAction).toBe(
       "pc_procurement.procurement-item",
     );
+  });
+
+  it("keeps a missing body field unavailable without fabricating content", () => {
+    const { workspace, doc, config } = procurementFixture();
+    const withoutBodyDefinition = {
+      ...workspace,
+      objectTypes: workspace.objectTypes.map((type) =>
+        type.code === "build_plan"
+          ? {
+              ...type,
+              fields: type.fields.filter((field) => field.code !== "body"),
+            }
+          : type,
+      ),
+    };
+    const vm = buildStructuredDocumentViewModel(
+      withoutBodyDefinition,
+      doc,
+      config,
+    );
+    expect(vm.body).toMatchObject({ state: "dangling", fieldCode: "body" });
   });
 
   it("keeps document action ids opaque to the generic model", () => {
@@ -256,6 +287,7 @@ const procurementTypes: readonly ObjectTypeDef[] = [
     fields: [
       textField("code"),
       textField("name"),
+      textField("body"),
       enumField("status", ["DRAFT", "PROPOSED", "APPROVED", "ARCHIVED"]),
       numberField("total_price_cny_fx", "CNY", true),
       numberField("total_power_w_fx", "W", true),
@@ -293,6 +325,7 @@ const plan = testObject("plan-real-id", "build_plan", {
   code: "PLAN-PC-VALID",
   name: "兼容工作站方案",
   status: "PROPOSED",
+  body: '{"type":"doc"}',
   total_price_cny_fx: 8783,
   total_power_w_fx: 396,
   total_performance_score_fx: 560,

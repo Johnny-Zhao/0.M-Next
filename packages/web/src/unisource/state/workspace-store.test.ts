@@ -521,6 +521,7 @@ function createSink(): WriteSink {
     updateField: vi.fn(),
     createObject: vi.fn(),
     createRelation: vi.fn(),
+    unlinkRelation: vi.fn(),
     deleteObject: vi.fn(),
   };
 }

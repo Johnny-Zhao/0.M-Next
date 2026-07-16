@@ -16,6 +16,7 @@ export * from "./conflict/conflict-dialog";
 export * from "./detail/detail-panel";
 export * from "./display-labels";
 export * from "./document/document-view";
+export * from "./document/body-editor";
 export * from "./graph/graph-view";
 export * from "./mapping/mapping-view";
 export * from "./matrix/matrix-view";

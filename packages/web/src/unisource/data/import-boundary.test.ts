@@ -16,10 +16,11 @@ const unisourceRoot = path.resolve(
 const allowedViewsImports = new Set([
   "data/kernel-gateway.ts",
   "data/dto-mappers.ts",
+  "doc/structured-document-view.tsx",
 ]);
 
 describe("unisource import boundary", () => {
-  it("keeps @m-next/views imports in the data adapter whitelist", () => {
+  it("keeps @m-next/views imports in the approved unisource whitelist", () => {
     const offenders = sourceFiles(unisourceRoot).flatMap((file) => {
       const relative = toRelative(file);
       if (relative === "data/import-boundary.test.ts") return [];
@@ -27,7 +28,11 @@ describe("unisource import boundary", () => {
         .filter(({ specifier }) => specifier === "@m-next/views")
         .filter(({ statement }) => {
           if (!allowedViewsImports.has(relative)) return true;
-          if (relative === "data/kernel-gateway.ts") return false;
+          if (
+            relative === "data/kernel-gateway.ts" ||
+            relative === "doc/structured-document-view.tsx"
+          )
+            return false;
           return !statement.trimStart().startsWith("import type");
         })
         .map(({ statement }) => `${relative}: ${statement.trim()}`);

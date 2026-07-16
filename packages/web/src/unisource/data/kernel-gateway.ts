@@ -381,6 +381,25 @@ export class KernelGateway implements UnisourceGateway {
     });
   }
 
+  async unlinkRelation(
+    params: Parameters<UnisourceGateway["unlinkRelation"]>[0],
+  ): Promise<RelationWriteResult> {
+    return this.runWrite(async () => {
+      await this.commandClient.unlink(
+        this.workspaceId,
+        params.relation.id,
+        params.expectedVersion,
+      );
+      return {
+        relation: {
+          ...params.relation,
+          status: "unlinked",
+          version: params.expectedVersion + 1,
+        },
+      };
+    });
+  }
+
   async deleteObject(
     objectId: string,
     actor?: MemberId,

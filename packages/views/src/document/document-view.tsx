@@ -983,7 +983,7 @@ function DocumentSectionView(props: {
             props.commandClient !== undefined &&
             !isFieldDefinitionReadOnly(bodyField.definition)
           }
-          onSave={(json) => void saveBody(json)}
+          onSave={(json) => saveBody(json)}
           value={bodyField.value}
         />
       ) : null}

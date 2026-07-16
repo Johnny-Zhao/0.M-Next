@@ -13,7 +13,7 @@ export interface DocumentBodyBlockProps {
   readonly value: unknown;
   readonly editable: boolean;
   /** 保存正文:序列化后的 JSON 字符串走 updateSingleField 唯一出口(string 类型)。 */
-  readonly onSave: (json: string) => void;
+  readonly onSave: (json: string) => void | Promise<void>;
 }
 
 /**
@@ -32,10 +32,7 @@ export function DocumentBodyBlock(props: DocumentBodyBlockProps): ReactElement {
         <BodyEditorForm
           initialDoc={initial}
           onCancel={() => setEditing(false)}
-          onSave={(json) => {
-            props.onSave(json);
-            setEditing(false);
-          }}
+          onSave={(json) => props.onSave(json)}
         />
       </section>
     );
@@ -99,10 +96,12 @@ function BodyReadonly(props: {
 
 function BodyEditorForm(props: {
   readonly initialDoc: JSONContent;
-  readonly onSave: (json: string) => void;
+  readonly onSave: (json: string) => void | Promise<void>;
   readonly onCancel: () => void;
 }): ReactElement {
   const [, setTick] = useState(0);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const bump = () => setTick((tick) => tick + 1);
   const editor = useEditor({
     extensions: bodyExtensions(),
@@ -154,15 +153,38 @@ function BodyEditorForm(props: {
       <div className="document-body-actions">
         <button
           className="document-body-save"
-          onClick={() => props.onSave(serializeBody(editor.getJSON()))}
+          disabled={saving}
+          onClick={() => {
+            setSaving(true);
+            setError(null);
+            void Promise.resolve(props.onSave(serializeBody(editor.getJSON())))
+              .then(() => setEditingAfterSave())
+              .catch((cause: unknown) => {
+                setError(
+                  cause instanceof Error
+                    ? cause.message
+                    : "正文保存失败，请稍后重试",
+                );
+              })
+              .finally(() => setSaving(false));
+          }}
           type="button"
         >
-          保存
+          {saving ? "保存中…" : "保存"}
         </button>
-        <button onClick={props.onCancel} type="button">
+        <button disabled={saving} onClick={props.onCancel} type="button">
           取消
         </button>
       </div>
+      {error ? (
+        <p className="document-body-error" role="alert">
+          {error}
+        </p>
+      ) : null}
     </div>
   );
+
+  function setEditingAfterSave(): void {
+    props.onCancel();
+  }
 }

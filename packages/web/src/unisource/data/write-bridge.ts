@@ -7,6 +7,7 @@ import {
   type ObjectCreateDescriptor,
   type ObjectDeleteDescriptor,
   type RelationCreateDescriptor,
+  type RelationUnlinkDescriptor,
   type WriteCompletion,
   type WorkspaceStore,
   type WriteSink,
@@ -19,6 +20,7 @@ type WriteGateway = Pick<
   | "updateField"
   | "createObject"
   | "createRelation"
+  | "unlinkRelation"
   | "deleteObject"
 > & {
   refreshObject?(objectId: string): Promise<DataObject>;
@@ -133,6 +135,32 @@ export class KernelWriteBridge implements WriteSink {
         }
       },
     );
+  }
+
+  unlinkRelation(
+    descriptor: RelationUnlinkDescriptor,
+  ): Promise<WriteCompletion> {
+    return this.enqueue([descriptor.relation.id], async () => {
+      try {
+        const actor = this.applyActor();
+        const result = await this.gateway.unlinkRelation({
+          relation: descriptor.previousRelation,
+          expectedVersion: descriptor.params.expectedVersion,
+          actor,
+          summary: descriptor.params.summary,
+        });
+        this.workspace.reconcileRelation(result.relation);
+        await this.refreshObjects([
+          descriptor.previousRelation.sourceId,
+          descriptor.previousRelation.targetId,
+        ]);
+        return { state: "synced" };
+      } catch (error) {
+        this.workspace.reconcileRelation(descriptor.previousRelation);
+        this.reportWriteFailure(error);
+        return writeFailure(error);
+      }
+    });
   }
 
   deleteObject(descriptor: ObjectDeleteDescriptor): void {

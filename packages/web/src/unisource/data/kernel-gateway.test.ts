@@ -279,6 +279,33 @@ describe("KernelGateway", () => {
     expect(result.relation.id).toBe("created-relation-1");
   });
 
+  it("unlinks a relation through the kernel Unlink command", async () => {
+    const api = new FakeKernelApi();
+    api.seedObjects(2);
+    const gateway = new KernelGateway("", "ws-kernel", "wangyun", api.fetch);
+
+    const result = await gateway.unlinkRelation({
+      relation: {
+        id: "relation-1",
+        relationTypeCode: "interconnects_with",
+        sourceId: "kernel-prod-s3",
+        targetId: "kernel-prod-g2",
+        status: "active",
+        fields: {},
+        version: 7,
+        annotationIds: [],
+      },
+      expectedVersion: 7,
+      actor: "wangyun",
+    });
+
+    expect(api.commands[0]).toMatchObject({
+      commandType: "Unlink",
+      payload: { relationId: "relation-1", expectedVersion: 7 },
+    });
+    expect(result.relation.status).toBe("unlinked");
+  });
+
   it("archives objects with the supplied expected version", async () => {
     const api = new FakeKernelApi();
     api.seedObjects(2);
@@ -1239,6 +1266,9 @@ class FakeKernelApi {
         targetId: String(payload.targetId),
         version: 1,
       });
+      return json({ status: "COMMITTED" });
+    }
+    if (body.commandType === "Unlink") {
       return json({ status: "COMMITTED" });
     }
     if (body.commandType === "Archive") {

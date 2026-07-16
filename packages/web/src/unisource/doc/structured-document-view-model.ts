@@ -22,6 +22,7 @@ export interface StructuredDocumentSectionConfig
 }
 
 export interface StructuredDocumentConfig {
+  readonly bodyFieldCode?: string;
   readonly root: StructuredDocumentPartConfig;
   readonly sections: readonly StructuredDocumentSectionConfig[];
 }
@@ -88,6 +89,7 @@ export interface StructuredDocumentViewModel {
   readonly state: "ready" | "dangling";
   readonly message: string | null;
   readonly root: StructuredDocumentObjectVm | null;
+  readonly body: StructuredDocumentFieldVm | null;
   readonly sections: readonly StructuredDocumentSectionVm[];
 }
 
@@ -100,6 +102,7 @@ export function readStructuredDocumentConfig(
   if (value === undefined) return { state: "absent" };
   if (!isRecord(value)) return invalidConfig();
   const root = readPart(value.root);
+  const bodyFieldCode = readOptionalNonEmptyString(value.bodyFieldCode);
   const sections = Array.isArray(value.sections)
     ? value.sections.map(readSection)
     : null;
@@ -108,7 +111,11 @@ export function readStructuredDocumentConfig(
   }
   return {
     state: "ready",
-    config: { root, sections: sections as StructuredDocumentSectionConfig[] },
+    config: {
+      bodyFieldCode: bodyFieldCode ?? undefined,
+      root,
+      sections: sections as StructuredDocumentSectionConfig[],
+    },
   };
 }
 
@@ -125,6 +132,7 @@ export function buildStructuredDocumentViewModel(
       state: "dangling",
       message: "引用对象不存在",
       root: null,
+      body: null,
       sections: [],
     };
   }
@@ -133,14 +141,35 @@ export function buildStructuredDocumentViewModel(
       state: "dangling",
       message: "绑定对象类型不匹配",
       root: null,
+      body: null,
       sections: [],
     };
   }
-  const rootVm = resolveObject(workspace, root, config.root);
+  const rootPart = config.bodyFieldCode
+    ? {
+        ...config.root,
+        fields: config.root.fields.filter(
+          (fieldCode) => fieldCode !== config.bodyFieldCode,
+        ),
+      }
+    : config.root;
+  const rootVm = resolveObject(workspace, root, rootPart);
+  const rootType = workspace.objectTypes.find(
+    (candidate) => candidate.code === root.objectTypeCode,
+  );
   return {
     state: "ready",
     message: null,
     root: rootVm,
+    body: config.bodyFieldCode
+      ? resolveField(
+          root,
+          rootType,
+          config.bodyFieldCode,
+          [config.bodyFieldCode],
+          true,
+        )
+      : null,
     sections: config.sections.map((section) =>
       resolveSection(workspace, root, section),
     ),
@@ -238,10 +267,14 @@ function resolveField(
   type: ObjectTypeDef | undefined,
   fieldCode: string,
   editableFields: readonly string[],
+  allowMissingValue = false,
 ): StructuredDocumentFieldVm {
   const field = type?.fields.find((candidate) => candidate.code === fieldCode);
   const value = object.fields[fieldCode]?.value;
-  const state = value === undefined ? "dangling" : "fresh";
+  const state =
+    !field || (value === undefined && !allowMissingValue)
+      ? "dangling"
+      : "fresh";
   const enumConfigUnavailable =
     field?.dataType === "enum" && (field.enumValues?.length ?? 0) === 0;
   const editable =

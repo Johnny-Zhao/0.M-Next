@@ -9,6 +9,7 @@ import { ChangeSetStore } from "../state/changeset-store";
 import { SessionStore } from "../state/session-store";
 import { WorkspaceStore } from "../state/workspace-store";
 import {
+  commitStructuredDocumentBodyEdit,
   commitStructuredDocumentFieldEdit,
   enumOptionsForDocumentField,
   StructuredDocumentFieldEditor,
@@ -43,6 +44,51 @@ describe("structured document field editing", () => {
       fieldCode: "price",
       value: 1099,
     });
+  });
+
+  it("saves body through SessionStore with the real object type and waits for sync", async () => {
+    const requestWrite = vi.fn(() => ({
+      queued: false as const,
+      eventId: "event-body-write",
+      syncedRefs: 0,
+    }));
+    const result = await commitStructuredDocumentBodyEdit({
+      body: documentBodyField(),
+      json: '{"type":"doc","content":[]}',
+      session: { requestWrite },
+      waitForLastWrite: async () => ({ state: "synced" as const }),
+    });
+
+    expect(result).toEqual({
+      kind: "written",
+      eventId: "event-body-write",
+      refs: 0,
+    });
+    expect(requestWrite).toHaveBeenCalledWith({
+      resourceCode: "build_plan",
+      objectId: "plan-real-id",
+      fieldCode: "body",
+      value: '{"type":"doc","content":[]}',
+    });
+  });
+
+  it("keeps body edits in approval flow when the member lacks permission", async () => {
+    const seed = cloneDemoSeed();
+    const workspace = new WorkspaceStore(seed);
+    const changes = new ChangeSetStore(seed, workspace);
+    const session = new SessionStore(workspace, changes);
+    session.switchMember("chenmo");
+
+    const result = await commitStructuredDocumentBodyEdit({
+      body: documentBodyField(),
+      json: '{"type":"doc","content":[]}',
+      session,
+      waitForLastWrite: async () => ({ state: "local" as const }),
+    });
+
+    expect(result.kind).toBe("queued");
+    expect(workspace.getObject("plan-real-id")).toBeUndefined();
+    expect(changes.getPending()[0]?.items[0]?.target.fieldCode).toBe("body");
   });
 
   it("writes permitted edits and queues readonly edits without local mutation", () => {
@@ -139,6 +185,22 @@ function documentField(): StructuredDocumentFieldVm {
     field: { code: "price", name: "价格", dataType: "number" },
     value: 999,
     valueText: "999",
+    state: "fresh",
+    editable: true,
+    editMessage: null,
+  };
+}
+
+function documentBodyField(): StructuredDocumentFieldVm {
+  return {
+    objectId: "plan-real-id",
+    objectTypeCode: "build_plan",
+    objectVersion: 7,
+    fieldCode: "body",
+    fieldName: "正文",
+    field: { code: "body", name: "正文", dataType: "text" },
+    value: '{"type":"doc"}',
+    valueText: '{"type":"doc"}',
     state: "fresh",
     editable: true,
     editMessage: null,

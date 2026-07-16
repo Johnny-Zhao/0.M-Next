@@ -1,11 +1,16 @@
 import { useEffect, useMemo, useState } from "react";
+import { DocumentBodyBlock } from "@m-next/views";
 
 import type { DataFieldPrimitive } from "../model/kernel";
 import type { DocModel } from "../model/view-layer";
 import { pushToast, UsMonoTag } from "../primitives";
 import { sessionStore, type SessionStore } from "../state/session-store";
 import { selectionStore, useSelectionSnapshot } from "../state/selection-store";
-import { useWorkspaceSnapshot } from "../state/workspace-store";
+import {
+  useWorkspaceSnapshot,
+  workspaceStore,
+  type WriteCompletion,
+} from "../state/workspace-store";
 import {
   buildStructuredDocumentViewModel,
   documentFieldSelection,
@@ -51,6 +56,9 @@ export function StructuredDocumentView({
   const saveField = (field: StructuredDocumentFieldVm, rawValue: string) => {
     commitStructuredDocumentFieldEdit({ field, rawValue });
   };
+  const saveBody = async (json: string): Promise<void> => {
+    await commitStructuredDocumentBodyEdit({ body: vm.body, json });
+  };
   return (
     <section className="us-doc-layout" data-compact={compact}>
       <main className="us-doc-main us-structured-doc__main">
@@ -73,6 +81,20 @@ export function StructuredDocumentView({
             onSave={saveField}
             selection={selection.current}
           />
+          {config.bodyFieldCode ? (
+            vm.body?.state === "fresh" ? (
+              <DocumentBodyBlock
+                editable={vm.body.editable}
+                onSave={saveBody}
+                value={vm.body.value}
+              />
+            ) : (
+              <section aria-label="正文" className="document-body">
+                <span className="document-body-label">正文</span>
+                <p role="alert">正文配置不可用，当前字段引用已失效。</p>
+              </section>
+            )
+          ) : null}
           {vm.sections.map((section) => (
             <DocumentSection
               key={section.relationTypeCode}
@@ -318,6 +340,37 @@ export function commitStructuredDocumentFieldEdit(input: {
     return { kind: "queued", changeSetId: result.changeSetId };
   }
   pushToast({ title: `已更新 · ${result.syncedRefs} 处引用已同步` });
+  return { kind: "written", eventId: result.eventId, refs: result.syncedRefs };
+}
+
+export async function commitStructuredDocumentBodyEdit(input: {
+  readonly body: StructuredDocumentFieldVm | null;
+  readonly json: string;
+  readonly session?: Pick<SessionStore, "requestWrite">;
+  readonly waitForLastWrite?: () => Promise<WriteCompletion>;
+}): Promise<StructuredDocumentCommitResult> {
+  const body = input.body;
+  if (!body || body.state === "dangling" || !body.editable) {
+    throw new Error("正文不可编辑");
+  }
+  const result = (input.session ?? sessionStore).requestWrite({
+    resourceCode: body.objectTypeCode,
+    objectId: body.objectId,
+    fieldCode: body.fieldCode,
+    value: input.json,
+  });
+  if (result.queued) {
+    pushToast({ title: "正文已提交审批", desc: "等待管理员确认" });
+    return { kind: "queued", changeSetId: result.changeSetId };
+  }
+  const completion = await (
+    input.waitForLastWrite ?? (() => workspaceStore.waitForLastWrite())
+  )();
+  if (completion.state === "failed") {
+    pushToast({ title: "正文保存失败", desc: completion.message });
+    throw new Error(completion.message);
+  }
+  pushToast({ title: "正文已保存" });
   return { kind: "written", eventId: result.eventId, refs: result.syncedRefs };
 }
 

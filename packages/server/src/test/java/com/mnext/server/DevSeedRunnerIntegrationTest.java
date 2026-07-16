@@ -263,6 +263,7 @@ class DevSeedRunnerIntegrationTest {
     assertEquals(12, objectCount(PC_PROCUREMENT_WORKSPACE, "supplier_quote"));
     assertEquals(2, objectCount(PC_PROCUREMENT_WORKSPACE, "build_plan"));
     assertEquals(14, objectCount(PC_PROCUREMENT_WORKSPACE, "build_plan_item"));
+    assertTrue(fieldCodes(PC_PROCUREMENT_WORKSPACE, "build_plan").contains("body"));
 
     assertEquals(2, relationCount(PC_PROCUREMENT_WORKSPACE, "build_plan_satisfies_requirement"));
     assertEquals(14, relationCount(PC_PROCUREMENT_WORKSPACE, "build_plan_contains_item"));
@@ -313,6 +314,7 @@ class DevSeedRunnerIntegrationTest {
             .getBody();
     var first = (Map<String, Object>) ((List<?>) page.get("items")).getFirst();
     assertTrue(((Map<?, ?>) first.get("fields")).containsKey("code"));
+    assertTrue(String.valueOf(((Map<?, ?>) first.get("fields")).get("body")).contains("type"));
     assertTrue(((Map<?, ?>) first.get("derived")).containsKey("total_price_cny_fx"));
   }
 
