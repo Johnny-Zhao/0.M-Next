@@ -12,6 +12,7 @@ import { GridToolbar } from "../grid/grid-toolbar";
 import { buildGridViewModel } from "../grid/grid-view-model";
 import { parseFormParam } from "../routes-paths";
 import { DataSourceCreateActionOutlet } from "../presentation/data-source-create-action-registry";
+import { DataSourceLifecycleActionOutlet } from "../presentation/data-source-lifecycle-action-registry";
 import { DataSourceRelationActionOutlet } from "../presentation/data-source-relation-action-registry";
 import { FormRow, nextFormSearch } from "../shell/form-row";
 import { WorkspaceLayout } from "../shell/layouts";
@@ -174,6 +175,16 @@ export function SourcePage() {
             status={statusFilter}
             searchPlaceholder={`搜索${objectType.name}…`}
           />
+          {selectedObject ? (
+            <DataSourceLifecycleActionOutlet
+              object={selectedObject}
+              objectType={objectType}
+              onCompleted={(objectId) =>
+                selectionStore.set({ entityType: "object", entityId: objectId })
+              }
+              templateCode={runtime.templateCode}
+            />
+          ) : null}
           {selectedObject ? (
             <DataSourceRelationActionOutlet
               object={selectedObject}

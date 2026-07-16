@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { StructuredDocumentActionRegistry } from "../doc/structured-document-action-registry";
 import { DataSourceCreateActionRegistry } from "./data-source-create-action-registry";
+import { DataSourceLifecycleActionRegistry } from "./data-source-lifecycle-action-registry";
 import { DataSourceRelationActionRegistry } from "./data-source-relation-action-registry";
 import { pcProcurementItemActionId } from "./pc-procurement-document-actions";
 import { PresentationPresetRegistry } from "./presentation-preset-registry";
@@ -73,6 +74,21 @@ describe("PresentationPresetRegistry", () => {
     expect(relations.resolve("hardware_products", "build_plan")).toBeNull();
     isolatedRegistry.resolve("pc_procurement");
     expect(relations.resolve("pc_procurement", "build_plan")).not.toBeNull();
+  });
+
+  it("registers lifecycle actions only while resolving the PC preset", () => {
+    const lifecycle = new DataSourceLifecycleActionRegistry();
+    const isolatedRegistry = new PresentationPresetRegistry(
+      new StructuredDocumentActionRegistry(),
+      new DataSourceCreateActionRegistry(),
+      new DataSourceRelationActionRegistry(),
+      lifecycle,
+    );
+
+    isolatedRegistry.resolve("hardware_products");
+    expect(lifecycle.resolve("hardware_products", "build_plan")).toBeNull();
+    isolatedRegistry.resolve("pc_procurement");
+    expect(lifecycle.resolve("pc_procurement", "build_plan")).not.toBeNull();
   });
 
   it("does not register pc actions while resolving hardware or unknown presets", () => {

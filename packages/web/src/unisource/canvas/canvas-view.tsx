@@ -66,7 +66,13 @@ export function CanvasView({
   const view = workspace.views.find(
     (candidate) => candidate.id === viewId && candidate.kind === "canvas",
   );
-  const vm = view ? buildCanvasViewModel(workspace, view) : null;
+  const selectedRootObjectId =
+    selection.current?.entityType === "object"
+      ? selection.current.entityId
+      : null;
+  const vm = view
+    ? buildCanvasViewModel(workspace, view, selectedRootObjectId)
+    : null;
   const selectedKey = selection.selected
     .filter((item) => item.entityType === "object")
     .map((item) => item.entityId)

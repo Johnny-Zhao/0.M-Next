@@ -86,6 +86,16 @@ export const pcProcurementPreset: PresentationPreset = {
       exprId: "exp-pc-plan-map",
       kind: "canvas",
       config: {
+        selectionObjectTypeCode: "build_plan",
+        selectionRelationTypeCodes: [
+          "build_plan_satisfies_requirement",
+          "build_plan_contains_item",
+          "build_plan_item_selects_product",
+          "build_plan_item_uses_supplier_quote",
+          "supplier_quote_for_product",
+          "supplier_quote_offered_by_supplier",
+        ],
+        selectionDepth: 3,
         nodes: [
           {
             objectId: "pc-ref-requirement",
@@ -169,6 +179,7 @@ export const pcProcurementPreset: PresentationPreset = {
         template: "电脑采购方案说明书",
         structuredDocument: {
           bodyFieldCode: "body",
+          preferSelectedRoot: true,
           root: {
             objectTypeCode: "build_plan",
             fields: [

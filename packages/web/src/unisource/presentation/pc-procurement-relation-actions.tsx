@@ -385,7 +385,10 @@ function PlanRequirementBinding({
     () => buildPlanRequirementOptions(workspace),
     [workspace],
   );
-  const [requirementId, setRequirementId] = useState("");
+  const [requirementId, setRequirementId] = useState(
+    () =>
+      activeTarget(workspace, planId, "build_plan_satisfies_requirement") ?? "",
+  );
   const [message, setMessage] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const save = async () => {

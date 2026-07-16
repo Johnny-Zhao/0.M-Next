@@ -93,4 +93,69 @@ describe("canvas view model", () => {
       y: 240,
     });
   });
+
+  it("uses a selected configured root to render its bounded graph", () => {
+    const workspace = new WorkspaceStore({
+      ...cloneDemoSeed(),
+      objects: [
+        canvasObject("plan-a", "build_plan"),
+        canvasObject("item-a", "build_plan_item"),
+      ],
+      relations: [
+        canvasRelation(
+          "contains-a",
+          "build_plan_contains_item",
+          "plan-a",
+          "item-a",
+        ),
+      ],
+    }).getSnapshot();
+    const view = {
+      id: "pc",
+      exprId: "expr",
+      kind: "canvas" as const,
+      config: {
+        selectionObjectTypeCode: "build_plan",
+        selectionRelationTypeCodes: ["build_plan_contains_item"],
+        selectionDepth: 2,
+      },
+    };
+
+    const vm = buildCanvasViewModel(workspace, view, "plan-a");
+
+    expect(vm.nodes.map((node) => node.objectId)).toEqual(["plan-a", "item-a"]);
+    expect(vm.edges.map((edge) => edge.relationId)).toEqual(["contains-a"]);
+  });
 });
+
+function canvasObject(id: string, objectTypeCode: string) {
+  return {
+    id,
+    objectTypeCode,
+    status: "active" as const,
+    version: 1,
+    fields: {},
+    createdBy: "wangyun" as const,
+    createdAt: "2026-07-16T00:00:00Z",
+    updatedBy: "wangyun" as const,
+    updatedAt: "2026-07-16T00:00:00Z",
+  };
+}
+
+function canvasRelation(
+  id: string,
+  relationTypeCode: string,
+  sourceId: string,
+  targetId: string,
+) {
+  return {
+    id,
+    relationTypeCode,
+    sourceId,
+    targetId,
+    status: "active" as const,
+    fields: {},
+    version: 1,
+    annotationIds: [],
+  };
+}

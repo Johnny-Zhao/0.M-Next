@@ -163,8 +163,8 @@ export class KernelWriteBridge implements WriteSink {
     });
   }
 
-  deleteObject(descriptor: ObjectDeleteDescriptor): void {
-    this.enqueue([descriptor.objectId], async () => {
+  deleteObject(descriptor: ObjectDeleteDescriptor): Promise<WriteCompletion> {
+    return this.enqueue([descriptor.objectId], async () => {
       const objectId = this.resolveObjectId(descriptor.objectId);
       try {
         const actor = this.applyActor();
@@ -173,9 +173,11 @@ export class KernelWriteBridge implements WriteSink {
           actor,
           descriptor.expectedVersion,
         );
+        return { state: "synced" };
       } catch (error) {
         this.workspace.restoreObject(descriptor.snapshot, objectId);
         this.reportWriteFailure(error);
+        return writeFailure(error);
       }
     });
   }

@@ -173,12 +173,33 @@ describe("structured-document-view-model", () => {
     if (parsed.state !== "ready") throw new Error("expected structured config");
     expect(parsed.config.root.objectTypeCode).toBe("build_plan");
     expect(parsed.config.bodyFieldCode).toBe("body");
+    expect(parsed.config.preferSelectedRoot).toBe(true);
     expect(
       parsed.config.sections.map((section) => section.relationTypeCode),
     ).toEqual(["build_plan_contains_item", "build_plan_satisfies_requirement"]);
     expect(parsed.config.sections[0]?.createAction).toBe(
       "pc_procurement.procurement-item",
     );
+  });
+
+  it("uses the selected root object when the view configuration opts in", () => {
+    const { workspace, doc, config } = procurementFixture();
+    const selectedPlan = {
+      ...plan,
+      id: "plan-selected",
+      fields: {
+        ...plan.fields,
+        code: { ...plan.fields.code!, value: "PLAN-SECOND" },
+      },
+    };
+    const vm = buildStructuredDocumentViewModel(
+      { ...workspace, objects: [...workspace.objects, selectedPlan] },
+      doc,
+      { ...config, preferSelectedRoot: true },
+      selectedPlan.id,
+    );
+
+    expect(vm.root?.objectId).toBe("plan-selected");
   });
 
   it("keeps a missing body field unavailable without fabricating content", () => {

@@ -24,6 +24,7 @@ export interface StructuredDocumentSectionConfig
 
 export interface StructuredDocumentConfig {
   readonly bodyFieldCode?: string;
+  readonly preferSelectedRoot?: boolean;
   readonly root: StructuredDocumentPartConfig;
   readonly sections: readonly StructuredDocumentSectionConfig[];
 }
@@ -203,6 +204,7 @@ export function readStructuredDocumentConfig(
   if (!isRecord(value)) return invalidConfig();
   const root = readPart(value.root);
   const bodyFieldCode = readOptionalNonEmptyString(value.bodyFieldCode);
+  const preferSelectedRoot = value.preferSelectedRoot === true;
   const sections = Array.isArray(value.sections)
     ? value.sections.map(readSection)
     : null;
@@ -213,6 +215,7 @@ export function readStructuredDocumentConfig(
     state: "ready",
     config: {
       bodyFieldCode: bodyFieldCode ?? undefined,
+      preferSelectedRoot,
       root,
       sections: sections as StructuredDocumentSectionConfig[],
     },
@@ -223,11 +226,20 @@ export function buildStructuredDocumentViewModel(
   workspace: WorkspaceState,
   doc: DocModel,
   config: StructuredDocumentConfig,
+  selectedRootObjectId: string | null = null,
 ): StructuredDocumentViewModel {
-  const root = workspace.objects.find(
-    (object) => object.id === doc.binding.objectId,
-  );
-  if (!root || doc.binding.state === "dangling") {
+  const selectedRoot =
+    config.preferSelectedRoot && selectedRootObjectId
+      ? workspace.objects.find((object) => object.id === selectedRootObjectId)
+      : null;
+  const root =
+    selectedRoot?.objectTypeCode === config.root.objectTypeCode
+      ? selectedRoot
+      : workspace.objects.find((object) => object.id === doc.binding.objectId);
+  if (
+    !root ||
+    (root.id === doc.binding.objectId && doc.binding.state === "dangling")
+  ) {
     return {
       state: "dangling",
       message: "引用对象不存在",

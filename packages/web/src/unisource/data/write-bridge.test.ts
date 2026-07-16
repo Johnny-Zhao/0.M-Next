@@ -206,6 +206,16 @@ describe("KernelWriteBridge", () => {
     );
   });
 
+  it("returns the archive write completion to lifecycle callers", async () => {
+    const harness = createHarness();
+    harness.workspace.setWriteSink(harness.bridge);
+    harness.workspace.deleteObject("prod-s3", "wangyun");
+
+    await expect(harness.workspace.waitForLastWrite()).resolves.toEqual({
+      state: "synced",
+    });
+  });
+
   it("serializes writes for the same object id", async () => {
     const first = deferred<void>();
     const firstStarted = deferred<void>();

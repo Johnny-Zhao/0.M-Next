@@ -35,9 +35,19 @@ export function StructuredDocumentView({
 }) {
   const workspace = useWorkspaceSnapshot();
   const selection = useSelectionSnapshot();
+  const selectedRootObjectId =
+    selection.current?.entityType === "object"
+      ? selection.current.entityId
+      : null;
   const vm = useMemo(
-    () => buildStructuredDocumentViewModel(workspace, doc, config),
-    [config, doc, workspace],
+    () =>
+      buildStructuredDocumentViewModel(
+        workspace,
+        doc,
+        config,
+        selectedRootObjectId,
+      ),
+    [config, doc, selectedRootObjectId, workspace],
   );
   const outline = useMemo(() => buildStructuredDocumentOutline(vm), [vm]);
   const [activeOutlineId, setActiveOutlineId] = useState<string | null>(null);

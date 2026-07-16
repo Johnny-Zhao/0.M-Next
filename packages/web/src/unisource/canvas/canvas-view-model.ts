@@ -84,8 +84,11 @@ export function parseCanvasConfig(view: ViewDef | undefined): CanvasConfig {
 export function buildCanvasViewModel(
   workspace: WorkspaceState,
   view: ViewDef,
+  selectedRootObjectId: string | null = null,
 ): CanvasViewModel {
-  const config = parseCanvasConfig(view);
+  const config =
+    selectedCanvasConfig(workspace, view, selectedRootObjectId) ??
+    parseCanvasConfig(view);
   const danglingRefs: CanvasDanglingRefVm[] = [];
   const nodes = config.nodes.flatMap((node, index) => {
     const object = workspace.objects.find(
@@ -176,6 +179,67 @@ export function buildCanvasViewModel(
     return [relationToEdge(workspace, relation)];
   });
   return { viewId: view.id, nodes, edges, danglingRefs };
+}
+
+function selectedCanvasConfig(
+  workspace: WorkspaceState,
+  view: ViewDef,
+  selectedRootObjectId: string | null,
+): CanvasConfig | null {
+  const rootTypeCode = view.config.selectionObjectTypeCode;
+  const relationTypeCodes = view.config.selectionRelationTypeCodes;
+  if (
+    typeof rootTypeCode !== "string" ||
+    !Array.isArray(relationTypeCodes) ||
+    !selectedRootObjectId
+  ) {
+    return null;
+  }
+  const root = workspace.objects.find(
+    (object) =>
+      object.id === selectedRootObjectId &&
+      object.objectTypeCode === rootTypeCode &&
+      object.status === "active",
+  );
+  if (!root) return null;
+  const relationTypes = new Set(
+    relationTypeCodes.filter(
+      (code): code is string => typeof code === "string",
+    ),
+  );
+  const maxDepth = Math.min(
+    5,
+    Math.max(1, Number(view.config.selectionDepth) || 1),
+  );
+  const objectIds = new Set([root.id]);
+  const relationIds = new Set<string>();
+  let frontier = [root.id];
+  for (let depth = 0; depth < maxDepth && frontier.length > 0; depth += 1) {
+    const next: string[] = [];
+    for (const relation of workspace.relations) {
+      if (
+        relation.status !== "active" ||
+        !relationTypes.has(relation.relationTypeCode) ||
+        !frontier.includes(relation.sourceId)
+      ) {
+        continue;
+      }
+      relationIds.add(relation.id);
+      if (!objectIds.has(relation.targetId)) next.push(relation.targetId);
+      objectIds.add(relation.targetId);
+    }
+    frontier = next;
+  }
+  const nodes = Array.from(objectIds).map((objectId, index) => ({
+    objectId,
+    x: 72 + (index % 3) * 248,
+    y: 72 + Math.floor(index / 3) * 172,
+    shownFields: ["code", "name", "status"],
+  }));
+  return {
+    nodes,
+    edges: Array.from(relationIds).map((relationId) => ({ relationId })),
+  };
 }
 
 export function deriveGotoTargets(
