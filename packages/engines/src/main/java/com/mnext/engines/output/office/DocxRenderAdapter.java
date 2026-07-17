@@ -6,9 +6,13 @@ import com.mnext.engines.output.RenderAdapter;
 import com.mnext.engines.output.RenderSupport;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.util.Date;
+import java.util.Optional;
 import org.apache.poi.xwpf.usermodel.XWPFDocument;
 
 public final class DocxRenderAdapter implements RenderAdapter {
+  private static final Date EPOCH = new Date(0L);
+
   @Override
   public String formatId() {
     return "docx";
@@ -28,8 +32,11 @@ public final class DocxRenderAdapter implements RenderAdapter {
       } else {
         renderFlat(document, snapshot, template);
       }
+      var properties = document.getProperties().getCoreProperties();
+      properties.setCreated(Optional.of(EPOCH));
+      properties.setModified(Optional.of(EPOCH));
       document.write(out);
-      return out.toByteArray();
+      return DeterministicZip.normalize(out.toByteArray());
     } catch (IOException failure) {
       throw new IllegalStateException("Failed to render docx output", failure);
     }

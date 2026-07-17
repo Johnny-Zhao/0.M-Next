@@ -250,7 +250,9 @@ class SnapshotIntegrationTest {
     var greenOutput = createDocx(captureTreeSnapshot());
 
     assertEquals("OK", greenOutput.checkStatus());
-    assertEquals("BLOCK", createDocx(blockedSnapshot).checkStatus());
+    var blockedAgain = createDocx(blockedSnapshot);
+    assertEquals("BLOCK", blockedAgain.checkStatus());
+    assertEquals(blockedOutput.contentHash(), blockedAgain.contentHash());
   }
 
   @Test

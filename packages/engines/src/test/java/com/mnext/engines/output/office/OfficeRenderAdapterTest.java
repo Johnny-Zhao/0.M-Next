@@ -294,6 +294,13 @@ class OfficeRenderAdapterTest {
   }
 
   @Test
+  void flatDocxKeepsByteStableRegressionBytes() {
+    var adapter = new DocxRenderAdapter();
+
+    assertArrayEquals(adapter.render(dataSet(), TEMPLATE), adapter.render(dataSet(), TEMPLATE));
+  }
+
+  @Test
   void treeHeadingFallsBackToUnnamedWithoutEmittingObjectId() throws Exception {
     var objectId = "3f2504e0-4f89-41d3-9a0c-0305e82c3301";
     var dataSet =
