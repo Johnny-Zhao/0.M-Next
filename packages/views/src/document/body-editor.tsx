@@ -1,4 +1,5 @@
 import { type Editor, type JSONContent } from "@tiptap/core";
+import { NodeSelection } from "@tiptap/pm/state";
 import { EditorContent, useEditor } from "@tiptap/react";
 import { useState, type ReactElement } from "react";
 
@@ -207,6 +208,8 @@ export function documentBodyEditorActions(
       .run();
   return {
     selectedBlock: selectedDocumentDataBlock(editor),
+    canMoveSelectedBlockUp: canMoveSelectedDataBlock(editor, -1),
+    canMoveSelectedBlockDown: canMoveSelectedDataBlock(editor, 1),
     insertDataReference: (config: DocumentDataReferenceConfig) =>
       insert({ kind: "dataReference", config }),
     insertDataTable: (config: DocumentDataTableConfig) =>
@@ -221,7 +224,42 @@ export function documentBodyEditorActions(
       selectedDocumentDataBlock(editor)
         ? editor.commands.deleteSelection()
         : false,
+    moveSelectedBlockUp: () => moveSelectedDataBlock(editor, -1),
+    moveSelectedBlockDown: () => moveSelectedDataBlock(editor, 1),
   };
+}
+
+function canMoveSelectedDataBlock(editor: Editor, direction: -1 | 1): boolean {
+  const selection = editor.state.selection;
+  const block = selectedDocumentDataBlock(editor);
+  if (!block || !(selection instanceof NodeSelection)) return false;
+  const index = selection.$from.index();
+  const targetIndex = index + direction;
+  return targetIndex >= 0 && targetIndex < selection.$from.parent.childCount;
+}
+
+function moveSelectedDataBlock(editor: Editor, direction: -1 | 1): boolean {
+  if (!canMoveSelectedDataBlock(editor, direction)) return false;
+  const selection = editor.state.selection as NodeSelection;
+  const node = selection.node;
+  const position = selection.from;
+  const sibling = selection.$from.parent.child(
+    selection.$from.index() + direction,
+  );
+  const targetPosition =
+    direction === -1
+      ? position - sibling.nodeSize
+      : position + sibling.nodeSize;
+  const transaction = editor.state.tr.delete(
+    position,
+    position + node.nodeSize,
+  );
+  transaction.insert(targetPosition, node);
+  transaction.setSelection(
+    NodeSelection.create(transaction.doc, targetPosition),
+  );
+  editor.view.dispatch(transaction);
+  return true;
 }
 
 function BodyReadonly(props: {

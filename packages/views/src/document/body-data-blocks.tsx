@@ -22,6 +22,7 @@ export interface DocumentDataTableColumnConfig {
   readonly id: string;
   readonly label?: string;
   readonly fieldCode: string;
+  /** Active source-to-target relation types, limited to two hops by the consumer. */
   readonly relationPath?: readonly string[];
   readonly minWidth?: number;
 }
@@ -55,12 +56,16 @@ export type DocumentDataBlockRenderer = (
 
 export interface DocumentBodyEditorActions {
   readonly selectedBlock: DocumentDataBlock | null;
+  readonly canMoveSelectedBlockUp: boolean;
+  readonly canMoveSelectedBlockDown: boolean;
   readonly insertDataReference: (
     config: DocumentDataReferenceConfig,
   ) => boolean;
   readonly insertDataTable: (config: DocumentDataTableConfig) => boolean;
   readonly replaceSelectedBlock: (block: DocumentDataBlock) => boolean;
   readonly removeSelectedBlock: () => boolean;
+  readonly moveSelectedBlockUp: () => boolean;
+  readonly moveSelectedBlockDown: () => boolean;
 }
 
 export function documentDataBlockExtensions(

@@ -17,6 +17,7 @@ import type {
 } from "./structured-document-view-model";
 
 const terminalStatuses = new Set(["archived", "deleted", "soft-deleted"]);
+const maxRelationPathDepth = 2;
 
 export function StructuredDocumentDataBlock({
   block,
@@ -202,11 +203,7 @@ function TableBlock({
             <tr
               key={row.object.id}
               onClick={() =>
-                config.allowRowSelection !== false &&
-                selectionStore.set({
-                  entityType: "object",
-                  entityId: row.object.id,
-                })
+                selectDataTableRow(row.object.id, config.allowRowSelection)
               }
             >
               {row.cells.map((cell) => (
@@ -224,6 +221,15 @@ function TableBlock({
       ) : null}
     </section>
   );
+}
+
+export function selectDataTableRow(
+  objectId: string,
+  allowRowSelection: boolean | undefined,
+): void {
+  if (allowRowSelection !== false) {
+    selectionStore.set({ entityType: "object", entityId: objectId });
+  }
 }
 
 export function resolveDataTable(
@@ -317,7 +323,11 @@ function tableCell(
   readonly state: "fresh" | "dangling";
   readonly derived: boolean;
 } {
-  const object = (column.relationPath ?? []).reduce<DataObject | null>(
+  const relationPath = column.relationPath ?? [];
+  if (relationPath.length > maxRelationPathDepth) {
+    return danglingTableCell(column.id);
+  }
+  const object = relationPath.reduce<DataObject | null>(
     (current, relationType) => {
       const relation =
         current &&
@@ -337,23 +347,11 @@ function tableCell(
     },
     source,
   );
-  if (!object)
-    return {
-      id: column.id,
-      text: "引用关系不存在",
-      state: "dangling",
-      derived: false,
-    };
+  if (!object) return danglingTableCell(column.id);
   const field = workspace.objectTypes
     .find((type) => type.code === object.objectTypeCode)
     ?.fields.find((item) => item.code === column.fieldCode);
-  if (!field)
-    return {
-      id: column.id,
-      text: "字段引用已失效",
-      state: "dangling",
-      derived: false,
-    };
+  if (!field) return danglingTableCell(column.id);
   const value = object.fields[field.code]?.value ?? null;
   return {
     id: column.id,
@@ -361,6 +359,10 @@ function tableCell(
     state: "fresh",
     derived: field.computed === true,
   };
+}
+
+function danglingTableCell(id: string) {
+  return { id, text: "—", state: "dangling" as const, derived: false };
 }
 
 export function StructuredDocumentDataBlockActions({
@@ -472,9 +474,25 @@ export function StructuredDocumentDataBlockActions({
           ))
         : null}
       {actions.selectedBlock ? (
-        <button onClick={actions.removeSelectedBlock} type="button">
-          删除数据块
-        </button>
+        <>
+          <button
+            disabled={!actions.canMoveSelectedBlockUp}
+            onClick={actions.moveSelectedBlockUp}
+            type="button"
+          >
+            上移
+          </button>
+          <button
+            disabled={!actions.canMoveSelectedBlockDown}
+            onClick={actions.moveSelectedBlockDown}
+            type="button"
+          >
+            下移
+          </button>
+          <button onClick={actions.removeSelectedBlock} type="button">
+            删除数据块
+          </button>
+        </>
       ) : null}
     </span>
   );
