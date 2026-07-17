@@ -213,8 +213,8 @@ export class ValidationStore {
       if (!hydrated) {
         if (this.state.kernelStatus === "error") {
           this.showToast({
-            title: "鍐呮牳鏍￠獙澶辫触",
-            desc: this.state.kernelError ?? "鏍￠獙缁撴灉璇诲彇澶辫触",
+            title: "内核校验失败",
+            desc: this.state.kernelError ?? "校验结果读取失败",
           });
         }
         return;
