@@ -940,12 +940,13 @@ class ReadModelRepository {
               WHERE tree.depth < ? AND NOT relation.target_id = ANY(tree.path)
             ),
             latest_run AS (
-              SELECT run_id
-              FROM check_result
-              WHERE workspace_id = ?
-              GROUP BY run_id
-              ORDER BY max(created_at) DESC, run_id
-              LIMIT 1
+               SELECT run_id
+               FROM check_run
+               WHERE workspace_id = ?
+                 AND status = 'COMPLETED'
+                 AND scope_object_type_code IS NULL
+               ORDER BY completed_at DESC NULLS LAST, run_id
+               LIMIT 1
             ),
             rule_status AS (
               SELECT result.object_id,
@@ -964,9 +965,8 @@ class ReadModelRepository {
                    parent_relation.relation_type_code, parent_relation.source_id,
                    parent_relation.target_id, parent_relation.fields::text,
                    parent_relation.status, parent_relation.version,
-                   COALESCE(
-                     rule_status.value,
-                     CASE WHEN latest_run.run_id IS NULL THEN 'UNKNOWN' ELSE 'OK' END)
+                    CASE WHEN latest_run.run_id IS NULL THEN NULL
+                         ELSE COALESCE(rule_status.value, 'OK') END
             FROM tree
             JOIN rm_object object
               ON object.workspace_id = ? AND object.object_id = tree.object_id
@@ -1024,8 +1024,10 @@ class ReadModelRepository {
         jdbc.query(
             """
             WITH latest_run AS (
-              SELECT run_id FROM check_result WHERE workspace_id = ?
-              GROUP BY run_id ORDER BY max(created_at) DESC, run_id LIMIT 1)
+              SELECT run_id FROM check_run
+              WHERE workspace_id = ? AND status = 'COMPLETED'
+                AND scope_object_type_code IS NULL
+              ORDER BY completed_at DESC NULLS LAST, run_id LIMIT 1)
             SELECT object_id, rule_code, severity, message
             FROM check_result WHERE workspace_id = ? AND object_id IS NOT NULL
               AND run_id = (SELECT run_id FROM latest_run)
@@ -1348,7 +1350,7 @@ class ReadModelRepository {
       tree.put("parentId", parentId == null ? null : parentId.toString());
       tree.put("relationId", relationId == null ? null : relationId.toString());
       tree.put("order", order);
-      tree.put("ruleStatus", ruleStatus);
+      if (ruleStatus != null && !ruleStatus.isBlank()) tree.put("ruleStatus", ruleStatus);
       result.put("_tree", tree);
       if (!checks.isEmpty()) result.put("_checks", List.copyOf(checks));
       return result;

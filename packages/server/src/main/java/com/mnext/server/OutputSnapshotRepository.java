@@ -6,6 +6,8 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.util.HexFormat;
+import java.util.Locale;
+import java.util.Map;
 import java.util.UUID;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
@@ -28,6 +30,8 @@ class OutputSnapshotRepository {
     if (request.format() == null || request.format().isBlank())
       throw new IllegalArgumentException("format 必填");
     var snapshot = snapshots.get(workspaceId, request.snapshotId());
+    var reviewStatus = "UNREVIEWED";
+    var checkStatus = checkStatus(snapshot.payload());
     var renderer = renderers.require(request.format());
     var artifact =
         renderer.render(
@@ -50,8 +54,8 @@ class OutputSnapshotRepository {
         request.format(),
         request.templateId(),
         request.templateVersion(),
-        "UNKNOWN",
-        "UNKNOWN",
+        reviewStatus,
+        checkStatus,
         snapshot.meta().dataVersion(),
         java.sql.Timestamp.from(createdAt),
         actor,
@@ -63,8 +67,8 @@ class OutputSnapshotRepository {
         request.format(),
         request.templateId(),
         request.templateVersion(),
-        "UNKNOWN",
-        "UNKNOWN",
+        reviewStatus,
+        checkStatus,
         snapshot.meta().dataVersion(),
         createdAt,
         actor,
@@ -132,5 +136,25 @@ class OutputSnapshotRepository {
     } catch (NoSuchAlgorithmException failure) {
       throw new IllegalStateException("SHA-256 不可用", failure);
     }
+  }
+
+  private static String checkStatus(com.mnext.engines.exchange.DataSet payload) {
+    var hasRuleStatus = false;
+    var hasWarn = false;
+    for (var object : payload.objects()) {
+      var status = ruleStatus(object.fields());
+      if (status.isBlank() || "UNKNOWN".equals(status)) continue;
+      hasRuleStatus = true;
+      if ("BLOCK".equals(status)) return "BLOCK";
+      if ("WARN".equals(status)) hasWarn = true;
+    }
+    if (hasWarn) return "WARN";
+    return hasRuleStatus ? "OK" : "UNCHECKED";
+  }
+
+  private static String ruleStatus(Map<String, Object> fields) {
+    if (!(fields.get("_tree") instanceof Map<?, ?> tree)) return "";
+    var value = tree.get("ruleStatus");
+    return value == null ? "" : String.valueOf(value).trim().toUpperCase(Locale.ROOT);
   }
 }

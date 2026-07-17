@@ -78,6 +78,8 @@ export interface OutputArtifactMeta {
   readonly outputId: string;
   readonly snapshotId: string;
   readonly format: OutputFormat;
+  readonly reviewStatus: string;
+  readonly checkStatus: string;
   readonly createdBy: string;
   readonly createdAt: string;
   readonly contentHash: string;

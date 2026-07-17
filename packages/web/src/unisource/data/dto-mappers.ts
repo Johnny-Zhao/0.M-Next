@@ -195,6 +195,8 @@ export function mapOutputMeta(dto: OutputMeta): OutputArtifactMeta {
     outputId: dto.outputId,
     snapshotId: dto.dataSnapshotId,
     format: dto.format,
+    reviewStatus: dto.reviewStatus,
+    checkStatus: dto.checkStatus,
     createdBy: dto.createdBy,
     createdAt: dto.createdAt,
     contentHash: dto.contentHash,

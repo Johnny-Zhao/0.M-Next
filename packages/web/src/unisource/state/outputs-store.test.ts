@@ -184,6 +184,8 @@ class FakeOutputSource implements KernelOutputSource {
       snapshotId: "snapshot-1",
       format: this.artifactFormat,
       artifact: this.artifact,
+      reviewStatus: "UNREVIEWED",
+      checkStatus: "OK",
       createdBy: "wangyun",
       createdAt: "2026-07-10T10:25:00+08:00",
       contentHash: "output",

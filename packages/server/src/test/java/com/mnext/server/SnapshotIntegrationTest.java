@@ -10,11 +10,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mnext.engines.exchange.JsonArtifact;
 import com.mnext.engines.exchange.JsonArtifact.ArtifactObject;
+import java.io.ByteArrayInputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import org.apache.poi.xwpf.usermodel.XWPFDocument;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -57,6 +60,7 @@ class SnapshotIntegrationTest {
   }
 
   @Autowired SnapshotRepository snapshots;
+  @Autowired OutputSnapshotRepository outputs;
   @Autowired ExchangeController exchange;
   @Autowired TestRestTemplate http;
   @Autowired JdbcTemplate jdbc;
@@ -65,8 +69,10 @@ class SnapshotIntegrationTest {
 
   @BeforeEach
   void reset() {
+    jdbc.update("DELETE FROM output_snapshot");
     jdbc.update("DELETE FROM snapshot");
     jdbc.update("DELETE FROM check_result WHERE workspace_id = ?", WORKSPACE);
+    jdbc.update("DELETE FROM check_run WHERE workspace_id = ?", WORKSPACE);
     jdbc.update("DELETE FROM rm_relation");
     jdbc.update("DELETE FROM rm_object");
     jdbc.update("DELETE FROM relation_type WHERE workspace_id = ?", WORKSPACE);
@@ -195,6 +201,7 @@ class SnapshotIntegrationTest {
     insertRelation(UUID.fromString("11111111-aaaa-4aaa-8aaa-111111111111"), OBJECT, CHILD_A);
     insertRelation(UUID.fromString("22222222-bbbb-4bbb-8bbb-222222222222"), CHILD_A, GRANDCHILD);
     insertRelation(UUID.fromString("33333333-cccc-4ccc-8ccc-333333333333"), OBJECT, CHILD_B);
+    insertFullWorkspaceRun(RULE_RUN, Instant.parse("2026-07-16T00:00:00Z"));
     insertCheckResult(GRANDCHILD, "BLOCK");
 
     var treeSnapshot =
@@ -219,6 +226,41 @@ class SnapshotIntegrationTest {
     var flatPayload =
         payloadObjects(get(WORKSPACE, UUID.fromString((String) flatSnapshot.get("snapshotId"))));
     assertFalse(fields(flatPayload.getFirst()).containsKey("_tree"));
+  }
+
+  @Test
+  void derivesOutputChecksFromTheCapturedFullWorkspaceRun() throws Exception {
+    insertTreeMetadata();
+    insertObject(WORKSPACE, CHILD_A, 2, "{\"name\":\"阻断明细\"}");
+    insertRelation(UUID.fromString("11111111-aaaa-4aaa-8aaa-111111111111"), OBJECT, CHILD_A);
+    insertFullWorkspaceRun(RULE_RUN, Instant.parse("2026-07-17T00:00:00Z"));
+    insertCheckResult(CHILD_A, "BLOCK", RULE_RUN);
+    var blockedSnapshot = captureTreeSnapshot();
+    var blockedOutput = createDocx(blockedSnapshot);
+
+    assertEquals("BLOCK", blockedOutput.checkStatus());
+    assertEquals("UNREVIEWED", blockedOutput.reviewStatus());
+    assertDocxHasValidation(blockedOutput.outputId(), "阻断明细", "阻断");
+
+    jdbc.update(
+        "UPDATE rm_object SET fields = '{\"name\":\"已修复明细\"}'::jsonb, version = 3 WHERE object_id = ?",
+        CHILD_A);
+    var greenRun = UUID.fromString("13131313-1313-4313-8313-131313131313");
+    insertFullWorkspaceRun(greenRun, Instant.parse("2026-07-17T00:01:00Z"));
+    var greenOutput = createDocx(captureTreeSnapshot());
+
+    assertEquals("OK", greenOutput.checkStatus());
+    assertEquals("BLOCK", createDocx(blockedSnapshot).checkStatus());
+  }
+
+  @Test
+  void marksOutputsUncheckedWhenNoFullWorkspaceRunWasCaptured() throws Exception {
+    insertTreeMetadata();
+    var output = createDocx(captureTreeSnapshot());
+
+    assertEquals("UNCHECKED", output.checkStatus());
+    assertEquals("UNREVIEWED", output.reviewStatus());
+    assertDocxHasValidation(output.outputId(), "未校验", "");
   }
 
   @Test
@@ -278,6 +320,36 @@ class SnapshotIntegrationTest {
   @SuppressWarnings("unchecked")
   private Map<String, Object> capture(UUID workspace) {
     return capture(workspace, Map.of());
+  }
+
+  private UUID captureTreeSnapshot() {
+    var snapshot =
+        capture(
+            WORKSPACE,
+            Map.of(
+                "treeScope", Map.of("rootId", OBJECT, "relationType", "contains", "maxDepth", 5)));
+    return UUID.fromString((String) snapshot.get("snapshotId"));
+  }
+
+  private OutputMeta createDocx(UUID snapshotId) {
+    return outputs.create(
+        WORKSPACE,
+        new OutputCreateRequest(snapshotId, "docx", null, null, null, List.of(), null, null),
+        "author");
+  }
+
+  private void assertDocxHasValidation(UUID outputId, String object, String status) throws Exception {
+    var artifact = outputs.get(WORKSPACE, outputId).artifact();
+    try (var document = new XWPFDocument(new ByteArrayInputStream(artifact))) {
+      assertTrue(
+          document.getTables().stream()
+              .flatMap(table -> table.getRows().stream())
+              .anyMatch(
+                  row ->
+                      row.getTableCells().size() >= 2
+                          && row.getCell(0).getText().contains(object)
+                          && row.getCell(1).getText().contains(status)));
+    }
   }
 
   @SuppressWarnings("unchecked")
@@ -405,6 +477,10 @@ class SnapshotIntegrationTest {
   }
 
   private void insertCheckResult(UUID objectId, String severity) {
+    insertCheckResult(objectId, severity, RULE_RUN);
+  }
+
+  private void insertCheckResult(UUID objectId, String severity, UUID runId) {
     jdbc.update(
         """
         INSERT INTO check_result
@@ -415,9 +491,22 @@ class SnapshotIntegrationTest {
         """,
         UUID.randomUUID(),
         WORKSPACE,
-        RULE_RUN,
+        runId,
         severity,
         objectId);
+  }
+
+  private void insertFullWorkspaceRun(UUID runId, Instant completedAt) {
+    jdbc.update(
+        """
+        INSERT INTO check_run
+          (run_id, workspace_id, scope_object_type_code, status, started_at, completed_at)
+        VALUES (?, ?, NULL, 'COMPLETED', ?, ?)
+        """,
+        runId,
+        WORKSPACE,
+        java.sql.Timestamp.from(completedAt),
+        java.sql.Timestamp.from(completedAt));
   }
 
   private String treeStatus(Map<String, Object> object) {

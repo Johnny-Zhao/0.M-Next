@@ -1,5 +1,5 @@
 import { useKernelRuntimeState } from "../data/boot-mode";
-import { UsButton } from "../primitives";
+import { UsButton, UsMonoTag } from "../primitives";
 import { useSessionSnapshot } from "../state/session-store";
 import { outputsStore, useOutputsSnapshot } from "../state/outputs-store";
 import { useValidationSnapshot } from "../state/validation-store";
@@ -43,9 +43,34 @@ export function StructuredDocumentOutputAction({
       </UsButton>
       {reason ? <small>{reason}</small> : null}
       {output.lastOutput ? (
-        <small>制品：{output.lastOutput.outputId}</small>
+        <span>
+          <small>制品：{output.lastOutput.outputId}</small>
+          <UsMonoTag>{outputCheckStatusLabel(output.lastOutput.checkStatus)}</UsMonoTag>
+          <UsMonoTag>{outputReviewStatusLabel(output.lastOutput.reviewStatus)}</UsMonoTag>
+        </span>
       ) : null}
     </div>
+  );
+}
+
+export function outputCheckStatusLabel(status: string | undefined): string {
+  return (
+    {
+      BLOCK: "有阻断",
+      WARN: "有警告",
+      OK: "通过",
+      UNCHECKED: "未校验",
+      UNKNOWN: "未记录",
+    }[status?.toUpperCase() ?? "UNKNOWN"] ?? "未记录"
+  );
+}
+
+export function outputReviewStatusLabel(status: string | undefined): string {
+  return (
+    {
+      UNREVIEWED: "未评审",
+      UNKNOWN: "未记录",
+    }[status?.toUpperCase() ?? "UNKNOWN"] ?? "未记录"
   );
 }
 

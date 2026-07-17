@@ -85,6 +85,27 @@ class OfficeRenderAdapterTest {
   }
 
   @Test
+  void rendersUnvalidatedSummaryWhenTreeObjectsHaveNoRuleStatus() throws Exception {
+    var snapshot =
+        new DataSet(
+            List.of(
+                new DataObject(
+                    "proposal",
+                    "proposal",
+                    Map.of("title", "未校验方案", "_tree", Map.of("depth", 0, "order", 0)),
+                    "DRAFT",
+                    1)),
+            List.of());
+
+    var bytes = new DocxRenderAdapter().render(snapshot, treeTemplate());
+
+    try (var document = new XWPFDocument(new ByteArrayInputStream(bytes))) {
+      assertTrue(hasTableRow(document, "未校验", ""));
+      assertFalse(hasTableRow(document, "全部校核通过", ""));
+    }
+  }
+
+  @Test
   void rendersConfiguredRelationTablesFromSnapshotRelations() throws Exception {
     var source = treeDataSet("OK");
     var snapshot =

@@ -246,12 +246,16 @@ final class DocxTreeRenderer {
                     Map.entry(title(object), RenderSupport.text(tree(object).get("ruleStatus"))))
             .filter(entry -> !entry.getValue().isBlank() && !"OK".equals(entry.getValue()))
             .toList();
+    var hasRuleStatus =
+        objects.stream()
+            .map(object -> RenderSupport.text(tree(object).get("ruleStatus")))
+            .anyMatch(status -> !status.isBlank());
     var table = document.createTable(Math.max(1, rows.size()) + 1, 3);
     table.getRow(0).getCell(0).setText("对象");
     table.getRow(0).getCell(1).setText("状态");
     table.getRow(0).getCell(2).setText("问题说明");
     if (rows.isEmpty()) {
-      table.getRow(1).getCell(0).setText("全部校核通过");
+      table.getRow(1).getCell(0).setText(hasRuleStatus ? "全部校核通过" : "未校验");
       table.getRow(1).getCell(1).setText("");
       table.getRow(1).getCell(2).setText("");
       return;
