@@ -93,6 +93,9 @@ record CheckResultView(
     String configHash,
     Instant createdAt) {}
 
+record LatestCheckRunView(
+    UUID runId, String scopeObjectTypeCode, String status, Instant completedAt) {}
+
 record CorrespondenceView(
     UUID relationId,
     UUID objectId,

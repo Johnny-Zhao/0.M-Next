@@ -215,6 +215,20 @@ describe("ChangeSetStore", () => {
     expect(store.getSnapshot().kernelBusy).toBe(false);
   });
 
+  it("notifies the shared validation scheduler after a kernel confirmation", async () => {
+    const seed = cloneDemoSeed();
+    const source = new FakeKernelChangeSetSource([kernelChangeSet("kernel-1")]);
+    const onKernelWriteSucceeded = vi.fn();
+    const store = new ChangeSetStore(seed, new WorkspaceStore(seed), {
+      pushToast: () => 0,
+    });
+    store.setKernelSource(source, onKernelWriteSucceeded);
+
+    await store.confirmKernelItems("kernel-1", ["item-1"], "wangyun");
+
+    expect(onKernelWriteSucceeded).toHaveBeenCalledWith("wangyun");
+  });
+
   it("keeps kernel confirm failures local and resets busy", async () => {
     const seed = cloneDemoSeed();
     const source = new FakeKernelChangeSetSource([kernelChangeSet("kernel-1")]);

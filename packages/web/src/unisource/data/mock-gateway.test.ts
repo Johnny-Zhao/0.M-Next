@@ -114,6 +114,11 @@ describe("MockUnisourceGateway", () => {
 
     expect(runId).toBe("mock-rule-run-0001");
     expect(results.map((result) => result.ruleCode)).toContain("XSRC-001");
+    await expect(gateway.latestCheckRun()).resolves.toMatchObject({
+      runId,
+      status: "COMPLETED",
+      scopeObjectTypeCode: null,
+    });
     await expect(gateway.checkResults("missing")).resolves.toEqual([]);
   });
 

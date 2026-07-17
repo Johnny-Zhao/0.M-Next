@@ -41,6 +41,7 @@ import type {
   ExchangeDiff,
   ExchangeFormat,
   Lineage,
+  LatestCheckRun,
   UnisourceGateway,
 } from "./gateway";
 
@@ -49,6 +50,12 @@ export class MockUnisourceGateway implements UnisourceGateway {
   private readonly changeSets: ChangeSetStore;
   private readonly validationRuns = new Map<string, readonly RuleOutcome[]>();
   private validationRunSequence = 0;
+  private latestValidationRun: LatestCheckRun = {
+    runId: null,
+    scopeObjectTypeCode: null,
+    status: null,
+    completedAt: null,
+  };
 
   constructor(seed: DemoSeed = cloneDemoSeed()) {
     const initialSeed = structuredClone(seed) as DemoSeed;
@@ -253,14 +260,24 @@ export class MockUnisourceGateway implements UnisourceGateway {
     return mockAnnotation(annotationId, false);
   }
 
-  async runRuleCheck(): Promise<string> {
+  async runRuleCheck(objectTypeCode?: string | null): Promise<string> {
     this.validationRunSequence += 1;
     const runId = `mock-rule-run-${String(this.validationRunSequence).padStart(4, "0")}`;
     this.validationRuns.set(
       runId,
       runValidationRules(this.workspace.getSnapshot()),
     );
+    this.latestValidationRun = {
+      runId,
+      scopeObjectTypeCode: objectTypeCode ?? null,
+      status: "COMPLETED",
+      completedAt: new Date().toISOString(),
+    };
     return runId;
+  }
+
+  async latestCheckRun(): Promise<LatestCheckRun> {
+    return this.latestValidationRun;
   }
 
   async checkResults(runId: string): Promise<readonly RuleOutcome[]> {

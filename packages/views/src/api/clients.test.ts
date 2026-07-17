@@ -391,6 +391,32 @@ describe("view and command clients", () => {
     );
   });
 
+  it("reads the latest completed rule check for a workspace", async () => {
+    const fetchFn = vi.fn<FetchFn>(
+      async () =>
+        new Response(
+          JSON.stringify({
+            runId: "run-1",
+            scopeObjectTypeCode: "build_plan",
+            status: "COMPLETED",
+            completedAt: "2026-07-17T09:30:00Z",
+          }),
+        ),
+    );
+
+    const latest = await new ViewClient("/api", fetchFn).latestCheckRun("ws");
+
+    expect(fetchFn.mock.calls[0]?.[0]).toBe(
+      "/api/workspaces/ws/views/latest-check-run",
+    );
+    expect(latest.runId).toBe("run-1");
+    expect(latest).toMatchObject({
+      scopeObjectTypeCode: "build_plan",
+      status: "COMPLETED",
+      completedAt: "2026-07-17T09:30:00Z",
+    });
+  });
+
   it("reads simulation runs and bounded downsampled series", async () => {
     const fetchFn = vi.fn<FetchFn>(
       async () =>

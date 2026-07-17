@@ -39,6 +39,7 @@ export class ChangeSetStore {
   private state: ChangeSetState;
   private readonly listeners = new Set<Listener>();
   private kernelSource: KernelChangeSetSource | null = null;
+  private onKernelWriteSucceeded: ((actor: MemberId) => void) | null = null;
   private readonly showToast: (input: UsToastInput) => number;
 
   constructor(
@@ -66,8 +67,12 @@ export class ChangeSetStore {
 
   getSnapshot = (): ChangeSetState => this.state;
 
-  setKernelSource(source: KernelChangeSetSource | null): void {
+  setKernelSource(
+    source: KernelChangeSetSource | null,
+    onKernelWriteSucceeded: ((actor: MemberId) => void) | null = null,
+  ): void {
     this.kernelSource = source;
+    this.onKernelWriteSucceeded = source ? onKernelWriteSucceeded : null;
     if (source === null) {
       this.state = {
         ...this.state,
@@ -148,6 +153,7 @@ export class ChangeSetStore {
         this.emit();
         return;
       }
+      this.onKernelWriteSucceeded?.(actor);
       const kernelChangeSets = await this.kernelSource.listAiChanges();
       this.state = {
         ...this.state,

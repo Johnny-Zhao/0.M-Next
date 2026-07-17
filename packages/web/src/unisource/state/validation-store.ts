@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from "react";
 
+import type { LatestCheckRun } from "../data/gateway";
 import type { MemberId } from "../model/kernel";
 import { pushToast, type UsToastInput } from "../primitives";
 import { cloneDemoSeed } from "../seed/demo-seed";
@@ -23,6 +24,8 @@ export interface ValidationState {
   readonly kernelStatus: "idle" | "running" | "ready" | "error";
   readonly kernelError: string | null;
   readonly kernelRunId: string | null;
+  readonly kernelScope: string | null;
+  readonly kernelStale: boolean;
 }
 
 export type FixResult =
@@ -36,11 +39,13 @@ export type FixResult =
 
 type Listener = () => void;
 
-const runClock = "2026-07-10T10:32:00+08:00";
+const demoRunClock = "2026-07-10T10:32:00+08:00";
+export const AUTO_KERNEL_CHECK_DEBOUNCE_MS = 1500;
 
 export interface KernelValidationSource {
   setActor(actorId: MemberId): void;
   runRuleCheck(objectTypeCode?: string | null): Promise<string>;
+  latestCheckRun(): Promise<LatestCheckRun>;
   checkResults(runId: string): Promise<readonly RuleOutcome[]>;
 }
 
@@ -49,7 +54,12 @@ export class ValidationStore {
   private readonly listeners = new Set<Listener>();
   private unsubscribeWorkspace: (() => void) | null = null;
   private runSequence = 0;
+  private kernelGeneration = 0;
   private kernelSource: KernelValidationSource | null = null;
+  private autoKernelCheckHandle: ReturnType<typeof setTimeout> | null = null;
+  private autoKernelCheckActor: MemberId | null = null;
+  private autoKernelCheckDirty = false;
+  private autoKernelCheckCatchUpRunning = false;
   private readonly showToast: (input: UsToastInput) => number;
 
   constructor(
@@ -78,6 +88,7 @@ export class ValidationStore {
   setKernelSource(source: KernelValidationSource | null): void {
     const nextSource = source ? "kernel" : "demo";
     this.kernelSource = source;
+    if (!source) this.clearAutoKernelCheck();
     if (this.state.source !== nextSource) {
       this.state = {
         ...this.state,
@@ -88,12 +99,15 @@ export class ValidationStore {
         kernelStatus: "idle",
         kernelError: null,
         kernelRunId: null,
+        kernelScope: null,
+        kernelStale: false,
       };
       this.emit();
     }
   }
 
   reset(): void {
+    this.clearAutoKernelCheck();
     this.state = {
       ...this.evaluate(new Set(), "0.2s"),
       kernelResults: [],
@@ -102,13 +116,33 @@ export class ValidationStore {
       kernelStatus: "idle",
       kernelError: null,
       kernelRunId: null,
+      kernelScope: null,
+      kernelStale: false,
     };
     this.emit();
   }
 
   dispose(): void {
+    this.clearAutoKernelCheck();
     this.unsubscribeWorkspace?.();
     this.unsubscribeWorkspace = null;
+  }
+
+  scheduleAutoKernelCheck(actor: MemberId): void {
+    if (!this.kernelSource || this.state.source !== "kernel") return;
+    this.markKernelResultsStale();
+    this.autoKernelCheckActor = actor;
+    this.cancelAutoKernelCheck();
+    this.autoKernelCheckHandle = setTimeout(() => {
+      this.autoKernelCheckHandle = null;
+      if (!this.kernelSource || this.state.source !== "kernel") return;
+      if (this.state.kernelRunning) {
+        if (!this.autoKernelCheckCatchUpRunning)
+          this.autoKernelCheckDirty = true;
+        return;
+      }
+      void this.runKernelCheck(actor, null);
+    }, AUTO_KERNEL_CHECK_DEBOUNCE_MS);
   }
 
   runAll(durationLabel = "0.2s"): void {
@@ -172,19 +206,20 @@ export class ValidationStore {
       kernelError: null,
     };
     this.emit();
+    const generation = this.kernelGeneration;
     try {
-      const runId = await this.kernelSource.runRuleCheck(objectTypeCode);
-      const results = await this.kernelSource.checkResults(runId);
-      this.state = {
-        ...this.state,
-        kernelResults: results,
-        kernelRunAt: this.kernelRunAt(),
-        kernelRunning: false,
-        kernelStatus: "ready",
-        kernelError: null,
-        kernelRunId: runId,
-      };
-      this.emit();
+      await this.kernelSource.runRuleCheck(objectTypeCode);
+      const hydrated = await this.hydrateKernelCheck(generation);
+      if (!hydrated) {
+        if (this.state.kernelStatus === "error") {
+          this.showToast({
+            title: "鍐呮牳鏍￠獙澶辫触",
+            desc: this.state.kernelError ?? "鏍￠獙缁撴灉璇诲彇澶辫触",
+          });
+        }
+        return;
+      }
+      const results = this.state.kernelResults;
       this.showToast({
         title: `内核校验:${results.length} 命中`,
       });
@@ -201,6 +236,58 @@ export class ValidationStore {
         title: "内核校验失败",
         desc: message,
       });
+    } finally {
+      this.runPendingAutoKernelCheck();
+    }
+  }
+
+  async hydrateKernelCheck(
+    expectedGeneration = this.kernelGeneration,
+  ): Promise<boolean> {
+    if (!this.kernelSource || this.state.source !== "kernel") return false;
+    try {
+      const latest = await this.kernelSource.latestCheckRun();
+      if (expectedGeneration !== this.kernelGeneration)
+        return this.finishStaleKernelRun();
+      if (!latest.runId) {
+        this.state = {
+          ...this.state,
+          kernelRunning: false,
+          kernelStatus: "idle",
+          kernelError: null,
+          kernelScope: null,
+        };
+        this.emit();
+        return false;
+      }
+      const results = await this.kernelSource.checkResults(latest.runId);
+      if (expectedGeneration !== this.kernelGeneration)
+        return this.finishStaleKernelRun();
+      this.state = {
+        ...this.state,
+        kernelResults: results,
+        kernelRunAt: latest.completedAt,
+        kernelRunning: false,
+        kernelStatus: "ready",
+        kernelError: null,
+        kernelRunId: latest.runId,
+        kernelScope: latest.scopeObjectTypeCode,
+        kernelStale: false,
+      };
+      this.emit();
+      return true;
+    } catch (error) {
+      if (expectedGeneration !== this.kernelGeneration)
+        return this.finishStaleKernelRun();
+      const message = error instanceof Error ? error.message : String(error);
+      this.state = {
+        ...this.state,
+        kernelRunning: false,
+        kernelStatus: "error",
+        kernelError: message,
+      };
+      this.emit();
+      return false;
     }
   }
 
@@ -286,7 +373,7 @@ export class ValidationStore {
     return {
       source: this.kernelSource ? "kernel" : "demo",
       results: runValidationRules(this.workspace.getSnapshot()),
-      runAt: runClock.replace(
+      runAt: demoRunClock.replace(
         ":00+08:00",
         `:${String(this.runSequence).padStart(2, "0")}+08:00`,
       ),
@@ -298,26 +385,60 @@ export class ValidationStore {
       kernelStatus: this.state?.kernelStatus ?? "idle",
       kernelError: this.state?.kernelError ?? null,
       kernelRunId: this.state?.kernelRunId ?? null,
+      kernelScope: this.state?.kernelScope ?? null,
+      kernelStale: this.state?.kernelStale ?? false,
     };
-  }
-
-  private kernelRunAt(): string {
-    return runClock.replace(
-      ":00+08:00",
-      `:${String(this.runSequence).padStart(2, "0")}+08:00`,
-    );
   }
 
   private invalidateKernelResults(): void {
-    if (this.state.source !== "kernel" || this.state.kernelRunning) return;
+    this.kernelGeneration += 1;
+    this.cancelAutoKernelCheck();
+    this.markKernelResultsStale();
+  }
+
+  private markKernelResultsStale(): void {
+    if (this.state.source !== "kernel" || this.state.kernelStale) return;
+    this.state = { ...this.state, kernelStale: true };
+    this.emit();
+  }
+
+  private cancelAutoKernelCheck(): void {
+    if (this.autoKernelCheckHandle === null) return;
+    clearTimeout(this.autoKernelCheckHandle);
+    this.autoKernelCheckHandle = null;
+  }
+
+  private clearAutoKernelCheck(): void {
+    this.cancelAutoKernelCheck();
+    this.autoKernelCheckActor = null;
+    this.autoKernelCheckDirty = false;
+  }
+
+  private runPendingAutoKernelCheck(): void {
+    if (
+      !this.autoKernelCheckDirty ||
+      this.autoKernelCheckCatchUpRunning ||
+      this.state.kernelStatus !== "ready" ||
+      !this.autoKernelCheckActor
+    )
+      return;
+    const actor = this.autoKernelCheckActor;
+    this.autoKernelCheckDirty = false;
+    this.autoKernelCheckCatchUpRunning = true;
+    void this.runKernelCheck(actor, null).finally(() => {
+      this.autoKernelCheckCatchUpRunning = false;
+    });
+  }
+
+  private finishStaleKernelRun(): boolean {
     this.state = {
       ...this.state,
-      kernelResults: [],
-      kernelRunAt: null,
-      kernelStatus: "idle",
+      kernelRunning: false,
+      kernelStatus: this.state.kernelResults.length > 0 ? "ready" : "idle",
       kernelError: null,
-      kernelRunId: null,
     };
+    this.emit();
+    return false;
   }
 
   private emit(): void {

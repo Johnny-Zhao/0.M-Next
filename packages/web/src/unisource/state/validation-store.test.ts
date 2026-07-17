@@ -1,9 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 
 import type { MemberId } from "../model/kernel";
+import type { LatestCheckRun } from "../data/gateway";
 import type { RuleOutcome } from "../validation/rules";
 import { cloneDemoSeed } from "../seed/demo-seed";
 import {
+  AUTO_KERNEL_CHECK_DEBOUNCE_MS,
   ValidationStore,
   type KernelValidationSource,
 } from "./validation-store";
@@ -90,7 +92,8 @@ describe("ValidationStore", () => {
     expect(store.getSnapshot().kernelRunning).toBe(false);
     expect(store.getSnapshot().kernelStatus).toBe("ready");
     expect(store.getSnapshot().kernelRunId).toBe("kernel-run-1");
-    expect(store.getSnapshot().kernelRunAt).toContain("T10:32");
+    expect(store.getSnapshot().kernelRunAt).toBe("2026-07-17T09:30:00Z");
+    expect(store.getSnapshot().kernelScope).toBe("build_plan");
     expect(pushToast).toHaveBeenCalledWith({ title: "内核校验:1 命中" });
     store.dispose();
   });
@@ -141,7 +144,7 @@ describe("ValidationStore", () => {
     store.dispose();
   });
 
-  it("invalidates prior kernel results after a workspace write without rerunning checks", async () => {
+  it("marks prior kernel results stale after a workspace write", async () => {
     const workspace = new WorkspaceStore(cloneDemoSeed());
     const source = new FakeKernelValidationSource([
       kernelOutcome("KERNEL-BLOCK", "error"),
@@ -155,9 +158,10 @@ describe("ValidationStore", () => {
     workspace.updateField("prod-s3", "price", 1099, { actor: "wangyun" });
 
     expect(store.getSnapshot()).toMatchObject({
-      kernelResults: [],
-      kernelStatus: "idle",
-      kernelRunAt: null,
+      kernelResults: [kernelOutcome("KERNEL-BLOCK", "error")],
+      kernelStatus: "ready",
+      kernelRunAt: "2026-07-17T09:30:00Z",
+      kernelStale: true,
     });
     expect(source.runCount).toBe(1);
     store.dispose();
@@ -205,6 +209,71 @@ describe("ValidationStore", () => {
     store.dispose();
   });
 
+  it("hydrates the most recent persisted kernel run without starting another check", async () => {
+    const source = new FakeKernelValidationSource([
+      kernelOutcome("KERNEL-PERSISTED", "warning"),
+    ]);
+    source.latestRun = {
+      runId: "kernel-run-persisted",
+      scopeObjectTypeCode: "build_plan",
+      status: "COMPLETED",
+      completedAt: "2026-07-17T09:30:00Z",
+    };
+    const store = new ValidationStore(new WorkspaceStore(cloneDemoSeed()), {
+      kernelSource: source,
+      pushToast: vi.fn(),
+    });
+
+    await store.hydrateKernelCheck();
+
+    expect(source.runCount).toBe(0);
+    expect(source.latestReadCount).toBe(1);
+    expect(source.checkedRunIds).toEqual(["kernel-run-persisted"]);
+    expect(store.getSnapshot()).toMatchObject({
+      kernelStatus: "ready",
+      kernelRunId: "kernel-run-persisted",
+    });
+    expect(store.getSnapshot().kernelResults[0]?.ruleCode).toBe(
+      "KERNEL-PERSISTED",
+    );
+    store.dispose();
+  });
+
+  it("discards a pending hydration after workspace invalidation", async () => {
+    const source = new FakeKernelValidationSource([
+      kernelOutcome("KERNEL-PERSISTED", "warning"),
+    ]);
+    source.latestRun = {
+      runId: "kernel-run-persisted",
+      scopeObjectTypeCode: null,
+      status: "COMPLETED",
+      completedAt: "2026-07-17T09:30:00Z",
+    };
+    let release!: () => void;
+    source.latestGate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const workspace = new WorkspaceStore(cloneDemoSeed());
+    const store = new ValidationStore(workspace, {
+      kernelSource: source,
+      pushToast: vi.fn(),
+    });
+
+    const hydration = store.hydrateKernelCheck();
+    workspace.updateField("prod-s3", "price", 1099, { actor: "wangyun" });
+    release();
+    await hydration;
+
+    expect(store.getSnapshot()).toMatchObject({
+      kernelResults: [],
+      kernelStatus: "idle",
+      kernelRunId: null,
+      kernelScope: null,
+      kernelStale: true,
+    });
+    store.dispose();
+  });
+
   it("prevents duplicate kernel runs while one is loading", async () => {
     const source = new FakeKernelValidationSource([]);
     let release!: () => void;
@@ -225,6 +294,137 @@ describe("ValidationStore", () => {
     expect(source.runCount).toBe(1);
     store.dispose();
   });
+
+  it("debounces consecutive automatic kernel checks", async () => {
+    vi.useFakeTimers();
+    const workspace = new WorkspaceStore(cloneDemoSeed());
+    const source = new FakeKernelValidationSource([]);
+    const store = new ValidationStore(workspace, {
+      kernelSource: source,
+      pushToast: vi.fn(),
+    });
+
+    try {
+      workspace.updateField("prod-s3", "price", 1099, { actor: "wangyun" });
+      store.scheduleAutoKernelCheck("wangyun");
+      store.scheduleAutoKernelCheck("wangyun");
+      store.scheduleAutoKernelCheck("wangyun");
+      await vi.advanceTimersByTimeAsync(AUTO_KERNEL_CHECK_DEBOUNCE_MS);
+
+      expect(source.runCount).toBe(1);
+      expect(source.scopes).toEqual([null]);
+    } finally {
+      store.dispose();
+      vi.useRealTimers();
+    }
+  });
+
+  it("runs one catch-up check when data changes during a kernel run", async () => {
+    vi.useFakeTimers();
+    const source = new FakeKernelValidationSource([]);
+    let release!: () => void;
+    source.runGate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const store = new ValidationStore(new WorkspaceStore(cloneDemoSeed()), {
+      kernelSource: source,
+      pushToast: vi.fn(),
+    });
+
+    try {
+      const first = store.runKernelCheck("wangyun", null);
+      store.scheduleAutoKernelCheck("wangyun");
+      await vi.advanceTimersByTimeAsync(AUTO_KERNEL_CHECK_DEBOUNCE_MS);
+      expect(source.runCount).toBe(1);
+
+      release();
+      await first;
+      await vi.runAllTimersAsync();
+
+      expect(source.runCount).toBe(2);
+    } finally {
+      store.dispose();
+      vi.useRealTimers();
+    }
+  });
+
+  it("clears stale only after a newer automatic run completes", async () => {
+    vi.useFakeTimers();
+    const workspace = new WorkspaceStore(cloneDemoSeed());
+    const source = new FakeKernelValidationSource([
+      kernelOutcome("KERNEL-BLOCK", "error"),
+    ]);
+    const store = new ValidationStore(workspace, {
+      kernelSource: source,
+      pushToast: vi.fn(),
+    });
+
+    try {
+      source.completedAt = "2026-07-17T09:30:00Z";
+      await store.runKernelCheck("wangyun");
+      source.completedAt = "2026-07-17T09:45:00Z";
+      workspace.updateField("prod-s3", "price", 1099, { actor: "wangyun" });
+      store.scheduleAutoKernelCheck("wangyun");
+      expect(store.getSnapshot().kernelStale).toBe(true);
+
+      await vi.advanceTimersByTimeAsync(AUTO_KERNEL_CHECK_DEBOUNCE_MS);
+
+      expect(store.getSnapshot()).toMatchObject({
+        kernelStale: false,
+        kernelRunAt: "2026-07-17T09:45:00Z",
+      });
+    } finally {
+      store.dispose();
+      vi.useRealTimers();
+    }
+  });
+
+  it("keeps stale results after automatic failure until a manual retry succeeds", async () => {
+    vi.useFakeTimers();
+    const workspace = new WorkspaceStore(cloneDemoSeed());
+    const source = new FakeKernelValidationSource([
+      kernelOutcome("KERNEL-BLOCK", "error"),
+    ]);
+    const store = new ValidationStore(workspace, {
+      kernelSource: source,
+      pushToast: vi.fn(),
+    });
+
+    try {
+      await store.runKernelCheck("wangyun");
+      source.failure = new Error("rule service unavailable");
+      workspace.updateField("prod-s3", "price", 1099, { actor: "wangyun" });
+      store.scheduleAutoKernelCheck("wangyun");
+      await vi.advanceTimersByTimeAsync(AUTO_KERNEL_CHECK_DEBOUNCE_MS);
+
+      expect(store.getSnapshot()).toMatchObject({
+        kernelStatus: "error",
+        kernelStale: true,
+      });
+
+      source.failure = null;
+      await store.runKernelCheck("wangyun", null);
+      expect(store.getSnapshot().kernelStale).toBe(false);
+    } finally {
+      store.dispose();
+      vi.useRealTimers();
+    }
+  });
+
+  it("does not schedule kernel checks in demo mode", async () => {
+    vi.useFakeTimers();
+    const store = new ValidationStore(new WorkspaceStore(cloneDemoSeed()));
+
+    try {
+      store.scheduleAutoKernelCheck("wangyun");
+      await vi.runAllTimersAsync();
+      expect(store.getSnapshot().source).toBe("demo");
+      expect(store.getSnapshot().kernelStale).toBe(false);
+    } finally {
+      store.dispose();
+      vi.useRealTimers();
+    }
+  });
 });
 
 class FakeKernelValidationSource implements KernelValidationSource {
@@ -232,8 +432,17 @@ class FakeKernelValidationSource implements KernelValidationSource {
   readonly checkedRunIds: string[] = [];
   readonly scopes: (string | null | undefined)[] = [];
   runCount = 0;
+  latestRun: LatestCheckRun = {
+    runId: null,
+    scopeObjectTypeCode: null,
+    status: null,
+    completedAt: null,
+  };
+  latestReadCount = 0;
   failure: Error | null = null;
+  completedAt = "2026-07-17T09:30:00Z";
   runGate: Promise<void> | null = null;
+  latestGate: Promise<void> | null = null;
 
   constructor(public results: readonly RuleOutcome[]) {}
 
@@ -246,7 +455,21 @@ class FakeKernelValidationSource implements KernelValidationSource {
     this.scopes.push(objectTypeCode);
     await this.runGate;
     if (this.failure) throw this.failure;
-    return `kernel-run-${this.runCount}`;
+    const runId = `kernel-run-${this.runCount}`;
+    this.latestRun = {
+      runId,
+      scopeObjectTypeCode: objectTypeCode ?? null,
+      status: "COMPLETED",
+      completedAt: this.completedAt,
+    };
+    return runId;
+  }
+
+  async latestCheckRun(): Promise<LatestCheckRun> {
+    this.latestReadCount += 1;
+    await this.latestGate;
+    if (this.failure) throw this.failure;
+    return this.latestRun;
   }
 
   async checkResults(runId: string): Promise<readonly RuleOutcome[]> {

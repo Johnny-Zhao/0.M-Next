@@ -77,6 +77,8 @@ class RuleCheckRunner {
         }
       }
     }
+    results.completeRun(
+        request.workspaceId(), runId, scopeObjectTypeCode(request.scope()), now);
     var result =
         new CommandResult(
             commandId(), CommandStatus.ACCEPTED, false, List.of(runId.toString()), null);
@@ -428,6 +430,12 @@ class RuleCheckRunner {
 
   private static String scopeKey(RuleScopeRequest scope) {
     return scope == null || scope.objectTypeCode() == null ? "*" : scope.objectTypeCode();
+  }
+
+  private static String scopeObjectTypeCode(RuleScopeRequest scope) {
+    return scope == null || scope.objectTypeCode() == null || scope.objectTypeCode().isBlank()
+        ? null
+        : scope.objectTypeCode();
   }
 
   private static String hash(String value) {

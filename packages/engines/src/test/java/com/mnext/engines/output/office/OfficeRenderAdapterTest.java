@@ -121,6 +121,94 @@ class OfficeRenderAdapterTest {
   }
 
   @Test
+  void rendersDraftRelationTargetsInsteadOfTreatingThemAsTerminal() throws Exception {
+    var snapshot =
+        new DataSet(
+            List.of(
+                new DataObject(
+                    "plan",
+                    "plan",
+                    Map.of("name", "方案", "_tree", Map.of("depth", 0, "order", 0)),
+                    "DRAFT",
+                    1),
+                new DataObject("item", "item", Map.of("name", "明细"), "DRAFT", 1)),
+            List.of(new DataSet.DataRelation("contains-1", "contains", "plan", "item", Map.of())));
+    var template =
+        new OutputTemplate(
+            null,
+            List.of(),
+            new OutputTemplate.SectionMapping(
+                Map.of(),
+                Map.of(),
+                Map.of(),
+                List.of(
+                    new OutputTemplate.SectionMapping.RelationTable(
+                        "contains",
+                        "明细",
+                        List.of(
+                            new OutputTemplate.SectionMapping.RelationColumn(
+                                "名称", "name", List.of()))))));
+
+    var bytes = new DocxRenderAdapter().render(snapshot, template);
+
+    try (var document = new XWPFDocument(new ByteArrayInputStream(bytes))) {
+      var cells =
+          document.getTables().stream()
+              .flatMap(table -> table.getRows().stream())
+              .flatMap(row -> row.getTableCells().stream())
+              .map(cell -> cell.getText())
+              .toList();
+      assertTrue(cells.contains("明细"));
+      assertFalse(cells.contains("引用对象已终态"));
+    }
+  }
+
+  @Test
+  void rendersOnlyKernelTerminalRelationTargetsAsUnavailable() throws Exception {
+    for (var entry : Map.of("FILED", true, "VOID", true, "CONFIRMED", false).entrySet()) {
+      var snapshot =
+          new DataSet(
+              List.of(
+                  new DataObject(
+                      "plan",
+                      "plan",
+                      Map.of("name", "方案", "_tree", Map.of("depth", 0, "order", 0)),
+                      "DRAFT",
+                      1),
+                  new DataObject("item", "item", Map.of("name", "明细"), entry.getKey(), 1)),
+              List.of(
+                  new DataSet.DataRelation("contains-1", "contains", "plan", "item", Map.of())));
+      var template =
+          new OutputTemplate(
+              null,
+              List.of(),
+              new OutputTemplate.SectionMapping(
+                  Map.of(),
+                  Map.of(),
+                  Map.of(),
+                  List.of(
+                      new OutputTemplate.SectionMapping.RelationTable(
+                          "contains",
+                          "明细",
+                          List.of(
+                              new OutputTemplate.SectionMapping.RelationColumn(
+                                  "名称", "name", List.of()))))));
+
+      try (var document =
+          new XWPFDocument(new ByteArrayInputStream(new DocxRenderAdapter().render(snapshot, template)))) {
+        var cells =
+            document.getTables().stream()
+                .flatMap(table -> table.getRows().stream())
+                .flatMap(row -> row.getTableCells().stream())
+                .map(cell -> cell.getText())
+                .toList();
+        assertEquals(entry.getValue(), cells.contains("引用对象已终态"), entry.getKey());
+        assertEquals(!entry.getValue(), cells.contains("明细"), entry.getKey());
+      }
+    }
+  }
+
+  @Test
   void rendersTreeDocxBodyAfterHeadingWithRichTextAndBullets() throws Exception {
     var bytes = new DocxRenderAdapter().render(treeDataSetWithBody(), treeTemplate());
 

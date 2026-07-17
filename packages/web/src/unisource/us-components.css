@@ -3292,6 +3292,14 @@
   gap: var(--us-sp-2);
   margin-bottom: var(--us-sp-3);
 }
+.us-kernel-validation__notice {
+  background: var(--us-primary-bg);
+  border-left: 3px solid var(--us-primary);
+  color: var(--us-text-2);
+  font-size: var(--us-fs-12);
+  margin: 0 0 var(--us-sp-3);
+  padding: var(--us-sp-2) var(--us-sp-3);
+}
 .us-kernel-validation__body nav button {
   background: transparent;
   border: 1px solid var(--us-border);

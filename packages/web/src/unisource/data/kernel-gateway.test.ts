@@ -7,6 +7,7 @@ import { buildDocViewModel } from "../doc/doc-view-model";
 import { buildMatrixViewModel } from "../matrix/matrix-view-model";
 import type { DataObject } from "../model/kernel";
 import { cloneDemoSeed } from "../seed/demo-seed";
+import type { LatestCheckRun } from "./gateway";
 import { KernelGateway } from "./kernel-gateway";
 
 describe("KernelGateway", () => {
@@ -338,6 +339,22 @@ describe("KernelGateway", () => {
       actorId: "lixiao",
       commandType: "RunRuleCheck",
       payload: { scope: { objectTypeCode: "build_plan" } },
+    });
+  });
+
+  it("loads the most recent completed kernel rule run", async () => {
+    const api = new FakeKernelApi();
+    api.latestCheckRun = {
+      runId: "kernel-run-persisted",
+      scopeObjectTypeCode: "build_plan",
+      status: "COMPLETED",
+      completedAt: "2026-07-17T09:30:00Z",
+    };
+    const gateway = new KernelGateway("", "ws-kernel", "wangyun", api.fetch);
+
+    await expect(gateway.latestCheckRun()).resolves.toMatchObject({
+      runId: "kernel-run-persisted",
+      scopeObjectTypeCode: "build_plan",
     });
   });
 
@@ -760,6 +777,12 @@ class FakeKernelApi {
   readonly aiChangeActorIds: (string | null)[] = [];
   readonly aiChangeSetFilters: (string | null)[] = [];
   checkResults: CheckResultFixture[] = [];
+  latestCheckRun: LatestCheckRun = {
+    runId: null,
+    scopeObjectTypeCode: null,
+    status: null,
+    completedAt: null,
+  };
   readonly checkResultPageCalls: number[] = [];
   failNextUpdate = false;
   failNextForbidden = false;
@@ -874,6 +897,9 @@ class FakeKernelApi {
     }
     if (url.pathname.endsWith("/rule-commands") && init?.method === "POST") {
       return this.handleRuleCommand(String(init.body ?? "{}"), init);
+    }
+    if (url.pathname.endsWith("/views/latest-check-run")) {
+      return json(this.latestCheckRun);
     }
     if (url.pathname.endsWith("/views/check-results")) {
       const page = Number(url.searchParams.get("page") ?? "0");

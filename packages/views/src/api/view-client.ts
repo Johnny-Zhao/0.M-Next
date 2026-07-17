@@ -302,6 +302,13 @@ export interface CheckResultPage {
   readonly total: number;
 }
 
+export interface LatestCheckRun {
+  readonly runId: string | null;
+  readonly scopeObjectTypeCode: string | null;
+  readonly status: string | null;
+  readonly completedAt: string | null;
+}
+
 export interface SimRunSummary {
   readonly runId: string;
   readonly snapshotId: string;
@@ -940,6 +947,10 @@ export class ViewClient {
       size: `${size}`,
     });
     return this.get(`/workspaces/${workspaceId}/views/check-results?${query}`);
+  }
+
+  latestCheckRun(workspaceId: string): Promise<LatestCheckRun> {
+    return this.get(`/workspaces/${workspaceId}/views/latest-check-run`);
   }
 
   simRuns(workspaceId: string, page = 0, size = 20): Promise<SimRunPage> {

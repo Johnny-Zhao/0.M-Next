@@ -33,6 +33,7 @@ export interface KernelWriteBridgeOptions {
   readonly workspace?: WorkspaceStore;
   readonly session?: SessionStore;
   readonly pushToast?: (input: UsToastInput) => number;
+  readonly onKernelWriteSucceeded?: (actor: MemberId) => void;
 }
 
 export class KernelWriteBridge implements WriteSink {
@@ -42,6 +43,7 @@ export class KernelWriteBridge implements WriteSink {
   private readonly queueByObjectId = new Map<string, Promise<void>>();
   private readonly objectIdMap = new Map<string, string>();
   private idle: Promise<void> = Promise.resolve();
+  private readonly onKernelWriteSucceeded?: (actor: MemberId) => void;
 
   constructor(
     private readonly gateway: WriteGateway,
@@ -50,6 +52,7 @@ export class KernelWriteBridge implements WriteSink {
     this.workspace = options.workspace ?? workspaceStore;
     this.session = options.session ?? sessionStore;
     this.showToast = options.pushToast ?? pushToast;
+    this.onKernelWriteSucceeded = options.onKernelWriteSucceeded;
   }
 
   updateField(descriptor: FieldWriteDescriptor): void {
@@ -69,6 +72,7 @@ export class KernelWriteBridge implements WriteSink {
         );
         this.workspace.reconcileObject(result.object);
         await this.refreshRelatedObjects(objectId);
+        this.onKernelWriteSucceeded?.(actor);
       } catch (error) {
         const objectId = this.resolveObjectId(descriptor.objectId);
         this.workspace.rollbackField({
@@ -93,6 +97,7 @@ export class KernelWriteBridge implements WriteSink {
         });
         this.objectIdMap.set(descriptor.temporaryObjectId, object.id);
         this.workspace.reconcileObjectId(descriptor.temporaryObjectId, object);
+        this.onKernelWriteSucceeded?.(actor);
         return { state: "synced", objectId: object.id };
       } catch (error) {
         this.workspace.removeObject(descriptor.temporaryObjectId);
@@ -130,6 +135,7 @@ export class KernelWriteBridge implements WriteSink {
             descriptor.params.sourceId,
             descriptor.params.targetId,
           ]);
+          this.onKernelWriteSucceeded?.(actor);
           return { state: "synced", relationId: result.relation.id };
         } catch (error) {
           this.workspace.removeRelation(descriptor.temporaryRelationId);
@@ -157,6 +163,7 @@ export class KernelWriteBridge implements WriteSink {
           descriptor.previousRelation.sourceId,
           descriptor.previousRelation.targetId,
         ]);
+        this.onKernelWriteSucceeded?.(actor);
         return { state: "synced" };
       } catch (error) {
         this.workspace.reconcileRelation(descriptor.previousRelation);
@@ -176,6 +183,7 @@ export class KernelWriteBridge implements WriteSink {
           actor,
           descriptor.expectedVersion,
         );
+        this.onKernelWriteSucceeded?.(actor);
         return { state: "synced" };
       } catch (error) {
         this.workspace.restoreObject(descriptor.snapshot, objectId);

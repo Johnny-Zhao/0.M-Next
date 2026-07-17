@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type {
   DataFieldPrimitive,
@@ -38,6 +38,19 @@ describe("KernelWriteBridge", () => {
       expectedObjectVersion: 1,
       actor: "lixiao",
     });
+  });
+
+  it("notifies the shared validation scheduler after a successful kernel write", async () => {
+    const onKernelWriteSucceeded = vi.fn();
+    const harness = createHarness({ onKernelWriteSucceeded });
+    harness.workspace.setWriteSink(harness.bridge);
+
+    harness.workspace.updateField("prod-s3", "price", 1099, {
+      actor: "wangyun",
+    });
+    await harness.bridge.whenIdle();
+
+    expect(onKernelWriteSucceeded).toHaveBeenCalledWith("wangyun");
   });
 
   it("rolls back local fields and shows a toast when the kernel rejects", async () => {
@@ -259,6 +272,7 @@ function createHarness(options: FakeGatewayOptions = {}): {
   const bridge = new KernelWriteBridge(gateway, {
     workspace,
     session,
+    onKernelWriteSucceeded: options.onKernelWriteSucceeded,
   });
   return { seed, workspace, session, gateway, bridge };
 }
@@ -269,6 +283,7 @@ interface FakeGatewayOptions {
   readonly refreshedObjects?: Readonly<Record<string, DataObject>>;
   readonly firstUpdateGate?: Promise<void>;
   readonly onUpdateCall?: () => void;
+  readonly onKernelWriteSucceeded?: (actor: MemberId) => void;
 }
 
 class FakeGateway

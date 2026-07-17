@@ -36,6 +36,13 @@ export type OutputFormat =
   | "csv"
   | "xlsx";
 
+export interface LatestCheckRun {
+  readonly runId: string | null;
+  readonly scopeObjectTypeCode: string | null;
+  readonly status: string | null;
+  readonly completedAt: string | null;
+}
+
 export interface SnapshotArtifact {
   readonly snapshotId: string;
   readonly createdBy: string;
@@ -459,6 +466,9 @@ export interface UnisourceGateway {
    * @gap G9: server-side incremental rule results are wired in T-US-017.
    */
   runRuleCheck(objectTypeCode?: string | null): Promise<string>;
+
+  /** Read the latest completed validation run for the current workspace. */
+  latestCheckRun(): Promise<LatestCheckRun>;
 
   /**
    * Read validation results for one run.

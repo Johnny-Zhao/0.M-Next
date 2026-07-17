@@ -42,7 +42,7 @@ export function KernelValidationPanel({
       buildKernelValidationViewModel({
         workspace,
         results: validation.kernelResults,
-        status: validation.kernelStatus,
+        status: validation.kernelStale ? "running" : validation.kernelStatus,
         error: validation.kernelError,
         filter,
         selection: selection.current,
@@ -57,6 +57,11 @@ export function KernelValidationPanel({
       config.objectTypeCode,
     );
   };
+  const statusNotice = kernelValidationStatusNotice(validation);
+  const latestReady =
+    validation.kernelStatus === "ready" &&
+    !validation.kernelRunning &&
+    !validation.kernelStale;
 
   return (
     <section className="us-kernel-validation" data-position={config.position}>
@@ -68,17 +73,25 @@ export function KernelValidationPanel({
         <UsMonoTag active>KERNEL</UsMonoTag>
         <span data-tone="danger">{vm.blockCount} BLOCK</span>
         <span data-tone="change">{vm.warnCount} WARN</span>
-        <span data-tone={vm.noIssue ? "ok" : "neutral"}>
+        <span data-tone={latestReady && vm.noIssue ? "ok" : "neutral"}>
           {validation.kernelStatus === "idle"
             ? "未校验"
-            : vm.noIssue
+            : latestReady && vm.noIssue
               ? "无问题"
-              : validation.kernelStatus === "ready"
+              : latestReady
                 ? "已完成"
                 : validation.kernelStatus === "error"
                   ? "失败"
-                  : "运行中"}
+                  : "校验中"}
         </span>
+        {validation.kernelRunAt ? (
+          <small className="us-kernel-validation__run-meta">
+            {formatKernelRunMeta(
+              validation.kernelRunAt,
+              validation.kernelScope,
+            )}
+          </small>
+        ) : null}
         {config.allowManualRun ? (
           <UsButton
             disabled={validation.kernelRunning}
@@ -90,6 +103,11 @@ export function KernelValidationPanel({
           </UsButton>
         ) : null}
       </header>
+      {statusNotice ? (
+        <p className="us-kernel-validation__notice" role="status">
+          {statusNotice}
+        </p>
+      ) : null}
       {expanded ? (
         <div className="us-kernel-validation__body">
           <nav aria-label="校验结果筛选">
@@ -124,6 +142,22 @@ export function KernelValidationPanel({
       ) : null}
     </section>
   );
+}
+
+export function kernelValidationStatusNotice(validation: {
+  readonly kernelRunning: boolean;
+  readonly kernelStale: boolean;
+}): string | null {
+  if (validation.kernelStale && validation.kernelRunning)
+    return "数据已变更,正在重新校验…";
+  if (validation.kernelStale) return "数据已变更,校验结果可能已过期";
+  if (validation.kernelRunning) return "正在校验…";
+  return null;
+}
+
+function formatKernelRunMeta(runAt: string, scope: string | null): string {
+  const timestamp = new Date(runAt).toLocaleString("zh-CN");
+  return `${timestamp} · ${scope ? `范围 ${scope}` : "全工作空间"}`;
 }
 
 function ValidationResult({

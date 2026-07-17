@@ -70,6 +70,7 @@ import type {
   ExchangeDiff,
   ExchangeFormat,
   Lineage,
+  LatestCheckRun,
   UnisourceGateway,
 } from "./gateway";
 import {
@@ -544,6 +545,10 @@ export class KernelGateway implements UnisourceGateway {
       this.currentActor,
       objectTypeCode,
     );
+  }
+
+  async latestCheckRun(): Promise<LatestCheckRun> {
+    return this.viewClient.latestCheckRun(this.workspaceId);
   }
 
   async checkResults(runId: string): Promise<readonly RuleOutcome[]> {

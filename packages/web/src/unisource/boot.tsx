@@ -70,7 +70,10 @@ async function boot(root: Root, mode: BootMode): Promise<void> {
   const workspaceId = mode.workspaceId;
   const initialActor = sessionStore.getSnapshot().currentMemberId;
   const gateway = new KernelGateway("", workspaceId, initialActor);
-  const writeBridge = new KernelWriteBridge(gateway);
+  const writeBridge = new KernelWriteBridge(gateway, {
+    onKernelWriteSucceeded: (actor) =>
+      validationStore.scheduleAutoKernelCheck(actor),
+  });
   const load = async (notify: boolean): Promise<void> => {
     const seed = await gateway.loadWorkspace();
     const report = gateway.getLastLoadReport();
@@ -78,10 +81,18 @@ async function boot(root: Root, mode: BootMode): Promise<void> {
     applyDemoSeed(seed, notify ? { toastTitle: "已从内核重载工作空间" } : {});
     workspaceStore.setWriteSink(writeBridge);
     validationStore.setKernelSource(gateway);
-    changeSetStore.setKernelSource(gateway);
+    await validationStore.hydrateKernelCheck();
+    changeSetStore.setKernelSource(gateway, (actor) =>
+      validationStore.scheduleAutoKernelCheck(actor),
+    );
     outputsStore.setKernelSource(gateway);
     annotationsStore.setKernelSource(gateway);
-    structuredImportStore.setKernelSource(gateway, () => load(true));
+    structuredImportStore.setKernelSource(gateway, async () => {
+      await load(true);
+      validationStore.scheduleAutoKernelCheck(
+        sessionStore.getSnapshot().currentMemberId,
+      );
+    });
     lineageStore.setKernelSource(gateway);
     void changeSetStore.refreshKernelAiChanges(
       sessionStore.getSnapshot().currentMemberId,

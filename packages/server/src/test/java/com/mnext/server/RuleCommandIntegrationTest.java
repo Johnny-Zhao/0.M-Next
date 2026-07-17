@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -52,10 +53,12 @@ class RuleCommandIntegrationTest {
 
   @Autowired TestRestTemplate http;
   @Autowired JdbcTemplate jdbc;
+  @Autowired CheckResultRepository checkResults;
   @LocalServerPort int port;
 
   @BeforeEach
   void reset() {
+    jdbc.update("DELETE FROM check_run");
     jdbc.update("DELETE FROM check_result");
     jdbc.update("DELETE FROM rm_relation");
     jdbc.update("DELETE FROM rm_object");
@@ -304,6 +307,84 @@ class RuleCommandIntegrationTest {
     assertEquals(200, page.getStatusCode().value(), String.valueOf(page.getBody()));
     assertEquals(2, page.getBody().get("total"));
     assertEquals(1, ((List<?>) page.getBody().get("items")).size());
+  }
+
+  @Test
+  void latestCheckRunReturnsTheMostRecentCompletedRun() {
+    insertReadModelObject("99999999-5555-4555-8555-555555555555", "bad", 1, "nobody");
+    assertEquals(
+        200,
+        post(define("latest-run", "field('name') == 'bad'", "name", "define-latest"))
+            .getStatusCode()
+            .value());
+    assertEquals(200, post(publish("latest-run", "publish-latest")).getStatusCode().value());
+    var startedAt = Instant.now();
+    var request = runRuleCheck("run-latest", null);
+    var runId = runId(post(request));
+    var replay = post(request);
+
+    var latest = get("/views/latest-check-run");
+
+    assertEquals(200, latest.getStatusCode().value(), String.valueOf(latest.getBody()));
+    assertEquals(runId, latest.getBody().get("runId"));
+    assertEquals("COMPLETED", latest.getBody().get("status"));
+    assertEquals(null, latest.getBody().get("scopeObjectTypeCode"));
+    assertFalse(Instant.parse((String) latest.getBody().get("completedAt")).isBefore(startedAt));
+    assertTrue((Boolean) replay.getBody().get("idempotentReplay"));
+    assertEquals(1, count("check_run"));
+  }
+
+  @Test
+  void latestCheckRunReturnsAllNullFieldsWhenNoRunExists() {
+    var latest = get("/views/latest-check-run");
+
+    assertEquals(200, latest.getStatusCode().value(), String.valueOf(latest.getBody()));
+    assertEquals(null, latest.getBody().get("runId"));
+    assertEquals(null, latest.getBody().get("scopeObjectTypeCode"));
+    assertEquals(null, latest.getBody().get("status"));
+    assertEquals(null, latest.getBody().get("completedAt"));
+  }
+
+  @Test
+  void latestCheckRunReportsTheActualScopedRun() {
+    insertReadModelObject("99999999-5656-4565-8565-565656565656", "bad", 1, "nobody");
+    assertEquals(
+        200,
+        post(define("latest-scoped", "field('name') == 'bad'", "name", "define-latest-scoped"))
+            .getStatusCode()
+            .value());
+    assertEquals(200, post(publish("latest-scoped", "publish-latest-scoped")).getStatusCode().value());
+    var runId = runId(post(runRuleCheck("run-latest-scoped", "demo_object")));
+
+    var latest = get("/views/latest-check-run");
+
+    assertEquals(200, latest.getStatusCode().value(), String.valueOf(latest.getBody()));
+    assertEquals(runId, latest.getBody().get("runId"));
+    assertEquals("demo_object", latest.getBody().get("scopeObjectTypeCode"));
+    assertEquals("COMPLETED", latest.getBody().get("status"));
+  }
+
+  @Test
+  void latestRuleStatusesUseTheNewestAllWorkspaceRunIncludingAllGreenRuns() {
+    var objectId = UUID.fromString("99999999-5757-4575-8575-575757575757");
+    insertReadModelObject(objectId.toString(), "bad", 1, "nobody");
+    assertEquals(
+        200,
+        post(define("status-current", "field('name') == 'bad'", "name", "define-status-current"))
+            .getStatusCode()
+            .value());
+    assertEquals(200, post(publish("status-current", "publish-status-current")).getStatusCode().value());
+    runId(post(runRuleCheck("run-status-blocked", null)));
+    assertEquals("BLOCK", checkResults.latestRuleStatuses(WORKSPACE, List.of(objectId)).get(objectId));
+
+    jdbc.update(
+        "UPDATE rm_object SET fields = CAST(? AS jsonb) WHERE workspace_id = ? AND object_id = ?",
+        "{\"name\":\"good\",\"cost\":1,\"owner\":\"nobody\"}",
+        WORKSPACE,
+        objectId);
+    runId(post(runRuleCheck("run-status-all-green", null)));
+
+    assertEquals("OK", checkResults.latestRuleStatuses(WORKSPACE, List.of(objectId)).get(objectId));
   }
 
   private Map<String, Object> define(

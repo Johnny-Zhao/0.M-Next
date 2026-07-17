@@ -224,7 +224,11 @@ final class DocxTreeRenderer {
       current = objects.get(relation.get().targetId());
       if (current == null) return "引用对象不存在";
     }
-    if (!"ACTIVE".equalsIgnoreCase(current.status())) return "引用对象已终态";
+    var currentStatus = current.status();
+    if (List.of("VOID", "FILED", "DELETED").stream()
+        .anyMatch(status -> status.equalsIgnoreCase(currentStatus))) {
+      return "引用对象已终态";
+    }
     if (column.fieldCode().isBlank()) return "字段引用已失效";
     if (!current.fields().containsKey(column.fieldCode())) return "字段引用已失效";
     var value = RenderSupport.text(current.fields().get(column.fieldCode()));

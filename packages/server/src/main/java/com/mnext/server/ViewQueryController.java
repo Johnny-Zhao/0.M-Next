@@ -376,6 +376,19 @@ public class ViewQueryController {
     return checkResults.find(workspaceId, runId, page, size);
   }
 
+  @GetMapping("/workspaces/{workspaceId}/views/latest-check-run")
+  public LatestCheckRunView latestCheckRun(@PathVariable("workspaceId") UUID workspaceId) {
+    authorize(workspaceId);
+    var latest = checkResults.latestRun(workspaceId).orElse(null);
+    return latest == null
+        ? new LatestCheckRunView(null, null, null, null)
+        : new LatestCheckRunView(
+            latest.runId(),
+            latest.scopeObjectTypeCode(),
+            latest.status(),
+            latest.completedAt());
+  }
+
   private ScoredCandidate scoredCandidate(
       UUID workspaceId, String scoreField, ObjectView candidate) {
     try {
