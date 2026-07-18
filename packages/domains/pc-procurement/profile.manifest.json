@@ -1,7 +1,7 @@
 {
   "id": "pc-procurement",
   "name": "电脑采购",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "templateCode": "pc_procurement",
   "tags": {
     "industry": ["信息技术"],
@@ -52,15 +52,43 @@
     },
     {
       "objectType": "procurement_requirement",
-      "code": "budget_cny",
-      "name": "预算（元）",
+      "code": "job_role",
+      "name": "岗位",
+      "dataType": "string",
+      "required": true
+    },
+    {
+      "objectType": "procurement_requirement",
+      "code": "quantity",
+      "name": "采购数量",
       "dataType": "number",
       "required": true
     },
     {
       "objectType": "procurement_requirement",
+      "code": "unit_budget_cny",
+      "name": "单台预算（元）",
+      "dataType": "number",
+      "required": true
+    },
+    {
+      "objectType": "procurement_requirement",
+      "code": "warranty_requirement",
+      "name": "保修要求",
+      "dataType": "string",
+      "required": true
+    },
+    {
+      "objectType": "procurement_requirement",
+      "code": "os_requirement",
+      "name": "系统要求",
+      "dataType": "string",
+      "required": true
+    },
+    {
+      "objectType": "procurement_requirement",
       "code": "max_total_power_w",
-      "name": "最大总功耗（瓦）",
+      "name": "整机最大设计功耗（瓦）",
       "dataType": "number",
       "required": true
     },
@@ -92,7 +120,10 @@
           "GPU",
           "PSU",
           "STORAGE",
-          "CASE"
+          "CASE",
+          "COOLER",
+          "MONITOR",
+          "PERIPHERAL"
         ]
       }
     },
@@ -304,6 +335,13 @@
   ],
   "derived": [
     {
+      "objectType": "procurement_requirement",
+      "code": "total_budget_cny_fx",
+      "name": "总预算（元）",
+      "resultType": "number",
+      "derivation": "field('unit_budget_cny') * field('quantity')"
+    },
+    {
       "objectType": "build_plan_item",
       "code": "selected_unit_price_cny_fx",
       "name": "选中单价（元）",
@@ -383,9 +421,16 @@
     {
       "objectType": "build_plan",
       "code": "requirement_budget_cny_fx",
-      "name": "需求预算（元）",
+      "name": "需求总预算（元）",
       "resultType": "number",
-      "derivation": "sum(traverse('build_plan_satisfies_requirement','out'),'budget_cny')"
+      "derivation": "sum(traverse('build_plan_satisfies_requirement','out'),'total_budget_cny_fx')"
+    },
+    {
+      "objectType": "build_plan",
+      "code": "requirement_unit_budget_cny_fx",
+      "name": "需求单台预算（元）",
+      "resultType": "number",
+      "derivation": "sum(traverse('build_plan_satisfies_requirement','out'),'unit_budget_cny')"
     }
   ],
   "rules": [
@@ -393,8 +438,8 @@
       "code": "R-PC-BUDGET",
       "objectType": "build_plan",
       "severity": "BLOCK",
-      "when": "field('total_price_cny_fx') > field('requirement_budget_cny_fx')",
-      "message": "采购方案总价超过需求预算，请调整配件数量或供应商报价",
+      "when": "field('total_price_cny_fx') > field('requirement_unit_budget_cny_fx')",
+      "message": "采购方案总价超过需求单台预算，请调整配件数量或供应商报价",
       "lightweight": false
     },
     {

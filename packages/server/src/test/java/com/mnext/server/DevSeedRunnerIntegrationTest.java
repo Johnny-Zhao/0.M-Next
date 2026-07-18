@@ -257,28 +257,42 @@ class DevSeedRunnerIntegrationTest {
   void pcProcurementProfileAndSeedAreInstalled() {
     assertEquals(PC_PROCUREMENT_TYPES, runtimeObjectTypeCodes(PC_PROCUREMENT_WORKSPACE));
     assertTrue(enumFieldAllows(PC_PROCUREMENT_WORKSPACE, "hardware_product", "category", "CASE"));
-    assertEquals(1, objectCount(PC_PROCUREMENT_WORKSPACE, "procurement_requirement"));
-    assertEquals(14, objectCount(PC_PROCUREMENT_WORKSPACE, "hardware_product"));
-    assertEquals(3, objectCount(PC_PROCUREMENT_WORKSPACE, "supplier"));
-    assertEquals(12, objectCount(PC_PROCUREMENT_WORKSPACE, "supplier_quote"));
-    assertEquals(2, objectCount(PC_PROCUREMENT_WORKSPACE, "build_plan"));
-    assertEquals(14, objectCount(PC_PROCUREMENT_WORKSPACE, "build_plan_item"));
+    assertTrue(enumFieldAllows(PC_PROCUREMENT_WORKSPACE, "hardware_product", "category", "COOLER"));
+    assertTrue(
+        enumFieldAllows(PC_PROCUREMENT_WORKSPACE, "hardware_product", "category", "MONITOR"));
+    assertTrue(
+        enumFieldAllows(PC_PROCUREMENT_WORKSPACE, "hardware_product", "category", "PERIPHERAL"));
+    assertEquals(2, objectCount(PC_PROCUREMENT_WORKSPACE, "procurement_requirement"));
+    assertEquals(27, objectCount(PC_PROCUREMENT_WORKSPACE, "hardware_product"));
+    assertEquals(2, objectCount(PC_PROCUREMENT_WORKSPACE, "supplier"));
+    assertEquals(28, objectCount(PC_PROCUREMENT_WORKSPACE, "supplier_quote"));
+    assertEquals(4, objectCount(PC_PROCUREMENT_WORKSPACE, "build_plan"));
+    assertEquals(39, objectCount(PC_PROCUREMENT_WORKSPACE, "build_plan_item"));
     assertTrue(fieldCodes(PC_PROCUREMENT_WORKSPACE, "build_plan").contains("body"));
+    assertTrue(
+        fieldCodes(PC_PROCUREMENT_WORKSPACE, "procurement_requirement")
+            .containsAll(
+                Set.of(
+                    "job_role",
+                    "quantity",
+                    "unit_budget_cny",
+                    "warranty_requirement",
+                    "os_requirement")));
 
-    assertEquals(2, relationCount(PC_PROCUREMENT_WORKSPACE, "build_plan_satisfies_requirement"));
-    assertEquals(14, relationCount(PC_PROCUREMENT_WORKSPACE, "build_plan_contains_item"));
-    assertEquals(14, relationCount(PC_PROCUREMENT_WORKSPACE, "build_plan_item_selects_product"));
+    assertEquals(4, relationCount(PC_PROCUREMENT_WORKSPACE, "build_plan_satisfies_requirement"));
+    assertEquals(39, relationCount(PC_PROCUREMENT_WORKSPACE, "build_plan_contains_item"));
+    assertEquals(39, relationCount(PC_PROCUREMENT_WORKSPACE, "build_plan_item_selects_product"));
     assertEquals(
-        14, relationCount(PC_PROCUREMENT_WORKSPACE, "build_plan_item_uses_supplier_quote"));
-    assertEquals(12, relationCount(PC_PROCUREMENT_WORKSPACE, "supplier_quote_for_product"));
-    assertEquals(12, relationCount(PC_PROCUREMENT_WORKSPACE, "supplier_quote_offered_by_supplier"));
+        39, relationCount(PC_PROCUREMENT_WORKSPACE, "build_plan_item_uses_supplier_quote"));
+    assertEquals(28, relationCount(PC_PROCUREMENT_WORKSPACE, "supplier_quote_for_product"));
+    assertEquals(28, relationCount(PC_PROCUREMENT_WORKSPACE, "supplier_quote_offered_by_supplier"));
 
-    assertEquals(12, derivedFieldCount(PC_PROCUREMENT_WORKSPACE));
+    assertEquals(14, derivedFieldCount(PC_PROCUREMENT_WORKSPACE));
     assertEquals(6, ruleDefinitionCount(PC_PROCUREMENT_WORKSPACE));
     assertEquals("WARN", ruleSeverity(PC_PROCUREMENT_WORKSPACE, "R-PC-INVENTORY"));
-    assertEquals(46, readModelTotalCount(PC_PROCUREMENT_WORKSPACE));
-    assertEquals(46, distinctFieldValueCount(PC_PROCUREMENT_WORKSPACE, "code"));
-    assertEquals(46, distinctFieldValueCount(PC_PROCUREMENT_WORKSPACE, "name"));
+    assertEquals(102, readModelTotalCount(PC_PROCUREMENT_WORKSPACE));
+    assertEquals(102, distinctFieldValueCount(PC_PROCUREMENT_WORKSPACE, "code"));
+    assertEquals(102, distinctFieldValueCount(PC_PROCUREMENT_WORKSPACE, "name"));
   }
 
   @Test
@@ -320,62 +334,59 @@ class DevSeedRunnerIntegrationTest {
 
   @Test
   void pcProcurementTotalsUseSupplierQuotesAndExposeCompatibility() {
-    var validPlan =
-        objectIdByField(PC_PROCUREMENT_WORKSPACE, "build_plan", "code", "PLAN-PC-VALID");
-    var invalidPlan =
-        objectIdByField(PC_PROCUREMENT_WORKSPACE, "build_plan", "code", "PLAN-PC-INVALID");
+    var requirement =
+        objectIdByField(PC_PROCUREMENT_WORKSPACE, "procurement_requirement", "code", "REQ-DEV-A");
+    var standardPlan = objectIdByField(PC_PROCUREMENT_WORKSPACE, "build_plan", "code", "PLAN-STD");
+    var badPlan = objectIdByField(PC_PROCUREMENT_WORKSPACE, "build_plan", "code", "PLAN-BAD");
 
     assertDecimal(
-        "8783",
-        derivedEvaluator.evaluate(PC_PROCUREMENT_WORKSPACE, validPlan, "total_price_cny_fx"));
+        "7920",
+        derivedEvaluator.evaluate(PC_PROCUREMENT_WORKSPACE, standardPlan, "total_price_cny_fx"));
     assertDecimal(
-        "12872",
-        derivedEvaluator.evaluate(PC_PROCUREMENT_WORKSPACE, invalidPlan, "total_price_cny_fx"));
+        "160000",
+        derivedEvaluator.evaluate(PC_PROCUREMENT_WORKSPACE, requirement, "total_budget_cny_fx"));
     assertDecimal(
-        "560",
+        "7980", derivedEvaluator.evaluate(PC_PROCUREMENT_WORKSPACE, badPlan, "total_price_cny_fx"));
+    assertDecimal(
+        "709",
         derivedEvaluator.evaluate(
-            PC_PROCUREMENT_WORKSPACE, validPlan, "total_performance_score_fx"));
+            PC_PROCUREMENT_WORKSPACE, standardPlan, "total_performance_score_fx"));
     assertDecimal(
-        "518",
-        derivedEvaluator.evaluate(
-            PC_PROCUREMENT_WORKSPACE, invalidPlan, "total_performance_score_fx"));
+        "599",
+        derivedEvaluator.evaluate(PC_PROCUREMENT_WORKSPACE, badPlan, "total_performance_score_fx"));
     assertDecimal(
         "0",
         derivedEvaluator.evaluate(
-            PC_PROCUREMENT_WORKSPACE, validPlan, "cpu_mainboard_platform_span_fx"));
+            PC_PROCUREMENT_WORKSPACE, standardPlan, "cpu_mainboard_platform_span_fx"));
     assertDecimal(
         "1695",
         derivedEvaluator.evaluate(
-            PC_PROCUREMENT_WORKSPACE, invalidPlan, "cpu_mainboard_platform_span_fx"));
+            PC_PROCUREMENT_WORKSPACE, badPlan, "cpu_mainboard_platform_span_fx"));
     assertDecimal(
-        "1",
-        derivedEvaluator.evaluate(
-            PC_PROCUREMENT_WORKSPACE, invalidPlan, "memory_platform_span_fx"));
+        "0",
+        derivedEvaluator.evaluate(PC_PROCUREMENT_WORKSPACE, badPlan, "memory_platform_span_fx"));
     assertDecimal(
-        "550",
-        derivedEvaluator.evaluate(
-            PC_PROCUREMENT_WORKSPACE, invalidPlan, "power_supply_capacity_w_fx"));
+        "450",
+        derivedEvaluator.evaluate(PC_PROCUREMENT_WORKSPACE, badPlan, "power_supply_capacity_w_fx"));
     var cpuItem =
-        objectIdByField(PC_PROCUREMENT_WORKSPACE, "build_plan_item", "code", "ITEM-V-CPU");
+        objectIdByField(PC_PROCUREMENT_WORKSPACE, "build_plan_item", "code", "ITEM-STD-CPU");
     assertDecimal(
-        "1699",
+        "1499",
         derivedEvaluator.evaluate(PC_PROCUREMENT_WORKSPACE, cpuItem, "selected_unit_price_cny_fx"));
+    assertDecimal("65", derivedEvaluator.evaluate(PC_PROCUREMENT_WORKSPACE, cpuItem, "power_w_fx"));
     assertDecimal(
-        "125", derivedEvaluator.evaluate(PC_PROCUREMENT_WORKSPACE, cpuItem, "power_w_fx"));
-    assertDecimal(
-        "85",
+        "88",
         derivedEvaluator.evaluate(
             PC_PROCUREMENT_WORKSPACE, cpuItem, "selected_performance_score_fx"));
     assertDecimal(
-        "20", derivedEvaluator.evaluate(PC_PROCUREMENT_WORKSPACE, cpuItem, "quote_inventory_fx"));
+        "25", derivedEvaluator.evaluate(PC_PROCUREMENT_WORKSPACE, cpuItem, "quote_inventory_fx"));
   }
 
   @Test
   void pcProcurementRulesDistinguishValidAndInvalidPlans() {
-    var validPlan =
-        objectIdByField(PC_PROCUREMENT_WORKSPACE, "build_plan", "code", "PLAN-PC-VALID");
-    var invalidPlan =
-        objectIdByField(PC_PROCUREMENT_WORKSPACE, "build_plan", "code", "PLAN-PC-INVALID");
+    var standardPlan = objectIdByField(PC_PROCUREMENT_WORKSPACE, "build_plan", "code", "PLAN-STD");
+    var proPlan = objectIdByField(PC_PROCUREMENT_WORKSPACE, "build_plan", "code", "PLAN-PRO");
+    var badPlan = objectIdByField(PC_PROCUREMENT_WORKSPACE, "build_plan", "code", "PLAN-BAD");
     var result =
         ruleChecks.run(
             new RunRuleCheckRequest(
@@ -385,11 +396,11 @@ class DevSeedRunnerIntegrationTest {
                 null));
     var runId = UUID.fromString(result.events().getFirst());
 
-    assertEquals(4, blockingResultCount(runId));
-    assertTrue(blockingRuleCodes(runId, validPlan).isEmpty());
-    assertEquals(
-        Set.of("R-PC-BUDGET", "R-PC-POWER", "R-PC-CPU-MAINBOARD", "R-PC-MEMORY"),
-        blockingRuleCodes(runId, invalidPlan));
+    assertEquals(3, blockingResultCount(runId));
+    assertTrue(blockingRuleCodes(runId, standardPlan).isEmpty());
+    assertEquals(Set.of("R-PC-BUDGET"), blockingRuleCodes(runId, proPlan));
+    assertEquals(Set.of("R-PC-POWER", "R-PC-CPU-MAINBOARD"), blockingRuleCodes(runId, badPlan));
+    assertEquals(1, warningResultCount(runId));
   }
 
   @Test
@@ -428,17 +439,23 @@ class DevSeedRunnerIntegrationTest {
                 Map.class)
             .getBody();
     var items = (List<Map<String, Object>>) page.get("items");
-    var validPlan =
-        objectIdByField(PC_PROCUREMENT_WORKSPACE, "build_plan", "code", "PLAN-PC-VALID");
-    var invalidPlan =
-        objectIdByField(PC_PROCUREMENT_WORKSPACE, "build_plan", "code", "PLAN-PC-INVALID");
+    var standardPlan = objectIdByField(PC_PROCUREMENT_WORKSPACE, "build_plan", "code", "PLAN-STD");
+    var proPlan = objectIdByField(PC_PROCUREMENT_WORKSPACE, "build_plan", "code", "PLAN-PRO");
+    var badPlan = objectIdByField(PC_PROCUREMENT_WORKSPACE, "build_plan", "code", "PLAN-BAD");
 
-    assertEquals(4, ((Number) page.get("total")).intValue());
-    assertTrue(items.stream().noneMatch(item -> validPlan.toString().equals(item.get("objectId"))));
+    assertEquals(3, ((Number) page.get("total")).intValue());
+    assertTrue(
+        items.stream().noneMatch(item -> standardPlan.toString().equals(item.get("objectId"))));
     assertEquals(
-        Set.of("R-PC-BUDGET", "R-PC-POWER", "R-PC-CPU-MAINBOARD", "R-PC-MEMORY"),
+        Set.of("R-PC-BUDGET"),
         items.stream()
-            .filter(item -> invalidPlan.toString().equals(item.get("objectId")))
+            .filter(item -> proPlan.toString().equals(item.get("objectId")))
+            .map(item -> String.valueOf(item.get("ruleCode")))
+            .collect(java.util.stream.Collectors.toSet()));
+    assertEquals(
+        Set.of("R-PC-POWER", "R-PC-CPU-MAINBOARD"),
+        items.stream()
+            .filter(item -> badPlan.toString().equals(item.get("objectId")))
             .map(item -> String.valueOf(item.get("ruleCode")))
             .collect(java.util.stream.Collectors.toSet()));
     assertTrue(
@@ -622,6 +639,13 @@ class DevSeedRunnerIntegrationTest {
   private int blockingResultCount(UUID runId) {
     return jdbc.queryForObject(
         "SELECT count(*) FROM check_result WHERE run_id = ? AND severity = 'BLOCK'",
+        Integer.class,
+        runId);
+  }
+
+  private int warningResultCount(UUID runId) {
+    return jdbc.queryForObject(
+        "SELECT count(*) FROM check_result WHERE run_id = ? AND severity = 'WARN'",
         Integer.class,
         runId);
   }

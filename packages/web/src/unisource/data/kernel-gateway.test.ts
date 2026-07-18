@@ -99,8 +99,8 @@ describe("KernelGateway", () => {
     const doc = buildDocViewModel(seed, seed.docModels[0]!);
     expect(doc.refs.map((ref) => [ref.fieldCode, ref.value])).toEqual(
       expect.arrayContaining([
-        ["code", "PLAN-PC-VALID"],
-        ["name", "兼容工作站方案"],
+        ["code", "PLAN-STD"],
+        ["name", "标准开发配置(约8000元)"],
         ["status", "PROPOSED"],
         ["total_price_cny_fx", 8783],
         ["total_power_w_fx", 460],
@@ -1026,7 +1026,16 @@ class FakeKernelApi {
         fields: [
           fieldType("code", "编码", "text"),
           fieldType("name", "名称", "text"),
-          fieldType("budget_cny", "预算", "number"),
+          fieldType("job_role", "岗位", "text"),
+          fieldType("quantity", "采购数量", "number"),
+          fieldType("unit_budget_cny", "单台预算", "number"),
+          fieldType("total_budget_cny_fx", "总预算", "number", {
+            computed: true,
+            readOnly: true,
+          }),
+          fieldType("warranty_requirement", "保修要求", "text"),
+          fieldType("os_requirement", "系统要求", "text"),
+          fieldType("max_total_power_w", "整机最大设计功耗", "number"),
         ],
       },
       {
@@ -1037,6 +1046,7 @@ class FakeKernelApi {
           fieldType("code", "编码", "text"),
           fieldType("name", "名称", "text"),
           fieldType("status", "生命周期状态", "text"),
+          fieldType("body", "正文", "text"),
           fieldType("total_price_cny_fx", "方案总价", "number", {
             computed: true,
             readOnly: true,
@@ -1090,17 +1100,27 @@ class FakeKernelApi {
     );
     this.objects.splice(0, this.objects.length);
     this.objects.push(
-      viewObject("kernel-pc-requirement", "procurement_requirement", {
-        code: "REQ-PC-001",
-        name: "研发工作站采购需求",
-        budget_cny: 10000,
-      }),
+      viewObject(
+        "kernel-pc-requirement",
+        "procurement_requirement",
+        {
+          code: "REQ-DEV-A",
+          name: "研发工作站采购需求",
+          job_role: "前端/Java 开发",
+          quantity: 20,
+          unit_budget_cny: 8000,
+          warranty_requirement: "三年上门",
+          os_requirement: "Windows 11 Pro",
+          max_total_power_w: 650,
+        },
+        { total_budget_cny_fx: 160000 },
+      ),
       viewObject(
         "kernel-pc-valid",
         "build_plan",
         {
-          code: "PLAN-PC-VALID",
-          name: "兼容工作站方案",
+          code: "PLAN-STD",
+          name: "标准开发配置(约8000元)",
           status: "PROPOSED",
         },
         {
@@ -1117,7 +1137,7 @@ class FakeKernelApi {
         "kernel-pc-invalid",
         "build_plan",
         {
-          code: "PLAN-PC-INVALID",
+          code: "PLAN-PRO",
           name: "超预算不兼容方案",
           status: "PROPOSED",
         },
@@ -1132,17 +1152,17 @@ class FakeKernelApi {
         },
       ),
       viewObject("kernel-pc-valid-cpu-item", "build_plan_item", {
-        code: "ITEM-V-CPU",
+        code: "ITEM-STD-CPU",
         name: "兼容方案 CPU",
         quantity: 1,
       }),
       viewObject("kernel-pc-valid-cpu-product", "hardware_product", {
-        code: "HW-CPU-I5-14600K",
-        name: "Intel Core i5-14600K",
+        code: "HW-CPU-ULTRA7-265",
+        name: "Intel Core Ultra 7 265",
         category: "CPU",
       }),
       viewObject("kernel-pc-valid-cpu-quote", "supplier_quote", {
-        code: "Q-CPU-I5",
+        code: "Q-CPU-ULTRA7-265",
         name: "华北 i5 报价",
         unit_price_cny: 1699,
       }),

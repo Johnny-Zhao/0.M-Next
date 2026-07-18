@@ -37,6 +37,29 @@ class PcProcurementDevSeeder implements ApplicationRunner {
   private static final String TEMPLATE_CODE = "pc_procurement";
   private static final String AUTHOR = ProfileLoader.AUTHOR_WORKSPACE.toString();
 
+  private record ProductSeed(
+      String code,
+      String name,
+      String category,
+      Number referencePrice,
+      Number performanceScore,
+      Number power,
+      Number powerSupplyCapacity,
+      Number cpuMainboardPlatform,
+      Number memoryPlatform) {}
+
+  private record QuoteSeed(
+      String code,
+      String name,
+      Number unitPrice,
+      Number inventory,
+      Number deliveryDays,
+      String productCode,
+      String supplierCode) {}
+
+  private record ItemSeed(
+      String code, String name, String planCode, String productCode, String quoteCode) {}
+
   private final ProfileLoader profileLoader;
   private final TemplateLifecycleService lifecycle;
   private final KernelCommandService commands;
@@ -122,8 +145,9 @@ class PcProcurementDevSeeder implements ApplicationRunner {
             + expected
             + " but found "
             + actual
-            + ". For the local development database only, run corepack pnpm dev:down, docker compose down, "
-            + "confirm m-next_postgres-data, remove that volume, then run corepack pnpm dev:up.");
+            + ". For the local development database only, run corepack pnpm dev:down, docker"
+            + " compose down, confirm m-next_postgres-data, remove that volume, then run corepack"
+            + " pnpm dev:up.");
   }
 
   private Set<String> enumValues(ProfileManifest manifest, String objectType, String fieldCode) {
@@ -193,85 +217,154 @@ class PcProcurementDevSeeder implements ApplicationRunner {
   }
 
   private void seedObjectsAndRelations() {
-    var requirement =
-        createObject(
-            "procurement_requirement",
-            fields(
-                "code",
-                "REQ-PC-001",
-                "name",
-                "研发工作站采购需求",
-                "budget_cny",
-                10000,
-                "max_total_power_w",
-                650));
-
-    var plans = new LinkedHashMap<String, UUID>();
-    plans.put(
-        "PLAN-PC-VALID",
-        createObject(
-            "build_plan",
-            fields(
-                "code",
-                "PLAN-PC-VALID",
-                "name",
-                "兼容工作站方案",
-                "status",
-                "PROPOSED",
-                "body",
-                body("兼容工作站采购方案说明"))));
-    plans.put(
-        "PLAN-PC-INVALID",
-        createObject(
-            "build_plan",
-            fields(
-                "code",
-                "PLAN-PC-INVALID",
-                "name",
-                "超预算不兼容方案",
-                "status",
-                "PROPOSED",
-                "body",
-                body("超预算不兼容方案说明"))));
-
-    ensureBody(plans.get("PLAN-PC-VALID"), "PLAN-PC-VALID", "兼容工作站采购方案说明");
-    ensureBody(plans.get("PLAN-PC-INVALID"), "PLAN-PC-INVALID", "超预算不兼容方案说明");
-
-    for (var plan : plans.entrySet()) {
-      relate(
-          "build_plan_satisfies_requirement",
-          plan.getValue(),
-          requirement,
-          "satisfies-" + plan.getKey());
-    }
-
+    var requirements = seedRequirements();
+    var plans = seedPlans();
+    relate(
+        "build_plan_satisfies_requirement",
+        required(plans, "PLAN-ENTRY"),
+        required(requirements, "REQ-DEV-ENTRY"),
+        "satisfies-PLAN-ENTRY");
+    relate(
+        "build_plan_satisfies_requirement",
+        required(plans, "PLAN-STD"),
+        required(requirements, "REQ-DEV-A"),
+        "satisfies-PLAN-STD");
+    relate(
+        "build_plan_satisfies_requirement",
+        required(plans, "PLAN-PRO"),
+        required(requirements, "REQ-DEV-A"),
+        "satisfies-PLAN-PRO");
+    relate(
+        "build_plan_satisfies_requirement",
+        required(plans, "PLAN-BAD"),
+        required(requirements, "REQ-DEV-A"),
+        "satisfies-PLAN-BAD");
     var products = seedProducts();
     var suppliers = seedSuppliers();
     var quotes = seedQuotes(products, suppliers);
     seedPlanItems(plans, products, quotes);
   }
 
+  private Map<String, UUID> seedRequirements() {
+    var requirements = new LinkedHashMap<String, UUID>();
+    requirements.put(
+        "REQ-DEV-A",
+        createObject(
+            "procurement_requirement",
+            fields(
+                "code", "REQ-DEV-A",
+                "name", "开发岗标准配置(A档)",
+                "job_role", "前端/Java 开发",
+                "quantity", 20,
+                "unit_budget_cny", 8000,
+                "warranty_requirement", "三年上门",
+                "os_requirement", "Windows 11 Pro",
+                "max_total_power_w", 650)));
+    requirements.put(
+        "REQ-DEV-ENTRY",
+        createObject(
+            "procurement_requirement",
+            fields(
+                "code", "REQ-DEV-ENTRY",
+                "name", "入门开发岗配置",
+                "job_role", "初级开发",
+                "quantity", 5,
+                "unit_budget_cny", 5500,
+                "warranty_requirement", "一年送修",
+                "os_requirement", "Windows 11 Pro",
+                "max_total_power_w", 450)));
+    return requirements;
+  }
+
+  private Map<String, UUID> seedPlans() {
+    var plans = new LinkedHashMap<String, UUID>();
+    plans.put("PLAN-ENTRY", createPlan("PLAN-ENTRY", "入门开发配置(约5200元)", "入门开发标准配置说明"));
+    plans.put(
+        "PLAN-STD",
+        createPlan(
+            "PLAN-STD",
+            "标准开发配置(约8000元)",
+            "本方案面向前端/Java 开发岗位，按 20 台标准配置采购，提供三年上门保修并预装 Windows 11 Pro。"));
+    plans.put("PLAN-PRO", createPlan("PLAN-PRO", "高级开发配置(约12000元)", "高级开发配置说明"));
+    plans.put("PLAN-BAD", createPlan("PLAN-BAD", "平台不兼容反例", "平台兼容与电源余量反例说明"));
+    return plans;
+  }
+
+  private UUID createPlan(String code, String name, String text) {
+    var plan =
+        createObject(
+            "build_plan",
+            fields("code", code, "name", name, "status", "PROPOSED", "body", body(text)));
+    ensureBody(plan, code, text);
+    return plan;
+  }
+
   private Map<String, UUID> seedProducts() {
     var products = new LinkedHashMap<String, UUID>();
-    addProduct(
-        products, "HW-CPU-I5-14600K", "Intel Core i5-14600K", "CPU", 1819, 85, 125, null, 1700, 5);
-    addProduct(products, "HW-CPU-R7-7700", "AMD Ryzen 7 7700", "CPU", 1999, 82, 65, null, 5, 5);
-    addProduct(
-        products, "HW-MB-B760-DDR5", "B760 DDR5 主板", "MAINBOARD", 1099, 75, 45, null, 1700, 5);
-    addProduct(products, "HW-MB-B650-DDR5", "B650 DDR5 主板", "MAINBOARD", 1299, 78, 50, null, 5, 5);
-    addProduct(products, "HW-RAM-DDR5-32G", "DDR5 32GB 内存", "MEMORY", 699, 80, 10, null, null, 5);
-    addProduct(products, "HW-RAM-DDR4-32G", "DDR4 32GB 内存", "MEMORY", 499, 60, 8, null, null, 4);
-    addProduct(
-        products, "HW-GPU-RTX4070", "GeForce RTX 4070", "GPU", 4399, 92, 200, null, null, null);
-    addProduct(
-        products, "HW-GPU-RX7800XT", "Radeon RX 7800 XT", "GPU", 3999, 88, 263, null, null, null);
-    addProduct(products, "HW-PSU-750W", "750W 金牌电源", "PSU", 699, 80, 0, 750, null, null);
-    addProduct(products, "HW-PSU-550W", "550W 铜牌电源", "PSU", 399, 55, 0, 550, null, null);
-    addProduct(products, "HW-SSD-1TB", "1TB NVMe 固态硬盘", "STORAGE", 499, 78, 6, null, null, null);
-    addProduct(products, "HW-SSD-2TB", "2TB NVMe 固态硬盘", "STORAGE", 799, 88, 8, null, null, null);
-    addProduct(products, "HW-CASE-MID-ATX", "ATX 中塔机箱", "CASE", 399, 70, 0, null, null, null);
-    addProduct(products, "HW-CASE-COMPACT-MATX", "mATX 紧凑机箱", "CASE", 299, 60, 0, null, null, null);
+    for (var product : productSeeds()) {
+      addProduct(
+          products,
+          product.code(),
+          product.name(),
+          product.category(),
+          product.referencePrice(),
+          product.performanceScore(),
+          product.power(),
+          product.powerSupplyCapacity(),
+          product.cpuMainboardPlatform(),
+          product.memoryPlatform());
+    }
     return products;
+  }
+
+  private List<ProductSeed> productSeeds() {
+    return List.of(
+        new ProductSeed(
+            "HW-CPU-I5-14400", "Intel Core i5-14400", "CPU", 1350, 72, 65, null, 1700, 5),
+        new ProductSeed(
+            "HW-CPU-ULTRA7-265", "Intel Core Ultra 7 265", "CPU", 1650, 88, 65, null, 1700, 5),
+        new ProductSeed("HW-CPU-R9-9900X", "AMD Ryzen 9 9900X", "CPU", 3100, 96, 170, null, 5, 5),
+        new ProductSeed("HW-COOLER-AX120", "利民 AX120", "COOLER", 79, 20, 5, null, null, null),
+        new ProductSeed("HW-COOLER-PA120", "利民 PA120 SE", "COOLER", 179, 55, 8, null, null, null),
+        new ProductSeed("HW-COOLER-FC140", "利民 FC140", "COOLER", 299, 70, 10, null, null, null),
+        new ProductSeed("HW-MB-B760M", "B760M 主板", "MAINBOARD", 699, 70, 45, null, 1700, 5),
+        new ProductSeed("HW-MB-B860", "B860 主板", "MAINBOARD", 899, 80, 45, null, 1700, 5),
+        new ProductSeed("HW-MB-B850", "B850 主板", "MAINBOARD", 999, 85, 50, null, 5, 5),
+        new ProductSeed(
+            "HW-RAM-32G-DDR5-5600", "32GB DDR5 5600(16×2)", "MEMORY", 599, 72, 10, null, null, 5),
+        new ProductSeed(
+            "HW-RAM-64G-DDR5-6000", "64GB DDR5 6000(32×2)", "MEMORY", 999, 84, 12, null, null, 5),
+        new ProductSeed(
+            "HW-RAM-96G-DDR5", "96GB DDR5(48×2)", "MEMORY", 1599, 93, 15, null, null, 5),
+        new ProductSeed(
+            "HW-SSD-TIPLUS7100-1TB",
+            "致态 TiPlus7100 1TB PCIe4.0",
+            "STORAGE",
+            449,
+            78,
+            6,
+            null,
+            null,
+            null),
+        new ProductSeed(
+            "HW-SSD-2TB-PCIE4", "2TB PCIe4.0 固态硬盘", "STORAGE", 699, 84, 7, null, null, null),
+        new ProductSeed(
+            "HW-SSD-2TB-PCIE5", "2TB PCIe5.0 固态硬盘", "STORAGE", 1099, 92, 9, null, null, null),
+        new ProductSeed("HW-GPU-RTX5060", "RTX 5060 8G", "GPU", 1899, 88, 145, null, null, null),
+        new ProductSeed("HW-GPU-RTX5070", "RTX 5070 12G", "GPU", 4099, 96, 250, null, null, null),
+        new ProductSeed("HW-PSU-550-BRONZE", "550W 铜牌电源", "PSU", 359, 55, 0, 550, null, null),
+        new ProductSeed("HW-PSU-450-BRONZE", "450W 铜牌电源", "PSU", 279, 40, 0, 450, null, null),
+        new ProductSeed("HW-PSU-650-GOLD", "650W 金牌电源", "PSU", 599, 70, 0, 650, null, null),
+        new ProductSeed("HW-PSU-850-GOLD", "850W 金牌电源", "PSU", 899, 85, 0, 850, null, null),
+        new ProductSeed("HW-CASE-MATX", "MATX 机箱", "CASE", 249, 45, 0, null, null, null),
+        new ProductSeed("HW-CASE-MID", "中塔机箱", "CASE", 399, 60, 0, null, null, null),
+        new ProductSeed(
+            "HW-MON-27-2K-100", "27 寸 2K IPS 100Hz", "MONITOR", 1299, 60, 30, null, null, null),
+        new ProductSeed(
+            "HW-MON-27-2K-180", "27 寸 2K IPS 180Hz", "MONITOR", 1499, 70, 35, null, null, null),
+        new ProductSeed("HW-MON-32-4K", "32 寸 4K 显示器", "MONITOR", 2199, 80, 50, null, null, null),
+        new ProductSeed(
+            "HW-PERIPHERAL-OFFICE", "办公键鼠套装", "PERIPHERAL", 189, 30, 5, null, null, null));
   }
 
   private void addProduct(
@@ -310,147 +403,71 @@ class PcProcurementDevSeeder implements ApplicationRunner {
     suppliers.put(
         "SUP-NORTH", createObject("supplier", fields("code", "SUP-NORTH", "name", "华北数码供应商")));
     suppliers.put(
-        "SUP-EAST", createObject("supplier", fields("code", "SUP-EAST", "name", "华东硬件供应商")));
-    suppliers.put(
         "SUP-SOUTH", createObject("supplier", fields("code", "SUP-SOUTH", "name", "华南组件供应商")));
     return suppliers;
   }
 
   private Map<String, UUID> seedQuotes(Map<String, UUID> products, Map<String, UUID> suppliers) {
     var quotes = new LinkedHashMap<String, UUID>();
-    addQuote(
-        quotes,
-        products,
-        suppliers,
-        "Q-CPU-I5",
-        "华北 i5 报价",
-        1699,
-        20,
-        3,
-        "HW-CPU-I5-14600K",
-        "SUP-NORTH");
-    addQuote(
-        quotes,
-        products,
-        suppliers,
-        "Q-MB-B760",
-        "华东 B760 报价",
-        999,
-        15,
-        5,
-        "HW-MB-B760-DDR5",
-        "SUP-EAST");
-    addQuote(
-        quotes,
-        products,
-        suppliers,
-        "Q-RAM-DDR5",
-        "华南 DDR5 报价",
-        579,
-        30,
-        4,
-        "HW-RAM-DDR5-32G",
-        "SUP-SOUTH");
-    addQuote(
-        quotes,
-        products,
-        suppliers,
-        "Q-GPU-RTX4070",
-        "华北 RTX4070 报价",
-        4099,
-        4,
-        7,
-        "HW-GPU-RTX4070",
-        "SUP-NORTH");
-    addQuote(
-        quotes,
-        products,
-        suppliers,
-        "Q-PSU-750",
-        "华东 750W 电源报价",
-        599,
-        12,
-        3,
-        "HW-PSU-750W",
-        "SUP-EAST");
-    addQuote(
-        quotes,
-        products,
-        suppliers,
-        "Q-MB-B650",
-        "华南 B650 报价",
-        1199,
-        9,
-        6,
-        "HW-MB-B650-DDR5",
-        "SUP-SOUTH");
-    addQuote(
-        quotes,
-        products,
-        suppliers,
-        "Q-RAM-DDR4",
-        "华东 DDR4 报价",
-        429,
-        18,
-        2,
-        "HW-RAM-DDR4-32G",
-        "SUP-EAST");
-    addQuote(
-        quotes,
-        products,
-        suppliers,
-        "Q-PSU-550",
-        "华南 550W 电源报价",
-        359,
-        10,
-        5,
-        "HW-PSU-550W",
-        "SUP-SOUTH");
-    addQuote(
-        quotes,
-        products,
-        suppliers,
-        "Q-SSD-1TB",
-        "华东 1TB SSD 报价",
-        459,
-        20,
-        3,
-        "HW-SSD-1TB",
-        "SUP-EAST");
-    addQuote(
-        quotes,
-        products,
-        suppliers,
-        "Q-SSD-2TB",
-        "华南 2TB SSD 报价",
-        729,
-        12,
-        6,
-        "HW-SSD-2TB",
-        "SUP-SOUTH");
-    addQuote(
-        quotes,
-        products,
-        suppliers,
-        "Q-CASE-MID",
-        "华北中塔机箱报价",
-        349,
-        10,
-        4,
-        "HW-CASE-MID-ATX",
-        "SUP-NORTH");
-    addQuote(
-        quotes,
-        products,
-        suppliers,
-        "Q-CASE-COMPACT",
-        "华南紧凑机箱报价",
-        259,
-        8,
-        5,
-        "HW-CASE-COMPACT-MATX",
-        "SUP-SOUTH");
+    for (var quote : quoteSeeds()) {
+      addQuote(
+          quotes,
+          products,
+          suppliers,
+          quote.code(),
+          quote.name(),
+          quote.unitPrice(),
+          quote.inventory(),
+          quote.deliveryDays(),
+          quote.productCode(),
+          quote.supplierCode());
+    }
     return quotes;
+  }
+
+  private List<QuoteSeed> quoteSeeds() {
+    return List.of(
+        new QuoteSeed(
+            "Q-CPU-I5-14400", "华北 i5-14400 报价", 1299, 30, 3, "HW-CPU-I5-14400", "SUP-NORTH"),
+        new QuoteSeed(
+            "Q-CPU-ULTRA7-265", "华南 Ultra 7 报价", 1499, 25, 5, "HW-CPU-ULTRA7-265", "SUP-SOUTH"),
+        new QuoteSeed(
+            "Q-CPU-R9-9900X", "华北 Ryzen 9 报价", 2399, 20, 7, "HW-CPU-R9-9900X", "SUP-NORTH"),
+        new QuoteSeed("Q-COOLER-AX120", "华南 AX120 报价", 79, 30, 3, "HW-COOLER-AX120", "SUP-SOUTH"),
+        new QuoteSeed(
+            "Q-COOLER-PA120", "华北 PA120 SE 报价", 159, 25, 3, "HW-COOLER-PA120", "SUP-NORTH"),
+        new QuoteSeed("Q-COOLER-FC140", "华南 FC140 报价", 279, 20, 5, "HW-COOLER-FC140", "SUP-SOUTH"),
+        new QuoteSeed("Q-MB-B760M", "华北 B760M 报价", 699, 30, 4, "HW-MB-B760M", "SUP-NORTH"),
+        new QuoteSeed("Q-MB-B860", "华南 B860 报价", 699, 25, 5, "HW-MB-B860", "SUP-SOUTH"),
+        new QuoteSeed("Q-MB-B850", "华北 B850 报价", 949, 20, 6, "HW-MB-B850", "SUP-NORTH"),
+        new QuoteSeed("Q-RAM-32G", "华南 32GB 内存报价", 599, 30, 3, "HW-RAM-32G-DDR5-5600", "SUP-SOUTH"),
+        new QuoteSeed("Q-RAM-64G", "华北 64GB 内存报价", 799, 25, 4, "HW-RAM-64G-DDR5-6000", "SUP-NORTH"),
+        new QuoteSeed("Q-RAM-96G", "华南 96GB 内存报价", 1549, 20, 6, "HW-RAM-96G-DDR5", "SUP-SOUTH"),
+        new QuoteSeed(
+            "Q-SSD-1TB", "华北 TiPlus7100 1TB 报价", 449, 30, 3, "HW-SSD-TIPLUS7100-1TB", "SUP-NORTH"),
+        new QuoteSeed(
+            "Q-SSD-2TB-PCIE4", "华南 2TB PCIe4 报价", 569, 25, 4, "HW-SSD-2TB-PCIE4", "SUP-SOUTH"),
+        new QuoteSeed(
+            "Q-SSD-2TB-PCIE5", "华北 2TB PCIe5 报价", 1049, 20, 5, "HW-SSD-2TB-PCIE5", "SUP-NORTH"),
+        new QuoteSeed(
+            "Q-GPU-RTX5060", "华南 RTX 5060 报价", 1799, 25, 5, "HW-GPU-RTX5060", "SUP-SOUTH"),
+        new QuoteSeed(
+            "Q-GPU-RTX5070", "华北 RTX 5070 报价", 3999, 20, 6, "HW-GPU-RTX5070", "SUP-NORTH"),
+        new QuoteSeed("Q-PSU-550", "华南 550W 铜牌报价", 359, 25, 3, "HW-PSU-550-BRONZE", "SUP-SOUTH"),
+        new QuoteSeed("Q-PSU-450", "华北 450W 铜牌报价", 259, 25, 4, "HW-PSU-450-BRONZE", "SUP-NORTH"),
+        new QuoteSeed("Q-PSU-650", "华北 650W 金牌报价", 449, 25, 3, "HW-PSU-650-GOLD", "SUP-NORTH"),
+        new QuoteSeed("Q-PSU-850", "华南 850W 金牌报价", 859, 20, 5, "HW-PSU-850-GOLD", "SUP-SOUTH"),
+        new QuoteSeed("Q-CASE-MATX", "华北 MATX 机箱报价", 249, 25, 4, "HW-CASE-MATX", "SUP-NORTH"),
+        new QuoteSeed("Q-CASE-MID", "华南中塔机箱报价", 299, 25, 4, "HW-CASE-MID", "SUP-SOUTH"),
+        new QuoteSeed(
+            "Q-MON-27-2K-100", "华北 27 寸 2K 100Hz 报价", 1299, 25, 5, "HW-MON-27-2K-100", "SUP-NORTH"),
+        new QuoteSeed(
+            "Q-MON-27-2K-180", "华南 27 寸 2K 180Hz 报价", 1499, 25, 5, "HW-MON-27-2K-180", "SUP-SOUTH"),
+        new QuoteSeed("Q-MON-32-4K", "华北 32 寸 4K 报价", 2099, 20, 7, "HW-MON-32-4K", "SUP-NORTH"),
+        new QuoteSeed(
+            "Q-PERIPHERAL-OFFICE", "华南办公键鼠报价", 149, 30, 3, "HW-PERIPHERAL-OFFICE", "SUP-SOUTH"),
+        new QuoteSeed(
+            "Q-PERIPHERAL-LOW", "华北办公键鼠低库存报价", 139, 0, 4, "HW-PERIPHERAL-OFFICE", "SUP-NORTH"));
   }
 
   private void addQuote(
@@ -488,146 +505,109 @@ class PcProcurementDevSeeder implements ApplicationRunner {
 
   private void seedPlanItems(
       Map<String, UUID> plans, Map<String, UUID> products, Map<String, UUID> quotes) {
-    addItem(
-        plans,
-        products,
-        quotes,
-        "ITEM-V-CPU",
-        "兼容方案 CPU",
-        1,
-        "PLAN-PC-VALID",
-        "HW-CPU-I5-14600K",
-        "Q-CPU-I5");
-    addItem(
-        plans,
-        products,
-        quotes,
-        "ITEM-V-MB",
-        "兼容方案主板",
-        1,
-        "PLAN-PC-VALID",
-        "HW-MB-B760-DDR5",
-        "Q-MB-B760");
-    addItem(
-        plans,
-        products,
-        quotes,
-        "ITEM-V-RAM",
-        "兼容方案内存",
-        1,
-        "PLAN-PC-VALID",
-        "HW-RAM-DDR5-32G",
-        "Q-RAM-DDR5");
-    addItem(
-        plans,
-        products,
-        quotes,
-        "ITEM-V-GPU",
-        "兼容方案显卡",
-        1,
-        "PLAN-PC-VALID",
-        "HW-GPU-RTX4070",
-        "Q-GPU-RTX4070");
-    addItem(
-        plans,
-        products,
-        quotes,
-        "ITEM-V-PSU",
-        "兼容方案电源",
-        1,
-        "PLAN-PC-VALID",
-        "HW-PSU-750W",
-        "Q-PSU-750");
-    addItem(
-        plans,
-        products,
-        quotes,
-        "ITEM-V-SSD",
-        "兼容方案存储",
-        1,
-        "PLAN-PC-VALID",
-        "HW-SSD-1TB",
-        "Q-SSD-1TB");
-    addItem(
-        plans,
-        products,
-        quotes,
-        "ITEM-V-CASE",
-        "兼容方案机箱",
-        1,
-        "PLAN-PC-VALID",
-        "HW-CASE-MID-ATX",
-        "Q-CASE-MID");
-    addItem(
-        plans,
-        products,
-        quotes,
-        "ITEM-X-CPU",
-        "不兼容方案 CPU",
-        1,
-        "PLAN-PC-INVALID",
-        "HW-CPU-I5-14600K",
-        "Q-CPU-I5");
-    addItem(
-        plans,
-        products,
-        quotes,
-        "ITEM-X-MB",
-        "不兼容方案主板",
-        1,
-        "PLAN-PC-INVALID",
-        "HW-MB-B650-DDR5",
-        "Q-MB-B650");
-    addItem(
-        plans,
-        products,
-        quotes,
-        "ITEM-X-RAM",
-        "不兼容方案内存",
-        1,
-        "PLAN-PC-INVALID",
-        "HW-RAM-DDR4-32G",
-        "Q-RAM-DDR4");
-    addItem(
-        plans,
-        products,
-        quotes,
-        "ITEM-X-GPU",
-        "超预算方案显卡",
-        2,
-        "PLAN-PC-INVALID",
-        "HW-GPU-RTX4070",
-        "Q-GPU-RTX4070");
-    addItem(
-        plans,
-        products,
-        quotes,
-        "ITEM-X-PSU",
-        "不兼容方案电源",
-        1,
-        "PLAN-PC-INVALID",
-        "HW-PSU-550W",
-        "Q-PSU-550");
-    addItem(
-        plans,
-        products,
-        quotes,
-        "ITEM-X-SSD",
-        "反例方案存储",
-        1,
-        "PLAN-PC-INVALID",
-        "HW-SSD-2TB",
-        "Q-SSD-2TB");
-    addItem(
-        plans,
-        products,
-        quotes,
-        "ITEM-X-CASE",
-        "反例方案机箱",
-        1,
-        "PLAN-PC-INVALID",
-        "HW-CASE-COMPACT-MATX",
-        "Q-CASE-COMPACT");
+    seedItems(plans, products, quotes, entryItems());
+    seedItems(plans, products, quotes, standardItems());
+    seedItems(plans, products, quotes, proItems());
+    seedItems(plans, products, quotes, badItems());
+  }
+
+  private void seedItems(
+      Map<String, UUID> plans,
+      Map<String, UUID> products,
+      Map<String, UUID> quotes,
+      List<ItemSeed> items) {
+    for (var item : items) {
+      addItem(
+          plans,
+          products,
+          quotes,
+          item.code(),
+          item.name(),
+          1,
+          item.planCode(),
+          item.productCode(),
+          item.quoteCode());
+    }
+  }
+
+  private List<ItemSeed> entryItems() {
+    return List.of(
+        new ItemSeed(
+            "ITEM-ENTRY-CPU", "入门配置 CPU", "PLAN-ENTRY", "HW-CPU-I5-14400", "Q-CPU-I5-14400"),
+        new ItemSeed(
+            "ITEM-ENTRY-COOLER", "入门配置散热器", "PLAN-ENTRY", "HW-COOLER-AX120", "Q-COOLER-AX120"),
+        new ItemSeed("ITEM-ENTRY-MB", "入门配置主板", "PLAN-ENTRY", "HW-MB-B760M", "Q-MB-B760M"),
+        new ItemSeed("ITEM-ENTRY-RAM", "入门配置内存", "PLAN-ENTRY", "HW-RAM-32G-DDR5-5600", "Q-RAM-32G"),
+        new ItemSeed(
+            "ITEM-ENTRY-SSD", "入门配置存储", "PLAN-ENTRY", "HW-SSD-TIPLUS7100-1TB", "Q-SSD-1TB"),
+        new ItemSeed("ITEM-ENTRY-PSU", "入门配置电源", "PLAN-ENTRY", "HW-PSU-550-BRONZE", "Q-PSU-550"),
+        new ItemSeed("ITEM-ENTRY-CASE", "入门配置机箱", "PLAN-ENTRY", "HW-CASE-MATX", "Q-CASE-MATX"),
+        new ItemSeed(
+            "ITEM-ENTRY-MON", "入门配置显示器", "PLAN-ENTRY", "HW-MON-27-2K-100", "Q-MON-27-2K-100"),
+        new ItemSeed(
+            "ITEM-ENTRY-PERIPHERAL",
+            "入门配置键鼠",
+            "PLAN-ENTRY",
+            "HW-PERIPHERAL-OFFICE",
+            "Q-PERIPHERAL-OFFICE"));
+  }
+
+  private List<ItemSeed> standardItems() {
+    return List.of(
+        new ItemSeed(
+            "ITEM-STD-CPU", "标准配置 CPU", "PLAN-STD", "HW-CPU-ULTRA7-265", "Q-CPU-ULTRA7-265"),
+        new ItemSeed("ITEM-STD-COOLER", "标准配置散热器", "PLAN-STD", "HW-COOLER-PA120", "Q-COOLER-PA120"),
+        new ItemSeed("ITEM-STD-MB", "标准配置主板", "PLAN-STD", "HW-MB-B860", "Q-MB-B860"),
+        new ItemSeed("ITEM-STD-RAM", "标准配置内存", "PLAN-STD", "HW-RAM-64G-DDR5-6000", "Q-RAM-64G"),
+        new ItemSeed("ITEM-STD-SSD", "标准配置存储", "PLAN-STD", "HW-SSD-2TB-PCIE4", "Q-SSD-2TB-PCIE4"),
+        new ItemSeed("ITEM-STD-GPU", "标准配置显卡", "PLAN-STD", "HW-GPU-RTX5060", "Q-GPU-RTX5060"),
+        new ItemSeed("ITEM-STD-PSU", "标准配置电源", "PLAN-STD", "HW-PSU-650-GOLD", "Q-PSU-650"),
+        new ItemSeed("ITEM-STD-CASE", "标准配置机箱", "PLAN-STD", "HW-CASE-MID", "Q-CASE-MID"),
+        new ItemSeed("ITEM-STD-MON", "标准配置显示器", "PLAN-STD", "HW-MON-27-2K-180", "Q-MON-27-2K-180"),
+        new ItemSeed(
+            "ITEM-STD-PERIPHERAL",
+            "标准配置键鼠",
+            "PLAN-STD",
+            "HW-PERIPHERAL-OFFICE",
+            "Q-PERIPHERAL-OFFICE"));
+  }
+
+  private List<ItemSeed> proItems() {
+    return List.of(
+        new ItemSeed("ITEM-PRO-CPU", "高级配置 CPU", "PLAN-PRO", "HW-CPU-R9-9900X", "Q-CPU-R9-9900X"),
+        new ItemSeed("ITEM-PRO-COOLER", "高级配置散热器", "PLAN-PRO", "HW-COOLER-FC140", "Q-COOLER-FC140"),
+        new ItemSeed("ITEM-PRO-MB", "高级配置主板", "PLAN-PRO", "HW-MB-B850", "Q-MB-B850"),
+        new ItemSeed("ITEM-PRO-RAM", "高级配置内存", "PLAN-PRO", "HW-RAM-96G-DDR5", "Q-RAM-96G"),
+        new ItemSeed("ITEM-PRO-SSD", "高级配置存储", "PLAN-PRO", "HW-SSD-2TB-PCIE5", "Q-SSD-2TB-PCIE5"),
+        new ItemSeed("ITEM-PRO-GPU", "高级配置显卡", "PLAN-PRO", "HW-GPU-RTX5070", "Q-GPU-RTX5070"),
+        new ItemSeed("ITEM-PRO-PSU", "高级配置电源", "PLAN-PRO", "HW-PSU-850-GOLD", "Q-PSU-850"),
+        new ItemSeed("ITEM-PRO-CASE", "高级配置机箱", "PLAN-PRO", "HW-CASE-MID", "Q-CASE-MID"),
+        new ItemSeed("ITEM-PRO-MON", "高级配置显示器", "PLAN-PRO", "HW-MON-32-4K", "Q-MON-32-4K"),
+        new ItemSeed(
+            "ITEM-PRO-PERIPHERAL",
+            "高级配置键鼠",
+            "PLAN-PRO",
+            "HW-PERIPHERAL-OFFICE",
+            "Q-PERIPHERAL-LOW"));
+  }
+
+  private List<ItemSeed> badItems() {
+    return List.of(
+        new ItemSeed("ITEM-BAD-CPU", "反例 CPU", "PLAN-BAD", "HW-CPU-R9-9900X", "Q-CPU-R9-9900X"),
+        new ItemSeed("ITEM-BAD-COOLER", "反例散热器", "PLAN-BAD", "HW-COOLER-AX120", "Q-COOLER-AX120"),
+        new ItemSeed("ITEM-BAD-MB", "反例主板", "PLAN-BAD", "HW-MB-B760M", "Q-MB-B760M"),
+        new ItemSeed("ITEM-BAD-RAM", "反例内存", "PLAN-BAD", "HW-RAM-32G-DDR5-5600", "Q-RAM-32G"),
+        new ItemSeed("ITEM-BAD-SSD", "反例存储", "PLAN-BAD", "HW-SSD-TIPLUS7100-1TB", "Q-SSD-1TB"),
+        new ItemSeed("ITEM-BAD-GPU", "反例显卡", "PLAN-BAD", "HW-GPU-RTX5060", "Q-GPU-RTX5060"),
+        new ItemSeed("ITEM-BAD-PSU", "反例低容量电源", "PLAN-BAD", "HW-PSU-450-BRONZE", "Q-PSU-450"),
+        new ItemSeed("ITEM-BAD-CASE", "反例机箱", "PLAN-BAD", "HW-CASE-MATX", "Q-CASE-MATX"),
+        new ItemSeed("ITEM-BAD-MON", "反例显示器", "PLAN-BAD", "HW-MON-27-2K-100", "Q-MON-27-2K-100"),
+        new ItemSeed(
+            "ITEM-BAD-PERIPHERAL",
+            "反例键鼠",
+            "PLAN-BAD",
+            "HW-PERIPHERAL-OFFICE",
+            "Q-PERIPHERAL-OFFICE"));
   }
 
   private void addItem(
@@ -824,13 +804,13 @@ class PcProcurementDevSeeder implements ApplicationRunner {
     var rows =
         jdbc.query(
             """
-            SELECT object.version, value.value
-            FROM data_object object
-            JOIN object_type type ON type.id = object.object_type_id
-            LEFT JOIN field_def field ON field.object_type_id = type.id AND field.code = 'body'
-            LEFT JOIN data_field_value value ON value.object_id = object.id AND value.field_def_id = field.id
-            WHERE object.workspace_id = ? AND object.id = ? AND type.code = 'build_plan'
-            """,
+SELECT object.version, value.value
+FROM data_object object
+JOIN object_type type ON type.id = object.object_type_id
+LEFT JOIN field_def field ON field.object_type_id = type.id AND field.code = 'body'
+LEFT JOIN data_field_value value ON value.object_id = object.id AND value.field_def_id = field.id
+WHERE object.workspace_id = ? AND object.id = ? AND type.code = 'build_plan'
+""",
             (result, ignored) -> new PlanBodyState(result.getLong(1), result.getObject(2) != null),
             WORKSPACE_ID,
             objectId);

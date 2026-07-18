@@ -62,8 +62,8 @@ class PcProcurementOutputIntegrationTest {
   @Test
   void rendersCompletePcDocumentAndKeepsItsSnapshotIsolated() throws Exception {
     governWorkspace();
-    var plan = objectId("build_plan", "PLAN-PC-VALID");
-    var item = objectId("build_plan_item", "ITEM-V-CPU");
+    var plan = objectId("build_plan", "PLAN-STD");
+    var item = objectId("build_plan_item", "ITEM-STD-CPU");
     runFullWorkspaceCheck("pc-output-initial");
 
     var firstSnapshot = capture(plan);
@@ -81,8 +81,18 @@ class PcProcurementOutputIntegrationTest {
 
     assertEquals(firstOutput.contentHash(), sameSnapshotOutput.contentHash());
     assertEquals(firstText, docxText(sameSnapshotOutput));
-    assertTrue(tableLines(firstOutput).stream().anyMatch(row -> row.startsWith("ITEM-V-CPU|兼容方案 CPU|1|")));
-    assertTrue(tableLines(secondOutput).stream().anyMatch(row -> row.startsWith("ITEM-V-CPU|兼容方案 CPU|2|")));
+    assertTrue(
+        tableLines(firstOutput).stream()
+            .anyMatch(row -> row.startsWith("ITEM-STD-CPU|标准配置 CPU|1|")));
+    assertTrue(
+        tableLines(firstOutput).stream()
+            .anyMatch(
+                row ->
+                    row.contains(
+                        "Intel Core Ultra 7 265|Q-CPU-ULTRA7-265|华南组件供应商|1499|1499|65|88|25")));
+    assertTrue(
+        tableLines(secondOutput).stream()
+            .anyMatch(row -> row.startsWith("ITEM-STD-CPU|标准配置 CPU|2|")));
     assertNotEquals(firstOutput.contentHash(), secondOutput.contentHash());
     assertEquals("BLOCK", secondOutput.checkStatus());
   }
@@ -90,7 +100,7 @@ class PcProcurementOutputIntegrationTest {
   @Test
   void rejectsUnauthorizedAndMissingSnapshotOutputRequests() {
     governWorkspace();
-    var plan = objectId("build_plan", "PLAN-PC-VALID");
+    var plan = objectId("build_plan", "PLAN-STD");
     var snapshot = capture(plan);
 
     var forbidden = postOutput(snapshot, VIEWER);
@@ -149,8 +159,7 @@ class PcProcurementOutputIntegrationTest {
   }
 
   private void runFullWorkspaceCheck(String correlationId) {
-    ruleChecks.run(
-        new RunRuleCheckRequest(WORKSPACE, UUID.randomUUID(), correlationId, null));
+    ruleChecks.run(new RunRuleCheckRequest(WORKSPACE, UUID.randomUUID(), correlationId, null));
   }
 
   private UUID capture(UUID plan) {
@@ -176,7 +185,8 @@ class PcProcurementOutputIntegrationTest {
   private OutputMeta createDocx(UUID snapshotId) {
     return outputs.create(
         WORKSPACE,
-        new OutputCreateRequest(snapshotId, "docx", null, null, null, List.of(), sectionMapping(), null),
+        new OutputCreateRequest(
+            snapshotId, "docx", null, null, null, List.of(), sectionMapping(), null),
         AUTHOR.toString());
   }
 
@@ -229,21 +239,27 @@ class PcProcurementOutputIntegrationTest {
     try (var document = new XWPFDocument(new ByteArrayInputStream(detail.artifact()))) {
       return document.getTables().stream()
           .flatMap(table -> table.getRows().stream())
-          .map(row -> row.getTableCells().stream().map(cell -> cell.getText()).collect(java.util.stream.Collectors.joining("|")))
+          .map(
+              row ->
+                  row.getTableCells().stream()
+                      .map(cell -> cell.getText())
+                      .collect(java.util.stream.Collectors.joining("|")))
           .toList();
     }
   }
 
   private void assertCompleteDocument(String text) {
     assertTrue(text.contains("采购需求摘要"), text);
-    assertTrue(text.contains("研发工作站采购需求"), text);
-    assertTrue(text.contains("10000"), text);
-    assertTrue(text.contains("兼容工作站方案"), text);
-    assertTrue(text.contains("8783"), text);
-    assertTrue(text.contains("Intel Core i5-14600K"), text);
-    assertTrue(text.contains("华北数码供应商"), text);
-    assertTrue(text.contains("1699"), text);
-    assertTrue(text.contains("兼容工作站采购方案说明"), text);
+    assertTrue(text.contains("开发岗标准配置(A档)"), text);
+    assertTrue(text.contains("8000"), text);
+    assertTrue(text.contains("160000"), text);
+    assertTrue(text.contains("标准开发配置(约8000元)"), text);
+    assertTrue(text.contains("7920"), text);
+    assertTrue(text.contains("Intel Core Ultra 7 265"), text);
+    assertTrue(text.contains("华南组件供应商"), text);
+    assertTrue(text.contains("1499"), text);
+    assertTrue(text.contains("三年上门"), text);
+    assertTrue(text.contains("Windows 11 Pro"), text);
     assertTrue(text.contains("校核结论"), text);
   }
 
@@ -276,10 +292,13 @@ class PcProcurementOutputIntegrationTest {
         List.of(
             new RelationColumn("需求编码", "code", List.of()),
             new RelationColumn("需求名称", "name", List.of()),
-            new RelationColumn("预算（元）", "budget_cny", List.of()),
-            new RelationColumn("整机最大设计功耗（瓦）", "max_total_power_w", List.of()),
-            new RelationColumn("CPU/主板平台要求", "cpu_mainboard_platform_code", List.of()),
-            new RelationColumn("内存平台要求", "memory_platform_code", List.of())));
+            new RelationColumn("岗位", "job_role", List.of()),
+            new RelationColumn("采购数量", "quantity", List.of()),
+            new RelationColumn("单台预算（元）", "unit_budget_cny", List.of()),
+            new RelationColumn("总预算（元）", "total_budget_cny_fx", List.of()),
+            new RelationColumn("保修要求", "warranty_requirement", List.of()),
+            new RelationColumn("系统要求", "os_requirement", List.of()),
+            new RelationColumn("整机最大设计功耗（瓦）", "max_total_power_w", List.of())));
   }
 
   private RelationTable itemTable() {
@@ -296,7 +315,8 @@ class PcProcurementOutputIntegrationTest {
             new RelationColumn(
                 "供应商",
                 "name",
-                List.of("build_plan_item_uses_supplier_quote", "supplier_quote_offered_by_supplier")),
+                List.of(
+                    "build_plan_item_uses_supplier_quote", "supplier_quote_offered_by_supplier")),
             new RelationColumn("单价（元）", "selected_unit_price_cny_fx", List.of()),
             new RelationColumn("明细总价（元）", "total_price_cny_fx", List.of()),
             new RelationColumn("功耗（瓦）", "power_w_fx", List.of()),

@@ -17,16 +17,25 @@ class ReadModelRepository {
   private static final String GROUP = "readmodel";
   private final JdbcTemplate jdbc;
   private final ObjectMapper mapper;
+  private final DerivedEvaluator derivedEvaluator;
+  private final DerivedFieldRepository derivedFields;
 
-  ReadModelRepository(JdbcTemplate jdbc, ObjectMapper mapper) {
+  ReadModelRepository(
+      JdbcTemplate jdbc,
+      ObjectMapper mapper,
+      DerivedEvaluator derivedEvaluator,
+      DerivedFieldRepository derivedFields) {
     this.jdbc = jdbc;
     this.mapper = mapper;
+    this.derivedEvaluator = derivedEvaluator;
+    this.derivedFields = derivedFields;
   }
 
   boolean consumed(String eventId) {
     return Boolean.TRUE.equals(
         jdbc.queryForObject(
-            "SELECT EXISTS(SELECT 1 FROM rm_consumed_event WHERE consumer_group = ? AND event_id = ?)",
+            "SELECT EXISTS(SELECT 1 FROM rm_consumed_event WHERE consumer_group = ? AND event_id ="
+                + " ?)",
             Boolean.class,
             GROUP,
             eventId));
@@ -34,7 +43,8 @@ class ReadModelRepository {
 
   void markConsumed(String eventId) {
     jdbc.update(
-        "INSERT INTO rm_consumed_event (consumer_group, event_id) VALUES (?, ?) ON CONFLICT DO NOTHING",
+        "INSERT INTO rm_consumed_event (consumer_group, event_id) VALUES (?, ?) ON CONFLICT DO"
+            + " NOTHING",
         GROUP,
         eventId);
   }
@@ -865,7 +875,7 @@ class ReadModelRepository {
                     row.getObject(4, UUID.class).toString(),
                     map(row.getString(5))),
             workspaceId);
-    return new DataSet(objects, relations);
+    return new DataSet(withDerivedValues(workspaceId, objects), relations);
   }
 
   DataSet dataSet(UUID workspaceId, String scopeObjectType) {
@@ -912,71 +922,71 @@ class ReadModelRepository {
             scopeObjectType,
             workspaceId,
             scopeObjectType);
-    return new DataSet(objects, relations);
+    return new DataSet(withDerivedValues(workspaceId, objects), relations);
   }
 
   DataSet dataSet(UUID workspaceId, SnapshotTreeScope treeScope) {
     var nodes =
         jdbc.query(
             """
-            WITH RECURSIVE tree AS (
-              SELECT object.object_id, NULL::uuid AS parent_id, NULL::uuid AS relation_id,
-                     0 AS depth, ARRAY[object.object_id] AS path
-              FROM rm_object object
-              WHERE object.workspace_id = ? AND object.object_id = ?
-              UNION ALL
-              SELECT child.object_id, relation.source_id, relation.relation_id,
-                     tree.depth + 1, tree.path || child.object_id
-              FROM tree
-              JOIN rm_relation relation
-                ON relation.workspace_id = ?
-               AND relation.relation_type_code = ?
-               AND relation.source_id = tree.object_id
-               AND relation.hierarchical
-               AND relation.status = 'ACTIVE'
-              JOIN rm_object child
-                ON child.workspace_id = relation.workspace_id
-               AND child.object_id = relation.target_id
-              WHERE tree.depth < ? AND NOT relation.target_id = ANY(tree.path)
-            ),
-            latest_run AS (
-               SELECT run_id
-               FROM check_run
-               WHERE workspace_id = ?
-                 AND status = 'COMPLETED'
-                 AND scope_object_type_code IS NULL
-               ORDER BY completed_at DESC NULLS LAST, run_id
-               LIMIT 1
-            ),
-            rule_status AS (
-              SELECT result.object_id,
-                     CASE max(CASE result.severity WHEN 'BLOCK' THEN 2 WHEN 'WARN' THEN 1 ELSE 0 END)
-                       WHEN 2 THEN 'BLOCK'
-                       WHEN 1 THEN 'WARN'
-                       ELSE 'OK'
-                     END AS value
-              FROM check_result result
-              JOIN latest_run ON latest_run.run_id = result.run_id
-              WHERE result.workspace_id = ?
-              GROUP BY result.object_id
-            )
-            SELECT object.object_id, object.object_type_code, object.fields::text, object.status,
-                   object.version, tree.parent_id, tree.relation_id, tree.depth,
-                   parent_relation.relation_type_code, parent_relation.source_id,
-                   parent_relation.target_id, parent_relation.fields::text,
-                   parent_relation.status, parent_relation.version,
-                    CASE WHEN latest_run.run_id IS NULL THEN NULL
-                         ELSE COALESCE(rule_status.value, 'OK') END
-            FROM tree
-            JOIN rm_object object
-              ON object.workspace_id = ? AND object.object_id = tree.object_id
-            LEFT JOIN rm_relation parent_relation
-              ON parent_relation.workspace_id = ?
-             AND parent_relation.relation_id = tree.relation_id
-            LEFT JOIN latest_run ON TRUE
-            LEFT JOIN rule_status ON rule_status.object_id = object.object_id
-            ORDER BY tree.path
-            """,
+WITH RECURSIVE tree AS (
+  SELECT object.object_id, NULL::uuid AS parent_id, NULL::uuid AS relation_id,
+         0 AS depth, ARRAY[object.object_id] AS path
+  FROM rm_object object
+  WHERE object.workspace_id = ? AND object.object_id = ?
+  UNION ALL
+  SELECT child.object_id, relation.source_id, relation.relation_id,
+         tree.depth + 1, tree.path || child.object_id
+  FROM tree
+  JOIN rm_relation relation
+    ON relation.workspace_id = ?
+   AND relation.relation_type_code = ?
+   AND relation.source_id = tree.object_id
+   AND relation.hierarchical
+   AND relation.status = 'ACTIVE'
+  JOIN rm_object child
+    ON child.workspace_id = relation.workspace_id
+   AND child.object_id = relation.target_id
+  WHERE tree.depth < ? AND NOT relation.target_id = ANY(tree.path)
+),
+latest_run AS (
+   SELECT run_id
+   FROM check_run
+   WHERE workspace_id = ?
+     AND status = 'COMPLETED'
+     AND scope_object_type_code IS NULL
+   ORDER BY completed_at DESC NULLS LAST, run_id
+   LIMIT 1
+),
+rule_status AS (
+  SELECT result.object_id,
+         CASE max(CASE result.severity WHEN 'BLOCK' THEN 2 WHEN 'WARN' THEN 1 ELSE 0 END)
+           WHEN 2 THEN 'BLOCK'
+           WHEN 1 THEN 'WARN'
+           ELSE 'OK'
+         END AS value
+  FROM check_result result
+  JOIN latest_run ON latest_run.run_id = result.run_id
+  WHERE result.workspace_id = ?
+  GROUP BY result.object_id
+)
+SELECT object.object_id, object.object_type_code, object.fields::text, object.status,
+       object.version, tree.parent_id, tree.relation_id, tree.depth,
+       parent_relation.relation_type_code, parent_relation.source_id,
+       parent_relation.target_id, parent_relation.fields::text,
+       parent_relation.status, parent_relation.version,
+        CASE WHEN latest_run.run_id IS NULL THEN NULL
+             ELSE COALESCE(rule_status.value, 'OK') END
+FROM tree
+JOIN rm_object object
+  ON object.workspace_id = ? AND object.object_id = tree.object_id
+LEFT JOIN rm_relation parent_relation
+  ON parent_relation.workspace_id = ?
+ AND parent_relation.relation_id = tree.relation_id
+LEFT JOIN latest_run ON TRUE
+LEFT JOIN rule_status ON rule_status.object_id = object.object_id
+ORDER BY tree.path
+""",
             (row, index) ->
                 new TreeSnapshotNode(
                     row.getObject(1, UUID.class),
@@ -1013,6 +1023,7 @@ class ReadModelRepository {
                         .get(index)
                         .object(index, checks.getOrDefault(nodes.get(index).objectId(), List.of())))
             .toList();
+    objects = withDerivedValues(workspaceId, objects);
     var relations =
         nodes.stream().map(TreeSnapshotNode::relation).flatMap(java.util.Optional::stream).toList();
     if (treeScope.relatedRelationTypes().isEmpty()) return new DataSet(objects, relations);
@@ -1111,6 +1122,37 @@ class ReadModelRepository {
         args.toArray());
   }
 
+  private List<DataObject> withDerivedValues(UUID workspaceId, List<DataObject> objects) {
+    var codesByType = new java.util.HashMap<String, List<String>>();
+    return objects.stream()
+        .map(
+            object -> {
+              var codes =
+                  codesByType.computeIfAbsent(
+                      object.objectTypeCode(),
+                      type -> derivedFields.codesForObjectType(workspaceId, type));
+              if (codes.isEmpty()) return object;
+              var fields = new java.util.LinkedHashMap<>(object.fields());
+              for (var code : codes) {
+                try {
+                  var value =
+                      derivedEvaluator.evaluate(
+                          workspaceId, UUID.fromString(object.objectId()), code);
+                  if (value != null) fields.put(code, value);
+                } catch (RuntimeException ignored) {
+                  // A failed value must not prevent the remaining snapshot from being captured.
+                }
+              }
+              return new DataObject(
+                  object.objectId(),
+                  object.objectTypeCode(),
+                  Map.copyOf(fields),
+                  object.status(),
+                  object.version());
+            })
+        .toList();
+  }
+
   private List<DataObject> relatedObjects(UUID workspaceId, java.util.Set<UUID> objectIds) {
     var sql =
         """
@@ -1122,16 +1164,18 @@ class ReadModelRepository {
     var args = new java.util.ArrayList<Object>();
     args.add(workspaceId);
     args.addAll(objectIds);
-    return jdbc.query(
-        sql,
-        (row, index) ->
-            new DataObject(
-                row.getObject(1, UUID.class).toString(),
-                row.getString(2),
-                map(row.getString(3)),
-                row.getString(4),
-                row.getLong(5)),
-        args.toArray());
+    var objects =
+        jdbc.query(
+            sql,
+            (row, index) ->
+                new DataObject(
+                    row.getObject(1, UUID.class).toString(),
+                    row.getString(2),
+                    map(row.getString(3)),
+                    row.getString(4),
+                    row.getLong(5)),
+            args.toArray());
+    return withDerivedValues(workspaceId, objects);
   }
 
   private static String placeholders(int count) {

@@ -28,7 +28,7 @@ describe("PresentationPresetRegistry", () => {
     expect(hardwareText).toMatch(/智能门锁 S3|渠道经营看板/);
     expect(procurementText).toMatch(/电脑采购总览|装机方案对比/);
     expect(procurementText).not.toMatch(/智能门锁|渠道经营看板|prod-s3|S3/);
-    expect(hardwareText).not.toMatch(/PLAN-PC-VALID|电脑采购总览/);
+    expect(hardwareText).not.toMatch(/PLAN-STD|电脑采购总览/);
   });
 
   it("returns an independent copy for each workspace load", () => {
@@ -126,9 +126,9 @@ describe("PresentationPresetRegistry", () => {
     );
     expect(procurement.objectBindings).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ fields: { code: "ITEM-V-CPU" } }),
-        expect.objectContaining({ fields: { code: "HW-CPU-I5-14600K" } }),
-        expect.objectContaining({ fields: { code: "Q-CPU-I5" } }),
+        expect.objectContaining({ fields: { code: "ITEM-STD-CPU" } }),
+        expect.objectContaining({ fields: { code: "HW-CPU-ULTRA7-265" } }),
+        expect.objectContaining({ fields: { code: "Q-CPU-ULTRA7-265" } }),
       ]),
     );
     expect(procurement.relationBindings).toEqual(

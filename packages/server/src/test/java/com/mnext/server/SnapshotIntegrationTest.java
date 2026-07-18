@@ -76,6 +76,7 @@ class SnapshotIntegrationTest {
     jdbc.update("DELETE FROM rm_relation");
     jdbc.update("DELETE FROM rm_object");
     jdbc.update("DELETE FROM relation_type WHERE workspace_id = ?", WORKSPACE);
+    jdbc.update("DELETE FROM derived_field WHERE workspace_id = ?", WORKSPACE);
     jdbc.update("DELETE FROM object_type WHERE workspace_id = ?", WORKSPACE);
     jdbc.update("DELETE FROM workspace WHERE id = ?", WORKSPACE);
     insertObject(WORKSPACE, OBJECT, 1, "{\"z\":2,\"a\":1}");
@@ -195,6 +196,7 @@ class SnapshotIntegrationTest {
   @Test
   void capturesTreeScopeInTreeOrderAndKeepsFlatScopeUnchanged() {
     insertTreeMetadata();
+    insertDerived("z_twice_fx", "field('z') * 2");
     insertObject(WORKSPACE, CHILD_A, 2, "{\"name\":\"child-a\"}");
     insertObject(WORKSPACE, CHILD_B, 3, "{\"name\":\"child-b\"}");
     insertObject(WORKSPACE, GRANDCHILD, 4, "{\"name\":\"grandchild\"}");
@@ -221,11 +223,13 @@ class SnapshotIntegrationTest {
         treePayload.get(2), 2, CHILD_A.toString(), "22222222-bbbb-4bbb-8bbb-222222222222", 2);
     assertEquals("OK", treeStatus(treePayload.get(0)));
     assertEquals("BLOCK", treeStatus(treePayload.get(2)));
+    assertEquals(4, ((Number) fields(treePayload.get(0)).get("z_twice_fx")).intValue());
 
     var flatSnapshot = capture(WORKSPACE, Map.of("scopeObjectType", "demo"));
     var flatPayload =
         payloadObjects(get(WORKSPACE, UUID.fromString((String) flatSnapshot.get("snapshotId"))));
     assertFalse(fields(flatPayload.getFirst()).containsKey("_tree"));
+    assertEquals(4, ((Number) fields(flatPayload.getFirst()).get("z_twice_fx")).intValue());
   }
 
   @Test
@@ -243,7 +247,8 @@ class SnapshotIntegrationTest {
     assertDocxHasValidation(blockedOutput.outputId(), "阻断明细", "阻断");
 
     jdbc.update(
-        "UPDATE rm_object SET fields = '{\"name\":\"已修复明细\"}'::jsonb, version = 3 WHERE object_id = ?",
+        "UPDATE rm_object SET fields = '{\"name\":\"已修复明细\"}'::jsonb, version = 3 WHERE object_id ="
+            + " ?",
         CHILD_A);
     var greenRun = UUID.fromString("13131313-1313-4313-8313-131313131313");
     insertFullWorkspaceRun(greenRun, Instant.parse("2026-07-17T00:01:00Z"));
@@ -340,7 +345,8 @@ class SnapshotIntegrationTest {
         "author");
   }
 
-  private void assertDocxHasValidation(UUID outputId, String object, String status) throws Exception {
+  private void assertDocxHasValidation(UUID outputId, String object, String status)
+      throws Exception {
     var artifact = outputs.get(WORKSPACE, outputId).artifact();
     try (var document = new XWPFDocument(new ByteArrayInputStream(artifact))) {
       assertTrue(
@@ -449,6 +455,27 @@ class SnapshotIntegrationTest {
         WORKSPACE,
         type,
         type);
+  }
+
+  private void insertDerived(String code, String derivation) {
+    var type =
+        jdbc.queryForObject(
+            "SELECT id FROM object_type WHERE workspace_id = ? AND code = 'demo'",
+            UUID.class,
+            WORKSPACE);
+    jdbc.update(
+        """
+        INSERT INTO derived_field
+          (id, workspace_id, object_type_id, code, name, result_type, derivation,
+           created_by, updated_by, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, 'number', ?, 'test', 'test', now(), now())
+        """,
+        UUID.randomUUID(),
+        WORKSPACE,
+        type,
+        code,
+        code,
+        derivation);
   }
 
   private void insertObject(UUID workspace, UUID objectId, long version, String fields) {
