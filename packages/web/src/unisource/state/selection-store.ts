@@ -25,8 +25,7 @@ export class SelectionStore {
   getSnapshot = (): SelectionState => this.state;
 
   set(selection: SelectionRef): void {
-    this.state = { current: selection, selected: [selection] };
-    this.emit();
+    this.replace({ current: selection, selected: [selection] });
   }
 
   add(selection: SelectionRef): void {
@@ -34,8 +33,7 @@ export class SelectionStore {
     const selected = keys.has(selectionKey(selection))
       ? this.state.selected
       : [...this.state.selected, selection];
-    this.state = { current: selection, selected };
-    this.emit();
+    this.replace({ current: selection, selected });
   }
 
   toggle(selection: SelectionRef): void {
@@ -45,13 +43,11 @@ export class SelectionStore {
     )
       ? this.state.selected.filter((entry) => selectionKey(entry) !== key)
       : [...this.state.selected, selection];
-    this.state = { current: selected.at(-1) ?? null, selected };
-    this.emit();
+    this.replace({ current: selected.at(-1) ?? null, selected });
   }
 
   clear(): void {
-    this.state = { current: null, selected: [] };
-    this.emit();
+    this.replace({ current: null, selected: [] });
   }
 
   reset(): void {
@@ -61,6 +57,38 @@ export class SelectionStore {
   private emit(): void {
     this.listeners.forEach((listener) => listener());
   }
+
+  private replace(next: SelectionState): void {
+    if (selectionStateEquals(this.state, next)) return;
+    this.state = next;
+    this.emit();
+  }
+}
+
+function selectionStateEquals(
+  left: SelectionState,
+  right: SelectionState,
+): boolean {
+  return (
+    selectionEquals(left.current, right.current) &&
+    left.selected.length === right.selected.length &&
+    left.selected.every(
+      (selection, index) =>
+        selectionKey(selection) === selectionKey(right.selected[index]!),
+    )
+  );
+}
+
+function selectionEquals(
+  left: SelectionRef | null,
+  right: SelectionRef | null,
+): boolean {
+  return (
+    left === right ||
+    (left !== null &&
+      right !== null &&
+      selectionKey(left) === selectionKey(right))
+  );
 }
 
 export const selectionStore = new SelectionStore();

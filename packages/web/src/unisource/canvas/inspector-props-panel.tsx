@@ -1,9 +1,27 @@
 import { useMemo } from "react";
 
+import type { ViewDef } from "../model/kernel";
 import { UsButton, UsStatusPill } from "../primitives";
 import { selectionStore, useSelectionSnapshot } from "../state/selection-store";
-import { useWorkspaceSnapshot } from "../state/workspace-store";
+import {
+  type WorkspaceState,
+  useWorkspaceSnapshot,
+} from "../state/workspace-store";
 import { buildCanvasViewModel } from "./canvas-view-model";
+import { useCanvasRootObjectId } from "./canvas-root-selection";
+
+export function selectedCanvasPanelNodes(
+  workspace: WorkspaceState,
+  view: ViewDef | undefined,
+  canvasRootObjectId: string | null,
+  selectedIds: ReadonlySet<string>,
+) {
+  return view
+    ? buildCanvasViewModel(workspace, view, canvasRootObjectId).nodes.filter(
+        (node) => selectedIds.has(node.objectId),
+      )
+    : [];
+}
 
 export function CanvasPropsPanel({
   viewId,
@@ -21,6 +39,15 @@ export function CanvasPropsPanel({
   const view = workspace.views.find(
     (candidate) => candidate.id === viewId && candidate.kind === "canvas",
   );
+  const selectedObjectId =
+    selection.current?.entityType === "object"
+      ? selection.current.entityId
+      : null;
+  const canvasRootObjectId = useCanvasRootObjectId(
+    workspace,
+    view,
+    selectedObjectId,
+  );
   const selectedKey = selection.selected
     .filter((item) => item.entityType === "object")
     .map((item) => item.entityId)
@@ -31,12 +58,13 @@ export function CanvasPropsPanel({
   );
   const nodes = useMemo(
     () =>
-      view
-        ? buildCanvasViewModel(workspace, view).nodes.filter((node) =>
-            selectedIds.has(node.objectId),
-          )
-        : [],
-    [workspace, view, selectedIds],
+      selectedCanvasPanelNodes(
+        workspace,
+        view,
+        canvasRootObjectId,
+        selectedIds,
+      ),
+    [canvasRootObjectId, workspace, view, selectedIds],
   );
 
   if (nodes.length === 0) {

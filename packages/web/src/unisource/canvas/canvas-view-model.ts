@@ -61,6 +61,69 @@ export interface CanvasViewModel {
   readonly danglingRefs: readonly CanvasDanglingRefVm[];
 }
 
+export function initialCanvasRootObjectId(
+  workspace: WorkspaceState,
+  view: ViewDef,
+): string | null {
+  const rootTypeCode = view.config.selectionObjectTypeCode;
+  if (typeof rootTypeCode !== "string") return null;
+  return (
+    workspace.objects.find(
+      (object) =>
+        object.objectTypeCode === rootTypeCode &&
+        !terminalObjectStatuses.has(object.status),
+    )?.id ?? null
+  );
+}
+
+export function selectedCanvasRootObjectId(
+  workspace: WorkspaceState,
+  view: ViewDef,
+  objectId: string | null,
+): string | null {
+  const rootTypeCode = view.config.selectionObjectTypeCode;
+  if (typeof rootTypeCode !== "string" || objectId === null) return null;
+  const object = workspace.objects.find(
+    (candidate) => candidate.id === objectId,
+  );
+  return object?.objectTypeCode === rootTypeCode &&
+    !terminalObjectStatuses.has(object.status)
+    ? object.id
+    : null;
+}
+
+export function canvasNodeConfigFromVm(node: CanvasNodeVm): CanvasNodeConfig {
+  return {
+    objectId: node.objectId,
+    x: node.x,
+    y: node.y,
+    w: node.w,
+    h: node.h,
+    style: node.style,
+    shownFields: node.fields.map((field) => field.code),
+    visibility: node.visibility,
+  };
+}
+
+export function upsertCanvasNodes(
+  viewNodes: readonly CanvasNodeConfig[],
+  fallbackNodes: readonly CanvasNodeConfig[],
+  objectIds: readonly string[],
+  patch: (node: CanvasNodeConfig) => CanvasNodeConfig,
+): readonly CanvasNodeConfig[] {
+  const targets = new Set(objectIds);
+  const existingIds = new Set(viewNodes.map((node) => node.objectId));
+  const fallbacks = new Map(fallbackNodes.map((node) => [node.objectId, node]));
+  const patched = viewNodes.map((node) =>
+    targets.has(node.objectId) ? patch(node) : node,
+  );
+  for (const objectId of targets) {
+    if (existingIds.has(objectId)) continue;
+    patched.push(patch(fallbacks.get(objectId) ?? { objectId, x: 0, y: 0 }));
+  }
+  return patched;
+}
+
 const defaultNodeSize = { w: 210, h: 124 } as const;
 const terminalObjectStatuses = new Set(["archived", "deleted", "soft-deleted"]);
 const defaultVisibility = {
@@ -85,7 +148,10 @@ export function parseCanvasConfig(view: ViewDef | undefined): CanvasConfig {
 export function buildCanvasViewModel(
   workspace: WorkspaceState,
   view: ViewDef,
-  selectedRootObjectId: string | null = null,
+  selectedRootObjectId: string | null = initialCanvasRootObjectId(
+    workspace,
+    view,
+  ),
 ): CanvasViewModel {
   const config =
     selectedCanvasConfig(workspace, view, selectedRootObjectId) ??
@@ -222,12 +288,22 @@ function selectedCanvasConfig(
     }
     frontier = next;
   }
-  const nodes = Array.from(objectIds).map((objectId, index) => ({
-    objectId,
-    x: 72 + (index % 3) * 248,
-    y: 72 + Math.floor(index / 3) * 172,
-    shownFields: ["code", "name", "status"],
-  }));
+  const layoutByObjectId = new Map(
+    parseCanvasConfig(view).nodes.map((node) => [node.objectId, node]),
+  );
+  const nodes = Array.from(objectIds).map((objectId, index) => {
+    const layout = layoutByObjectId.get(objectId);
+    return {
+      objectId,
+      x: layout?.x ?? 72 + (index % 3) * 248,
+      y: layout?.y ?? 72 + Math.floor(index / 3) * 172,
+      w: layout?.w,
+      h: layout?.h,
+      style: layout?.style,
+      shownFields: layout?.shownFields ?? ["code", "name", "status"],
+      visibility: layout?.visibility,
+    };
+  });
   return {
     nodes,
     edges: Array.from(relationIds).map((relationId) => ({ relationId })),
@@ -245,31 +321,24 @@ function resolveCanvasRoot(
       !terminalObjectStatuses.has(object.status),
   );
   if (selected?.objectTypeCode === rootTypeCode) return selected;
-  const related = workspace.relations.find(
-    (relation) =>
-      relation.status === "active" &&
-      (relation.sourceId === selected?.id ||
-        relation.targetId === selected?.id) &&
-      workspace.objects.find(
-        (object) =>
-          object.id ===
-            (relation.sourceId === selected?.id
-              ? relation.targetId
-              : relation.sourceId) &&
-          object.objectTypeCode === rootTypeCode &&
-          !terminalObjectStatuses.has(object.status),
-      ),
-  );
-  if (related) {
+  const relatedRoots = workspace.relations.flatMap((relation) => {
+    if (
+      relation.status !== "active" ||
+      (relation.sourceId !== selected?.id && relation.targetId !== selected?.id)
+    ) {
+      return [];
+    }
     const rootId =
-      related.sourceId === selected?.id ? related.targetId : related.sourceId;
-    return workspace.objects.find((object) => object.id === rootId);
-  }
-  return workspace.objects.find(
-    (object) =>
-      object.objectTypeCode === rootTypeCode &&
-      !terminalObjectStatuses.has(object.status),
-  );
+      relation.sourceId === selected?.id
+        ? relation.targetId
+        : relation.sourceId;
+    const root = workspace.objects.find((object) => object.id === rootId);
+    return root?.objectTypeCode === rootTypeCode &&
+      !terminalObjectStatuses.has(root.status)
+      ? [root]
+      : [];
+  });
+  return relatedRoots.length === 1 ? relatedRoots[0] : undefined;
 }
 
 export function deriveGotoTargets(

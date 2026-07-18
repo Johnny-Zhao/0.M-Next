@@ -4,10 +4,14 @@ import { cloneDemoSeed } from "../seed/demo-seed";
 import { WorkspaceStore } from "../state/workspace-store";
 import {
   buildCanvasViewModel,
+  canvasNodeConfigFromVm,
   deriveGotoTargets,
   deriveMixedValue,
+  initialCanvasRootObjectId,
   parseCanvasConfig,
   screenToCanvasPosition,
+  selectedCanvasRootObjectId,
+  upsertCanvasNodes,
 } from "./canvas-view-model";
 
 describe("canvas view model", () => {
@@ -158,11 +162,80 @@ describe("canvas view model", () => {
         (node) => node.objectId,
       ),
     ).toEqual(["plan-a", "item-a"]);
+    expect(initialCanvasRootObjectId(workspace, view)).toBe("plan-a");
+    expect(buildCanvasViewModel(workspace, view, "missing").nodes).toEqual([]);
+  });
+
+  it("keeps the active derived root when a non-root object is selected", () => {
+    const { workspace, view } = selectedCanvasFixture();
+    const activeRootId = initialCanvasRootObjectId(workspace, view);
+
+    expect(selectedCanvasRootObjectId(workspace, view, "item-a")).toBeNull();
     expect(
-      buildCanvasViewModel(workspace, view).nodes.map((node) => node.objectId),
+      buildCanvasViewModel(workspace, view, activeRootId).nodes.map(
+        (node) => node.objectId,
+      ),
     ).toEqual(["plan-a", "item-a"]);
+    expect(selectedCanvasRootObjectId(workspace, view, "plan-a")).toBe(
+      "plan-a",
+    );
+  });
+
+  it("overlays persisted layout and upserts a dragged derived node", () => {
+    const { workspace, view } = selectedCanvasFixture();
+    const vm = buildCanvasViewModel(workspace, view, "plan-a");
+    const positioned = upsertCanvasNodes(
+      [],
+      vm.nodes.map(canvasNodeConfigFromVm),
+      ["item-a"],
+      (node) => ({ ...node, x: 333, y: 444 }),
+    );
+    const updated = {
+      ...view,
+      config: { ...view.config, nodes: positioned },
+    };
+
+    expect(positioned).toMatchObject([{ objectId: "item-a", x: 333, y: 444 }]);
+    expect(
+      buildCanvasViewModel(workspace, updated, "plan-a").nodes[1],
+    ).toMatchObject({
+      objectId: "item-a",
+      x: 333,
+      y: 444,
+    });
   });
 });
+
+function selectedCanvasFixture() {
+  const workspace = new WorkspaceStore({
+    ...cloneDemoSeed(),
+    objects: [
+      canvasObject("plan-a", "build_plan"),
+      canvasObject("item-a", "build_plan_item"),
+    ],
+    relations: [
+      canvasRelation(
+        "contains-a",
+        "build_plan_contains_item",
+        "plan-a",
+        "item-a",
+      ),
+    ],
+  }).getSnapshot();
+  return {
+    workspace,
+    view: {
+      id: "pc",
+      exprId: "expr",
+      kind: "canvas" as const,
+      config: {
+        selectionObjectTypeCode: "build_plan",
+        selectionRelationTypeCodes: ["build_plan_contains_item"],
+        selectionDepth: 2,
+      },
+    },
+  };
+}
 
 function canvasObject(id: string, objectTypeCode: string) {
   return {

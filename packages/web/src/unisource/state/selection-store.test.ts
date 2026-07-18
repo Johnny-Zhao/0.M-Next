@@ -30,4 +30,35 @@ describe("SelectionStore", () => {
     expect(selection.getSnapshot()).toEqual({ current: null, selected: [] });
     expect(listener).toHaveBeenCalledTimes(4);
   });
+
+  it("does not emit when a selection operation keeps the same state", () => {
+    const selection = new SelectionStore();
+    const listener = vi.fn();
+    selection.subscribe(listener);
+    const product = { entityType: "object" as const, entityId: "prod-s3" };
+
+    selection.set(product);
+    selection.set({ ...product });
+    selection.add({ ...product });
+    selection.clear();
+    selection.clear();
+
+    expect(listener).toHaveBeenCalledTimes(2);
+    expect(selection.getSnapshot()).toEqual({ current: null, selected: [] });
+  });
+
+  it("still emits when add or toggle changes the selected set", () => {
+    const selection = new SelectionStore();
+    const listener = vi.fn();
+    selection.subscribe(listener);
+
+    selection.set({ entityType: "object", entityId: "prod-s3" });
+    selection.add({ entityType: "object", entityId: "prod-g2" });
+    selection.toggle({ entityType: "object", entityId: "prod-g2" });
+
+    expect(listener).toHaveBeenCalledTimes(3);
+    expect(selection.getSnapshot().selected).toEqual([
+      { entityType: "object", entityId: "prod-s3" },
+    ]);
+  });
 });

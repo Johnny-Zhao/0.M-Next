@@ -23,6 +23,7 @@ import { AnnotationDrawer } from "../review/annotation-drawer";
 import { resolveExpressionView } from "../presentation/expression-runtime";
 import { parseFormParam } from "../routes-paths";
 import { FormRow, nextFormSearch } from "../shell/form-row";
+import { ExpressionErrorBoundary } from "../shell/expression-error-boundary";
 import { LayoutToggle, nextLayoutSearch } from "../shell/layout-toggle";
 import { UsInspector } from "../shell/inspector";
 import { WorkspaceLayout } from "../shell/layouts";
@@ -349,60 +350,64 @@ export function ExprPage() {
         </FormRow>
       }
     >
-      {resolution.state !== "ready" ? (
-        <section className="us-canvas-empty" role="status">
-          <h2>当前表达不可用</h2>
-          <p>{resolution.message}</p>
-        </section>
-      ) : form === "grid" && expr ? (
-        <ExpressionGridView viewId={view!.id} />
-      ) : form === "doc" && split && expr ? (
-        <SplitView exprId={expr.id} viewId={view!.id} />
-      ) : form === "doc" && expr && isTemplateConfigDoc ? (
-        <TemplateConfigDoc viewId={view!.id} />
-      ) : form === "doc" && expr ? (
-        <DocView exprId={expr.id} viewId={view!.id} />
-      ) : form === "bi" && expr ? (
-        <BiBoard viewId={view!.id} />
-      ) : form === "matrix" && expr ? (
-        <MatrixBoard viewId={view!.id} />
-      ) : form === "ana" && expr ? (
-        <AnaView viewId={view!.id} />
-      ) : form === "canvas" && expr && isTemplateCanvas && !runOpen ? (
-        <TemplateCanvas exprId={expr.id} viewId={view!.id} />
-      ) : form === "canvas" && expr && isSimulationOpen && simTimeline ? (
-        <SimView
-          viewId={view!.id}
-          loop={simLoop}
-          onLoopChange={setSimLoop}
-          onPlayingChange={setSimPlaying}
-          onSpeedChange={setSimSpeed}
-          onStop={stopSimulation}
-          playing={simPlaying}
-          playhead={simPlayhead}
-          speed={simSpeed}
-          timeline={simTimeline}
-        />
-      ) : form === "canvas" && expr && !runOpen ? (
-        <CanvasView exprId={expr.id} viewId={view!.id} />
-      ) : form === "canvas" && runOpen ? (
-        <PageSkeleton
-          kicker="SIMULATION"
-          title="运行预览"
-          desc="P2 画布批只接入运行入口占位，正式仿真宿主留给后续批次。"
-        />
-      ) : (
-        <PageSkeleton
-          kicker={`EXPR · form=${form}`}
-          title={
-            <>
-              {expr?.name ?? "未知表达"}{" "}
-              <UsMonoTag active>{FORM_LABEL[form] ?? form}</UsMonoTag>
-            </>
-          }
-          desc="P1/P2 实现:HOW 形式行与各描述形式主区(文档/分屏/画布/矩阵/BI/分析);URL form= 与界面状态双向同步(本页已生效)。"
-        />
-      )}
+      <ExpressionErrorBoundary
+        resetKey={`${exprId ?? "unknown"}:${form}:${view?.id ?? "missing"}`}
+      >
+        {resolution.state !== "ready" ? (
+          <section className="us-canvas-empty" role="status">
+            <h2>当前表达不可用</h2>
+            <p>{resolution.message}</p>
+          </section>
+        ) : form === "grid" && expr ? (
+          <ExpressionGridView viewId={view!.id} />
+        ) : form === "doc" && split && expr ? (
+          <SplitView exprId={expr.id} viewId={view!.id} />
+        ) : form === "doc" && expr && isTemplateConfigDoc ? (
+          <TemplateConfigDoc viewId={view!.id} />
+        ) : form === "doc" && expr ? (
+          <DocView exprId={expr.id} viewId={view!.id} />
+        ) : form === "bi" && expr ? (
+          <BiBoard viewId={view!.id} />
+        ) : form === "matrix" && expr ? (
+          <MatrixBoard viewId={view!.id} />
+        ) : form === "ana" && expr ? (
+          <AnaView viewId={view!.id} />
+        ) : form === "canvas" && expr && isTemplateCanvas && !runOpen ? (
+          <TemplateCanvas exprId={expr.id} viewId={view!.id} />
+        ) : form === "canvas" && expr && isSimulationOpen && simTimeline ? (
+          <SimView
+            viewId={view!.id}
+            loop={simLoop}
+            onLoopChange={setSimLoop}
+            onPlayingChange={setSimPlaying}
+            onSpeedChange={setSimSpeed}
+            onStop={stopSimulation}
+            playing={simPlaying}
+            playhead={simPlayhead}
+            speed={simSpeed}
+            timeline={simTimeline}
+          />
+        ) : form === "canvas" && expr && !runOpen ? (
+          <CanvasView exprId={expr.id} viewId={view!.id} />
+        ) : form === "canvas" && runOpen ? (
+          <PageSkeleton
+            kicker="SIMULATION"
+            title="运行预览"
+            desc="P2 画布批只接入运行入口占位，正式仿真宿主留给后续批次。"
+          />
+        ) : (
+          <PageSkeleton
+            kicker={`EXPR · form=${form}`}
+            title={
+              <>
+                {expr?.name ?? "未知表达"}{" "}
+                <UsMonoTag active>{FORM_LABEL[form] ?? form}</UsMonoTag>
+              </>
+            }
+            desc="P1/P2 实现:HOW 形式行与各描述形式主区(文档/分屏/画布/矩阵/BI/分析);URL form= 与界面状态双向同步(本页已生效)。"
+          />
+        )}
+      </ExpressionErrorBoundary>
     </WorkspaceLayout>
   );
 }

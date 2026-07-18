@@ -7,7 +7,6 @@ import {
   type NodeMouseHandler,
   type OnConnect,
   type OnNodeDrag,
-  type OnSelectionChangeParams,
   type ReactFlowInstance,
 } from "@xyflow/react";
 import { useMemo, useRef, useState, type DragEvent } from "react";
@@ -28,11 +27,14 @@ import { AlignToolbar } from "./align-toolbar";
 import { CanvasToolbar } from "./canvas-toolbar";
 import {
   buildCanvasViewModel,
+  canvasNodeConfigFromVm,
   canvasConfigWithNodes,
   deriveGotoTargets,
   parseCanvasConfig,
   screenToCanvasPosition,
+  upsertCanvasNodes,
 } from "./canvas-view-model";
+import { useCanvasRootObjectId } from "./canvas-root-selection";
 import { CanvasContextMenu } from "./context-menu";
 import { DeleteObjectConfirmModal } from "./delete-confirm-modal";
 import { EdgeLabeled } from "./edge-labeled";
@@ -40,6 +42,7 @@ import { NodeCard } from "./node-card";
 
 const nodeTypes = { unisource: NodeCard };
 const edgeTypes = { labeled: EdgeLabeled };
+export const canvasSelectionProps = { elementsSelectable: false } as const;
 
 export function CanvasView({
   exprId,
@@ -66,13 +69,21 @@ export function CanvasView({
   const view = workspace.views.find(
     (candidate) => candidate.id === viewId && candidate.kind === "canvas",
   );
-  const selectedRootObjectId =
+  const selectedObjectId =
     selection.current?.entityType === "object"
       ? selection.current.entityId
       : null;
-  const vm = view
-    ? buildCanvasViewModel(workspace, view, selectedRootObjectId)
-    : null;
+  const canvasRootObjectId = useCanvasRootObjectId(
+    workspace,
+    view,
+    selectedObjectId,
+  );
+
+  const vm = useMemo(
+    () =>
+      view ? buildCanvasViewModel(workspace, view, canvasRootObjectId) : null,
+    [canvasRootObjectId, view, workspace],
+  );
   const selectedKey = selection.selected
     .filter((item) => item.entityType === "object")
     .map((item) => item.entityId)
@@ -148,8 +159,13 @@ export function CanvasView({
     summary: string,
   ) => {
     const targets = new Set(objectIds);
-    const nodes = parseCanvasConfig(view).nodes.map((node) =>
-      targets.has(node.objectId) ? patch(node) : node,
+    const nodes = upsertCanvasNodes(
+      parseCanvasConfig(view).nodes,
+      vm.nodes
+        .filter((node) => targets.has(node.objectId))
+        .map(canvasNodeConfigFromVm),
+      objectIds,
+      patch,
     );
     writeNodes(nodes, summary);
   };
@@ -175,14 +191,6 @@ export function CanvasView({
     event.preventDefault();
     selectionStore.set({ entityType: "object", entityId: node.id });
     setMenu({ objectId: node.id, x: event.clientX, y: event.clientY });
-  };
-
-  const onSelectionChange = ({ nodes }: OnSelectionChangeParams) => {
-    if (nodes.length === 0) return;
-    selectionStore.set({ entityType: "object", entityId: nodes[0].id });
-    for (const node of nodes.slice(1)) {
-      selectionStore.add({ entityType: "object", entityId: node.id });
-    }
   };
 
   const onNodeDragStop: OnNodeDrag = (_event, node) => {
@@ -301,16 +309,28 @@ export function CanvasView({
 
   const handleAlign = (command: CanvasAlignCommand) => {
     const config = parseCanvasConfig(view);
+    const nodes = upsertCanvasNodes(
+      config.nodes,
+      vm.nodes.map(canvasNodeConfigFromVm),
+      Array.from(selectedIds),
+      (node) => node,
+    );
     writeNodes(
-      alignCanvasNodes(config.nodes, selectedIds, command),
+      alignCanvasNodes(nodes, selectedIds, command),
       `画布对齐 ${command}`,
     );
   };
 
   const handleSize = (command: "sameWidth" | "sameHeight" | "sameSize") => {
     const config = parseCanvasConfig(view);
+    const nodes = upsertCanvasNodes(
+      config.nodes,
+      vm.nodes.map(canvasNodeConfigFromVm),
+      Array.from(selectedIds),
+      (node) => node,
+    );
     writeNodes(
-      sizeCanvasNodes(config.nodes, selectedIds, command),
+      sizeCanvasNodes(nodes, selectedIds, command),
       `画布等尺寸 ${command}`,
     );
   };
@@ -386,9 +406,9 @@ export function CanvasView({
           nodeTypes={nodeTypes}
           edgeTypes={edgeTypes}
           fitView
+          {...canvasSelectionProps}
           nodesConnectable
           nodesDraggable={canEdit}
-          multiSelectionKeyCode={["Meta", "Control", "Shift"]}
           onConnect={onConnect}
           onInit={(instance) => {
             flowRef.current = instance;
@@ -400,7 +420,6 @@ export function CanvasView({
             selectionStore.clear();
             setMenu(null);
           }}
-          onSelectionChange={onSelectionChange}
           proOptions={{ hideAttribution: true }}
         >
           <Background color="var(--us-border-soft)" gap={24} />
