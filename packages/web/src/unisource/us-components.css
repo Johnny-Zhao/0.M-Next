@@ -3689,6 +3689,16 @@
   overflow: auto;
   padding: var(--us-sp-4);
 }
+.us-doc-layout.us-structured-doc__shell:not([data-compact="true"])
+  .us-structured-doc__outline {
+  align-self: start;
+  max-height: calc(
+    100vh - var(--us-h-topbar) - var(--us-h-howrow) - var(--us-sp-4) -
+      var(--us-sp-7)
+  );
+  position: sticky;
+  top: var(--us-sp-4);
+}
 .us-structured-doc__outline h2 {
   font-family: var(--us-font-ui);
   font-size: var(--us-fs-14);
