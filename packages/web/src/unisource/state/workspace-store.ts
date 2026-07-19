@@ -35,6 +35,11 @@ import type {
   SlotBinding,
 } from "../model/view-layer";
 import { cloneDemoSeed, type DemoSeed } from "../seed/demo-seed";
+import {
+  copyObjectSubtree,
+  type ObjectSubtreeCopyConfig,
+  type ObjectSubtreeCopyResult,
+} from "./object-subtree-copy";
 
 export interface WorkspaceState {
   readonly workspace: Workspace;
@@ -251,6 +256,14 @@ export class WorkspaceStore {
         message: "派生字段同步失败，请重新加载工作空间",
       };
     }
+  }
+
+  copyObjectSubtree(
+    rootObjectId: string,
+    config: ObjectSubtreeCopyConfig,
+    actor: MemberId = "wangyun",
+  ): Promise<ObjectSubtreeCopyResult> {
+    return copyObjectSubtree(this, rootObjectId, config, actor);
   }
 
   reset(seed: DemoSeed = cloneDemoSeed()): void {

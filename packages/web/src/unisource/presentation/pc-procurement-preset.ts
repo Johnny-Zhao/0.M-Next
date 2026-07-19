@@ -1,5 +1,15 @@
 import type { PresentationPreset } from "./presentation-preset-registry";
 
+export const pcProcurementBuildPlanCopyConfig = {
+  followRelationTypes: ["build_plan_contains_item"],
+  rebindRelationTypes: [
+    "build_plan_item_selects_product",
+    "build_plan_item_uses_supplier_quote",
+    "build_plan_satisfies_requirement",
+  ],
+  maxDepth: 3,
+} as const;
+
 export const pcProcurementPreset: PresentationPreset = {
   code: "pc_procurement",
   expressions: [
@@ -66,6 +76,7 @@ export const pcProcurementPreset: PresentationPreset = {
           objectTypeCode: "build_plan",
           position: "bottom",
           allowManualRun: true,
+          scopeCanvasViewId: "view-pc-canvas",
         },
       },
     },
@@ -197,6 +208,12 @@ export const pcProcurementPreset: PresentationPreset = {
         template: "电脑采购方案说明书",
         structuredDocument: {
           bodyFieldCode: "body",
+          validation: {
+            objectTypeCode: null,
+            position: "bottom",
+            allowManualRun: true,
+            scopeCanvasViewId: "view-pc-canvas",
+          },
           dataReferenceTemplates: [
             {
               id: "plan-name",

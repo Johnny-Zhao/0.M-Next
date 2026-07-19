@@ -1,6 +1,5 @@
 import { useMemo, useState } from "react";
 
-import type { ExpressionGridValidationConfig } from "../grid/expression-grid-view-model";
 import { UsButton, UsMonoTag } from "../primitives";
 import { selectionStore, useSelectionSnapshot } from "../state/selection-store";
 import { useSessionSnapshot } from "../state/session-store";
@@ -9,6 +8,8 @@ import {
   useValidationSnapshot,
 } from "../state/validation-store";
 import { useWorkspaceSnapshot } from "../state/workspace-store";
+import type { KernelValidationPanelConfig } from "./kernel-validation-config";
+import { resolveKernelValidationScope } from "./kernel-validation-scope";
 import {
   buildKernelValidationViewModel,
   type KernelValidationFilter,
@@ -28,8 +29,10 @@ const filters: readonly {
 
 export function KernelValidationPanel({
   config,
+  rootObjectId = null,
 }: {
-  readonly config: ExpressionGridValidationConfig;
+  readonly config: KernelValidationPanelConfig;
+  readonly rootObjectId?: string | null;
 }) {
   const workspace = useWorkspaceSnapshot();
   const validation = useValidationSnapshot();
@@ -37,6 +40,21 @@ export function KernelValidationPanel({
   const selection = useSelectionSnapshot();
   const [filter, setFilter] = useState<KernelValidationFilter>("all");
   const [expanded, setExpanded] = useState(true);
+  const [scopeMode, setScopeMode] = useState<"current" | "all">("current");
+  const scope = useMemo(
+    () =>
+      resolveKernelValidationScope(
+        workspace,
+        config,
+        selection.current,
+        rootObjectId,
+      ),
+    [config, rootObjectId, selection.current, workspace],
+  );
+  const useCurrentScope = scopeMode === "current" && scope !== null;
+  const displayObjectTypeCode = config.scopeCanvasViewId
+    ? null
+    : config.objectTypeCode;
   const vm = useMemo(
     () =>
       buildKernelValidationViewModel({
@@ -46,9 +64,36 @@ export function KernelValidationPanel({
         error: validation.kernelError,
         filter,
         selection: selection.current,
-        scopeObjectTypeCode: config.objectTypeCode,
+        scopeObjectTypeCode: displayObjectTypeCode,
+        scopeMembers: useCurrentScope ? scope.members : null,
       }),
-    [config.objectTypeCode, filter, selection, validation, workspace],
+    [
+      displayObjectTypeCode,
+      filter,
+      scope,
+      selection,
+      useCurrentScope,
+      validation,
+      workspace,
+    ],
+  );
+  const currentScopeVm = useMemo(
+    () =>
+      scope
+        ? buildKernelValidationViewModel({
+            workspace,
+            results: validation.kernelResults,
+            status: validation.kernelStale
+              ? "running"
+              : validation.kernelStatus,
+            error: validation.kernelError,
+            filter,
+            selection: selection.current,
+            scopeObjectTypeCode: null,
+            scopeMembers: scope.members,
+          })
+        : null,
+    [filter, scope, selection, validation, workspace],
   );
   const run = () => {
     if (!config.allowManualRun || validation.kernelRunning) return;
@@ -107,6 +152,29 @@ export function KernelValidationPanel({
         <p className="us-kernel-validation__notice" role="status">
           {statusNotice}
         </p>
+      ) : null}
+      {scope ? (
+        <div className="us-kernel-validation__scope" role="status">
+          <span>
+            当前方案:{scope.label}（{currentScopeVm?.scopeIssueCount ?? 0} 条）
+          </span>
+          {useCurrentScope &&
+          (currentScopeVm?.outsideScopeIssueCount ?? 0) > 0 ? (
+            <small>
+              全工作空间另有 {currentScopeVm!.outsideScopeIssueCount} 条问题
+            </small>
+          ) : null}
+          <button
+            onClick={() =>
+              setScopeMode((current) =>
+                current === "current" ? "all" : "current",
+              )
+            }
+            type="button"
+          >
+            {useCurrentScope ? "查看全部" : "查看当前方案"}
+          </button>
+        </div>
       ) : null}
       {expanded ? (
         <div className="us-kernel-validation__body">

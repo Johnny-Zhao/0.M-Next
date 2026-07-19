@@ -5,8 +5,19 @@ import com.mnext.kernel.api.metamodel.FieldConstraints;
 import java.util.UUID;
 
 record FieldDefinition(
-    UUID id, String code, boolean required, DataType dataType, FieldConstraints constraints) {
+    UUID id,
+    String code,
+    String name,
+    boolean required,
+    boolean uniqueValue,
+    DataType dataType,
+    FieldConstraints constraints) {
+  FieldDefinition(
+      UUID id, String code, boolean required, DataType dataType, FieldConstraints constraints) {
+    this(id, code, code, required, false, dataType, constraints);
+  }
+
   FieldDefinition(UUID id, String code, boolean required) {
-    this(id, code, required, DataType.STRING, FieldConstraints.empty());
+    this(id, code, code, required, false, DataType.STRING, FieldConstraints.empty());
   }
 }

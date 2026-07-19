@@ -164,7 +164,7 @@ export async function updateBuildPlanRequirement(input: {
   const requirement = input.requirementId
     ? validObject(snapshot, input.requirementId, "procurement_requirement")
     : null;
-  if (!plan || !requirement)
+  if (!plan || (input.requirementId && !requirement))
     return { state: "validation-failed", message: "请选择有效的采购需求。" };
   const actor = session.getSnapshot().currentMemberId;
   if (!session.can(actor, "build_plan", "editData")) {
@@ -174,6 +174,30 @@ export async function updateBuildPlanRequirement(input: {
     };
   }
   const completedSteps: string[] = [];
+  if (!requirement) {
+    const current = workspace
+      .getRelations(plan.id)
+      .find(
+        (relation) =>
+          relation.relationTypeCode === "build_plan_satisfies_requirement" &&
+          relation.status === "active",
+      );
+    if (current) {
+      workspace.unlinkRelation(current.id, actor);
+      const write = await workspace.waitForLastWrite();
+      if (write.state === "failed")
+        return partialFailure("解除旧采购需求", write.message, completedSteps);
+      completedSteps.push("解除旧采购需求");
+    }
+    const refresh = await workspace.refreshObjects([plan.id]);
+    return {
+      state: "updated",
+      message:
+        refresh.state === "failed"
+          ? "关系已保存，但派生字段同步失败，请重新加载工作空间。"
+          : null,
+    };
+  }
   const failure = await replaceRelation({
     workspace,
     actor,
@@ -391,11 +415,11 @@ function PlanRequirementBinding({
   );
   const [message, setMessage] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const save = async () => {
+  const save = async (nextRequirementId = requirementId) => {
     setSaving(true);
     const result = await updateBuildPlanRequirement({
       planId,
-      requirementId: requirementId || null,
+      requirementId: nextRequirementId || null,
     });
     setSaving(false);
     if (result.state === "updated") {
@@ -434,6 +458,17 @@ function PlanRequirementBinding({
         size="sm"
       >
         {saving ? "正在绑定…" : "绑定采购需求"}
+      </UsButton>
+      <UsButton
+        disabled={saving || !requirementId}
+        onClick={() => {
+          setRequirementId("");
+          void save("");
+        }}
+        size="sm"
+        variant="secondary"
+      >
+        解除采购需求
       </UsButton>
       {message ? <p role="alert">{message}</p> : null}
     </section>

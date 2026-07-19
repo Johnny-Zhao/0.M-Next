@@ -52,6 +52,8 @@ class CreateObjectHandler {
     var definitions = meta.resolveEffectiveFields(command.objectTypeId());
     FieldValidator.validate(command, definitions, repository::validReference);
     validateDefinitions(command, definitions);
+    enforceUniqueValues(
+        command.workspaceId(), command.objectTypeId(), definitions, command.fields(), null);
     enforceRules(
         command.workspaceId(),
         command.objectTypeId(),
@@ -169,6 +171,24 @@ class CreateObjectHandler {
     var violations = ruleChecker.check(workspaceId, objectTypeId, effectiveFieldValues, actor);
     var blocking = violations.stream().filter(v -> "BLOCK".equals(v.severity())).toList();
     if (!blocking.isEmpty()) throw CommandErrors.ruleViolation(blocking);
+  }
+
+  private void enforceUniqueValues(
+      UUID workspaceId,
+      UUID objectTypeId,
+      Map<String, FieldDefinition> definitions,
+      Map<String, Object> fields,
+      UUID excludedObjectId) {
+    for (var entry : fields.entrySet()) {
+      var definition = definitions.get(entry.getKey());
+      if (definition == null || !definition.uniqueValue() || entry.getValue() == null) continue;
+      var valueJson = JsonCodec.encode(entry.getValue());
+      repository.lockUniqueValue(workspaceId, objectTypeId, definition.id(), valueJson);
+      if (repository.uniqueValueExists(
+          workspaceId, objectTypeId, definition.id(), excludedObjectId, valueJson)) {
+        throw CommandErrors.duplicateValue(definition.name(), entry.getValue());
+      }
+    }
   }
 
   private Map<String, Object> effectiveValues(

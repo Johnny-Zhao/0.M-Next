@@ -28,6 +28,7 @@ import {
   StructuredDocumentDataBlockActions,
 } from "./structured-document-data-blocks";
 import { StructuredDocumentOutputAction } from "./structured-document-output-action";
+import { KernelValidationPanel } from "../validation/kernel-validation-panel";
 
 export function StructuredDocumentView({
   compact,
@@ -203,6 +204,12 @@ export function StructuredDocumentView({
               selection={selection.current}
             />
           ))}
+          {config.validation ? (
+            <KernelValidationPanel
+              config={config.validation}
+              rootObjectId={root.objectId}
+            />
+          ) : null}
         </article>
       </main>
     </section>

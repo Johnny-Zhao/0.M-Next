@@ -3300,6 +3300,26 @@
   margin: 0 0 var(--us-sp-3);
   padding: var(--us-sp-2) var(--us-sp-3);
 }
+.us-kernel-validation__scope {
+  align-items: center;
+  border-top: 1px solid var(--us-border);
+  color: var(--us-text-2);
+  display: flex;
+  flex-wrap: wrap;
+  font-size: var(--us-fs-12);
+  gap: var(--us-sp-2);
+  padding: var(--us-sp-2) var(--us-sp-5);
+}
+.us-kernel-validation__scope small {
+  color: var(--us-text-3);
+}
+.us-kernel-validation__scope button {
+  background: transparent;
+  border: 0;
+  color: var(--us-primary);
+  cursor: pointer;
+  padding: 0;
+}
 .us-kernel-validation__body nav button {
   background: transparent;
   border: 1px solid var(--us-border);

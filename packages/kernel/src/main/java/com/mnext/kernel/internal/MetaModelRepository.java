@@ -58,6 +58,7 @@ class MetaModelRepository {
       String code,
       String name,
       boolean required,
+      boolean uniqueValue,
       DataType dataType,
       String valueTypeCode,
       FieldConstraints constraints,
@@ -90,6 +91,7 @@ class MetaModelRepository {
       String code,
       String name,
       boolean required,
+      boolean uniqueValue,
       String dataType,
       UUID valueTypeId,
       String constraintsJson,
@@ -114,9 +116,20 @@ class MetaModelRepository {
       UUID id,
       String code,
       boolean required,
+      boolean uniqueValue,
       DataType dataType,
       UUID valueTypeId,
-      FieldConstraints constraints) {}
+      FieldConstraints constraints) {
+    FieldDefRow(
+        UUID id,
+        String code,
+        boolean required,
+        DataType dataType,
+        UUID valueTypeId,
+        FieldConstraints constraints) {
+      this(id, code, required, false, dataType, valueTypeId, constraints);
+    }
+  }
 
   MetaModelRepository(JdbcTemplate jdbc) {
     this.jdbc = jdbc;
@@ -543,6 +556,7 @@ class MetaModelRepository {
       DataType dataType,
       UUID valueTypeId,
       boolean required,
+      boolean uniqueValue,
       FieldConstraints constraints,
       UUID redefinesFieldDefId,
       String actor,
@@ -550,10 +564,10 @@ class MetaModelRepository {
     jdbc.update(
         """
         INSERT INTO field_def
-          (id, object_type_id, template_version_id, code, name, required, data_type,
+          (id, object_type_id, template_version_id, code, name, required, unique_value, data_type,
            value_type_id, constraints, redefines_field_def_id, created_by, updated_by, created_at,
            updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, CAST(? AS jsonb), ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CAST(? AS jsonb), ?, ?, ?, ?, ?)
         """,
         id,
         objectTypeId,
@@ -561,6 +575,7 @@ class MetaModelRepository {
         code,
         name,
         required,
+        uniqueValue,
         dataType.code(),
         valueTypeId,
         JsonCodec.encode(constraints.asMap()),
@@ -569,6 +584,35 @@ class MetaModelRepository {
         actor,
         Timestamp.from(now),
         Timestamp.from(now));
+  }
+
+  void insertFieldDef(
+      UUID id,
+      UUID objectTypeId,
+      UUID templateVersionId,
+      String code,
+      String name,
+      DataType dataType,
+      UUID valueTypeId,
+      boolean required,
+      FieldConstraints constraints,
+      UUID redefinesFieldDefId,
+      String actor,
+      Instant now) {
+    insertFieldDef(
+        id,
+        objectTypeId,
+        templateVersionId,
+        code,
+        name,
+        dataType,
+        valueTypeId,
+        required,
+        false,
+        constraints,
+        redefinesFieldDefId,
+        actor,
+        now);
   }
 
   Optional<FieldDefRow> ancestorFieldByCode(UUID objectTypeId, String code) {
@@ -585,7 +629,7 @@ class MetaModelRepository {
           JOIN ancestors child ON parent.id = child.parent_type_id
           WHERE child.depth < 32
         )
-        SELECT field.id, field.code, field.required, field.data_type, field.value_type_id,
+        SELECT field.id, field.code, field.required, field.unique_value, field.data_type, field.value_type_id,
           field.constraints->>'minLength' AS min_length,
           field.constraints->>'maxLength' AS max_length,
           field.constraints->>'min' AS min_value,
@@ -755,7 +799,7 @@ class MetaModelRepository {
           JOIN type_chain child ON parent.id = child.parent_type_id
           WHERE child.depth < 32
         )
-        SELECT field.id, field.code, field.required, field.data_type, field.value_type_id,
+        SELECT field.id, field.code, field.name, field.required, field.unique_value, field.data_type, field.value_type_id,
           field.constraints->>'minLength' AS min_length,
           field.constraints->>'maxLength' AS max_length,
           field.constraints->>'min' AS min_value,
@@ -784,7 +828,9 @@ class MetaModelRepository {
               new FieldDefinition(
                   result.getObject("id", UUID.class),
                   result.getString("code"),
+                  result.getString("name"),
                   result.getBoolean("required"),
+                  result.getBoolean("unique_value"),
                   dataType,
                   effective));
         },
@@ -1238,6 +1284,7 @@ class MetaModelRepository {
         field.dataType(),
         valueTypeId,
         field.required(),
+        field.uniqueValue(),
         field.constraints(),
         redefinesId,
         actor,
@@ -1261,7 +1308,7 @@ class MetaModelRepository {
     jdbc.update(
         """
         UPDATE field_def field
-        SET required = ?, value_type_id = ?, constraints = CAST(? AS jsonb),
+        SET required = ?, unique_value = ?, value_type_id = ?, constraints = CAST(? AS jsonb),
           updated_by = ?, updated_at = ?
         FROM object_type type
         WHERE field.object_type_id = type.id
@@ -1270,6 +1317,7 @@ class MetaModelRepository {
           AND field.code = ?
         """,
         field.required(),
+        field.uniqueValue(),
         valueTypeId,
         JsonCodec.encode(field.constraints().asMap()),
         actor,
@@ -1389,6 +1437,7 @@ class MetaModelRepository {
     jdbc.query(
         """
         SELECT object_type.code AS object_type_code, field.code, field.name, field.required,
+          field.unique_value,
           field.data_type, value_type.code AS value_type_code,
           field.constraints->>'minLength' AS min_length,
           field.constraints->>'maxLength' AS max_length,
@@ -1414,6 +1463,7 @@ class MetaModelRepository {
                   result.getString("code"),
                   result.getString("name"),
                   result.getBoolean("required"),
+                  result.getBoolean("unique_value"),
                   DataType.fromCode(result.getString("data_type")),
                   result.getString("value_type_code"),
                   constraints(result),
@@ -1810,7 +1860,7 @@ class MetaModelRepository {
     var rows =
         jdbc.query(
             """
-            SELECT id, object_type_id, code, name, required, data_type, value_type_id,
+            SELECT id, object_type_id, code, name, required, unique_value, data_type, value_type_id,
               constraints::text AS constraints_json, redefines_field_def_id
             FROM field_def
             WHERE template_version_id = ?
@@ -1824,10 +1874,10 @@ class MetaModelRepository {
       jdbc.update(
           """
           INSERT INTO field_def
-            (id, object_type_id, template_version_id, code, name, required, data_type,
+            (id, object_type_id, template_version_id, code, name, required, unique_value, data_type,
              value_type_id, constraints, redefines_field_def_id, created_by, updated_by,
              created_at, updated_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, CAST(? AS jsonb), NULL, ?, ?, ?, ?)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CAST(? AS jsonb), NULL, ?, ?, ?, ?)
           """,
           newId,
           mapped(objectTypeIds, row.objectTypeId()),
@@ -1835,6 +1885,7 @@ class MetaModelRepository {
           row.code(),
           row.name(),
           row.required(),
+          row.uniqueValue(),
           row.dataType(),
           nullableMapped(valueTypeIds, row.valueTypeId()),
           row.constraintsJson(),
@@ -1979,6 +2030,7 @@ class MetaModelRepository {
         result.getString("code"),
         result.getString("name"),
         result.getBoolean("required"),
+        result.getBoolean("unique_value"),
         result.getString("data_type"),
         result.getObject("value_type_id", UUID.class),
         result.getString("constraints_json"),
@@ -2064,6 +2116,7 @@ class MetaModelRepository {
         result.getObject("id", UUID.class),
         result.getString("code"),
         result.getBoolean("required"),
+        result.getBoolean("unique_value"),
         DataType.fromCode(result.getString("data_type")),
         result.getObject("value_type_id", UUID.class),
         constraints(result));

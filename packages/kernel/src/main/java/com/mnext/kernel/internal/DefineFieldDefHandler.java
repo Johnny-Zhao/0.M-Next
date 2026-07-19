@@ -63,6 +63,7 @@ class DefineFieldDefHandler {
         resolved.dataType(),
         resolved.valueTypeId(),
         command.required(),
+        command.uniqueValue(),
         constraints(command),
         redefinedField(command, resolved),
         actor.id(),
@@ -262,6 +263,7 @@ class DefineFieldDefHandler {
     if (command.dataType() != null) payload.put("dataType", command.dataType().code());
     if (command.valueTypeCode() != null) payload.put("valueTypeCode", command.valueTypeCode());
     payload.put("required", command.required());
+    payload.put("unique", command.uniqueValue());
     payload.put("redefinesFieldCode", command.redefinesFieldCode());
     payload.put("constraints", constraints(command).asMap());
     return payload;

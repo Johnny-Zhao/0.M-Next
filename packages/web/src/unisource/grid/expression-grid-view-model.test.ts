@@ -143,6 +143,7 @@ describe("buildExpressionGridViewModel", () => {
             objectTypeCode: "build_plan",
             position: "bottom",
             allowManualRun: true,
+            scopeCanvasViewId: "view-canvas",
           },
         },
       },
@@ -153,6 +154,7 @@ describe("buildExpressionGridViewModel", () => {
       objectTypeCode: "build_plan",
       position: "bottom",
       allowManualRun: true,
+      scopeCanvasViewId: "view-canvas",
     });
     expect(generic.validation).toBeNull();
   });

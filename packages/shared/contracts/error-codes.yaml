@@ -32,6 +32,10 @@ codes:
     httpStatus: 409
     title: 同型同向同端点活动关系已存在
     responseRequirement: 返回已存在 relationId
+  - code: KERNEL-409-DUPLICATE-VALUE
+    httpStatus: 409
+    title: 字段值重复
+    responseRequirement: 返回字段显示名、冲突值与建议操作
   - code: KERNEL-409-CYCLE-DETECTED
     httpStatus: 409
     title: 层级关系成环

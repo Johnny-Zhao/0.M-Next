@@ -12,6 +12,7 @@ import type {
 } from "@m-next/views";
 import type { DocModel } from "../model/view-layer";
 import type { WorkspaceState } from "../state/workspace-store";
+import type { KernelValidationPanelConfig } from "../validation/kernel-validation-config";
 import { formatCellValue } from "../grid/grid-view-model";
 
 export interface StructuredDocumentPartConfig {
@@ -29,6 +30,7 @@ export interface StructuredDocumentSectionConfig
 
 export interface StructuredDocumentConfig {
   readonly bodyFieldCode?: string;
+  readonly validation?: KernelValidationPanelConfig;
   readonly output?: StructuredDocumentOutputConfig;
   readonly dataReferenceTemplates: readonly StructuredDocumentDataReferenceTemplate[];
   readonly dataTableTemplates: readonly StructuredDocumentDataTableTemplate[];
@@ -234,6 +236,7 @@ export function readStructuredDocumentConfig(
   const root = readPart(value.root);
   const bodyFieldCode = readOptionalNonEmptyString(value.bodyFieldCode);
   const output = readOutputConfig(value.output);
+  const validation = readValidationConfig(value.validation);
   const dataReferenceTemplates = readDataReferenceTemplates(
     value.dataReferenceTemplates,
   );
@@ -248,6 +251,7 @@ export function readStructuredDocumentConfig(
     !dataReferenceTemplates ||
     !dataTableTemplates ||
     output === null ||
+    validation === null ||
     sections.some((section) => !section)
   ) {
     return invalidConfig();
@@ -256,6 +260,7 @@ export function readStructuredDocumentConfig(
     state: "ready",
     config: {
       bodyFieldCode: bodyFieldCode ?? undefined,
+      validation: validation ?? undefined,
       output: output ?? undefined,
       dataReferenceTemplates,
       dataTableTemplates,
@@ -554,6 +559,31 @@ function readOutputConfig(
     sectionMapping: isRecord(value.sectionMapping)
       ? (value.sectionMapping as OutputSectionMapping)
       : undefined,
+  };
+}
+
+function readValidationConfig(
+  value: unknown,
+): KernelValidationPanelConfig | null | undefined {
+  if (value === undefined) return undefined;
+  if (!isRecord(value) || value.position !== "bottom") return null;
+  const objectTypeCode =
+    value.objectTypeCode === null
+      ? null
+      : readOptionalNonEmptyString(value.objectTypeCode);
+  const scopeCanvasViewId = readOptionalNonEmptyString(value.scopeCanvasViewId);
+  if (
+    objectTypeCode === undefined ||
+    scopeCanvasViewId === null ||
+    typeof value.allowManualRun !== "boolean"
+  ) {
+    return null;
+  }
+  return {
+    objectTypeCode: objectTypeCode ?? null,
+    position: "bottom",
+    allowManualRun: value.allowManualRun,
+    scopeCanvasViewId: scopeCanvasViewId ?? undefined,
   };
 }
 

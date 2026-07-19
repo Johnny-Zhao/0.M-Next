@@ -10,6 +10,11 @@ import type {
   CanvasNodeConfig,
   FieldRef,
 } from "../model/view-layer";
+import {
+  boundedSubtreeDepth,
+  resolveUniqueSubtreeRoot,
+  traverseObjectSubtree,
+} from "../model/object-subtree";
 import type { WorkspaceState } from "../state/workspace-store";
 
 export interface CanvasNodeVm {
@@ -258,40 +263,28 @@ function selectedCanvasConfig(
   if (typeof rootTypeCode !== "string" || !Array.isArray(relationTypeCodes)) {
     return null;
   }
-  const root = resolveCanvasRoot(workspace, selectedRootObjectId, rootTypeCode);
+  const configuredRelationTypeCodes = relationTypeCodes.filter(
+    (code): code is string => typeof code === "string",
+  );
+  const root = resolveCanvasRoot(
+    workspace,
+    selectedRootObjectId,
+    rootTypeCode,
+    configuredRelationTypeCodes,
+    boundedSubtreeDepth(Number(view.config.selectionDepth)),
+  );
   if (!root) return null;
-  const relationTypes = new Set(
-    relationTypeCodes.filter(
-      (code): code is string => typeof code === "string",
-    ),
+  const subtree = traverseObjectSubtree(
+    workspace,
+    root.id,
+    configuredRelationTypeCodes,
+    boundedSubtreeDepth(Number(view.config.selectionDepth)),
   );
-  const maxDepth = Math.min(
-    5,
-    Math.max(1, Number(view.config.selectionDepth) || 1),
-  );
-  const objectIds = new Set([root.id]);
-  const relationIds = new Set<string>();
-  let frontier = [root.id];
-  for (let depth = 0; depth < maxDepth && frontier.length > 0; depth += 1) {
-    const next: string[] = [];
-    for (const relation of workspace.relations) {
-      if (
-        relation.status !== "active" ||
-        !relationTypes.has(relation.relationTypeCode) ||
-        !frontier.includes(relation.sourceId)
-      ) {
-        continue;
-      }
-      relationIds.add(relation.id);
-      if (!objectIds.has(relation.targetId)) next.push(relation.targetId);
-      objectIds.add(relation.targetId);
-    }
-    frontier = next;
-  }
+  if (!subtree) return null;
   const layoutByObjectId = new Map(
     parseCanvasConfig(view).nodes.map((node) => [node.objectId, node]),
   );
-  const nodes = Array.from(objectIds).map((objectId, index) => {
+  const nodes = Array.from(subtree.objectIds).map((objectId, index) => {
     const layout = layoutByObjectId.get(objectId);
     return {
       objectId,
@@ -306,7 +299,7 @@ function selectedCanvasConfig(
   });
   return {
     nodes,
-    edges: Array.from(relationIds).map((relationId) => ({ relationId })),
+    edges: Array.from(subtree.relationIds).map((relationId) => ({ relationId })),
   };
 }
 
@@ -314,6 +307,8 @@ function resolveCanvasRoot(
   workspace: WorkspaceState,
   selectedObjectId: string | null,
   rootTypeCode: string,
+  relationTypeCodes: readonly string[],
+  depth: number,
 ): DataObject | undefined {
   const selected = workspace.objects.find(
     (object) =>
@@ -321,24 +316,18 @@ function resolveCanvasRoot(
       !terminalObjectStatuses.has(object.status),
   );
   if (selected?.objectTypeCode === rootTypeCode) return selected;
-  const relatedRoots = workspace.relations.flatMap((relation) => {
-    if (
-      relation.status !== "active" ||
-      (relation.sourceId !== selected?.id && relation.targetId !== selected?.id)
-    ) {
-      return [];
-    }
-    const rootId =
-      relation.sourceId === selected?.id
-        ? relation.targetId
-        : relation.sourceId;
-    const root = workspace.objects.find((object) => object.id === rootId);
-    return root?.objectTypeCode === rootTypeCode &&
-      !terminalObjectStatuses.has(root.status)
-      ? [root]
-      : [];
-  });
-  return relatedRoots.length === 1 ? relatedRoots[0] : undefined;
+  const rootId = selected
+    ? resolveUniqueSubtreeRoot(
+        workspace,
+        selected.id,
+        rootTypeCode,
+        relationTypeCodes,
+        depth,
+      )
+    : null;
+  return rootId
+    ? workspace.objects.find((object) => object.id === rootId)
+    : undefined;
 }
 
 export function deriveGotoTargets(

@@ -186,6 +186,8 @@ public class ProfileLoader {
               dataType,
               field.valueTypeCode(),
               Boolean.TRUE.equals(field.required()),
+              Boolean.TRUE.equals(field.unique()),
+              null,
               constraints(field.constraints())),
           actor);
     }
@@ -198,7 +200,10 @@ public class ProfileLoader {
       if (objectTypeId == null) {
         throw schema("fields.objectType 已安装模板中不存在: " + field.objectType());
       }
-      if (fieldExists(objectTypeId, field.code())) continue;
+      if (fieldExists(objectTypeId, field.code())) {
+        syncUniqueValue(version, field.objectType(), field.code(), field.unique(), actor);
+        continue;
+      }
       var type = fieldType(version.versionId(), field);
       insertFieldDef(version.versionId(), objectTypeId, field, type, actor);
     }
@@ -211,6 +216,28 @@ public class ProfileLoader {
             Boolean.class,
             objectTypeId,
             code));
+  }
+
+  private void syncUniqueValue(
+      TemplateVersion version, String objectTypeCode, String code, Boolean unique, Actor actor) {
+    if (!Boolean.TRUE.equals(unique)) return;
+    jdbc.update(
+        """
+        UPDATE field_def field
+        SET unique_value = TRUE, updated_by = ?, updated_at = CURRENT_TIMESTAMP
+        FROM object_type type
+        JOIN workspace workspace ON workspace.id = type.workspace_id
+        WHERE field.object_type_id = type.id
+          AND type.code = ?
+          AND field.code = ?
+          AND (type.template_version_id = ?
+            OR (type.template_version_id IS NULL AND workspace.template_id = ?))
+        """,
+        actor.id(),
+        objectTypeCode,
+        code,
+        version.versionId(),
+        version.templateId());
   }
 
   private FieldType fieldType(UUID versionId, ProfileManifest.Field field) {
@@ -243,10 +270,10 @@ public class ProfileLoader {
     jdbc.update(
         """
         INSERT INTO field_def
-          (id, object_type_id, template_version_id, code, name, required, data_type,
+          (id, object_type_id, template_version_id, code, name, required, unique_value, data_type,
            value_type_id, constraints, redefines_field_def_id, created_by, updated_by,
            created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, NULL, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, NULL, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
         """,
         UUID.randomUUID(),
         objectTypeId,
@@ -254,6 +281,7 @@ public class ProfileLoader {
         field.code(),
         field.name(),
         Boolean.TRUE.equals(field.required()),
+        Boolean.TRUE.equals(field.unique()),
         type.dataType().code(),
         type.valueTypeId(),
         constraintsJson(field.constraints()),

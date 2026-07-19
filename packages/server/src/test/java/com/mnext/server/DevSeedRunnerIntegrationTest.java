@@ -268,6 +268,9 @@ class DevSeedRunnerIntegrationTest {
     assertEquals(28, objectCount(PC_PROCUREMENT_WORKSPACE, "supplier_quote"));
     assertEquals(4, objectCount(PC_PROCUREMENT_WORKSPACE, "build_plan"));
     assertEquals(39, objectCount(PC_PROCUREMENT_WORKSPACE, "build_plan_item"));
+    PC_PROCUREMENT_TYPES.forEach(
+        objectTypeCode ->
+            assertTrue(uniqueField(PC_PROCUREMENT_WORKSPACE, objectTypeCode, "code")));
     assertTrue(fieldCodes(PC_PROCUREMENT_WORKSPACE, "build_plan").contains("body"));
     assertTrue(
         fieldCodes(PC_PROCUREMENT_WORKSPACE, "procurement_requirement")
@@ -737,6 +740,21 @@ class DevSeedRunnerIntegrationTest {
             String.class,
             workspaceId,
             objectTypeCode));
+  }
+
+  private boolean uniqueField(UUID workspaceId, String objectTypeCode, String fieldCode) {
+    return Boolean.TRUE.equals(
+        jdbc.queryForObject(
+            """
+            SELECT field.unique_value
+            FROM field_def field
+            JOIN object_type type ON type.id = field.object_type_id
+            WHERE type.workspace_id = ? AND type.code = ? AND field.code = ?
+            """,
+            Boolean.class,
+            workspaceId,
+            objectTypeCode,
+            fieldCode));
   }
 
   private boolean enumFieldAllows(

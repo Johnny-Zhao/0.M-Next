@@ -61,7 +61,7 @@ class KernelRepository {
     var definitions = new LinkedHashMap<String, FieldDefinition>();
     jdbc.query(
         """
-        SELECT id, code, required, data_type,
+        SELECT id, code, name, required, unique_value, data_type,
           constraints->>'minLength' AS min_length, constraints->>'maxLength' AS max_length,
           constraints->>'min' AS min_value, constraints->>'max' AS max_value,
           constraints->>'pattern' AS pattern, constraints->>'refObjectTypeCode' AS ref_type,
@@ -75,7 +75,9 @@ class KernelRepository {
               new FieldDefinition(
                   result.getObject("id", UUID.class),
                   result.getString("code"),
+                  result.getString("name"),
                   result.getBoolean("required"),
+                  result.getBoolean("unique_value"),
                   DataType.fromCode(result.getString("data_type")),
                   new FieldConstraints(
                       integer(result.getString("min_length")),
@@ -247,6 +249,50 @@ class KernelRepository {
     return Boolean.TRUE.equals(
         jdbc.queryForObject(
             "SELECT CAST(? AS jsonb) = CAST(? AS jsonb)", Boolean.class, left, right));
+  }
+
+  void lockUniqueValue(UUID workspaceId, UUID objectTypeId, UUID fieldDefId, String valueJson) {
+    jdbc.query(
+        "SELECT pg_advisory_xact_lock(hashtextextended(?, 0))",
+        result -> {},
+        workspaceId + ":" + objectTypeId + ":" + fieldDefId + ":" + valueJson);
+  }
+
+  boolean uniqueValueExists(
+      UUID workspaceId,
+      UUID objectTypeId,
+      UUID fieldDefId,
+      UUID excludedObjectId,
+      String valueJson) {
+    var exclusion = excludedObjectId == null ? "" : " AND object.id <> ?";
+    return Boolean.TRUE.equals(
+        jdbc.queryForObject(
+            """
+            SELECT EXISTS(
+              SELECT 1
+              FROM data_field_value value
+              JOIN data_object object ON object.id = value.object_id
+              WHERE object.workspace_id = ?
+                AND object.object_type_id = ?
+                AND value.field_def_id = ?
+                AND value.value = CAST(? AS jsonb)
+            """
+                + exclusion
+                + ")",
+            Boolean.class,
+            uniqueValueParameters(
+                workspaceId, objectTypeId, fieldDefId, valueJson, excludedObjectId)));
+  }
+
+  private Object[] uniqueValueParameters(
+      UUID workspaceId,
+      UUID objectTypeId,
+      UUID fieldDefId,
+      String valueJson,
+      UUID excludedObjectId) {
+    return excludedObjectId == null
+        ? new Object[] {workspaceId, objectTypeId, fieldDefId, valueJson}
+        : new Object[] {workspaceId, objectTypeId, fieldDefId, valueJson, excludedObjectId};
   }
 
   void insertMissingField(

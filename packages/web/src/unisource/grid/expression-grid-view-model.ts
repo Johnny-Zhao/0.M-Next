@@ -6,6 +6,7 @@ import type {
   ViewDef,
 } from "../model/kernel";
 import type { WorkspaceState } from "../state/workspace-store";
+import type { KernelValidationPanelConfig } from "../validation/kernel-validation-config";
 
 export type ExpressionGridSortDirection = "asc" | "desc";
 
@@ -29,11 +30,8 @@ export interface ExpressionGridFilterVm {
   readonly options: readonly string[];
 }
 
-export interface ExpressionGridValidationConfig {
-  readonly objectTypeCode: string | null;
-  readonly position: "bottom";
-  readonly allowManualRun: boolean;
-}
+export interface ExpressionGridValidationConfig
+  extends KernelValidationPanelConfig {}
 
 export interface ExpressionGridViewModel {
   readonly state: "ready" | "empty" | "unavailable";
@@ -252,10 +250,15 @@ function parseValidation(
   ) {
     return "validation.allowManualRun 必须是布尔值。";
   }
+  const scopeCanvasViewId = readString(value.scopeCanvasViewId);
+  if (value.scopeCanvasViewId !== undefined && !scopeCanvasViewId) {
+    return "validation.scopeCanvasViewId 配置无效。";
+  }
   return {
     objectTypeCode,
     position: "bottom",
     allowManualRun: value.allowManualRun === true,
+    scopeCanvasViewId: scopeCanvasViewId ?? undefined,
   };
 }
 

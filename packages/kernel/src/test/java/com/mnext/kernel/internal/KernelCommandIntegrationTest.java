@@ -242,6 +242,68 @@ class KernelCommandIntegrationTest {
     }
   }
 
+  @Test
+  void uniqueFieldsRejectDuplicatesAcrossAllObjectStates() {
+    jdbc.update(
+        "UPDATE field_def SET unique_value = TRUE WHERE object_type_id = ? AND code = 'name'",
+        TYPE);
+    var first = create("unique-first", Map.of("name", "shared-code"));
+
+    var duplicate =
+        assertThrows(
+            CommandRejectedException.class,
+            () -> create("unique-duplicate", Map.of("name", "shared-code")));
+    assertEquals("KERNEL-409-DUPLICATE-VALUE", duplicate.error().code());
+    assertTrue(duplicate.error().message().contains("Name"));
+    assertTrue(duplicate.error().message().contains("shared-code"));
+
+    var second = create("unique-second", Map.of("name", "other-code"));
+    var updateDuplicate =
+        assertThrows(
+            CommandRejectedException.class,
+            () ->
+                commands.updateFields(
+                    update("unique-update", second, 1, "name", "shared-code", 1L),
+                    Actor.user("u")));
+    assertEquals("KERNEL-409-DUPLICATE-VALUE", updateDuplicate.error().code());
+
+    commands.updateFields(
+        update("unique-self", first, 1, "name", "shared-code", 1L), Actor.user("u"));
+    jdbc.update("UPDATE data_object SET status = 'FILED' WHERE id = ?", first);
+    var terminalDuplicate =
+        assertThrows(
+            CommandRejectedException.class,
+            () -> create("unique-terminal", Map.of("name", "shared-code")));
+    assertEquals("KERNEL-409-DUPLICATE-VALUE", terminalDuplicate.error().code());
+  }
+
+  @Test
+  void uniqueFieldsAllowNullAndValuesInOtherTypes() {
+    jdbc.update(
+        "UPDATE field_def SET unique_value = TRUE WHERE object_type_id = ? AND code = 'owner'",
+        TYPE);
+    create("unique-null-one", Map.of("name", "null-one"));
+    create("unique-null-two", Map.of("name", "null-two"));
+    create("unique-owner-one", Map.of("name", "owner-one", "owner", "shared"));
+    create("unique-owner-two", Map.of("name", "owner-two", "owner", "other"));
+    create("unique-non-unique-one", Map.of("name", "cost-one", "cost", 99));
+    create("unique-non-unique-two", Map.of("name", "cost-two", "cost", 99));
+
+    var otherType = UUID.randomUUID();
+    insertObjectType(otherType);
+    jdbc.update("UPDATE field_def SET unique_value = TRUE WHERE object_type_id = ?", otherType);
+    commands.createObject(
+        new CreateObjectCommand(
+            WORKSPACE,
+            UUID.randomUUID(),
+            "unique-other-type",
+            otherType,
+            Map.of("name", "null-one"),
+            new SourceInfo("manual", null),
+            null),
+        Actor.user("creator"));
+  }
+
   private UUID create(String key, Map<String, Object> fields) {
     commands.createObject(
         new CreateObjectCommand(

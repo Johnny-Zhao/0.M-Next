@@ -85,6 +85,29 @@ describe("pc procurement data source relation actions", () => {
     ).toBe("requirement-2");
   });
 
+  it("unlinks the current plan requirement without deleting the requirement", async () => {
+    const workspace = fixture();
+    workspace.createRelation({
+      relationTypeCode: "build_plan_satisfies_requirement",
+      sourceId: "plan-1",
+      targetId: "requirement-1",
+      actor: "wangyun",
+    });
+
+    const result = await updateBuildPlanRequirement({
+      planId: "plan-1",
+      requirementId: null,
+      workspace,
+      session: allowedSession(workspace),
+    });
+
+    expect(result.state).toBe("updated");
+    expect(
+      activeTarget(workspace, "plan-1", "build_plan_satisfies_requirement"),
+    ).toBeNull();
+    expect(workspace.getObject("requirement-1")).toBeDefined();
+  });
+
   it("does not write relations for members without edit permission", async () => {
     const workspace = fixture();
     const sink = createSink();

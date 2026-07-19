@@ -41,7 +41,8 @@
       "code": "code",
       "name": "编码",
       "dataType": "string",
-      "required": true
+      "required": true,
+      "unique": true
     },
     {
       "objectType": "procurement_requirement",
@@ -97,7 +98,8 @@
       "code": "code",
       "name": "编码",
       "dataType": "string",
-      "required": true
+      "required": true,
+      "unique": true
     },
     {
       "objectType": "hardware_product",
@@ -174,7 +176,8 @@
       "code": "code",
       "name": "编码",
       "dataType": "string",
-      "required": true
+      "required": true,
+      "unique": true
     },
     {
       "objectType": "supplier",
@@ -188,7 +191,8 @@
       "code": "code",
       "name": "编码",
       "dataType": "string",
-      "required": true
+      "required": true,
+      "unique": true
     },
     {
       "objectType": "supplier_quote",
@@ -223,7 +227,8 @@
       "code": "code",
       "name": "编码",
       "dataType": "string",
-      "required": true
+      "required": true,
+      "unique": true
     },
     {
       "objectType": "build_plan",
@@ -254,7 +259,8 @@
       "code": "code",
       "name": "编码",
       "dataType": "string",
-      "required": true
+      "required": true,
+      "unique": true
     },
     {
       "objectType": "build_plan_item",

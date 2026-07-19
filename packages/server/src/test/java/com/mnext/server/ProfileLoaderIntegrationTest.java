@@ -164,7 +164,7 @@ class ProfileLoaderIntegrationTest {
             base.tags(),
             base.valueTypes(),
             base.objectTypes(),
-            appendBodyField(base.fields()),
+            markUnique(appendBodyField(base.fields()), "room", "name"),
             base.relations(),
             base.derived(),
             base.rules());
@@ -172,6 +172,8 @@ class ProfileLoaderIntegrationTest {
 
     assertEquals(1, templateVersionCount(base.templateCode()));
     assertTrue(fieldDefExists(templateVersionId(base.templateCode(), 1), "room", "body"));
+    assertTrue(fieldUniqueValue(templateVersionId(base.templateCode(), 1), "room", "name"));
+    assertTrue(runtimeFieldUniqueValue(workspace, "room", "name"));
     assertEquals("lab", fieldValue(room, "name"));
   }
 
@@ -506,6 +508,25 @@ class ProfileLoaderIntegrationTest {
     var values = new java.util.ArrayList<>(fields);
     values.add(new ProfileManifest.Field("room", "body", "正文", "text", null, false, null));
     return values;
+  }
+
+  private List<ProfileManifest.Field> markUnique(
+      List<ProfileManifest.Field> fields, String objectType, String code) {
+    return fields.stream()
+        .map(
+            field ->
+                objectType.equals(field.objectType()) && code.equals(field.code())
+                    ? new ProfileManifest.Field(
+                        field.objectType(),
+                        field.code(),
+                        field.name(),
+                        field.dataType(),
+                        field.valueTypeCode(),
+                        field.required(),
+                        true,
+                        field.constraints())
+                    : field)
+        .toList();
   }
 
   private ProfileManifest taggedProfile(
@@ -923,6 +944,37 @@ class ProfileLoaderIntegrationTest {
             """,
             Boolean.class,
             templateVersionId,
+            objectTypeCode,
+            fieldCode));
+  }
+
+  private boolean fieldUniqueValue(
+      UUID templateVersionId, String objectTypeCode, String fieldCode) {
+    return Boolean.TRUE.equals(
+        jdbc.queryForObject(
+            """
+            SELECT field.unique_value
+            FROM field_def field
+            JOIN object_type type ON type.id = field.object_type_id
+            WHERE field.template_version_id = ? AND type.code = ? AND field.code = ?
+            """,
+            Boolean.class,
+            templateVersionId,
+            objectTypeCode,
+            fieldCode));
+  }
+
+  private boolean runtimeFieldUniqueValue(UUID workspaceId, String objectTypeCode, String fieldCode) {
+    return Boolean.TRUE.equals(
+        jdbc.queryForObject(
+            """
+            SELECT field.unique_value
+            FROM field_def field
+            JOIN object_type type ON type.id = field.object_type_id
+            WHERE type.workspace_id = ? AND type.code = ? AND field.code = ?
+            """,
+            Boolean.class,
+            workspaceId,
             objectTypeCode,
             fieldCode));
   }

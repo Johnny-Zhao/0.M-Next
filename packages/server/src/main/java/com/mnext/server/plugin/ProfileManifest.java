@@ -77,7 +77,19 @@ public record ProfileManifest(
       String dataType,
       @JsonAlias("valueType") String valueTypeCode,
       Boolean required,
-      JsonNode constraints) {}
+      Boolean unique,
+      JsonNode constraints) {
+    public Field(
+        String objectType,
+        String code,
+        String name,
+        String dataType,
+        String valueTypeCode,
+        Boolean required,
+        JsonNode constraints) {
+      this(objectType, code, name, dataType, valueTypeCode, required, null, constraints);
+    }
+  }
 
   public record Relation(
       String code,

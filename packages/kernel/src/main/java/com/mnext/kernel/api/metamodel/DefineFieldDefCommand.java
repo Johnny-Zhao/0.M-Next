@@ -12,8 +12,36 @@ public record DefineFieldDefCommand(
     DataType dataType,
     String valueTypeCode,
     boolean required,
+    boolean uniqueValue,
     String redefinesFieldCode,
     FieldConstraints constraints) {
+  public DefineFieldDefCommand(
+      UUID workspaceId,
+      UUID correlationId,
+      String idempotencyKey,
+      UUID objectTypeId,
+      String code,
+      String name,
+      DataType dataType,
+      String valueTypeCode,
+      boolean required,
+      String redefinesFieldCode,
+      FieldConstraints constraints) {
+    this(
+        workspaceId,
+        correlationId,
+        idempotencyKey,
+        objectTypeId,
+        code,
+        name,
+        dataType,
+        valueTypeCode,
+        required,
+        false,
+        redefinesFieldCode,
+        constraints);
+  }
+
   public DefineFieldDefCommand(
       UUID workspaceId,
       UUID correlationId,
@@ -34,6 +62,7 @@ public record DefineFieldDefCommand(
         dataType,
         null,
         required,
+        false,
         null,
         constraints);
   }
@@ -59,6 +88,7 @@ public record DefineFieldDefCommand(
         dataType,
         valueTypeCode,
         required,
+        false,
         null,
         constraints);
   }

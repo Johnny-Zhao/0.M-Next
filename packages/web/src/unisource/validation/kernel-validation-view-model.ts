@@ -34,6 +34,8 @@ export interface KernelValidationViewModel {
   readonly error: string | null;
   readonly blockCount: number;
   readonly warnCount: number;
+  readonly scopeIssueCount: number;
+  readonly outsideScopeIssueCount: number;
   readonly noIssue: boolean;
   readonly currentSelectionHasNoIssue: boolean;
   readonly items: readonly KernelValidationItemVm[];
@@ -51,13 +53,19 @@ export interface KernelValidationViewModelInput {
   readonly filter: KernelValidationFilter;
   readonly selection: SelectionRef | null;
   readonly scopeObjectTypeCode: string | null;
+  readonly scopeMembers?: ReadonlySet<string> | null;
 }
 
 export function buildKernelValidationViewModel(
   input: KernelValidationViewModelInput,
 ): KernelValidationViewModel {
   const scopedResults = input.results.filter((result) =>
-    resultInScope(input.workspace, result, input.scopeObjectTypeCode),
+    resultInScope(
+      input.workspace,
+      result,
+      input.scopeObjectTypeCode,
+      input.scopeMembers,
+    ),
   );
   const allItems = scopedResults.map((result, index) =>
     mapResult(input.workspace, result, index),
@@ -86,11 +94,19 @@ export function buildKernelValidationViewModel(
     (item) => item.severity === "BLOCK",
   ).length;
   const warnCount = allItems.filter((item) => item.severity === "WARN").length;
+  const scopeIssueCount = blockCount + warnCount;
+  const allIssueCount = input.results.filter(
+    (result) => severity(result.level) !== "INFO",
+  ).length;
   return {
     status: input.status,
     error: input.error,
     blockCount,
     warnCount,
+    scopeIssueCount,
+    outsideScopeIssueCount: input.scopeMembers
+      ? Math.max(0, allIssueCount - scopeIssueCount)
+      : 0,
     noIssue: input.status === "ready" && blockCount === 0 && warnCount === 0,
     currentSelectionHasNoIssue:
       input.status === "ready" && selectionInScope && !selectedHasIssue,
@@ -136,10 +152,13 @@ function resultInScope(
   workspace: KernelValidationViewModelInput["workspace"],
   result: RuleOutcome,
   scopeObjectTypeCode: string | null,
+  scopeMembers: ReadonlySet<string> | null | undefined,
 ): boolean {
   const objectIds = selectionObjectIds(workspace, result.target ?? null);
-  if (objectIds.length === 0) return scopeObjectTypeCode === null;
+  if (objectIds.length === 0)
+    return scopeMembers ? false : scopeObjectTypeCode === null;
   return objectIds.some((id) => {
+    if (scopeMembers) return scopeMembers.has(id);
     const object = workspace.objects.find((candidate) => candidate.id === id);
     if (object === undefined) return scopeObjectTypeCode === null;
     return (
@@ -217,6 +236,7 @@ function buildNoIssueItems(
     .filter(
       (object) =>
         !terminalObjectStatuses.has(object.status) &&
+        (!input.scopeMembers || input.scopeMembers.has(object.id)) &&
         (input.scopeObjectTypeCode === null ||
           object.objectTypeCode === input.scopeObjectTypeCode) &&
         !issueObjectIds.has(object.id),
@@ -259,6 +279,7 @@ function isSelectionInScope(input: KernelValidationViewModelInput): boolean {
     return (
       object !== undefined &&
       !terminalObjectStatuses.has(object.status) &&
+      (!input.scopeMembers || input.scopeMembers.has(object.id)) &&
       (input.scopeObjectTypeCode === null ||
         object.objectTypeCode === input.scopeObjectTypeCode)
     );

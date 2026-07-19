@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
-import type { DataFieldPrimitive, DataObject, MemberId } from "../model/kernel";
 import { UsButton, UsInput, UsModal, pushToast } from "../primitives";
 import { usPaths } from "../routes-paths";
 import { selectionStore } from "../state/selection-store";
@@ -10,16 +9,17 @@ import {
   type SessionStore,
   useSessionSnapshot,
 } from "../state/session-store";
-import { workspaceStore, type WorkspaceStore } from "../state/workspace-store";
+import {
+  workspaceStore,
+  type WorkspaceStore,
+  useWorkspaceSnapshot,
+} from "../state/workspace-store";
 import type {
   DataSourceLifecycleActionProps,
   DataSourceLifecycleActionRegistry,
 } from "./data-source-lifecycle-action-registry";
+import { pcProcurementBuildPlanCopyConfig } from "./pc-procurement-preset";
 
-const containsItem = "build_plan_contains_item";
-const satisfiesRequirement = "build_plan_satisfies_requirement";
-const selectsProduct = "build_plan_item_selects_product";
-const usesQuote = "build_plan_item_uses_supplier_quote";
 const terminalStatuses = new Set(["archived", "deleted", "soft-deleted"]);
 
 export const pcProcurementLifecycleActionId = "pc_procurement.lifecycle";
@@ -95,7 +95,13 @@ export async function copyBuildPlan(input: {
   const name = input.name.trim();
   if (!plan || !code || !name)
     return { state: "validation-failed", message: "请填写新方案编码和名称。" };
-  if (snapshot.objects.some((object) => object.fields.code?.value === code)) {
+  if (
+    snapshot.objects.some(
+      (object) =>
+        object.objectTypeCode === "build_plan" &&
+        object.fields.code?.value === code,
+    )
+  ) {
     return {
       state: "validation-failed",
       message: "方案编码已存在，请使用其他编码。",
@@ -111,209 +117,14 @@ export async function copyBuildPlan(input: {
       message: "当前成员没有复制采购方案权限。",
     };
   }
-  return copyPlanGraph(workspace, plan, { code, name }, actor);
-}
-
-async function copyPlanGraph(
-  workspace: WorkspaceStore,
-  plan: DataObject,
-  identity: { readonly code: string; readonly name: string },
-  actor: MemberId,
-): Promise<ProcurementLifecycleResult> {
-  const completedSteps: string[] = [];
-  const copiedPlan = workspace.createObject({
-    objectTypeCode: "build_plan",
-    fields: { ...storedFields(workspace, plan), ...identity },
-    actor,
-    summary: "复制采购方案",
-  });
-  const write = await workspace.waitForLastWrite();
-  if (write.state === "failed")
-    return copyFailure("创建采购方案", write.message, completedSteps);
-  completedSteps.push("创建采购方案");
-  const planId =
-    write.state === "synced" && write.objectId ? write.objectId : copiedPlan.id;
-  const requirements = activeTargets(workspace, plan.id, satisfiesRequirement);
-  for (const requirementId of requirements) {
-    const failure = await createCopyRelation(
-      workspace,
-      satisfiesRequirement,
-      planId,
-      requirementId,
-      actor,
-      "复制采购需求关系",
-      completedSteps,
-    );
-    if (failure) return failure;
-  }
-  const itemIds = activeTargets(workspace, plan.id, containsItem);
-  for (let index = 0; index < itemIds.length; index += 1) {
-    const failure = await copyPlanItem(
-      workspace,
-      planId,
-      itemIds[index]!,
-      index + 1,
-      actor,
-      completedSteps,
-    );
-    if (failure) return failure;
-  }
-  const refresh = await workspace.refreshObjects([planId]);
-  return {
-    state: "completed",
-    objectId: planId,
-    message:
-      refresh.state === "failed"
-        ? "方案已复制，但派生字段同步失败，请重新加载工作空间。"
-        : null,
-  };
-}
-
-async function copyPlanItem(
-  workspace: WorkspaceStore,
-  planId: string,
-  itemId: string,
-  ordinal: number,
-  actor: MemberId,
-  completedSteps: string[],
-): Promise<Extract<
-  ProcurementLifecycleResult,
-  { state: "partial-failure" }
-> | null> {
-  const item = workspace.getObject(itemId);
-  if (
-    !item ||
-    item.objectTypeCode !== "build_plan_item" ||
-    terminalStatuses.has(item.status)
-  ) {
-    return copyFailure("读取方案明细", "原方案明细不可用", completedSteps);
-  }
-  const baseCode = String(item.fields.code?.value ?? "ITEM");
-  const baseName = String(item.fields.name?.value ?? "方案明细");
-  const copiedItem = workspace.createObject({
-    objectTypeCode: "build_plan_item",
-    fields: {
-      ...storedFields(workspace, item),
-      code: uniqueItemCode(workspace, `${baseCode}-COPY-${ordinal}`),
-      name: `${baseName}（复制）`,
+  return workspace.copyObjectSubtree(
+    plan.id,
+    {
+      ...pcProcurementBuildPlanCopyConfig,
+      rootFields: { code, name },
     },
     actor,
-    summary: "复制采购方案明细",
-  });
-  const write = await workspace.waitForLastWrite();
-  if (write.state === "failed")
-    return copyFailure("创建方案明细", write.message, completedSteps);
-  completedSteps.push("创建方案明细");
-  const copiedItemId =
-    write.state === "synced" && write.objectId ? write.objectId : copiedItem.id;
-  for (const [relationTypeCode, label] of [
-    [containsItem, "关联方案与明细"],
-    [selectsProduct, "复用硬件配件"],
-    [usesQuote, "复用供应商报价"],
-  ] as const) {
-    const sourceId = relationTypeCode === containsItem ? planId : copiedItemId;
-    const targets =
-      relationTypeCode === containsItem
-        ? [copiedItemId]
-        : activeTargets(workspace, item.id, relationTypeCode);
-    for (const targetId of targets) {
-      const failure = await createCopyRelation(
-        workspace,
-        relationTypeCode,
-        sourceId,
-        targetId,
-        actor,
-        label,
-        completedSteps,
-      );
-      if (failure) return failure;
-    }
-  }
-  return null;
-}
-
-async function createCopyRelation(
-  workspace: WorkspaceStore,
-  relationTypeCode: string,
-  sourceId: string,
-  targetId: string,
-  actor: MemberId,
-  label: string,
-  completedSteps: string[],
-): Promise<Extract<
-  ProcurementLifecycleResult,
-  { state: "partial-failure" }
-> | null> {
-  workspace.createRelation({
-    relationTypeCode,
-    sourceId,
-    targetId,
-    actor,
-    summary: label,
-  });
-  const write = await workspace.waitForLastWrite();
-  if (write.state === "failed")
-    return copyFailure(label, write.message, completedSteps);
-  completedSteps.push(label);
-  return null;
-}
-
-function activeTargets(
-  workspace: WorkspaceStore,
-  sourceId: string,
-  relationTypeCode: string,
-): readonly string[] {
-  return workspace
-    .getRelations(sourceId)
-    .filter(
-      (relation) =>
-        relation.relationTypeCode === relationTypeCode &&
-        relation.status === "active",
-    )
-    .map((relation) => relation.targetId);
-}
-
-function storedFields(
-  workspace: WorkspaceStore,
-  object: DataObject,
-): Record<string, DataFieldPrimitive> {
-  const objectType = workspace
-    .getSnapshot()
-    .objectTypes.find((type) => type.code === object.objectTypeCode);
-  return Object.fromEntries(
-    (objectType?.fields ?? [])
-      .filter((field) => !field.computed && !field.readOnly)
-      .flatMap((field) =>
-        object.fields[field.code]
-          ? [[field.code, object.fields[field.code]!.value]]
-          : [],
-      ),
   );
-}
-
-function uniqueItemCode(workspace: WorkspaceStore, base: string): string {
-  const codes = new Set(
-    workspace
-      .getSnapshot()
-      .objects.map((object) => String(object.fields.code?.value ?? "")),
-  );
-  if (!codes.has(base)) return base;
-  let suffix = 2;
-  while (codes.has(`${base}-${suffix}`)) suffix += 1;
-  return `${base}-${suffix}`;
-}
-
-function copyFailure(
-  failedStep: string,
-  message: string,
-  completedSteps: readonly string[],
-): Extract<ProcurementLifecycleResult, { state: "partial-failure" }> {
-  return {
-    state: "partial-failure",
-    failedStep,
-    completedSteps,
-    message: `${failedStep}失败：${message}。已完成步骤：${completedSteps.join("、") || "无"}。请重新加载工作空间后重试。`,
-  };
 }
 
 export function registerPcProcurementLifecycleActions(
@@ -338,6 +149,7 @@ export function PcProcurementBuildPlanLifecycleAction(
 ) {
   const navigate = useNavigate();
   const [copyOpen, setCopyOpen] = useState(false);
+  const [archiveOpen, setArchiveOpen] = useState(false);
   const canEdit =
     sessionStore.can(
       useSessionSnapshot().currentMemberId,
@@ -367,7 +179,7 @@ export function PcProcurementBuildPlanLifecycleAction(
       </UsButton>
       <UsButton
         disabled={!canEdit}
-        onClick={() => void archiveFromAction(props, "build_plan")}
+        onClick={() => setArchiveOpen(true)}
         size="sm"
       >
         归档方案
@@ -385,6 +197,13 @@ export function PcProcurementBuildPlanLifecycleAction(
           onCompleted={props.onCompleted}
         />
       ) : null}
+      {archiveOpen ? (
+        <ArchiveConfirmation
+          objectTypeCode="build_plan"
+          props={props}
+          onClose={() => setArchiveOpen(false)}
+        />
+      ) : null}
     </div>
   );
 }
@@ -392,6 +211,7 @@ export function PcProcurementBuildPlanLifecycleAction(
 export function PcProcurementRequirementLifecycleAction(
   props: DataSourceLifecycleActionProps,
 ) {
+  const [archiveOpen, setArchiveOpen] = useState(false);
   const canEdit =
     sessionStore.can(
       useSessionSnapshot().currentMemberId,
@@ -402,11 +222,18 @@ export function PcProcurementRequirementLifecycleAction(
     <div className="us-data-source-lifecycle-action">
       <UsButton
         disabled={!canEdit}
-        onClick={() => void archiveFromAction(props, "procurement_requirement")}
+        onClick={() => setArchiveOpen(true)}
         size="sm"
       >
         归档需求
       </UsButton>
+      {archiveOpen ? (
+        <ArchiveConfirmation
+          objectTypeCode="procurement_requirement"
+          props={props}
+          onClose={() => setArchiveOpen(false)}
+        />
+      ) : null}
     </div>
   );
 }
@@ -427,6 +254,47 @@ async function archiveFromAction(
     return;
   }
   pushToast({ title: "归档失败", desc: result.message });
+}
+
+function ArchiveConfirmation({
+  objectTypeCode,
+  props,
+  onClose,
+}: {
+  readonly objectTypeCode: "build_plan" | "procurement_requirement";
+  readonly props: DataSourceLifecycleActionProps;
+  readonly onClose: () => void;
+}) {
+  const workspace = useWorkspaceSnapshot();
+  const relationCount = workspace.relations.filter(
+    (relation) =>
+      relation.status === "active" &&
+      (relation.sourceId === props.object.id ||
+        relation.targetId === props.object.id),
+  ).length;
+  const confirm = async () => {
+    await archiveFromAction(props, objectTypeCode);
+    onClose();
+  };
+  return (
+    <UsModal
+      footer={
+        <>
+          <UsButton onClick={onClose} size="sm">
+            取消
+          </UsButton>
+          <UsButton onClick={() => void confirm()} size="sm" variant="primary">
+            确认归档
+          </UsButton>
+        </>
+      }
+      onClose={onClose}
+      open
+      title="确认归档"
+    >
+      <p>归档后该记录及其 {relationCount} 条关联不会在默认表达中显示。</p>
+    </UsModal>
+  );
 }
 
 function CopyBuildPlanDialog({

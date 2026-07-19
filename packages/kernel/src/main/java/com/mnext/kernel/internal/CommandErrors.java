@@ -136,6 +136,22 @@ final class CommandErrors {
         "KERNEL-409-DUPLICATE-RELATION", "活动关系已存在", Map.of("relationId", relationId), "使用已存在关系");
   }
 
+  static CommandRejectedException duplicateValue(String fieldName, Object value) {
+    var rawValue = String.valueOf(value);
+    var displayValue =
+        value instanceof java.util.UUID
+                || rawValue.matches(
+                    "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")
+            ? "该引用值"
+            : rawValue;
+    if (displayValue.length() > 128) displayValue = displayValue.substring(0, 128) + "…";
+    return error(
+        "KERNEL-409-DUPLICATE-VALUE",
+        "字段“" + fieldName + "”的值“" + displayValue + "”已存在",
+        Map.of("fieldName", fieldName, "value", displayValue),
+        "请更换为未被占用的值后重试");
+  }
+
   static CommandRejectedException cardinality(String definition, long current) {
     return error(
         "KERNEL-422-CARDINALITY-VIOLATION",

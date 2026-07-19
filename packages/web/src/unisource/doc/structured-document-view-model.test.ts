@@ -191,6 +191,10 @@ describe("structured-document-view-model", () => {
     if (parsed.state !== "ready") throw new Error("expected structured config");
     expect(parsed.config.root.objectTypeCode).toBe("build_plan");
     expect(parsed.config.bodyFieldCode).toBe("body");
+    expect(parsed.config.validation).toMatchObject({
+      objectTypeCode: null,
+      scopeCanvasViewId: "view-pc-canvas",
+    });
     expect(parsed.config.preferSelectedRoot).toBe(true);
     expect(
       parsed.config.sections.map((section) => section.relationTypeCode),

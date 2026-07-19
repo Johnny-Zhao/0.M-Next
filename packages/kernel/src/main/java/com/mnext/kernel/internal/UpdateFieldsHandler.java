@@ -69,6 +69,7 @@ class UpdateFieldsHandler {
           object.version(),
           conflicts);
     }
+    enforceUniqueValues(command, object, prepared);
     enforceRules(command, object, definitions, prepared, actor);
 
     var commandId = CommandSupport.commandId();
@@ -164,6 +165,25 @@ class UpdateFieldsHandler {
         ruleChecker.check(command.workspaceId(), object.objectTypeId(), effective, actor);
     var blocking = violations.stream().filter(v -> "BLOCK".equals(v.severity())).toList();
     if (!blocking.isEmpty()) throw CommandErrors.ruleViolation(blocking);
+  }
+
+  private void enforceUniqueValues(
+      UpdateFieldsCommand command, ObjectRow object, List<PreparedField> prepared) {
+    for (var field : prepared) {
+      if (!isChanged(field) || !field.definition().uniqueValue() || field.update().value() == null)
+        continue;
+      var valueJson = JsonCodec.encode(field.update().value());
+      repository.lockUniqueValue(
+          command.workspaceId(), object.objectTypeId(), field.definition().id(), valueJson);
+      if (repository.uniqueValueExists(
+          command.workspaceId(),
+          object.objectTypeId(),
+          field.definition().id(),
+          command.objectId(),
+          valueJson)) {
+        throw CommandErrors.duplicateValue(field.definition().name(), field.update().value());
+      }
+    }
   }
 
   private Map<String, Object> currentValues(

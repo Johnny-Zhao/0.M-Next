@@ -120,6 +120,52 @@ describe("buildKernelValidationViewModel", () => {
     ).toHaveLength(1);
   });
 
+  it("filters results and counts by supplied subtree members", () => {
+    const vm = build({
+      results: [
+        outcome("PLAN", "error", "plan-a"),
+        outcome("ITEM", "warning", "item-a"),
+        outcome("OTHER", "error", "plan-b"),
+      ],
+      scopeMembers: new Set(["plan-a", "item-a"]),
+    });
+
+    expect(vm.items.map((item) => item.ruleCode)).toEqual(["PLAN", "ITEM"]);
+    expect(vm.blockCount).toBe(1);
+    expect(vm.warnCount).toBe(1);
+    expect(vm.scopeIssueCount).toBe(2);
+    expect(vm.outsideScopeIssueCount).toBe(1);
+  });
+
+  it("keeps a relation outcome when a scoped member is either endpoint", () => {
+    const vm = build({
+      results: [relationOutcome("CONTAINS", "contains-a")],
+      scopeMembers: new Set(["item-a"]),
+    });
+
+    expect(vm.items.map((item) => item.ruleCode)).toEqual(["CONTAINS"]);
+  });
+
+  it("does not place an unresolved target into a current subtree", () => {
+    const vm = build({
+      results: [outcome("GONE", "error", "gone")],
+      scopeMembers: new Set(["plan-a"]),
+    });
+
+    expect(vm.items).toEqual([]);
+    expect(vm.outsideScopeIssueCount).toBe(1);
+  });
+
+  it("does not treat a descendant issue as a root issue-free object", () => {
+    const vm = build({
+      results: [outcome("ITEM", "warning", "item-a")],
+      filter: "no-issue",
+      scopeMembers: new Set(["plan-a", "item-a"]),
+    });
+
+    expect(vm.items.map((item) => item.objectId)).toEqual(["plan-a"]);
+  });
+
   it("keeps every result without a scope and excludes unknown targets with one", () => {
     const results = [
       outcome("PLAN", "error", "plan-a"),

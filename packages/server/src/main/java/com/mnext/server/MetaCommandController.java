@@ -153,6 +153,8 @@ public class MetaCommandController {
         payload.has("dataType") ? dataType(payload) : null,
         optionalText(payload, "valueTypeCode"),
         payload.has("required") && payload.get("required").asBoolean(),
+        payload.has("unique") && payload.get("unique").asBoolean(),
+        optionalText(payload, "redefinesFieldCode"),
         constraints(payload));
   }
 
