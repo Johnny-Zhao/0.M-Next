@@ -8,10 +8,10 @@ import { buildMatrixViewModel } from "../matrix/matrix-view-model";
 import type { DataObject } from "../model/kernel";
 import { cloneDemoSeed } from "../seed/demo-seed";
 import type { LatestCheckRun } from "./gateway";
-import { KernelGateway } from "./kernel-gateway";
+import { KernelGateway, RELATION_LOAD_CONCURRENCY } from "./kernel-gateway";
 
 describe("KernelGateway", () => {
-  it("loads paged objects, dedupes relations and merges history", async () => {
+  it("loads paged objects and relations without bulk-loading history", async () => {
     const api = new FakeKernelApi();
     api.seedObjects(101);
     api.relations.push({
@@ -45,7 +45,17 @@ describe("KernelGateway", () => {
     expect(seed.workspace.id).toBe("ws-kernel");
     expect(seed.objects).toHaveLength(101);
     expect(seed.relations).toHaveLength(1);
-    expect(seed.changeEvents[0]?.target).toEqual({
+    expect(seed.changeEvents).toEqual([]);
+    expect(api.historyCalls).toEqual([]);
+    expect(gateway.getLastLoadReport()).toMatchObject({
+      objectCount: 101,
+      relationCount: 1,
+      historyCount: 0,
+    });
+
+    const history = await gateway.loadObjectHistory("kernel-prod-s3");
+
+    expect(history[0]?.target).toEqual({
       entityType: "field",
       entityId: "kernel-prod-s3",
       fieldCode: "price",
@@ -53,9 +63,70 @@ describe("KernelGateway", () => {
     expect(gateway.getLastLoadReport()).toMatchObject({
       objectCount: 101,
       relationCount: 1,
-      historyCount: 1,
+      historyCount: 0,
     });
+    expect(api.historyCalls).toEqual(["kernel-prod-s3"]);
     expect(api.objectPageCalls).toEqual([0, 1]);
+  });
+
+  it("coalesces concurrent workspace initialization requests", async () => {
+    const api = new FakeKernelApi();
+    api.seedObjects(2);
+    const gateway = new KernelGateway("", "ws-kernel", "wangyun", api.fetch);
+
+    const first = gateway.loadWorkspace();
+    const second = gateway.loadWorkspace();
+    const [firstSeed, secondSeed] = await Promise.all([first, second]);
+
+    expect(first).toBe(second);
+    expect(firstSeed).toBe(secondSeed);
+    expect(api.objectPageCalls).toEqual([0]);
+  });
+
+  it("loads different object types concurrently while retaining complete pages", async () => {
+    const api = new FakeKernelApi();
+    api.seedObjects(101);
+    api.objectTypes.push({
+      id: "type-supplier",
+      code: "supplier",
+      name: "Supplier",
+      fields: [fieldType("name", "Name", "text")],
+    });
+    api.objects.push(
+      viewObject("supplier-1", "supplier", { name: "供应商 A" }),
+    );
+    const objectPageGate = api.holdObjectPages(2);
+    const gateway = new KernelGateway("", "ws-kernel", "wangyun", api.fetch);
+
+    const load = gateway.loadWorkspace();
+    await objectPageGate.started;
+    expect(api.objectPageInFlight).toBe(2);
+    objectPageGate.release();
+    const seed = await load;
+
+    expect(seed.objects).toHaveLength(102);
+    expect(new Set(seed.objects.map((object) => object.id)).size).toBe(102);
+    expect(api.objectPageCalls).toEqual([0, 0, 1]);
+  });
+
+  it("bounds concurrent relation reads and records individual failures", async () => {
+    const api = new FakeKernelApi();
+    api.seedObjects(RELATION_LOAD_CONCURRENCY + 2);
+    api.failObjectDetails.add("kernel-product-8");
+    const detailGate = api.holdObjectDetails(RELATION_LOAD_CONCURRENCY);
+    const gateway = new KernelGateway("", "ws-kernel", "wangyun", api.fetch);
+
+    const load = gateway.loadWorkspace();
+    await detailGate.started;
+    expect(api.objectDetailInFlight).toBe(RELATION_LOAD_CONCURRENCY);
+    expect(api.objectDetailPeak).toBe(RELATION_LOAD_CONCURRENCY);
+    detailGate.release();
+    const seed = await load;
+
+    expect(seed.relations).toEqual([]);
+    expect(gateway.getLastLoadReport()).toMatchObject({
+      relationLoadFailures: 1,
+    });
   });
 
   it("selects the pc procurement preset without mixing hardware demo content", async () => {
@@ -151,10 +222,34 @@ describe("KernelGateway", () => {
     const report = seed.anaReports.find(
       (item) => item.id === "ana-pc-plan-comparison",
     )!;
-    const analysis = buildAnaViewModel(seed, report);
+    const anaView = seed.views.find((view) => view.id === "view-pc-ana")!;
+    const analysis = buildAnaViewModel(
+      seed,
+      report,
+      anaView.config.anaComparison,
+      [],
+      "ready",
+    );
     expect(analysis.report.factorTitle).toBe("方案因素");
-    expect(analysis.report.drillColumns).toEqual([]);
-    expect(analysis.report.drillRows).toEqual([]);
+    expect(analysis.comparison?.state).toBe("ready");
+    expect(
+      analysis.comparison?.columns.map((column) => column.fieldCode),
+    ).toEqual(
+      expect.arrayContaining([
+        "total_price_cny_fx",
+        "total_power_w_fx",
+        "total_performance_score_fx",
+        "power_supply_capacity_w_fx",
+        "quote_inventory_fx",
+      ]),
+    );
+    expect(
+      analysis.comparison?.rows.map((row) => row.values.totalPrice),
+    ).toEqual(["8783 CNY", "12872 CNY"]);
+    expect(analysis.comparison?.rows.map((row) => row.status)).toEqual([
+      "ok",
+      "ok",
+    ]);
   });
 
   it("uses the minimal generic preset for an unknown profile", async () => {
@@ -724,6 +819,9 @@ class FakeKernelApi {
   readonly objects: ViewObjectFixture[] = [];
   readonly relations: RelationFixture[] = [];
   readonly history = new Map<string, HistoryFixture[]>();
+  readonly historyCalls: string[] = [];
+  readonly objectDetailCalls: string[] = [];
+  readonly failObjectDetails = new Set<string>();
   readonly objectPageCalls: number[] = [];
   readonly commands: {
     readonly actorId: string | null;
@@ -793,6 +891,51 @@ class FakeKernelApi {
   ruleCommandReturnsRunId = true;
   private objectSequence = 0;
   private relationSequence = 0;
+  objectDetailInFlight = 0;
+  objectDetailPeak = 0;
+  objectPageInFlight = 0;
+  private objectDetailGate: Promise<void> | null = null;
+  private releaseObjectDetails: (() => void) | null = null;
+  private objectDetailStartTarget = 0;
+  private resolveObjectDetailStart: (() => void) | null = null;
+  private objectPageGate: Promise<void> | null = null;
+  private releaseObjectPages: (() => void) | null = null;
+  private objectPageStartTarget = 0;
+  private resolveObjectPageStart: (() => void) | null = null;
+
+  holdObjectDetails(target: number): {
+    readonly started: Promise<void>;
+    readonly release: () => void;
+  } {
+    this.objectDetailStartTarget = target;
+    const started = new Promise<void>((resolve) => {
+      this.resolveObjectDetailStart = resolve;
+    });
+    this.objectDetailGate = new Promise<void>((resolve) => {
+      this.releaseObjectDetails = resolve;
+    });
+    return {
+      started,
+      release: () => this.releaseObjectDetails?.(),
+    };
+  }
+
+  holdObjectPages(target: number): {
+    readonly started: Promise<void>;
+    readonly release: () => void;
+  } {
+    this.objectPageStartTarget = target;
+    const started = new Promise<void>((resolve) => {
+      this.resolveObjectPageStart = resolve;
+    });
+    this.objectPageGate = new Promise<void>((resolve) => {
+      this.releaseObjectPages = resolve;
+    });
+    return {
+      started,
+      release: () => this.releaseObjectPages?.(),
+    };
+  }
 
   readonly fetch = async (
     input: RequestInfo | URL,
@@ -823,23 +966,50 @@ class FakeKernelApi {
         (object) => !objectType || object.objectType === objectType,
       );
       this.objectPageCalls.push(page);
-      const items = objects.slice(page * pageSize, (page + 1) * pageSize);
-      return json({ items, page, pageSize, total: objects.length });
+      this.objectPageInFlight += 1;
+      if (this.objectPageCalls.length === this.objectPageStartTarget) {
+        this.resolveObjectPageStart?.();
+      }
+      try {
+        await this.objectPageGate;
+        const items = objects.slice(page * pageSize, (page + 1) * pageSize);
+        return json({ items, page, pageSize, total: objects.length });
+      } finally {
+        this.objectPageInFlight -= 1;
+      }
     }
     const objectDetail = url.pathname.match(/\/views\/objects\/([^/]+)$/);
     if (objectDetail) {
       const objectId = objectDetail[1] ?? "";
-      return json({
-        object: this.objects.find((object) => object.objectId === objectId),
-        relations: this.relations.filter(
-          (relation) =>
-            relation.sourceId === objectId || relation.targetId === objectId,
-        ),
-      });
+      this.objectDetailCalls.push(objectId);
+      this.objectDetailInFlight += 1;
+      this.objectDetailPeak = Math.max(
+        this.objectDetailPeak,
+        this.objectDetailInFlight,
+      );
+      if (this.objectDetailCalls.length === this.objectDetailStartTarget) {
+        this.resolveObjectDetailStart?.();
+      }
+      try {
+        await this.objectDetailGate;
+        if (this.failObjectDetails.has(objectId)) {
+          return json({ message: "object detail failed" }, 500);
+        }
+        return json({
+          object: this.objects.find((object) => object.objectId === objectId),
+          relations: this.relations.filter(
+            (relation) =>
+              relation.sourceId === objectId || relation.targetId === objectId,
+          ),
+        });
+      } finally {
+        this.objectDetailInFlight -= 1;
+      }
     }
     const history = url.pathname.match(/\/views\/objects\/([^/]+)\/history$/);
     if (history) {
       const objectId = history[1] ?? "";
+      this.historyCalls.push(objectId);
       return json({
         items: this.history.get(objectId) ?? [],
         page: 0,

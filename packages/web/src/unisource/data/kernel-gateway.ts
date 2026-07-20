@@ -22,7 +22,6 @@ import type {
   ReviewRecord,
 } from "../model/kernel";
 import type {
-  ActivityItem,
   ChangeEvent,
   FieldRef,
   KpiCardDef,
@@ -81,6 +80,8 @@ import {
 } from "./identity-remap";
 
 const PAGE_SIZE = 100;
+const OBJECT_TYPE_LOAD_CONCURRENCY = 8;
+export const RELATION_LOAD_CONCURRENCY = 8;
 const CLAIM_READ_ATTEMPTS = 5;
 const CLAIM_READ_DELAY_MS = 100;
 
@@ -88,6 +89,7 @@ export interface KernelGatewayLoadReport extends IdentityRemapReport {
   readonly objectCount: number;
   readonly relationCount: number;
   readonly historyCount: number;
+  readonly relationLoadFailures: number;
 }
 
 export interface KernelSeedReport {
@@ -104,7 +106,12 @@ interface KernelGraph {
   readonly objects: readonly DataObject[];
   readonly relationTypes: readonly RelationType[];
   readonly relations: readonly DataRelation[];
-  readonly changeEvents: readonly ChangeEvent[];
+  readonly relationLoadFailures: number;
+}
+
+interface RelationLoadResult {
+  readonly relations: readonly DataRelation[];
+  readonly failedObjectIds: readonly string[];
 }
 
 export class KernelGateway implements UnisourceGateway {
@@ -116,6 +123,7 @@ export class KernelGateway implements UnisourceGateway {
   private objectTypesByCode: ReadonlyMap<string, ObjectType> | null = null;
   private relationTypeIdsByCode: ReadonlyMap<string, string> | null = null;
   private workspaceTemplateCode: string | null = null;
+  private inFlightWorkspaceLoad: Promise<DemoSeed> | null = null;
 
   constructor(
     baseUrl: string,
@@ -144,7 +152,22 @@ export class KernelGateway implements UnisourceGateway {
     return this.workspaceTemplateCode;
   }
 
-  async loadWorkspace(): Promise<DemoSeed> {
+  loadWorkspace(): Promise<DemoSeed> {
+    if (this.inFlightWorkspaceLoad) return this.inFlightWorkspaceLoad;
+    const load = this.loadWorkspaceInternal();
+    this.inFlightWorkspaceLoad = load;
+    void load.then(
+      () => this.clearInFlightWorkspaceLoad(load),
+      () => this.clearInFlightWorkspaceLoad(load),
+    );
+    return load;
+  }
+
+  private clearInFlightWorkspaceLoad(load: Promise<DemoSeed>): void {
+    if (this.inFlightWorkspaceLoad === load) this.inFlightWorkspaceLoad = null;
+  }
+
+  private async loadWorkspaceInternal(): Promise<DemoSeed> {
     const [graph, workspaceSummary] = await Promise.all([
       this.loadKernelGraph(),
       this.loadWorkspaceSummary(),
@@ -162,7 +185,8 @@ export class KernelGateway implements UnisourceGateway {
       ...remapped.report,
       objectCount: graph.objects.length,
       relationCount: graph.relations.length,
-      historyCount: graph.changeEvents.length,
+      historyCount: 0,
+      relationLoadFailures: graph.relationLoadFailures,
     };
     return {
       ...remapped.seed,
@@ -171,16 +195,14 @@ export class KernelGateway implements UnisourceGateway {
         id: this.workspaceId,
         name: workspaceSummary?.name ?? remapped.seed.workspace.name,
         updatedAt:
-          latestChangeAt(graph.changeEvents) ??
-          workspaceSummary?.updatedAt ??
-          remapped.seed.workspace.updatedAt,
+          workspaceSummary?.updatedAt ?? remapped.seed.workspace.updatedAt,
       },
       objectTypes: graph.objectTypes,
       objects: graph.objects,
       relationTypes: graph.relationTypes,
       relations: graph.relations,
-      changeEvents: graph.changeEvents,
-      activity: graph.changeEvents.map(historyActivity),
+      changeEvents: [],
+      activity: [],
     };
   }
 
@@ -235,7 +257,9 @@ export class KernelGateway implements UnisourceGateway {
     }
 
     const currentObjects = await this.loadObjectsForTypes(objectTypes);
-    const currentRelations = await this.loadRelationsForObjects(currentObjects);
+    const currentRelations = (
+      await this.loadRelationsForObjects(currentObjects)
+    ).relations;
     const currentObjectsById = byId(currentObjects);
     const currentObjectByKey = new Map(
       currentObjects
@@ -829,7 +853,8 @@ export class KernelGateway implements UnisourceGateway {
     );
     const objectTypes = objectTypeDtos.map(mapObjectType);
     const objects = await this.loadObjectsForTypes(objectTypeDtos);
-    const relations = await this.loadRelationsForObjects(objects);
+    const relationLoad = await this.loadRelationsForObjects(objects);
+    const relations = relationLoad.relations;
     const relationTypeDtos = await this.viewClient.relationTypes(
       this.workspaceId,
     );
@@ -841,65 +866,85 @@ export class KernelGateway implements UnisourceGateway {
       relations,
       objects,
     );
-    const changeEvents = await this.loadHistoryForObjects(objects);
-    return { objectTypes, objects, relationTypes, relations, changeEvents };
+    return {
+      objectTypes,
+      objects,
+      relationTypes,
+      relations,
+      relationLoadFailures: relationLoad.failedObjectIds.length,
+    };
   }
 
   private async loadObjectsForTypes(
     objectTypes: readonly ObjectType[],
   ): Promise<readonly DataObject[]> {
+    const objectsByType = await mapWithConcurrency(
+      objectTypes,
+      OBJECT_TYPE_LOAD_CONCURRENCY,
+      (objectType) => this.loadObjectsForType(objectType),
+    );
+    return objectsByType.flat();
+  }
+
+  private async loadObjectsForType(
+    objectType: ObjectType,
+  ): Promise<readonly DataObject[]> {
     const objects: DataObject[] = [];
-    for (const objectType of objectTypes) {
-      let page = 0;
-      while (true) {
-        const result = await this.viewClient.objects(
-          this.workspaceId,
-          objectType.code,
-          page,
-          PAGE_SIZE,
-        );
-        objects.push(
-          ...result.items.map((item) =>
-            mapViewObject(item, mapObjectType(objectType)),
-          ),
-        );
-        if (result.items.length === 0 || objectsOfTypeLoaded(result, page))
-          break;
-        page += 1;
-      }
+    let page = 0;
+    while (true) {
+      const result = await this.viewClient.objects(
+        this.workspaceId,
+        objectType.code,
+        page,
+        PAGE_SIZE,
+      );
+      objects.push(
+        ...result.items.map((item) =>
+          mapViewObject(item, mapObjectType(objectType)),
+        ),
+      );
+      if (result.items.length === 0 || objectsOfTypeLoaded(result, page))
+        return objects;
+      page += 1;
     }
-    return objects;
   }
 
   private async loadRelationsForObjects(
     objects: readonly DataObject[],
-  ): Promise<readonly DataRelation[]> {
+  ): Promise<RelationLoadResult> {
     const relations = new Map<string, DataRelation>();
-    for (const object of objects) {
-      const detail = await this.viewClient.object(this.workspaceId, object.id);
+    const failedObjectIds: string[] = [];
+    const details = await mapWithConcurrency(
+      objects,
+      RELATION_LOAD_CONCURRENCY,
+      async (object) => {
+        try {
+          return await this.viewClient.object(this.workspaceId, object.id);
+        } catch {
+          failedObjectIds.push(object.id);
+          return null;
+        }
+      },
+    );
+    for (const detail of details) {
+      if (!detail) continue;
       for (const relation of detail.relations) {
         relations.set(relation.relationId, mapRelationSummary(relation));
       }
     }
-    return [...relations.values()];
+    return { relations: [...relations.values()], failedObjectIds };
   }
 
-  private async loadHistoryForObjects(
-    objects: readonly DataObject[],
-  ): Promise<readonly ChangeEvent[]> {
-    const events: ChangeEvent[] = [];
-    for (const object of objects) {
-      const page = await this.viewClient.objectHistory(
-        this.workspaceId,
-        object.id,
-        0,
-        30,
-      );
-      events.push(
-        ...page.items.map((item) => mapHistoryEntry(item, object.id)),
-      );
-    }
-    return events.sort((a, b) => b.at.localeCompare(a.at));
+  async loadObjectHistory(objectId: string): Promise<readonly ChangeEvent[]> {
+    const page = await this.viewClient.objectHistory(
+      this.workspaceId,
+      objectId,
+      0,
+      30,
+    );
+    return page.items
+      .map((item) => mapHistoryEntry(item, objectId))
+      .sort((a, b) => b.at.localeCompare(a.at));
   }
 }
 
@@ -1036,16 +1081,6 @@ function fieldValue(value: DataFieldPrimitive): DataFieldValue {
   };
 }
 
-function historyActivity(event: ChangeEvent): ActivityItem {
-  return {
-    id: `activity-${event.id}`,
-    actor: event.actor,
-    summary: `${event.target.entityType} ${event.target.entityId}`,
-    tracks: [event.track],
-    at: event.at,
-  };
-}
-
 function kernelWriteEvent(
   entityType: ChangeEvent["target"]["entityType"],
   entityId: string,
@@ -1081,8 +1116,25 @@ function kernelAiFallback(
   };
 }
 
-function latestChangeAt(events: readonly ChangeEvent[]): string | null {
-  return events[0]?.at ?? null;
+async function mapWithConcurrency<T, R>(
+  items: readonly T[],
+  limit: number,
+  map: (item: T) => Promise<R>,
+): Promise<readonly R[]> {
+  const results: R[] = new Array(items.length);
+  let nextIndex = 0;
+  const workers = Array.from(
+    { length: Math.min(limit, items.length) },
+    async () => {
+      while (nextIndex < items.length) {
+        const index = nextIndex;
+        nextIndex += 1;
+        results[index] = await map(items[index]!);
+      }
+    },
+  );
+  await Promise.all(workers);
+  return results;
 }
 
 function shortId(value: string): string {

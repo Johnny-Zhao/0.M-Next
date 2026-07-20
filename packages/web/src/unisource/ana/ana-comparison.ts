@@ -1,0 +1,324 @@
+import type { SelectionRef } from "../model/kernel";
+import { traverseObjectSubtree } from "../model/object-subtree";
+import type { WorkspaceState } from "../state/workspace-store";
+import type { RuleOutcome } from "../validation/rules";
+
+const terminalStatuses = new Set(["archived", "deleted", "soft-deleted"]);
+
+export interface AnaComparisonColumn {
+  readonly key: string;
+  readonly label: string;
+  readonly fieldCode: string;
+  readonly derived?: boolean;
+  readonly relationPath?: readonly string[];
+  readonly unit?: string;
+}
+
+export interface AnaComparisonConfig {
+  readonly sourceObjectTypeCode: string;
+  readonly scopeRelationTypeCodes: readonly string[];
+  readonly scopeDepth: number;
+  readonly columns: readonly AnaComparisonColumn[];
+}
+
+export interface AnaComparisonRow {
+  readonly objectId: string;
+  readonly values: Readonly<Record<string, string | null>>;
+  readonly status: "ok" | "block" | "warn" | "unchecked";
+  readonly issueCount: number;
+}
+
+export interface AnaComparisonIssue {
+  readonly ruleCode: string;
+  readonly level: "BLOCK" | "WARN";
+  readonly title: string;
+  readonly detail: string;
+  readonly selection: SelectionRef | null;
+  readonly state: "ready" | "dangling";
+  readonly planObjectIds: readonly string[];
+}
+
+export interface AnaComparisonVm {
+  readonly state: "ready" | "no-plans" | "missing-derived" | "unvalidated";
+  readonly rows: readonly AnaComparisonRow[];
+  readonly columns: readonly AnaComparisonColumn[];
+  readonly issues: readonly AnaComparisonIssue[];
+  readonly summary: {
+    readonly total: number;
+    readonly ok: number;
+    readonly block: number;
+    readonly warn: number;
+  };
+}
+
+export function readAnaComparisonConfig(
+  value: unknown,
+): AnaComparisonConfig | null {
+  if (!isRecord(value) || typeof value.sourceObjectTypeCode !== "string")
+    return null;
+  if (
+    !Array.isArray(value.scopeRelationTypeCodes) ||
+    !Array.isArray(value.columns)
+  )
+    return null;
+  const columns = value.columns.flatMap(readColumn);
+  if (columns.length !== value.columns.length) return null;
+  return {
+    sourceObjectTypeCode: value.sourceObjectTypeCode,
+    scopeRelationTypeCodes: value.scopeRelationTypeCodes.filter(
+      (item): item is string => typeof item === "string",
+    ),
+    scopeDepth: boundedDepth(value.scopeDepth),
+    columns,
+  };
+}
+
+export function buildAnaComparison(
+  workspace: Pick<WorkspaceState, "objects" | "relations">,
+  config: AnaComparisonConfig,
+  results: readonly RuleOutcome[],
+  validationStatus: "idle" | "running" | "ready" | "error",
+): AnaComparisonVm {
+  const plans = workspace.objects.filter(
+    (object) =>
+      object.objectTypeCode === config.sourceObjectTypeCode &&
+      !terminalStatuses.has(object.status),
+  );
+  const memberships = new Map(
+    plans.map((plan) => [
+      plan.id,
+      traverseObjectSubtree(
+        workspace,
+        plan.id,
+        config.scopeRelationTypeCodes,
+        config.scopeDepth,
+      )?.objectIds ?? new Set([plan.id]),
+    ]),
+  );
+  const issues = comparisonIssues(workspace, results, memberships);
+  const rows = plans.map((plan) =>
+    comparisonRow(
+      workspace,
+      plan.id,
+      config,
+      issues.filter((issue) => issue.planObjectIds.includes(plan.id)),
+      validationStatus,
+    ),
+  );
+  return {
+    state: comparisonState(rows, config, validationStatus),
+    rows,
+    columns: config.columns,
+    issues,
+    summary: comparisonSummary(rows),
+  };
+}
+
+export function anaSelectionForRow(row: AnaComparisonRow): SelectionRef {
+  return { entityType: "object", entityId: row.objectId };
+}
+
+export function anaSelectionForIssue(
+  issue: AnaComparisonIssue,
+): SelectionRef | null {
+  return issue.state === "ready" ? issue.selection : null;
+}
+
+function comparisonIssues(
+  workspace: Pick<WorkspaceState, "objects" | "relations">,
+  results: readonly RuleOutcome[],
+  memberships: ReadonlyMap<string, ReadonlySet<string>>,
+): readonly AnaComparisonIssue[] {
+  return results.flatMap((result) => {
+    const level = ruleLevel(result);
+    if (!level) return [];
+    const targetIds = targetObjectIds(workspace, result.target ?? null);
+    const planObjectIds = Array.from(memberships).flatMap(
+      ([planId, members]) =>
+        targetIds.some((id) => members.has(id)) ? [planId] : [],
+    );
+    return [
+      {
+        ruleCode: result.ruleCode,
+        level,
+        title: result.title,
+        detail: result.detail,
+        selection: result.target ?? null,
+        state: targetIds.length === 0 ? "dangling" : "ready",
+        planObjectIds,
+      },
+    ];
+  });
+}
+
+function comparisonRow(
+  workspace: Pick<WorkspaceState, "objects" | "relations">,
+  objectId: string,
+  config: AnaComparisonConfig,
+  issues: readonly AnaComparisonIssue[],
+  validationStatus: "idle" | "running" | "ready" | "error",
+): AnaComparisonRow {
+  const values = Object.fromEntries(
+    config.columns.map((column) => [
+      column.key,
+      displayValue(resolveColumnObjects(workspace, objectId, column), column),
+    ]),
+  );
+  return {
+    objectId,
+    values,
+    status: comparisonStatus(issues, validationStatus),
+    issueCount: issues.length,
+  };
+}
+
+function resolveColumnObjects(
+  workspace: Pick<WorkspaceState, "objects" | "relations">,
+  objectId: string,
+  column: AnaComparisonColumn,
+): readonly WorkspaceState["objects"][number][] {
+  let current = workspace.objects.filter((item) => item.id === objectId);
+  for (const relationTypeCode of column.relationPath ?? []) {
+    const targetIds = new Set(
+      workspace.relations
+        .filter(
+          (relation) =>
+            relation.status === "active" &&
+            relation.relationTypeCode === relationTypeCode &&
+            current.some((object) => object.id === relation.sourceId),
+        )
+        .map((relation) => relation.targetId),
+    );
+    current = workspace.objects.filter(
+      (object) =>
+        targetIds.has(object.id) && !terminalStatuses.has(object.status),
+    );
+  }
+  return current;
+}
+
+function displayValue(
+  objects: readonly WorkspaceState["objects"][number][],
+  column: AnaComparisonColumn,
+): string | null {
+  const values = Array.from(
+    new Set(
+      objects
+        .map((object) => object.fields[column.fieldCode]?.value ?? null)
+        .filter((value): value is Exclude<typeof value, null> => value !== null)
+        .map((value) => String(value)),
+    ),
+  );
+  if (values.length === 0) return null;
+  return `${values.join("、")}${column.unit ? ` ${column.unit}` : ""}`;
+}
+
+function comparisonStatus(
+  issues: readonly AnaComparisonIssue[],
+  validationStatus: "idle" | "running" | "ready" | "error",
+): AnaComparisonRow["status"] {
+  if (validationStatus !== "ready") return "unchecked";
+  if (issues.some((issue) => issue.level === "BLOCK")) return "block";
+  return issues.some((issue) => issue.level === "WARN") ? "warn" : "ok";
+}
+
+function comparisonState(
+  rows: readonly AnaComparisonRow[],
+  config: AnaComparisonConfig,
+  validationStatus: "idle" | "running" | "ready" | "error",
+): AnaComparisonVm["state"] {
+  if (rows.length === 0) return "no-plans";
+  const derivedKeys = config.columns
+    .filter((column) => column.derived && !column.relationPath?.length)
+    .map((column) => column.key);
+  if (
+    derivedKeys.length > 0 &&
+    rows.some((row) => derivedKeys.every((key) => row.values[key] === null))
+  )
+    return "missing-derived";
+  return validationStatus === "ready" ? "ready" : "unvalidated";
+}
+
+function comparisonSummary(rows: readonly AnaComparisonRow[]) {
+  return rows.reduce(
+    (summary, row) => ({
+      ...summary,
+      [row.status]: summary[row.status] + 1,
+    }),
+    { total: rows.length, ok: 0, block: 0, warn: 0, unchecked: 0 },
+  );
+}
+
+function ruleLevel(result: RuleOutcome): AnaComparisonIssue["level"] | null {
+  return result.level === "error"
+    ? "BLOCK"
+    : result.level === "warning"
+      ? "WARN"
+      : null;
+}
+
+function targetObjectIds(
+  workspace: Pick<WorkspaceState, "objects" | "relations">,
+  target: SelectionRef | null,
+): readonly string[] {
+  if (!target) return [];
+  if (target.entityType !== "relation")
+    return workspace.objects.some(
+      (object) =>
+        object.id === target.entityId && !terminalStatuses.has(object.status),
+    )
+      ? [target.entityId]
+      : [];
+  const relation = workspace.relations.find(
+    (item) => item.id === target.entityId,
+  );
+  const endpoints = relation ? [relation.sourceId, relation.targetId] : [];
+  return endpoints.every((id) =>
+    workspace.objects.some(
+      (object) => object.id === id && !terminalStatuses.has(object.status),
+    ),
+  )
+    ? endpoints
+    : [];
+}
+
+function readColumn(value: unknown): readonly AnaComparisonColumn[] {
+  if (!isRecord(value)) return [];
+  if (
+    typeof value.key !== "string" ||
+    typeof value.label !== "string" ||
+    typeof value.fieldCode !== "string"
+  )
+    return [];
+  const relationPath = Array.isArray(value.relationPath)
+    ? value.relationPath.filter(
+        (item): item is string => typeof item === "string",
+      )
+    : undefined;
+  if (
+    Array.isArray(value.relationPath) &&
+    (relationPath?.length !== value.relationPath.length ||
+      relationPath.length > 5)
+  )
+    return [];
+  return [
+    {
+      key: value.key,
+      label: value.label,
+      fieldCode: value.fieldCode,
+      derived: value.derived === true,
+      relationPath,
+      unit: typeof value.unit === "string" ? value.unit : undefined,
+    },
+  ];
+}
+
+function boundedDepth(value: unknown): number {
+  return typeof value === "number" && Number.isFinite(value)
+    ? Math.max(1, Math.min(5, Math.trunc(value)))
+    : 1;
+}
+
+function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}

@@ -3,25 +3,49 @@ import { useNavigate } from "react-router-dom";
 
 import { UsButton, UsMonoTag, pushToast } from "../primitives";
 import { useSessionSnapshot } from "../state/session-store";
+import { selectionStore, useSelectionSnapshot } from "../state/selection-store";
+import { useValidationSnapshot } from "../state/validation-store";
 import { workspaceStore, useWorkspaceSnapshot } from "../state/workspace-store";
+import { anaSelectionForIssue, anaSelectionForRow } from "./ana-comparison";
+import { AnaComparisonView } from "./ana-comparison-view";
 import { buildAnaViewModel } from "./ana-view-model";
 import { scheduleAnaReanalysis } from "./reanalyze";
 
 export function AnaView({ viewId }: { readonly viewId: string }) {
   const workspace = useWorkspaceSnapshot();
   const session = useSessionSnapshot();
+  const selection = useSelectionSnapshot();
+  const validation = useValidationSnapshot();
   const navigate = useNavigate();
   const [analyzing, setAnalyzing] = useState(false);
+  const [activePlanId, setActivePlanId] = useState<string | null>(null);
   const view = workspace.views.find(
     (candidate) => candidate.id === viewId && candidate.kind === "ana",
   );
   const report = workspace.anaReports.find(
     (candidate) => candidate.id === view?.config.reportId,
   );
-  const vm = report ? buildAnaViewModel(workspace, report) : null;
+  const vm = report
+    ? buildAnaViewModel(
+        workspace,
+        report,
+        view?.config.anaComparison,
+        validation.kernelResults,
+        validation.kernelStale ? "running" : validation.kernelStatus,
+      )
+    : null;
   if (!view || !vm) return <p role="status">当前分析视图不可用。</p>;
+  if (view.config.anaComparisonRequired === true && !vm.comparison)
+    return <p role="status">当前分析配置不可用</p>;
   const exprId = view.exprId;
   const dashboardExprId = String(view.config.dashboardExprId ?? exprId);
+  const selectedPlanId =
+    selection.current?.entityType === "object" &&
+    vm.comparison?.rows.some(
+      (row) => row.objectId === selection.current?.entityId,
+    )
+      ? selection.current.entityId
+      : activePlanId;
 
   const revealKpis = (ids: readonly string[]) => {
     if (
@@ -69,97 +93,115 @@ export function AnaView({ viewId }: { readonly viewId: string }) {
         <div className="us-ana-skeleton" aria-label="分析中" />
       ) : (
         <>
-          <section className="us-ana-card">
-            <header>
-              <span>{vm.report.factorTitle}</span>
-              <strong>{vm.report.factorMetricLabel}</strong>
-            </header>
-            <div className="us-ana-factors">
-              {vm.report.factors.length === 0 ? (
-                <p role="status">暂无可展示数据</p>
-              ) : null}
-              {vm.report.factors.map((factor) => (
-                <div className="us-ana-factor" key={factor.label}>
-                  <span>{factor.label}</span>
-                  <i
-                    data-tone={factor.tone}
-                    style={{ width: `${factor.widthPct}%` }}
-                  />
-                  <strong className="us-data">{factor.deltaText}</strong>
+          {vm.comparison ? (
+            <AnaComparisonView
+              activePlanId={selectedPlanId}
+              comparison={vm.comparison}
+              onSelectIssue={(issue) => {
+                const target = anaSelectionForIssue(issue);
+                if (target) selectionStore.set(target);
+              }}
+              onSelectPlan={(row) => {
+                setActivePlanId(row.objectId);
+                selectionStore.set(anaSelectionForRow(row));
+              }}
+            />
+          ) : (
+            <>
+              <section className="us-ana-card">
+                <header>
+                  <span>{vm.report.factorTitle}</span>
+                  <strong>{vm.report.factorMetricLabel}</strong>
+                </header>
+                <div className="us-ana-factors">
+                  {vm.report.factors.length === 0 ? (
+                    <p role="status">暂无可展示数据</p>
+                  ) : null}
+                  {vm.report.factors.map((factor) => (
+                    <div className="us-ana-factor" key={factor.label}>
+                      <span>{factor.label}</span>
+                      <i
+                        data-tone={factor.tone}
+                        style={{ width: `${factor.widthPct}%` }}
+                      />
+                      <strong className="us-data">{factor.deltaText}</strong>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          </section>
-          <section className="us-ana-card">
-            <header>
-              <span>{vm.report.drillTitle}</span>
-              <strong>{vm.report.drillTraceLabel}</strong>
-            </header>
-            {vm.report.drillRows.length === 0 ? (
-              <p role="status">暂无可展示数据</p>
-            ) : (
-              <table className="us-ana-table">
-                <thead>
-                  <tr>
-                    {vm.report.drillColumns.map((column) => (
-                      <th key={column.key}>{column.label}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {vm.report.drillRows.map((row, rowIndex) => (
-                    <tr
-                      key={String(
-                        row[vm.report.drillColumns[0]?.key ?? ""] ?? rowIndex,
-                      )}
+              </section>
+              <section className="us-ana-card">
+                <header>
+                  <span>{vm.report.drillTitle}</span>
+                  <strong>{vm.report.drillTraceLabel}</strong>
+                </header>
+                {vm.report.drillRows.length === 0 ? (
+                  <p role="status">暂无可展示数据</p>
+                ) : (
+                  <table className="us-ana-table">
+                    <thead>
+                      <tr>
+                        {vm.report.drillColumns.map((column) => (
+                          <th key={column.key}>{column.label}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {vm.report.drillRows.map((row, rowIndex) => (
+                        <tr
+                          key={String(
+                            row[vm.report.drillColumns[0]?.key ?? ""] ??
+                              rowIndex,
+                          )}
+                        >
+                          {vm.report.drillColumns.map((column) => {
+                            const value = row[column.key] ?? "—";
+                            return (
+                              <td className="us-data" key={column.key}>
+                                {value}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </section>
+              <section className="us-ana-card us-ana-insights">
+                <header>
+                  <span>洞察 INSIGHTS</span>
+                  <strong>可钉回看板</strong>
+                </header>
+                {vm.report.insights.map((insight) => (
+                  <article key={insight.title}>
+                    <h2>{insight.title}</h2>
+                    <p>
+                      {insight.segments.map((segment, index) => (
+                        <span
+                          className={segment.mono ? "us-data" : undefined}
+                          key={`${insight.title}-${index}`}
+                        >
+                          {segment.text}
+                        </span>
+                      ))}
+                    </p>
+                  </article>
+                ))}
+                <div className="us-ana-actions">
+                  {vm.actions.map((action) => (
+                    <UsButton
+                      key={action.id}
+                      onClick={() => revealKpis(action.kpiIds)}
+                      size="sm"
+                      variant={action.id === "pin" ? "primary" : "secondary"}
                     >
-                      {vm.report.drillColumns.map((column) => {
-                        const value = row[column.key] ?? "—";
-                        return (
-                          <td className="us-data" key={column.key}>
-                            {value}
-                          </td>
-                        );
-                      })}
-                    </tr>
+                      {action.alreadyVisible ? "已在看板" : action.label}
+                    </UsButton>
                   ))}
-                </tbody>
-              </table>
-            )}
-          </section>
-          <section className="us-ana-card us-ana-insights">
-            <header>
-              <span>洞察 INSIGHTS</span>
-              <strong>可钉回看板</strong>
-            </header>
-            {vm.report.insights.map((insight) => (
-              <article key={insight.title}>
-                <h2>{insight.title}</h2>
-                <p>
-                  {insight.segments.map((segment, index) => (
-                    <span
-                      className={segment.mono ? "us-data" : undefined}
-                      key={`${insight.title}-${index}`}
-                    >
-                      {segment.text}
-                    </span>
-                  ))}
-                </p>
-              </article>
-            ))}
-            <div className="us-ana-actions">
-              {vm.actions.map((action) => (
-                <UsButton
-                  key={action.id}
-                  onClick={() => revealKpis(action.kpiIds)}
-                  size="sm"
-                  variant={action.id === "pin" ? "primary" : "secondary"}
-                >
-                  {action.alreadyVisible ? "已在看板" : action.label}
-                </UsButton>
-              ))}
-            </div>
-          </section>
+                </div>
+              </section>
+            </>
+          )}
         </>
       )}
       <footer className="us-ana-foot">

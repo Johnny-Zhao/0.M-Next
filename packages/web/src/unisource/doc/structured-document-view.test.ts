@@ -23,17 +23,18 @@ describe("structured document field editing", () => {
     resetToastsForTest();
   });
 
-  it("uses SessionStore.requestWrite with the field object type", () => {
+  it("uses SessionStore.requestWrite with the field object type", async () => {
     const requestWrite = vi.fn(() => ({
       queued: false as const,
       eventId: "event-document-write",
       syncedRefs: 2,
     }));
 
-    const result = commitStructuredDocumentFieldEdit({
+    const result = await commitStructuredDocumentFieldEdit({
       field: documentField(),
       rawValue: "1099",
       session: { requestWrite },
+      waitForLastWrite: async () => ({ state: "synced" as const }),
     });
 
     expect(result).toEqual({
@@ -47,6 +48,57 @@ describe("structured document field editing", () => {
       fieldCode: "price",
       value: 1099,
     });
+  });
+
+  it("waits for the field write completion and rejects the failed result", async () => {
+    const requestWrite = vi.fn(() => ({
+      queued: false as const,
+      eventId: "event-document-write",
+      syncedRefs: 0,
+    }));
+    let complete!: (value: { state: "failed"; message: string }) => void;
+    const completion = new Promise<{ state: "failed"; message: string }>(
+      (resolve) => {
+        complete = resolve;
+      },
+    );
+    const saved = commitStructuredDocumentFieldEdit({
+      field: documentField(),
+      rawValue: "1099",
+      session: { requestWrite },
+      waitForLastWrite: () => completion,
+    });
+
+    expect(requestWrite).toHaveBeenCalledTimes(1);
+    complete({ state: "failed", message: "乐观版本冲突" });
+    await expect(saved).rejects.toThrow("乐观版本冲突");
+  });
+
+  it("does not report a field write as saved before kernel sync completes", async () => {
+    const requestWrite = vi.fn(() => ({
+      queued: false as const,
+      eventId: "event-document-write",
+      syncedRefs: 0,
+    }));
+    let complete!: (value: { state: "synced" }) => void;
+    const completion = new Promise<{ state: "synced" }>((resolve) => {
+      complete = resolve;
+    });
+    const saved = commitStructuredDocumentFieldEdit({
+      field: documentField(),
+      rawValue: "1099",
+      session: { requestWrite },
+      waitForLastWrite: () => completion,
+    });
+    let settled = false;
+    void saved.then(() => {
+      settled = true;
+    });
+
+    await Promise.resolve();
+    expect(settled).toBe(false);
+    complete({ state: "synced" });
+    await expect(saved).resolves.toMatchObject({ kind: "written" });
   });
 
   it("saves body through SessionStore with the real object type and waits for sync", async () => {
@@ -94,20 +146,21 @@ describe("structured document field editing", () => {
     expect(changes.getPending()[0]?.items[0]?.target.fieldCode).toBe("body");
   });
 
-  it("writes permitted edits and queues readonly edits without local mutation", () => {
+  it("writes permitted edits and queues readonly edits without local mutation", async () => {
     const seed = cloneDemoSeed();
     const workspace = new WorkspaceStore(seed);
     const changes = new ChangeSetStore(seed, workspace);
     const session = new SessionStore(workspace, changes);
     const field = documentField();
 
-    const direct = commitStructuredDocumentFieldEdit({
+    const direct = await commitStructuredDocumentFieldEdit({
       field,
       rawValue: "1099",
       session,
+      waitForLastWrite: async () => ({ state: "local" as const }),
     });
     session.switchMember("chenmo");
-    const queued = commitStructuredDocumentFieldEdit({
+    const queued = await commitStructuredDocumentFieldEdit({
       field,
       rawValue: "999",
       session,
@@ -122,18 +175,18 @@ describe("structured document field editing", () => {
     });
   });
 
-  it("uses only FieldDef enum options and rejects invalid values before writing", () => {
+  it("uses only FieldDef enum options and rejects invalid values before writing", async () => {
     const field = enumDocumentField();
     const requestWrite = vi.fn();
 
     expect(enumOptionsForDocumentField(field)).toEqual(["DRAFT", "PROPOSED"]);
-    expect(() =>
+    await expect(
       commitStructuredDocumentFieldEdit({
         field,
         rawValue: "INVALID",
         session: { requestWrite },
       }),
-    ).toThrow("请选择有效枚举值");
+    ).rejects.toThrow("请选择有效枚举值");
     expect(requestWrite).not.toHaveBeenCalled();
   });
 
@@ -152,17 +205,17 @@ describe("structured document field editing", () => {
     expect(html).not.toContain("INVALID");
   });
 
-  it("rejects non-finite numbers and unavailable enum configuration before writing", () => {
+  it("rejects non-finite numbers and unavailable enum configuration before writing", async () => {
     const requestWrite = vi.fn();
 
-    expect(() =>
+    await expect(
       commitStructuredDocumentFieldEdit({
         field: documentField(),
         rawValue: "not-a-number",
         session: { requestWrite },
       }),
-    ).toThrow();
-    expect(() =>
+    ).rejects.toThrow();
+    await expect(
       commitStructuredDocumentFieldEdit({
         field: {
           ...enumDocumentField(),
@@ -173,7 +226,7 @@ describe("structured document field editing", () => {
         rawValue: "DRAFT",
         session: { requestWrite },
       }),
-    ).toThrow("枚举字段配置不可用");
+    ).rejects.toThrow("枚举字段配置不可用");
     expect(requestWrite).not.toHaveBeenCalled();
   });
 

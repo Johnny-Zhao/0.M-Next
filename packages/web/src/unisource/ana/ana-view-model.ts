@@ -1,5 +1,11 @@
 import type { AnaReport } from "../model/view-layer";
 import type { WorkspaceState } from "../state/workspace-store";
+import type { RuleOutcome } from "../validation/rules";
+import {
+  buildAnaComparison,
+  readAnaComparisonConfig,
+  type AnaComparisonVm,
+} from "./ana-comparison";
 
 export interface AnaActionVm {
   readonly id: string;
@@ -11,14 +17,22 @@ export interface AnaActionVm {
 export interface AnaViewModel {
   readonly report: AnaReport;
   readonly actions: readonly AnaActionVm[];
+  readonly comparison: AnaComparisonVm | null;
 }
 
 export function buildAnaViewModel(
   workspace: WorkspaceState,
   report: AnaReport,
+  comparisonConfig?: unknown,
+  kernelResults: readonly RuleOutcome[] = [],
+  kernelStatus: "idle" | "running" | "ready" | "error" = "idle",
 ): AnaViewModel {
+  const config = readAnaComparisonConfig(comparisonConfig);
   return {
     report,
+    comparison: config
+      ? buildAnaComparison(workspace, config, kernelResults, kernelStatus)
+      : null,
     actions: [
       {
         id: "child",

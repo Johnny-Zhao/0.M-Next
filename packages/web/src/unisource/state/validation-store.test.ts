@@ -239,6 +239,25 @@ describe("ValidationStore", () => {
     store.dispose();
   });
 
+  it("reports a persisted-result read failure without rejecting the hydration call", async () => {
+    const source = new FakeKernelValidationSource([]);
+    source.failure = new Error("latest check unavailable");
+    const store = new ValidationStore(new WorkspaceStore(cloneDemoSeed()), {
+      kernelSource: source,
+      pushToast: vi.fn(),
+    });
+
+    await expect(store.hydrateKernelCheck()).resolves.toBe(false);
+
+    expect(store.getSnapshot()).toMatchObject({
+      kernelLoading: false,
+      kernelRunning: false,
+      kernelStatus: "error",
+      kernelError: "latest check unavailable",
+    });
+    store.dispose();
+  });
+
   it("discards a pending hydration after workspace invalidation", async () => {
     const source = new FakeKernelValidationSource([
       kernelOutcome("KERNEL-PERSISTED", "warning"),

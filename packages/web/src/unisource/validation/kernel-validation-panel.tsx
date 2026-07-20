@@ -214,11 +214,15 @@ export function KernelValidationPanel({
 
 export function kernelValidationStatusNotice(validation: {
   readonly kernelRunning: boolean;
+  readonly kernelLoading: boolean;
   readonly kernelStale: boolean;
+  readonly kernelStatus: "idle" | "running" | "ready" | "error";
 }): string | null {
   if (validation.kernelStale && validation.kernelRunning)
     return "数据已变更,正在重新校验…";
   if (validation.kernelStale) return "数据已变更,校验结果可能已过期";
+  if (validation.kernelLoading) return "正在加载校验结果…";
+  if (validation.kernelStatus === "error") return "校验结果加载失败";
   if (validation.kernelRunning) return "正在校验…";
   return null;
 }

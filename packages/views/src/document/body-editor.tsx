@@ -211,13 +211,23 @@ export function documentBodyEditorActions(
     canMoveSelectedBlockUp: canMoveSelectedDataBlock(editor, -1),
     canMoveSelectedBlockDown: canMoveSelectedDataBlock(editor, 1),
     insertDataReference: (config: DocumentDataReferenceConfig) =>
-      insert({ kind: "dataReference", config }),
+      insert({ kind: "dataReference", config: withReferenceBlockId(config) }),
     insertDataTable: (config: DocumentDataTableConfig) =>
       insert({ kind: "dataTable", config }),
     replaceSelectedBlock: (block) => {
-      if (!selectedDocumentDataBlock(editor)) return false;
+      const selected = selectedDocumentDataBlock(editor);
+      if (!selected) return false;
+      const config =
+        block.kind === "dataReference"
+          ? withReferenceBlockId(
+              block.config,
+              selected.kind === "dataReference"
+                ? selected.config.blockId
+                : undefined,
+            )
+          : block.config;
       return editor.commands.updateAttributes(block.kind, {
-        config: block.config,
+        config,
       });
     },
     removeSelectedBlock: () =>
@@ -226,6 +236,22 @@ export function documentBodyEditorActions(
         : false,
     moveSelectedBlockUp: () => moveSelectedDataBlock(editor, -1),
     moveSelectedBlockDown: () => moveSelectedDataBlock(editor, 1),
+  };
+}
+
+let dataReferenceBlockSequence = 0;
+
+function withReferenceBlockId(
+  config: DocumentDataReferenceConfig,
+  existingBlockId?: string,
+): DocumentDataReferenceConfig {
+  if (config.blockId || existingBlockId) {
+    return { ...config, blockId: config.blockId ?? existingBlockId };
+  }
+  dataReferenceBlockSequence += 1;
+  return {
+    ...config,
+    blockId: `reference-${globalThis.crypto?.randomUUID?.() ?? dataReferenceBlockSequence}`,
   };
 }
 

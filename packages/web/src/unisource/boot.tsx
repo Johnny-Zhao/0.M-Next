@@ -2,6 +2,7 @@ import { StrictMode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 
 import { UnisourceApp } from "./app";
+import { renderWorkspaceBeforeKernelHydration } from "./boot-lifecycle";
 import {
   clearBrowserBackendPreference,
   persistBrowserBootMode,
@@ -81,7 +82,6 @@ async function boot(root: Root, mode: BootMode): Promise<void> {
     applyDemoSeed(seed, notify ? { toastTitle: "已从内核重载工作空间" } : {});
     workspaceStore.setWriteSink(writeBridge);
     validationStore.setKernelSource(gateway);
-    await validationStore.hydrateKernelCheck();
     changeSetStore.setKernelSource(gateway, (actor) =>
       validationStore.scheduleAutoKernelCheck(actor),
     );
@@ -104,11 +104,19 @@ async function boot(root: Root, mode: BootMode): Promise<void> {
       reportLabel: report ? formatReport(report) : null,
     });
   };
-  configureBackendReload(() => load(true));
+  const hydrateKernelCheck = (): Promise<boolean> =>
+    validationStore.hydrateKernelCheck();
+  configureBackendReload(async () => {
+    await load(true);
+    void hydrateKernelCheck().catch(() => undefined);
+  });
   renderBootLoading(root, workspaceId);
   try {
-    await load(false);
-    renderApp(root);
+    await renderWorkspaceBeforeKernelHydration(
+      () => load(false),
+      () => renderApp(root),
+      hydrateKernelCheck,
+    );
   } catch (error) {
     renderBootError(root, errorMessage(error), () => {
       renderBootLoading(root, workspaceId);
@@ -181,7 +189,10 @@ function fallbackToMock(root: Root): void {
 }
 
 function formatReport(report: KernelGatewayLoadReport): string {
-  return `${report.objectCount} objects · ${report.relationCount} relations · ${report.unmatchedRefs} dangling`;
+  const relationFailures = report.relationLoadFailures
+    ? ` · ${report.relationLoadFailures} relation reads failed`
+    : "";
+  return `${report.objectCount} objects · ${report.relationCount} relations · ${report.unmatchedRefs} dangling${relationFailures}`;
 }
 
 function shortId(value: string): string {

@@ -21,6 +21,7 @@ export interface ValidationState {
   readonly kernelResults: readonly RuleOutcome[];
   readonly kernelRunAt: string | null;
   readonly kernelRunning: boolean;
+  readonly kernelLoading: boolean;
   readonly kernelStatus: "idle" | "running" | "ready" | "error";
   readonly kernelError: string | null;
   readonly kernelRunId: string | null;
@@ -96,6 +97,7 @@ export class ValidationStore {
         kernelResults: [],
         kernelRunAt: null,
         kernelRunning: false,
+        kernelLoading: false,
         kernelStatus: "idle",
         kernelError: null,
         kernelRunId: null,
@@ -113,6 +115,7 @@ export class ValidationStore {
       kernelResults: [],
       kernelRunAt: null,
       kernelRunning: false,
+      kernelLoading: false,
       kernelStatus: "idle",
       kernelError: null,
       kernelRunId: null,
@@ -202,6 +205,7 @@ export class ValidationStore {
     this.state = {
       ...this.state,
       kernelRunning: true,
+      kernelLoading: false,
       kernelStatus: "running",
       kernelError: null,
     };
@@ -228,6 +232,7 @@ export class ValidationStore {
       this.state = {
         ...this.state,
         kernelRunning: false,
+        kernelLoading: false,
         kernelStatus: "error",
         kernelError: message,
       };
@@ -245,6 +250,14 @@ export class ValidationStore {
     expectedGeneration = this.kernelGeneration,
   ): Promise<boolean> {
     if (!this.kernelSource || this.state.source !== "kernel") return false;
+    this.state = {
+      ...this.state,
+      kernelRunning: true,
+      kernelLoading: true,
+      kernelStatus: "running",
+      kernelError: null,
+    };
+    this.emit();
     try {
       const latest = await this.kernelSource.latestCheckRun();
       if (expectedGeneration !== this.kernelGeneration)
@@ -253,6 +266,7 @@ export class ValidationStore {
         this.state = {
           ...this.state,
           kernelRunning: false,
+          kernelLoading: false,
           kernelStatus: "idle",
           kernelError: null,
           kernelScope: null,
@@ -268,6 +282,7 @@ export class ValidationStore {
         kernelResults: results,
         kernelRunAt: latest.completedAt,
         kernelRunning: false,
+        kernelLoading: false,
         kernelStatus: "ready",
         kernelError: null,
         kernelRunId: latest.runId,
@@ -283,6 +298,7 @@ export class ValidationStore {
       this.state = {
         ...this.state,
         kernelRunning: false,
+        kernelLoading: false,
         kernelStatus: "error",
         kernelError: message,
       };
@@ -382,6 +398,7 @@ export class ValidationStore {
       kernelResults: this.state?.kernelResults ?? [],
       kernelRunAt: this.state?.kernelRunAt ?? null,
       kernelRunning: this.state?.kernelRunning ?? false,
+      kernelLoading: this.state?.kernelLoading ?? false,
       kernelStatus: this.state?.kernelStatus ?? "idle",
       kernelError: this.state?.kernelError ?? null,
       kernelRunId: this.state?.kernelRunId ?? null,
@@ -434,6 +451,7 @@ export class ValidationStore {
     this.state = {
       ...this.state,
       kernelRunning: false,
+      kernelLoading: false,
       kernelStatus: this.state.kernelResults.length > 0 ? "ready" : "idle",
       kernelError: null,
     };

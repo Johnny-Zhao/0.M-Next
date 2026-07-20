@@ -10,6 +10,8 @@ export type DocumentDataBlock =
   | { readonly kind: "dataTable"; readonly config: DocumentDataTableConfig };
 
 export interface DocumentDataReferenceConfig {
+  /** Persisted identity for a single reference block; generated when inserted. */
+  readonly blockId?: string;
   readonly objectTypeCode?: string;
   readonly objectId?: string;
   readonly objectCode?: string;

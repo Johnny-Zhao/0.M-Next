@@ -356,6 +356,28 @@ export function documentFieldSelection(field: StructuredDocumentFieldVm): {
   };
 }
 
+export function structuredDocumentFieldKey(
+  objectId: string,
+  fieldCode: string,
+): string {
+  return `${encodeURIComponent(objectId)}-${encodeURIComponent(fieldCode)}`;
+}
+
+export function structuredDocumentFieldDomId(
+  objectId: string,
+  fieldCode: string,
+): string {
+  return `document-field-${structuredDocumentFieldKey(objectId, fieldCode)}`;
+}
+
+export function structuredDocumentReferenceDomId(
+  objectId: string,
+  fieldCode: string,
+  blockId?: string,
+): string {
+  return `document-reference-${structuredDocumentFieldKey(objectId, fieldCode)}-${blockId ?? "legacy"}`;
+}
+
 function resolveSection(
   workspace: WorkspaceState,
   root: DataObject,

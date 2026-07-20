@@ -17,6 +17,8 @@ import {
   documentFieldSelection,
   documentObjectSelection,
   resolveStructuredDocumentActiveOutlineId,
+  structuredDocumentFieldDomId,
+  structuredDocumentFieldKey,
   structuredDocumentOutlineSelection,
   type StructuredDocumentConfig,
   type StructuredDocumentFieldVm,
@@ -64,13 +66,12 @@ export function StructuredDocumentView({
   useEffect(() => {
     const current = selection.current;
     if (!current) return;
-    const id =
+    const element =
       current.entityType === "field"
-        ? fieldDomId(current.entityId, current.fieldCode ?? "")
+        ? findDocumentFieldElement(current.entityId, current.fieldCode ?? "")
         : current.entityType === "object"
-          ? objectDomId(current.entityId)
+          ? document.getElementById(objectDomId(current.entityId))
           : null;
-    const element = id ? document.getElementById(id) : null;
     element?.scrollIntoView({ block: "nearest", behavior: "smooth" });
   }, [selection]);
 
@@ -89,8 +90,11 @@ export function StructuredDocumentView({
     return <p role="alert">{vm.message ?? "文档引用不可用"}</p>;
   }
   const root = vm.root;
-  const saveField = (field: StructuredDocumentFieldVm, rawValue: string) => {
-    commitStructuredDocumentFieldEdit({ field, rawValue });
+  const saveField = async (
+    field: StructuredDocumentFieldVm,
+    rawValue: string,
+  ): Promise<void> => {
+    await commitStructuredDocumentFieldEdit({ field, rawValue });
   };
   const saveBody = async (json: string): Promise<void> => {
     await commitStructuredDocumentBodyEdit({ body: vm.body, json });
@@ -277,7 +281,10 @@ function DocumentSection({
   section,
   selection,
 }: {
-  readonly onSave: (field: StructuredDocumentFieldVm, rawValue: string) => void;
+  readonly onSave: (
+    field: StructuredDocumentFieldVm,
+    rawValue: string,
+  ) => Promise<void>;
   readonly onSelectObject: (
     object: ReturnType<typeof buildStructuredDocumentViewModel>["root"],
   ) => void;
@@ -335,7 +342,10 @@ function DocumentFieldTable({
   selection,
 }: {
   readonly fields: readonly StructuredDocumentFieldVm[];
-  readonly onSave: (field: StructuredDocumentFieldVm, rawValue: string) => void;
+  readonly onSave: (
+    field: StructuredDocumentFieldVm,
+    rawValue: string,
+  ) => Promise<void>;
   readonly selection: ReturnType<typeof useSelectionSnapshot>["current"];
 }) {
   return (
@@ -364,12 +374,16 @@ function DocumentFieldValue({
   selected,
 }: {
   readonly field: StructuredDocumentFieldVm;
-  readonly onSave: (field: StructuredDocumentFieldVm, rawValue: string) => void;
+  readonly onSave: (
+    field: StructuredDocumentFieldVm,
+    rawValue: string,
+  ) => Promise<void>;
   readonly selected: boolean;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(serializeInputValue(field.value));
   const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
   const select = () => selectionStore.set(documentFieldSelection(field));
   const startEditing = () => {
     select();
@@ -379,16 +393,24 @@ function DocumentFieldValue({
     setEditing(true);
   };
   const save = () => {
-    try {
-      onSave(field, draft);
-      setEditing(false);
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "保存失败，请稍后重试");
-    }
+    setSaving(true);
+    setError(null);
+    void Promise.resolve()
+      .then(() => onSave(field, draft))
+      .then(() => setEditing(false))
+      .catch((cause: unknown) => {
+        setError(
+          cause instanceof Error ? cause.message : "保存失败，请稍后重试",
+        );
+      })
+      .finally(() => setSaving(false));
   };
   if (field.state === "dangling") {
     return (
-      <span id={fieldDomId(field.objectId, field.fieldCode)} role="alert">
+      <span
+        id={structuredDocumentFieldDomId(field.objectId, field.fieldCode)}
+        role="alert"
+      >
         字段引用已失效
       </span>
     );
@@ -401,10 +423,14 @@ function DocumentFieldValue({
           field={field}
           onDraftChange={setDraft}
         />
-        <button onClick={save} type="button">
-          保存
+        <button disabled={saving} onClick={save} type="button">
+          {saving ? "保存中…" : "保存"}
         </button>
-        <button onClick={() => setEditing(false)} type="button">
+        <button
+          disabled={saving}
+          onClick={() => setEditing(false)}
+          type="button"
+        >
           取消
         </button>
         {error ? <small role="alert">{error}</small> : null}
@@ -417,7 +443,7 @@ function DocumentFieldValue({
         className="us-structured-doc__field"
         data-selected={selected}
         data-writable={field.editable}
-        id={fieldDomId(field.objectId, field.fieldCode)}
+        id={structuredDocumentFieldDomId(field.objectId, field.fieldCode)}
         onClick={select}
         onDoubleClick={startEditing}
         type="button"
@@ -489,11 +515,12 @@ export type StructuredDocumentCommitResult =
     }
   | { readonly kind: "queued"; readonly changeSetId: string };
 
-export function commitStructuredDocumentFieldEdit(input: {
+export async function commitStructuredDocumentFieldEdit(input: {
   readonly field: StructuredDocumentFieldVm;
   readonly rawValue: string;
   readonly session?: Pick<SessionStore, "requestWrite">;
-}): StructuredDocumentCommitResult {
+  readonly waitForLastWrite?: () => Promise<WriteCompletion>;
+}): Promise<StructuredDocumentCommitResult> {
   const result = (input.session ?? sessionStore).requestWrite({
     resourceCode: input.field.objectTypeCode,
     objectId: input.field.objectId,
@@ -503,6 +530,13 @@ export function commitStructuredDocumentFieldEdit(input: {
   if (result.queued) {
     pushToast({ title: "已提交审批", desc: "等待管理员确认" });
     return { kind: "queued", changeSetId: result.changeSetId };
+  }
+  const completion = await (
+    input.waitForLastWrite ?? (() => workspaceStore.waitForLastWrite())
+  )();
+  if (completion.state === "failed") {
+    pushToast({ title: "字段保存失败", desc: completion.message });
+    throw new Error(completion.message);
   }
   pushToast({ title: `已更新 · ${result.syncedRefs} 处引用已同步` });
   return { kind: "written", eventId: result.eventId, refs: result.syncedRefs };
@@ -578,8 +612,17 @@ function rootField(
   return object?.fields.find((field) => field.fieldCode === fieldCode) ?? null;
 }
 
-function fieldDomId(objectId: string, fieldCode: string): string {
-  return `document-field-${objectId}-${fieldCode}`;
+function findDocumentFieldElement(
+  objectId: string,
+  fieldCode: string,
+): HTMLElement | null {
+  const key = structuredDocumentFieldKey(objectId, fieldCode);
+  return (
+    document.querySelector<HTMLElement>(
+      `[data-structured-document-reference="${key}"]`,
+    ) ??
+    document.getElementById(structuredDocumentFieldDomId(objectId, fieldCode))
+  );
 }
 
 function objectDomId(objectId: string): string {

@@ -151,6 +151,9 @@ export function HomePage() {
                 </div>
               );
             })}
+            {workspace.activity.length === 0 ? (
+              <p className="us-home-activity__empty">暂无已加载的变更记录。</p>
+            ) : null}
             <p>数据源改动(琥珀)与表达改动(蓝灰)同一条流水,可追溯。</p>
           </section>
         </aside>

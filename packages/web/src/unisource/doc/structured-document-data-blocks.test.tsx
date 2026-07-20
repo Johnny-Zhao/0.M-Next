@@ -11,7 +11,13 @@ import {
   resolveDataTable,
   selectDataTableRow,
   StructuredDocumentDataBlockActions,
+  StructuredDocumentDataBlock,
+  validDataReferenceFieldCode,
 } from "./structured-document-data-blocks";
+import {
+  structuredDocumentFieldKey,
+  structuredDocumentReferenceDomId,
+} from "./structured-document-view-model";
 
 describe("structured document data blocks", () => {
   it("reads a referenced Workspace field without persisting its value", () => {
@@ -22,6 +28,43 @@ describe("structured document data blocks", () => {
         fieldCode: "name",
       }).field,
     ).toMatchObject({ value: "方案 A", editable: true });
+  });
+  it("renders a stable data-reference identity and selected highlight", () => {
+    const { workspace, root } = fixture();
+    selectionStore.set({
+      entityType: "field",
+      entityId: "plan",
+      fieldCode: "name",
+    });
+    const html = renderToStaticMarkup(
+      createElement(StructuredDocumentDataBlock, {
+        block: {
+          kind: "dataReference",
+          config: { objectBinding: "document-root", fieldCode: "name" },
+        },
+        root,
+        workspace,
+        onSave: async () => undefined,
+      }),
+    );
+
+    expect(html).toContain(
+      `id="${structuredDocumentReferenceDomId("plan", "name")}"`,
+    );
+    expect(html).toContain(
+      `data-structured-document-reference="${structuredDocumentFieldKey("plan", "name")}"`,
+    );
+    expect(html).toContain('data-selected="true"');
+    selectionStore.clear();
+  });
+  it("clears a field code that does not belong to the selected object", () => {
+    expect(
+      validDataReferenceFieldCode(
+        [{ code: "name", name: "名称", dataType: "text" }],
+        "missing",
+      ),
+    ).toBe("name");
+    expect(validDataReferenceFieldCode([], "name")).toBe("");
   });
   it("keeps missing objects and fields diagnosable", () => {
     const { workspace, root } = fixture();
@@ -38,6 +81,24 @@ describe("structured document data blocks", () => {
       }).message,
     ).toBe("字段引用已失效");
   });
+  it("does not make a dangling reference targetable by SelectionRef", () => {
+    const { workspace, root } = fixture();
+    const html = renderToStaticMarkup(
+      createElement(StructuredDocumentDataBlock, {
+        block: {
+          kind: "dataReference",
+          config: { objectId: "missing", fieldCode: "name" },
+        },
+        root,
+        workspace,
+        onSave: async () => undefined,
+      }),
+    );
+
+    expect(html).toContain('role="alert"');
+    expect(html).not.toContain("data-structured-document-reference=");
+  });
+
   it("keeps terminal objects and missing relations diagnosable", () => {
     const { workspace, root } = fixture();
     workspace.objects[0] = { ...workspace.objects[0]!, status: "archived" };

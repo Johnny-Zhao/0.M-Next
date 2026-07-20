@@ -10,6 +10,15 @@ export const pcProcurementBuildPlanCopyConfig = {
   maxDepth: 3,
 } as const;
 
+const pcProcurementPlanScopeRelationTypes = [
+  "build_plan_satisfies_requirement",
+  "build_plan_contains_item",
+  "build_plan_item_selects_product",
+  "build_plan_item_uses_supplier_quote",
+  "supplier_quote_for_product",
+  "supplier_quote_offered_by_supplier",
+] as const;
+
 export const pcProcurementPreset: PresentationPreset = {
   code: "pc_procurement",
   expressions: [
@@ -112,14 +121,7 @@ export const pcProcurementPreset: PresentationPreset = {
       kind: "canvas",
       config: {
         selectionObjectTypeCode: "build_plan",
-        selectionRelationTypeCodes: [
-          "build_plan_satisfies_requirement",
-          "build_plan_contains_item",
-          "build_plan_item_selects_product",
-          "build_plan_item_uses_supplier_quote",
-          "supplier_quote_for_product",
-          "supplier_quote_offered_by_supplier",
-        ],
+        selectionRelationTypeCodes: pcProcurementPlanScopeRelationTypes,
         selectionDepth: 3,
         nodes: [
           {
@@ -197,7 +199,71 @@ export const pcProcurementPreset: PresentationPreset = {
       config: {
         reportId: "ana-pc-plan-comparison",
         allowReanalysis: false,
+        anaComparisonRequired: true,
         dashboardExprId: "exp-pc-overview",
+        anaComparison: {
+          sourceObjectTypeCode: "build_plan",
+          scopeRelationTypeCodes: pcProcurementPlanScopeRelationTypes,
+          scopeDepth: 3,
+          columns: [
+            { key: "name", label: "方案名称", fieldCode: "name" },
+            { key: "code", label: "方案编码", fieldCode: "code" },
+            { key: "status", label: "方案状态", fieldCode: "status" },
+            {
+              key: "totalPrice",
+              label: "方案总价",
+              fieldCode: "total_price_cny_fx",
+              derived: true,
+              unit: "CNY",
+            },
+            {
+              key: "unitBudget",
+              label: "需求单台预算",
+              fieldCode: "requirement_unit_budget_cny_fx",
+              derived: true,
+              unit: "CNY",
+            },
+            {
+              key: "totalPower",
+              label: "方案总功耗",
+              fieldCode: "total_power_w_fx",
+              derived: true,
+              unit: "W",
+            },
+            {
+              key: "powerSupplyCapacity",
+              label: "电源容量",
+              fieldCode: "power_supply_capacity_w_fx",
+              derived: true,
+              unit: "W",
+            },
+            {
+              key: "performance",
+              label: "方案性能分",
+              fieldCode: "total_performance_score_fx",
+              derived: true,
+            },
+            {
+              key: "cpuMainboardPlatform",
+              label: "CPU/主板平台",
+              fieldCode: "cpu_mainboard_platform_span_fx",
+              derived: true,
+            },
+            {
+              key: "memoryPlatform",
+              label: "内存平台",
+              fieldCode: "memory_platform_span_fx",
+              derived: true,
+            },
+            {
+              key: "quoteInventory",
+              label: "报价库存（明细）",
+              fieldCode: "quote_inventory_fx",
+              derived: true,
+              relationPath: ["build_plan_contains_item"],
+            },
+          ],
+        },
       },
     },
     {
@@ -592,7 +658,7 @@ export const pcProcurementPreset: PresentationPreset = {
       question: "方案在预算、兼容性、功耗与性能上有何差异？",
       sourcesLabel: "采购需求 + 装机方案 + 供应商报价",
       factorTitle: "方案因素",
-      factorMetricLabel: "当前预设未提供分析算法",
+      factorMetricLabel: "真实字段与内核校验结果",
       factors: [],
       drillTitle: "方案明细",
       drillTraceLabel: "数据来自当前工作空间",

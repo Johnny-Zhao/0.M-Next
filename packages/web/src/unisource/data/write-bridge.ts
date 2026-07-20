@@ -55,8 +55,8 @@ export class KernelWriteBridge implements WriteSink {
     this.onKernelWriteSucceeded = options.onKernelWriteSucceeded;
   }
 
-  updateField(descriptor: FieldWriteDescriptor): void {
-    this.enqueue([descriptor.objectId], async () => {
+  updateField(descriptor: FieldWriteDescriptor): Promise<WriteCompletion> {
+    return this.enqueue([descriptor.objectId], async () => {
       try {
         const actor = this.applyActor();
         const objectId = this.resolveObjectId(descriptor.objectId);
@@ -73,6 +73,7 @@ export class KernelWriteBridge implements WriteSink {
         this.workspace.reconcileObject(result.object);
         await this.refreshRelatedObjects(objectId);
         this.onKernelWriteSucceeded?.(actor);
+        return { state: "synced", objectId };
       } catch (error) {
         const objectId = this.resolveObjectId(descriptor.objectId);
         this.workspace.rollbackField({
@@ -80,6 +81,7 @@ export class KernelWriteBridge implements WriteSink {
           previousObject: descriptor.previousObject,
         });
         this.reportWriteFailure(error);
+        return writeFailure(error);
       }
     });
   }

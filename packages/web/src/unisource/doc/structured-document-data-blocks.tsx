@@ -4,16 +4,20 @@ import type {
   DocumentDataReferenceConfig,
   DocumentDataTableConfig,
 } from "@m-next/views";
-import { useMemo, useState, type ReactElement } from "react";
+import { useEffect, useMemo, useState, type ReactElement } from "react";
 
 import { formatCellValue } from "../grid/grid-view-model";
 import type { DataObject, FieldDef, SelectionRef } from "../model/kernel";
-import { selectionStore } from "../state/selection-store";
+import { selectionStore, useSelectionSnapshot } from "../state/selection-store";
 import type { WorkspaceState } from "../state/workspace-store";
 import type {
   StructuredDocumentConfig,
   StructuredDocumentFieldVm,
   StructuredDocumentObjectVm,
+} from "./structured-document-view-model";
+import {
+  structuredDocumentFieldKey,
+  structuredDocumentReferenceDomId,
 } from "./structured-document-view-model";
 
 const terminalStatuses = new Set(["archived", "deleted", "soft-deleted"]);
@@ -28,7 +32,10 @@ export function StructuredDocumentDataBlock({
   readonly block: DocumentDataBlock;
   readonly root: StructuredDocumentObjectVm;
   readonly workspace: WorkspaceState;
-  readonly onSave: (field: StructuredDocumentFieldVm, value: string) => void;
+  readonly onSave: (
+    field: StructuredDocumentFieldVm,
+    value: string,
+  ) => Promise<void>;
 }): ReactElement {
   return block.kind === "dataReference" ? (
     <ReferenceBlock
@@ -104,18 +111,41 @@ function ReferenceBlock({
   workspace,
 }: {
   readonly config: DocumentDataReferenceConfig;
-  readonly onSave: (field: StructuredDocumentFieldVm, value: string) => void;
+  readonly onSave: (
+    field: StructuredDocumentFieldVm,
+    value: string,
+  ) => Promise<void>;
   readonly root: StructuredDocumentObjectVm;
   readonly workspace: WorkspaceState;
 }): ReactElement {
   const reference = resolveDataReference(workspace, root, config);
+  const selection = useSelectionSnapshot().current;
   const [editing, setEditing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
   const [draft, setDraft] = useState(
     reference.field ? String(reference.field.value ?? "") : "",
   );
   if (!reference.field) return <p role="alert">{reference.message}</p>;
   const field = reference.field;
+  const selected = isSelectedReference(field, selection);
+  const startEditing = () => {
+    if (!field.editable) return;
+    setDraft(String(field.value ?? ""));
+    setError(null);
+    setEditing(true);
+  };
+  const save = () => {
+    setSaving(true);
+    setError(null);
+    void Promise.resolve()
+      .then(() => onSave(field, draft))
+      .then(() => setEditing(false))
+      .catch((cause: unknown) => {
+        setError(cause instanceof Error ? cause.message : "保存失败");
+      })
+      .finally(() => setSaving(false));
+  };
   if (editing)
     return (
       <span className="us-structured-doc__editor">
@@ -137,20 +167,14 @@ function ReferenceBlock({
             value={draft}
           />
         )}
+        <button disabled={saving} onClick={save} type="button">
+          {saving ? "保存中…" : "保存"}
+        </button>
         <button
-          onClick={() => {
-            try {
-              onSave(field, draft);
-              setEditing(false);
-            } catch (cause) {
-              setError(cause instanceof Error ? cause.message : "保存失败");
-            }
-          }}
+          disabled={saving}
+          onClick={() => setEditing(false)}
           type="button"
         >
-          保存
-        </button>
-        <button onClick={() => setEditing(false)} type="button">
           取消
         </button>
         {error ? <small role="alert">{error}</small> : null}
@@ -159,9 +183,19 @@ function ReferenceBlock({
   return (
     <button
       className="us-structured-doc__field"
+      data-selected={selected}
+      data-structured-document-reference={structuredDocumentFieldKey(
+        field.objectId,
+        field.fieldCode,
+      )}
       data-writable={field.editable}
+      id={structuredDocumentReferenceDomId(
+        field.objectId,
+        field.fieldCode,
+        config.blockId,
+      )}
       onClick={() => selectionStore.set(fieldSelection(field))}
-      onDoubleClick={() => field.editable && setEditing(true)}
+      onDoubleClick={startEditing}
       type="button"
     >
       <small>
@@ -381,13 +415,21 @@ export function StructuredDocumentDataBlockActions({
   );
   const [objectId, setObjectId] = useState(root.objectId);
   const object = objects.find((item) => item.id === objectId) ?? null;
-  const fields = object
-    ? (workspace.objectTypes.find((type) => type.code === object.objectTypeCode)
-        ?.fields ?? [])
-    : [];
+  const fields = useMemo(
+    () =>
+      object
+        ? (workspace.objectTypes.find(
+            (type) => type.code === object.objectTypeCode,
+          )?.fields ?? [])
+        : [],
+    [object, workspace.objectTypes],
+  );
   const [fieldCode, setFieldCode] = useState(fields[0]?.code ?? "");
+  useEffect(() => {
+    setFieldCode((current) => validDataReferenceFieldCode(fields, current));
+  }, [objectId, fields]);
   const reference =
-    object && fieldCode
+    object && fields.some((field) => field.code === fieldCode)
       ? {
           objectTypeCode: object.objectTypeCode,
           objectId: object.id,
@@ -498,6 +540,15 @@ export function StructuredDocumentDataBlockActions({
   );
 }
 
+export function validDataReferenceFieldCode(
+  fields: readonly FieldDef[],
+  fieldCode: string,
+): string {
+  return fields.some((field) => field.code === fieldCode)
+    ? fieldCode
+    : (fields[0]?.code ?? "");
+}
+
 function fieldVm(
   object: DataObject,
   field: FieldDef,
@@ -527,6 +578,18 @@ function fieldSelection(field: StructuredDocumentFieldVm): SelectionRef {
     fieldCode: field.fieldCode,
   };
 }
+
+function isSelectedReference(
+  field: StructuredDocumentFieldVm,
+  selection: SelectionRef | null,
+): boolean {
+  return (
+    selection?.entityType === "field" &&
+    selection.entityId === field.objectId &&
+    selection.fieldCode === field.fieldCode
+  );
+}
+
 function label(object: DataObject): string {
   return String(
     object.fields.name?.value ?? object.fields.code?.value ?? object.id,
