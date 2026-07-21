@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 
 import { UsAvatar, UsMonoTag, UsStatusPill, pushToast } from "../primitives";
 import { sessionStore, useSessionSnapshot } from "../state/session-store";
+import { selectionStore } from "../state/selection-store";
 import { workspaceStore, useWorkspaceSnapshot } from "../state/workspace-store";
 import { moveMatrixCardColumn } from "./matrix-actions";
 import { MatrixRecordCard } from "./record-card";
@@ -124,9 +125,10 @@ export function MatrixBoard({ viewId }: { readonly viewId: string }) {
               setDragOver(null);
             }}
             onDragOver={setDragOver}
-            onOpen={(objectId) =>
-              navigate(`/source/${vm.sourceTypeCode}?focus=${objectId}`)
-            }
+            onOpen={(objectId) => {
+              selectionStore.set({ entityType: "object", entityId: objectId });
+              navigate(`/source/${vm.sourceTypeCode}?focus=${objectId}`);
+            }}
             row={row}
             setDragging={setDragging}
             vm={vm}

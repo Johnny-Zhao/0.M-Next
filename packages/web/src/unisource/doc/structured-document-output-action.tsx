@@ -86,6 +86,9 @@ function exportDisabledReason(
       ? "校验正在执行，请完成后再生成快照"
       : "请先完成当前工作空间校验";
   }
+  if (validation.source === "kernel" && validation.kernelStale) {
+    return "校验结果已过期，请先重新校验";
+  }
   return null;
 }
 
@@ -98,6 +101,7 @@ function outputScope(
     objectType: null,
     fieldOrder: config.fieldOrder,
     fileBaseName: title,
+    appendSnapshotId: true,
     sectionMapping: config.sectionMapping,
     treeScope: config.relationType
       ? {

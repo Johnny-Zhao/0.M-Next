@@ -42,6 +42,7 @@ export class KernelWriteBridge implements WriteSink {
   private readonly showToast: (input: UsToastInput) => number;
   private readonly queueByObjectId = new Map<string, Promise<void>>();
   private readonly objectIdMap = new Map<string, string>();
+  private readonly refreshGenerationByObjectId = new Map<string, number>();
   private idle: Promise<void> = Promise.resolve();
   private readonly onKernelWriteSucceeded?: (actor: MemberId) => void;
 
@@ -71,7 +72,11 @@ export class KernelWriteBridge implements WriteSink {
           },
         );
         this.workspace.reconcileObject(result.object);
-        await this.refreshRelatedObjects(objectId);
+        if (!(await this.refreshRelatedObjects(objectId))) {
+          return refreshFailure(
+            "字段已写入，但关联派生数据尚未同步，请重新加载工作空间",
+          );
+        }
         this.onKernelWriteSucceeded?.(actor);
         return { state: "synced", objectId };
       } catch (error) {
@@ -133,10 +138,22 @@ export class KernelWriteBridge implements WriteSink {
             descriptor.temporaryRelationId,
             result.relation,
           );
-          await this.refreshObjects([
+          const endpointRefresh = await this.refreshObjects([
             descriptor.params.sourceId,
             descriptor.params.targetId,
           ]);
+          const relatedRefresh = await Promise.all([
+            this.refreshRelatedObjects(descriptor.params.sourceId),
+            this.refreshRelatedObjects(descriptor.params.targetId),
+          ]);
+          if (
+            endpointRefresh.state === "failed" ||
+            relatedRefresh.some((refreshed) => !refreshed)
+          ) {
+            return refreshFailure(
+              "关系已写入，但关联派生数据尚未同步，请重新加载工作空间",
+            );
+          }
           this.onKernelWriteSucceeded?.(actor);
           return { state: "synced", relationId: result.relation.id };
         } catch (error) {
@@ -161,10 +178,22 @@ export class KernelWriteBridge implements WriteSink {
           summary: descriptor.params.summary,
         });
         this.workspace.reconcileRelation(result.relation);
-        await this.refreshObjects([
+        const endpointRefresh = await this.refreshObjects([
           descriptor.previousRelation.sourceId,
           descriptor.previousRelation.targetId,
         ]);
+        const relatedRefresh = await Promise.all([
+          this.refreshRelatedObjects(descriptor.previousRelation.sourceId),
+          this.refreshRelatedObjects(descriptor.previousRelation.targetId),
+        ]);
+        if (
+          endpointRefresh.state === "failed" ||
+          relatedRefresh.some((refreshed) => !refreshed)
+        ) {
+          return refreshFailure(
+            "关系已解除，但关联派生数据尚未同步，请重新加载工作空间",
+          );
+        }
         this.onKernelWriteSucceeded?.(actor);
         return { state: "synced" };
       } catch (error) {
@@ -207,11 +236,7 @@ export class KernelWriteBridge implements WriteSink {
           ...new Set(
             objectIds.map((objectId) => this.resolveObjectId(objectId)),
           ),
-        ].map(async (objectId) =>
-          this.workspace.reconcileObject(
-            await this.gateway.refreshObject!(objectId),
-          ),
-        ),
+        ].map(async (objectId) => this.refreshObjectAuthoritatively(objectId)),
       );
       return { state: "synced" };
     } catch (error) {
@@ -263,20 +288,33 @@ export class KernelWriteBridge implements WriteSink {
     return actor;
   }
 
-  private async refreshRelatedObjects(objectId: string): Promise<void> {
-    if (!this.gateway.refreshObject) return;
+  private async refreshRelatedObjects(objectId: string): Promise<boolean> {
+    if (!this.gateway.refreshObject) return true;
     const relatedIds = this.derivedRefreshObjectIds(objectId);
+    let success = true;
     await Promise.all(
       [...relatedIds].map(async (relatedId) => {
         try {
-          this.workspace.reconcileObject(
-            await this.gateway.refreshObject!(relatedId),
-          );
+          await this.refreshObjectAuthoritatively(relatedId);
         } catch {
-          // The saved object remains authoritative even if an adjacent read model lags.
+          success = false;
         }
       }),
     );
+    return success;
+  }
+
+  private async refreshObjectAuthoritatively(
+    objectId: string,
+  ): Promise<DataObject> {
+    const generation =
+      (this.refreshGenerationByObjectId.get(objectId) ?? 0) + 1;
+    this.refreshGenerationByObjectId.set(objectId, generation);
+    const object = await this.gateway.refreshObject!(objectId);
+    if (this.refreshGenerationByObjectId.get(objectId) === generation) {
+      this.workspace.reconcileObject(object);
+    }
+    return object;
   }
 
   private derivedRefreshObjectIds(objectId: string): ReadonlySet<string> {
@@ -335,6 +373,10 @@ function toWriteRejection(error: unknown): WriteRejection {
 
 function writeFailure(error: unknown): WriteCompletion {
   return { state: "failed", message: toWriteRejection(error).title };
+}
+
+function refreshFailure(message: string): WriteCompletion {
+  return { state: "failed", message };
 }
 
 function isWriteRejection(value: unknown): value is WriteRejection {

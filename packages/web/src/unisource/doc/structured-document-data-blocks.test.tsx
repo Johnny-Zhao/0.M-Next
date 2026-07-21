@@ -80,6 +80,13 @@ describe("structured document data blocks", () => {
         fieldCode: "missing",
       }).message,
     ).toBe("字段引用已失效");
+    expect(
+      resolveDataReference(workspace, root, {
+        objectBinding: "document-root",
+        objectTypeCode: "other",
+        fieldCode: "name",
+      }).message,
+    ).toBe("引用对象类型不匹配");
   });
   it("does not make a dangling reference targetable by SelectionRef", () => {
     const { workspace, root } = fixture();
@@ -138,6 +145,10 @@ describe("structured document data blocks", () => {
       "明细 A",
       "产品 A",
       "供应商 A",
+    ]);
+    expect(table.rows[0]?.cells.slice(1).map((cell) => cell.objectId)).toEqual([
+      "product",
+      "supplier",
     ]);
   });
   it("marks missing, terminal, and invalid relation columns as dangling", () => {

@@ -26,12 +26,19 @@ export function buildAnaViewModel(
   comparisonConfig?: unknown,
   kernelResults: readonly RuleOutcome[] = [],
   kernelStatus: "idle" | "running" | "ready" | "error" = "idle",
+  kernelStale = false,
 ): AnaViewModel {
   const config = readAnaComparisonConfig(comparisonConfig);
   return {
     report,
     comparison: config
-      ? buildAnaComparison(workspace, config, kernelResults, kernelStatus)
+      ? buildAnaComparison(
+          workspace,
+          config,
+          kernelResults,
+          kernelStatus,
+          kernelStale,
+        )
       : null,
     actions: [
       {

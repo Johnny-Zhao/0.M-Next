@@ -41,6 +41,9 @@ const config = {
       relationPath: ["contains_item"],
     },
   ],
+  analysisQuestions: [
+    { id: "lowest", label: "最低功耗", kind: "min", fieldCode: "power" },
+  ],
 } as const;
 
 describe("ANA comparison", () => {
@@ -73,6 +76,7 @@ describe("ANA comparison", () => {
       warn: 1,
       unchecked: 0,
     });
+    expect(vm.questions[0]?.answer).toContain("420");
   });
 
   it("does not report missing derived data or missing validation as successful", () => {
@@ -133,6 +137,12 @@ describe("ANA comparison", () => {
       entityType: "object",
       entityId: "item-a",
     });
+  });
+
+  it("marks analysis data stale instead of presenting old results as current", () => {
+    const vm = buildAnaComparison(workspace(), config, [], "ready", true);
+    expect(vm.stale).toBe(true);
+    expect(vm.rows.every((row) => row.status === "ok")).toBe(true);
   });
 });
 

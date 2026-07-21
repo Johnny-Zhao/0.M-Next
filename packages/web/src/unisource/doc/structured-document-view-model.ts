@@ -34,9 +34,17 @@ export interface StructuredDocumentConfig {
   readonly output?: StructuredDocumentOutputConfig;
   readonly dataReferenceTemplates: readonly StructuredDocumentDataReferenceTemplate[];
   readonly dataTableTemplates: readonly StructuredDocumentDataTableTemplate[];
+  readonly outline?: readonly StructuredDocumentOutlineConfig[];
   readonly preferSelectedRoot?: boolean;
   readonly root: StructuredDocumentPartConfig;
   readonly sections: readonly StructuredDocumentSectionConfig[];
+}
+
+export interface StructuredDocumentOutlineConfig {
+  readonly id: string;
+  readonly label: string;
+  /** Stable anchor id or the root marker used by the document shell. */
+  readonly target: string;
 }
 
 export interface StructuredDocumentOutputConfig {
@@ -124,6 +132,7 @@ export interface StructuredDocumentViewModel {
   readonly root: StructuredDocumentObjectVm | null;
   readonly body: StructuredDocumentFieldVm | null;
   readonly sections: readonly StructuredDocumentSectionVm[];
+  readonly outline: readonly StructuredDocumentOutlineConfig[];
 }
 
 export type StructuredDocumentOutlineItem =
@@ -139,6 +148,7 @@ export type StructuredDocumentOutlineItem =
       readonly id: string;
       readonly label: string;
       readonly relationTypeCode: string;
+      readonly targetId?: string;
       readonly state: "ready" | "missing";
       readonly message: string | null;
     }
@@ -202,6 +212,25 @@ export function buildStructuredDocumentOutline(
       );
     });
   });
+  for (const configured of viewModel.outline) {
+    const related = viewModel.sections.find(
+      (section) => section.relationTypeCode === configured.target,
+    );
+    items.push({
+      kind: "section",
+      id: `structured-document-outline-${configured.id}`,
+      label: configured.label,
+      relationTypeCode: configured.target,
+      targetId:
+        configured.target === "root"
+          ? objectDomId(viewModel.root.objectId)
+          : configured.target === "validation"
+            ? "structured-document-validation"
+            : sectionDomId(configured.target),
+      state: related?.state ?? "ready",
+      message: related?.message ?? null,
+    });
+  }
   return items;
 }
 
@@ -241,6 +270,7 @@ export function readStructuredDocumentConfig(
     value.dataReferenceTemplates,
   );
   const dataTableTemplates = readDataTableTemplates(value.dataTableTemplates);
+  const outline = readOutline(value.outline);
   const preferSelectedRoot = value.preferSelectedRoot === true;
   const sections = Array.isArray(value.sections)
     ? value.sections.map(readSection)
@@ -250,6 +280,7 @@ export function readStructuredDocumentConfig(
     !sections ||
     !dataReferenceTemplates ||
     !dataTableTemplates ||
+    !outline ||
     output === null ||
     validation === null ||
     sections.some((section) => !section)
@@ -264,6 +295,7 @@ export function readStructuredDocumentConfig(
       output: output ?? undefined,
       dataReferenceTemplates,
       dataTableTemplates,
+      outline,
       preferSelectedRoot,
       root,
       sections: sections as StructuredDocumentSectionConfig[],
@@ -295,6 +327,7 @@ export function buildStructuredDocumentViewModel(
       root: null,
       body: null,
       sections: [],
+      outline: [],
     };
   }
   if (root.objectTypeCode !== config.root.objectTypeCode) {
@@ -304,6 +337,7 @@ export function buildStructuredDocumentViewModel(
       root: null,
       body: null,
       sections: [],
+      outline: [],
     };
   }
   const rootPart = config.bodyFieldCode
@@ -334,6 +368,7 @@ export function buildStructuredDocumentViewModel(
     sections: config.sections.map((section) =>
       resolveSection(workspace, root, section),
     ),
+    outline: config.outline ?? [],
   };
 }
 
@@ -376,6 +411,18 @@ export function structuredDocumentReferenceDomId(
   blockId?: string,
 ): string {
   return `document-reference-${structuredDocumentFieldKey(objectId, fieldCode)}-${blockId ?? "legacy"}`;
+}
+
+export function structuredDocumentObjectDomId(objectId: string): string {
+  return `document-object-${objectId}`;
+}
+
+function objectDomId(objectId: string): string {
+  return structuredDocumentObjectDomId(objectId);
+}
+
+function sectionDomId(relationTypeCode: string): string {
+  return `structured-document-section-${relationTypeCode}`;
 }
 
 function resolveSection(
@@ -549,6 +596,20 @@ function readDataTableTemplates(
           },
         ]
       : [];
+  });
+}
+
+function readOutline(
+  value: unknown,
+): readonly StructuredDocumentOutlineConfig[] | null {
+  if (value === undefined) return [];
+  if (!Array.isArray(value)) return null;
+  return value.flatMap((item) => {
+    if (!isRecord(item)) return [];
+    const id = readNonEmptyString(item.id);
+    const label = readNonEmptyString(item.label);
+    const target = readNonEmptyString(item.target);
+    return id && label && target ? [{ id, label, target }] : [];
   });
 }
 

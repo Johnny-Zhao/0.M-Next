@@ -31,7 +31,8 @@ export function AnaView({ viewId }: { readonly viewId: string }) {
         report,
         view?.config.anaComparison,
         validation.kernelResults,
-        validation.kernelStale ? "running" : validation.kernelStatus,
+        validation.kernelStatus,
+        validation.kernelStale,
       )
     : null;
   if (!view || !vm) return <p role="status">当前分析视图不可用。</p>;

@@ -1070,6 +1070,8 @@ export class WorkspaceStore {
   }
 
   reconcileObject(object: DataObject): void {
+    const current = this.getObject(object.id);
+    if (current && current.version > object.version) return;
     this.state = {
       ...this.state,
       objects: this.state.objects.map((candidate) =>

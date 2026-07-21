@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { DocumentBodyBlock } from "@m-next/views";
+import { DocumentBodyBlock, type DocumentBodySaveResult } from "@m-next/views";
 
 import type { DataFieldPrimitive } from "../model/kernel";
 import type { DocModel } from "../model/view-layer";
@@ -59,6 +59,7 @@ export function StructuredDocumentView({
   );
   const outline = useMemo(() => buildStructuredDocumentOutline(vm), [vm]);
   const [activeOutlineId, setActiveOutlineId] = useState<string | null>(null);
+  const mainRef = useRef<HTMLElement | null>(null);
   const outlineRootObjectId =
     outline.find((item) => item.kind === "root")?.objectId ?? null;
   const activeOutlineRootRef = useRef<string | null>(null);
@@ -86,6 +87,35 @@ export function StructuredDocumentView({
     );
   }, [outline, outlineRootObjectId]);
 
+  useEffect(() => {
+    const main = mainRef.current;
+    if (!main) return;
+    const scrollHost =
+      (main.closest(".us-workspace__content") as HTMLElement | null) ?? main;
+    const syncActiveOutline = () => {
+      const rootTop = main.getBoundingClientRect().top;
+      let candidate: string | null = null;
+      for (const item of outline) {
+        if (item.state !== "ready") continue;
+        const target = document.getElementById(
+          structuredDocumentOutlineTargetId(item) ?? "",
+        );
+        if (target && target.getBoundingClientRect().top <= rootTop + 96) {
+          candidate = item.id;
+        }
+      }
+      if (candidate) setActiveOutlineId(candidate);
+    };
+    scrollHost.addEventListener("scroll", syncActiveOutline, {
+      passive: true,
+    });
+    window.addEventListener("resize", syncActiveOutline);
+    return () => {
+      scrollHost.removeEventListener("scroll", syncActiveOutline);
+      window.removeEventListener("resize", syncActiveOutline);
+    };
+  }, [outline]);
+
   if (vm.state === "dangling" || !vm.root) {
     return <p role="alert">{vm.message ?? "文档引用不可用"}</p>;
   }
@@ -96,8 +126,12 @@ export function StructuredDocumentView({
   ): Promise<void> => {
     await commitStructuredDocumentFieldEdit({ field, rawValue });
   };
-  const saveBody = async (json: string): Promise<void> => {
-    await commitStructuredDocumentBodyEdit({ body: vm.body, json });
+  const saveBody = async (json: string): Promise<DocumentBodySaveResult> => {
+    const result = await commitStructuredDocumentBodyEdit({
+      body: vm.body,
+      json,
+    });
+    return { kind: result.kind === "written" ? "saved" : "pending" };
   };
   const selectOutlineItem = (item: StructuredDocumentOutlineItem) => {
     if (item.state !== "ready") return;
@@ -133,7 +167,7 @@ export function StructuredDocumentView({
         activeId={activeOutlineId}
         onSelect={selectOutlineItem}
       />
-      <main className="us-doc-main us-structured-doc__main">
+      <main ref={mainRef} className="us-doc-main us-structured-doc__main">
         <header className="us-structured-doc__workspace-head">
           <div className="us-doc-meta">
             <span>{doc.docNo}</span>
@@ -176,7 +210,6 @@ export function StructuredDocumentView({
                     workspace={workspace}
                   />
                 )}
-                showToolbar
                 value={vm.body.value}
               />
             ) : (
@@ -193,11 +226,13 @@ export function StructuredDocumentView({
           >
             {root.label}
           </h1>
-          <DocumentFieldTable
-            fields={root.fields}
-            onSave={saveField}
-            selection={selection.current}
-          />
+          <div id="structured-document-section-root-fields">
+            <DocumentFieldTable
+              fields={root.fields}
+              onSave={saveField}
+              selection={selection.current}
+            />
+          </div>
           {vm.sections.map((section) => (
             <DocumentSection
               key={section.relationTypeCode}
@@ -209,10 +244,12 @@ export function StructuredDocumentView({
             />
           ))}
           {config.validation ? (
-            <KernelValidationPanel
-              config={config.validation}
-              rootObjectId={root.objectId}
-            />
+            <div id="structured-document-validation">
+              <KernelValidationPanel
+                config={config.validation}
+                rootObjectId={root.objectId}
+              />
+            </div>
           ) : null}
         </article>
       </main>
@@ -268,7 +305,7 @@ export function structuredDocumentOutlineTargetId(
 ): string | null {
   if (item.state !== "ready") return null;
   return item.kind === "section"
-    ? sectionDomId(item.relationTypeCode)
+    ? (item.targetId ?? sectionDomId(item.relationTypeCode))
     : item.objectId
       ? objectDomId(item.objectId)
       : null;

@@ -57,6 +57,15 @@ describe("buildKernelValidationViewModel", () => {
     expect(vm.items.map((item) => item.ruleCode)).toEqual(["RULE-BLOCK"]);
   });
 
+  it("counts PASS from completed backend results without inventing pre-run passes", () => {
+    const vm = build({
+      results: [outcome("RULE-WARN", "warning", "plan-b")],
+    });
+
+    expect(vm.passCount).toBe(2);
+    expect(vm.totalIssueCount).toBe(1);
+  });
+
   it("converges current-selection filtering without rerunning rules", () => {
     const results = [outcome("RULE-BLOCK", "error", "plan-a")];
     const blocked = build({
@@ -91,6 +100,11 @@ describe("buildKernelValidationViewModel", () => {
       ["dangling", "字段引用已失效"],
       ["resolved", null],
     ]);
+    expect(vm.items[1]).toMatchObject({
+      fieldCode: "removed",
+      fieldName: null,
+      suggestion: "请根据规则说明调整数据后重新校验",
+    });
   });
 
   it("filters object and field targets by the configured object type", () => {

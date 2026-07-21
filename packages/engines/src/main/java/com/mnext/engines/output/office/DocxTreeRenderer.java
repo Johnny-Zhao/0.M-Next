@@ -29,7 +29,7 @@ final class DocxTreeRenderer {
     for (var object : treeObjects) {
       var tree = tree(object);
       addHeading(document, headingLevel(template, number(tree, "depth", 0)), title(object));
-      addBodyContent(document, object);
+      addBodyContent(document, object, snapshot);
       addParagraphFields(document, object, template);
       addParameterTable(document, object, template);
     }
@@ -287,9 +287,9 @@ final class DocxTreeRenderer {
     return "body".equals(field);
   }
 
-  private static void addBodyContent(XWPFDocument document, DataObject object) {
+  private static void addBodyContent(XWPFDocument document, DataObject object, DataSet snapshot) {
     var body = RenderSupport.text(object.fields().get("body")).trim();
-    if (!body.isEmpty()) TiptapDocxBodyRenderer.render(document, body);
+    if (!body.isEmpty()) TiptapDocxBodyRenderer.render(document, body, snapshot);
   }
 
   private static Map<String, String> fieldRoles(OutputTemplate template) {

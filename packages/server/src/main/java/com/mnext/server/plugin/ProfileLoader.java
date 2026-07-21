@@ -11,6 +11,7 @@ import com.mnext.kernel.api.CommandRejectedException;
 import com.mnext.kernel.api.CommandResult;
 import com.mnext.kernel.api.MetaCommandService;
 import com.mnext.kernel.api.metamodel.CreateTemplateCommand;
+import com.mnext.kernel.api.metamodel.CreateTemplateVersionCommand;
 import com.mnext.kernel.api.metamodel.DataType;
 import com.mnext.kernel.api.metamodel.DefineFieldDefCommand;
 import com.mnext.kernel.api.metamodel.DefineObjectTypeCommand;
@@ -67,6 +68,10 @@ public class ProfileLoader {
     var existing = latestTemplateVersion(manifest.templateCode());
     if (existing != null) {
       if ("published".equals(existing.status())) {
+        if (templateNeedsUpgrade(manifest, existing)) {
+          upgradeTemplateVersion(manifest, existing, actor);
+          return;
+        }
         defineMissingFields(manifest, existing, actor);
         return;
       }
@@ -75,6 +80,10 @@ public class ProfileLoader {
             new RestoreTemplateVersionCommand(
                 AUTHOR_WORKSPACE, correlation(), key(manifest, "restore"), existing.versionId()),
             actor);
+        if (templateNeedsUpgrade(manifest, existing)) {
+          upgradeTemplateVersion(manifest, existing, actor);
+          return;
+        }
         defineMissingFields(manifest, existing, actor);
         return;
       }
@@ -103,6 +112,458 @@ public class ProfileLoader {
             AUTHOR_WORKSPACE, correlation(), key(manifest, "publish-template"), versionId),
         actor);
   }
+
+  private boolean templateNeedsUpgrade(ProfileManifest manifest, TemplateVersion version) {
+    var installedProfileVersion = profileVersion(version.versionId());
+    if (installedProfileVersion != null
+        && compareVersions(manifest.version(), installedProfileVersion) > 0) {
+      return true;
+    }
+    for (var derived : manifest.derivedOrEmpty()) {
+      if (!templateDerivedExists(version.versionId(), derived.objectType(), derived.code())) {
+        return true;
+      }
+    }
+    for (var rule : manifest.rulesOrEmpty()) {
+      if (!templateRuleExists(version.versionId(), rule.code())) return true;
+    }
+    return false;
+  }
+
+  private String profileVersion(UUID versionId) {
+    return jdbc.query(
+        "SELECT tags ->> 'profileVersion' FROM scene_template_version WHERE id = ?",
+        result -> result.next() ? result.getString(1) : null,
+        versionId);
+  }
+
+  private int compareVersions(String left, String right) {
+    var leftParts = versionParts(left);
+    var rightParts = versionParts(right);
+    for (var index = 0; index < 3; index++) {
+      var comparison = Integer.compare(leftParts[index], rightParts[index]);
+      if (comparison != 0) return comparison;
+    }
+    return 0;
+  }
+
+  private int[] versionParts(String value) {
+    var parts = value == null ? new String[0] : value.split("\\.");
+    var result = new int[3];
+    for (var index = 0; index < Math.min(parts.length, result.length); index++) {
+      try {
+        result[index] = Integer.parseInt(parts[index]);
+      } catch (NumberFormatException ignored) {
+        throw schema("profile version 格式无效: " + value);
+      }
+    }
+    return result;
+  }
+
+  private void upgradeTemplateVersion(
+      ProfileManifest manifest, TemplateVersion source, Actor actor) {
+    var created =
+        commands.createTemplateVersion(
+            new CreateTemplateVersionCommand(
+                AUTHOR_WORKSPACE,
+                correlation(),
+                key(manifest, "upgrade", Integer.toString(source.version())),
+                source.templateId()),
+            actor);
+    var versionId = detailUuid(created, "templateVersionId");
+    updateTemplateMetadata(manifest, versionId);
+    cloneTemplateDefinitions(source.versionId(), versionId, actor);
+    defineMissingFields(
+        manifest,
+        new TemplateVersion(source.templateId(), versionId, source.version() + 1, "draft"),
+        actor);
+    defineMissingDerivedFields(manifest, versionId, actor);
+    defineMissingRules(manifest, versionId, actor);
+    commands.publishTemplateVersion(
+        new PublishTemplateVersionCommand(
+            AUTHOR_WORKSPACE,
+            correlation(),
+            key(manifest, "upgrade-publish", Integer.toString(source.version())),
+            versionId),
+        actor);
+  }
+
+  private void cloneTemplateDefinitions(UUID sourceVersionId, UUID targetVersionId, Actor actor) {
+    var pendingValues = new ArrayList<>(templateValueTypes(sourceVersionId));
+    var copiedValueCodes = new HashSet<String>();
+    while (!pendingValues.isEmpty()) {
+      var copiedAny = false;
+      for (var iterator = pendingValues.iterator(); iterator.hasNext(); ) {
+        var value = iterator.next();
+        if (value.parentCode() != null && !copiedValueCodes.contains(value.parentCode())) continue;
+        commands.defineValueType(
+            new DefineValueTypeCommand(
+                AUTHOR_WORKSPACE,
+                correlation(),
+                "profile-clone-value:" + targetVersionId + ":" + value.code(),
+                targetVersionId,
+                value.code(),
+                value.name(),
+                DataType.fromCode(value.basePrimitive()),
+                value.parentCode(),
+                constraints(parseJson(value.constraintsJson()))),
+            actor);
+        copiedValueCodes.add(value.code());
+        iterator.remove();
+        copiedAny = true;
+      }
+      if (!copiedAny) throw schema("profile template value type hierarchy is invalid");
+    }
+    var objectTypes = new LinkedHashMap<String, UUID>();
+    var pendingObjectTypes = new ArrayList<>(templateObjectTypes(sourceVersionId));
+    while (!pendingObjectTypes.isEmpty()) {
+      var copiedAny = false;
+      for (var iterator = pendingObjectTypes.iterator(); iterator.hasNext(); ) {
+        var type = iterator.next();
+        if (type.parentCode() != null && !objectTypes.containsKey(type.parentCode())) continue;
+        commands.defineObjectType(
+            new DefineObjectTypeCommand(
+                AUTHOR_WORKSPACE,
+                correlation(),
+                "profile-clone-object:" + targetVersionId + ":" + type.code(),
+                targetVersionId,
+                type.code(),
+                type.name(),
+                type.parentCode()),
+            actor);
+        objectTypes.put(type.code(), objectTypeId(targetVersionId, type.code()));
+        iterator.remove();
+        copiedAny = true;
+      }
+      if (!copiedAny) throw schema("profile template object type hierarchy is invalid");
+    }
+    for (var field : templateFields(sourceVersionId)) {
+      commands.defineFieldDef(
+          new DefineFieldDefCommand(
+              AUTHOR_WORKSPACE,
+              correlation(),
+              "profile-clone-field:"
+                  + targetVersionId
+                  + ":"
+                  + field.objectTypeCode()
+                  + "."
+                  + field.code(),
+              objectTypes.get(field.objectTypeCode()),
+              field.code(),
+              field.name(),
+              field.valueTypeCode() == null
+                  ? (field.dataType() == null ? null : DataType.fromCode(field.dataType()))
+                  : null,
+              field.valueTypeCode(),
+              field.required(),
+              field.uniqueValue(),
+              field.redefinesFieldCode(),
+              constraints(parseJson(field.constraintsJson()))),
+          actor);
+    }
+    for (var relation : templateRelations(sourceVersionId)) {
+      commands.defineRelationType(
+          new DefineRelationTypeCommand(
+              AUTHOR_WORKSPACE,
+              correlation(),
+              "profile-clone-relation:" + targetVersionId + ":" + relation.code(),
+              relation.code(),
+              relation.name(),
+              objectTypes.get(relation.sourceCode()),
+              objectTypes.get(relation.targetCode()),
+              relation.direction(),
+              relation.cardinality(),
+              relation.semantics(),
+              relation.hierarchical(),
+              targetVersionId,
+              relation.kind()),
+          actor);
+    }
+    for (var derived : templateDerivedFields(sourceVersionId)) {
+      derivedFields.define(
+          new DefineDerivedFieldRequest(
+              AUTHOR_WORKSPACE,
+              correlation(),
+              "profile-clone-derived:"
+                  + targetVersionId
+                  + ":"
+                  + derived.objectTypeCode()
+                  + "."
+                  + derived.code(),
+              targetVersionId,
+              objectTypes.get(derived.objectTypeCode()),
+              derived.code(),
+              derived.name(),
+              derived.resultType(),
+              derived.derivation()),
+          actor.id());
+    }
+    for (var rule : templateRules(sourceVersionId)) {
+      rules.defineTemplateRule(
+          new DefineRuleRequest(
+              AUTHOR_WORKSPACE,
+              correlation(),
+              "profile-clone-rule:" + targetVersionId + ":" + rule.code(),
+              targetVersionId,
+              rule.code(),
+              new RuleScopeRequest(rule.objectTypeCode(), rule.fieldCode()),
+              rule.severity(),
+              rule.whenSrc(),
+              rule.message(),
+              parseJson(rule.impactJson()),
+              rule.suggest(),
+              parseJson(rule.fixJson()),
+              rule.lightweight()),
+          actor.id());
+      rules.publishTemplateRule(AUTHOR_WORKSPACE, targetVersionId, rule.code(), actor.id());
+    }
+  }
+
+  private void defineMissingDerivedFields(ProfileManifest manifest, UUID versionId, Actor actor) {
+    var objectTypeIds = objectTypeIds(new TemplateVersion(null, versionId, 0, "draft"));
+    for (var derived : manifest.derivedOrEmpty()) {
+      if (templateDerivedExists(versionId, derived.objectType(), derived.code())) continue;
+      derivedFields.define(
+          new DefineDerivedFieldRequest(
+              AUTHOR_WORKSPACE,
+              correlation(),
+              key(manifest, "upgrade-derived", derived.objectType(), derived.code()),
+              versionId,
+              objectTypeIds.get(derived.objectType()),
+              derived.code(),
+              derived.name(),
+              derived.resultType(),
+              ExpressionLanguageSupport.encode(derived.derivation(), derived.lang())),
+          actor.id());
+    }
+  }
+
+  private void defineMissingRules(ProfileManifest manifest, UUID versionId, Actor actor) {
+    for (var rule : manifest.rulesOrEmpty()) {
+      if (templateRuleExists(versionId, rule.code())) continue;
+      rules.defineTemplateRule(
+          new DefineRuleRequest(
+              AUTHOR_WORKSPACE,
+              correlation(),
+              key(manifest, "upgrade-rule", rule.code()),
+              versionId,
+              rule.code(),
+              new RuleScopeRequest(rule.objectType(), rule.field()),
+              rule.severity(),
+              ExpressionLanguageSupport.encode(rule.when(), rule.lang()),
+              rule.message(),
+              rule.impact(),
+              rule.suggest(),
+              rule.fix(),
+              Boolean.TRUE.equals(rule.lightweight())),
+          actor.id());
+      rules.publishTemplateRule(AUTHOR_WORKSPACE, versionId, rule.code(), actor.id());
+    }
+  }
+
+  private boolean templateDerivedExists(UUID versionId, String objectTypeCode, String code) {
+    return Boolean.TRUE.equals(
+        jdbc.queryForObject(
+            """
+            SELECT EXISTS(
+              SELECT 1 FROM derived_field derived
+              JOIN object_type type ON type.id = derived.object_type_id
+              WHERE derived.template_version_id = ? AND type.code = ? AND derived.code = ?)
+            """,
+            Boolean.class,
+            versionId,
+            objectTypeCode,
+            code));
+  }
+
+  private boolean templateRuleExists(UUID versionId, String code) {
+    return Boolean.TRUE.equals(
+        jdbc.queryForObject(
+            "SELECT EXISTS(SELECT 1 FROM rule_def WHERE template_version_id = ? AND rule_code = ?)",
+            Boolean.class,
+            versionId,
+            code));
+  }
+
+  private List<TemplateValue> templateValueTypes(UUID versionId) {
+    return jdbc.query(
+        """
+        SELECT value.code, value.name, value.base_primitive, parent.code AS parent_code,
+               value.constraints::text AS constraints_json
+        FROM value_type value
+        LEFT JOIN value_type parent ON parent.id = value.parent_value_type_id
+        WHERE value.template_version_id = ? ORDER BY value.code
+        """,
+        (row, ignored) ->
+            new TemplateValue(
+                row.getString("code"),
+                row.getString("name"),
+                row.getString("base_primitive"),
+                row.getString("parent_code"),
+                row.getString("constraints_json")),
+        versionId);
+  }
+
+  private List<TemplateObject> templateObjectTypes(UUID versionId) {
+    return jdbc.query(
+        """
+        SELECT type.code, type.name, parent.code AS parent_code
+        FROM object_type type
+        LEFT JOIN object_type parent ON parent.id = type.parent_type_id
+        WHERE type.template_version_id = ? ORDER BY type.code
+        """,
+        (row, ignored) ->
+            new TemplateObject(
+                row.getString("code"), row.getString("name"), row.getString("parent_code")),
+        versionId);
+  }
+
+  private List<TemplateField> templateFields(UUID versionId) {
+    return jdbc.query(
+        """
+        SELECT type.code AS object_type_code, field.code, field.name, field.data_type,
+               value.code AS value_type_code, field.required, field.unique_value,
+               redefined.code AS redefines_field_code, field.constraints::text AS constraints_json
+        FROM field_def field
+        JOIN object_type type ON type.id = field.object_type_id
+        LEFT JOIN value_type value ON value.id = field.value_type_id
+        LEFT JOIN field_def redefined ON redefined.id = field.redefines_field_def_id
+        WHERE field.template_version_id = ? ORDER BY type.code, field.code
+        """,
+        (row, ignored) ->
+            new TemplateField(
+                row.getString("object_type_code"),
+                row.getString("code"),
+                row.getString("name"),
+                row.getString("data_type"),
+                row.getString("value_type_code"),
+                row.getBoolean("required"),
+                row.getBoolean("unique_value"),
+                row.getString("redefines_field_code"),
+                row.getString("constraints_json")),
+        versionId);
+  }
+
+  private List<TemplateRelation> templateRelations(UUID versionId) {
+    return jdbc.query(
+        """
+        SELECT relation.code, source.code AS source_code, target.code AS target_code,
+               relation.direction, relation.cardinality, relation.semantics, relation.hierarchical,
+               relation.kind
+        FROM relation_type relation
+        JOIN object_type source ON source.id = relation.source_type
+        JOIN object_type target ON target.id = relation.target_type
+        WHERE relation.template_version_id = ? ORDER BY relation.code
+        """,
+        (row, ignored) ->
+            new TemplateRelation(
+                row.getString("code"),
+                row.getString("code"),
+                row.getString("source_code"),
+                row.getString("target_code"),
+                row.getString("direction"),
+                row.getString("cardinality"),
+                row.getString("semantics"),
+                row.getBoolean("hierarchical"),
+                row.getString("kind")),
+        versionId);
+  }
+
+  private List<TemplateDerived> templateDerivedFields(UUID versionId) {
+    return jdbc.query(
+        """
+        SELECT type.code AS object_type_code, derived.code, derived.name, derived.result_type,
+               derived.derivation
+        FROM derived_field derived
+        JOIN object_type type ON type.id = derived.object_type_id
+        WHERE derived.template_version_id = ? ORDER BY type.code, derived.code
+        """,
+        (row, ignored) ->
+            new TemplateDerived(
+                row.getString("object_type_code"),
+                row.getString("code"),
+                row.getString("name"),
+                row.getString("result_type"),
+                row.getString("derivation")),
+        versionId);
+  }
+
+  private List<TemplateRule> templateRules(UUID versionId) {
+    return jdbc.query(
+        """
+        SELECT rule.rule_code, type.code AS object_type_code, field.code AS field_code,
+               rule.severity, rule.when_src, rule.message, rule.impact::text AS impact_json,
+               rule.suggest, rule.fix::text AS fix_json, rule.lightweight
+        FROM rule_def rule
+        JOIN object_type type ON type.id = rule.scope_object_type_id
+        LEFT JOIN field_def field ON field.id = rule.scope_field_def_id
+        WHERE rule.template_version_id = ? ORDER BY rule.rule_code
+        """,
+        (row, ignored) ->
+            new TemplateRule(
+                row.getString("rule_code"),
+                row.getString("object_type_code"),
+                row.getString("field_code"),
+                row.getString("severity"),
+                row.getString("when_src"),
+                row.getString("message"),
+                row.getString("impact_json"),
+                row.getString("suggest"),
+                row.getString("fix_json"),
+                row.getBoolean("lightweight")),
+        versionId);
+  }
+
+  private JsonNode parseJson(String value) {
+    if (value == null) return null;
+    try {
+      return mapper.readTree(value);
+    } catch (com.fasterxml.jackson.core.JsonProcessingException failure) {
+      throw schema("profile template JSON 鏃犳硶瑙ｆ瀽");
+    }
+  }
+
+  private record TemplateValue(
+      String code, String name, String basePrimitive, String parentCode, String constraintsJson) {}
+
+  private record TemplateObject(String code, String name, String parentCode) {}
+
+  private record TemplateField(
+      String objectTypeCode,
+      String code,
+      String name,
+      String dataType,
+      String valueTypeCode,
+      boolean required,
+      boolean uniqueValue,
+      String redefinesFieldCode,
+      String constraintsJson) {}
+
+  private record TemplateRelation(
+      String code,
+      String name,
+      String sourceCode,
+      String targetCode,
+      String direction,
+      String cardinality,
+      String semantics,
+      boolean hierarchical,
+      String kind) {}
+
+  private record TemplateDerived(
+      String objectTypeCode, String code, String name, String resultType, String derivation) {}
+
+  private record TemplateRule(
+      String code,
+      String objectTypeCode,
+      String fieldCode,
+      String severity,
+      String whenSrc,
+      String message,
+      String impactJson,
+      String suggest,
+      String fixJson,
+      boolean lightweight) {}
 
   @Transactional
   public void uninstall(String templateCode, Actor actor) {
@@ -567,6 +1028,8 @@ public class ProfileLoader {
     try {
       return mapper.writeValueAsString(
           Map.of(
+              "profileVersion",
+              manifest.version(),
               "industry",
               cleanTags(tags.industryOrEmpty()),
               "profession",

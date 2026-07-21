@@ -75,6 +75,23 @@ describe("matrix view model", () => {
     expect(vm.cards).toEqual([]);
   });
 
+  it("does not present terminal source objects as active comparison cards", () => {
+    const seed = cloneDemoSeed();
+    const workspace = new WorkspaceStore({
+      ...seed,
+      objects: seed.objects.map((candidate) =>
+        candidate.id === "prod-s3"
+          ? { ...candidate, status: "archived" }
+          : candidate,
+      ),
+    }).getSnapshot();
+    const view = workspace.views.find(
+      (candidate) => candidate.id === "view-inventory-matrix",
+    )!;
+    const vm = buildMatrixViewModel(workspace, view);
+    expect(vm.cards.some((card) => card.objectId === "prod-s3")).toBe(false);
+  });
+
   it("writes direct moves, queues denied writes and treats same-column drops as noop", () => {
     const seed = cloneDemoSeed();
     const workspace = new WorkspaceStore(seed);

@@ -196,6 +196,14 @@ describe("structured-document-view-model", () => {
       scopeCanvasViewId: "view-pc-canvas",
     });
     expect(parsed.config.preferSelectedRoot).toBe(true);
+    expect(parsed.config.outline?.map((item) => item.label)).toEqual([
+      "采购需求",
+      "方案概览",
+      "配置明细",
+      "供应商与报价",
+      "预算与功耗",
+      "校验结论",
+    ]);
     expect(
       parsed.config.sections.map((section) => section.relationTypeCode),
     ).toEqual(["build_plan_contains_item", "build_plan_satisfies_requirement"]);
@@ -286,6 +294,12 @@ describe("structured-document-view-model", () => {
       "row",
       "section",
       "row",
+      "section",
+      "section",
+      "section",
+      "section",
+      "section",
+      "section",
     ]);
     expect(outline[0]).toMatchObject({
       kind: "root",

@@ -30,6 +30,16 @@ class RuleDefRepository {
 
   @Transactional
   CommandResult defineRule(DefineRuleRequest request, String actor) {
+    return defineRuleInternal(request, actor, false);
+  }
+
+  @Transactional
+  CommandResult defineTemplateRule(DefineRuleRequest request, String actor) {
+    return defineRuleInternal(request, actor, true);
+  }
+
+  private CommandResult defineRuleInternal(
+      DefineRuleRequest request, String actor, boolean templateScoped) {
     validateEnvelope(request.workspaceId(), request.idempotencyKey());
     var payloadHash = hash(json(request));
     var replay = replay(request.workspaceId(), request.idempotencyKey(), payloadHash);
@@ -37,7 +47,10 @@ class RuleDefRepository {
     validateWhen(request.when());
     validateSeverity(request.severity());
     var scope = resolveScope(request.workspaceId(), request.templateVersionId(), request.scope());
-    var existing = existing(request.workspaceId(), request.ruleCode());
+    var existing =
+        templateScoped
+            ? existing(request.workspaceId(), request.templateVersionId(), request.ruleCode())
+            : existingAny(request.workspaceId(), request.ruleCode());
     if (existing != null && existing.published()) {
       throw rule("RULE-409-PUBLISHED-IMMUTABLE", "已发布规则不可覆盖", "复制为新的 ruleCode 或等待新版本规则流程");
     }
@@ -65,7 +78,7 @@ class RuleDefRepository {
     var payloadHash = hash(json(request));
     var replay = replay(request.workspaceId(), request.idempotencyKey(), payloadHash);
     if (replay != null) return replay.replayed();
-    var existing = existing(request.workspaceId(), request.ruleCode());
+    var existing = existingAny(request.workspaceId(), request.ruleCode());
     if (existing == null) {
       throw rule("RULE-422-SCOPE-UNRESOLVED", "规则不存在", "先 DefineRule 创建草稿后再发布");
     }
@@ -89,6 +102,21 @@ class RuleDefRepository {
         payloadHash,
         result);
     return result;
+  }
+
+  @Transactional
+  void publishTemplateRule(
+      UUID workspaceId, UUID templateVersionId, String ruleCode, String actor) {
+    jdbc.update(
+        """
+        UPDATE rule_def
+        SET published = TRUE, version = version + 1, updated_by = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE workspace_id = ? AND template_version_id = ? AND rule_code = ?
+        """,
+        actor,
+        workspaceId,
+        templateVersionId,
+        ruleCode);
   }
 
   private void insertRule(
@@ -215,7 +243,21 @@ class RuleDefRepository {
     return fieldIds.getFirst();
   }
 
-  private ExistingRule existing(UUID workspaceId, String ruleCode) {
+  private ExistingRule existing(UUID workspaceId, UUID templateVersionId, String ruleCode) {
+    var values =
+        jdbc.query(
+            """
+            SELECT id, published FROM rule_def
+            WHERE workspace_id = ? AND template_version_id IS NOT DISTINCT FROM ? AND rule_code = ?
+            """,
+            (row, index) -> new ExistingRule(row.getObject(1, UUID.class), row.getBoolean(2)),
+            workspaceId,
+            templateVersionId,
+            ruleCode);
+    return values.isEmpty() ? null : values.getFirst();
+  }
+
+  private ExistingRule existingAny(UUID workspaceId, String ruleCode) {
     var values =
         jdbc.query(
             "SELECT id, published FROM rule_def WHERE workspace_id = ? AND rule_code = ?",

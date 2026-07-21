@@ -1,7 +1,7 @@
 {
   "id": "pc-procurement",
   "name": "电脑采购",
-  "version": "1.1.0",
+  "version": "1.3.0",
   "templateCode": "pc_procurement",
   "tags": {
     "industry": ["信息技术"],
@@ -187,6 +187,20 @@
       "required": true
     },
     {
+      "objectType": "supplier",
+      "code": "contact",
+      "name": "联系人",
+      "dataType": "string",
+      "required": false
+    },
+    {
+      "objectType": "supplier",
+      "code": "rating",
+      "name": "评级",
+      "dataType": "number",
+      "required": false
+    },
+    {
       "objectType": "supplier_quote",
       "code": "code",
       "name": "编码",
@@ -236,6 +250,13 @@
       "name": "名称",
       "dataType": "string",
       "required": true
+    },
+    {
+      "objectType": "build_plan",
+      "code": "description",
+      "name": "说明",
+      "dataType": "string",
+      "required": false
     },
     {
       "objectType": "build_plan",
@@ -437,6 +458,13 @@
       "name": "需求单台预算（元）",
       "resultType": "number",
       "derivation": "sum(traverse('build_plan_satisfies_requirement','out'),'unit_budget_cny')"
+    },
+    {
+      "objectType": "build_plan",
+      "code": "requirement_max_total_power_w_fx",
+      "name": "需求最大总功耗（瓦）",
+      "resultType": "number",
+      "derivation": "min(traverse('build_plan_satisfies_requirement','out'),'max_total_power_w')"
     }
   ],
   "rules": [
@@ -446,6 +474,14 @@
       "severity": "BLOCK",
       "when": "field('total_price_cny_fx') > field('requirement_unit_budget_cny_fx')",
       "message": "采购方案总价超过需求单台预算，请调整配件数量或供应商报价",
+      "lightweight": false
+    },
+    {
+      "code": "R-PC-MAX-TOTAL-POWER",
+      "objectType": "build_plan",
+      "severity": "BLOCK",
+      "when": "field('total_power_w_fx') > field('requirement_max_total_power_w_fx')",
+      "message": "采购方案总功耗超过需求允许的整机最大功耗，请调整配件或采购需求。",
       "lightweight": false
     },
     {

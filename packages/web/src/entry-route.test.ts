@@ -14,6 +14,15 @@ describe("web entry route", () => {
     expect(rootUnisourceLocation("/", "", "")).toBeNull();
   });
 
+  it("only redirects when backend mode and a non-empty workspace are both present", () => {
+    expect(rootUnisourceLocation("/", "?ws=workspace-1", "")).toBeNull();
+    expect(
+      rootUnisourceLocation("/", "?backend=0&ws=workspace-1", ""),
+    ).toBeNull();
+    expect(rootUnisourceLocation("/", "?backend=1&ws=", "")).toBeNull();
+    expect(rootUnisourceLocation("/", "?backend=1", "")).toBeNull();
+  });
+
   it("keeps UniSource paths and legacy paths distinguishable", () => {
     expect(isUnisourceLocation("/us")).toBe(true);
     expect(isUnisourceLocation("/us/home")).toBe(true);

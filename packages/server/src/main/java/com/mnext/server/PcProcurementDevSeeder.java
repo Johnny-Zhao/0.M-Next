@@ -11,6 +11,7 @@ import com.mnext.kernel.api.commands.CreateRelationCommand;
 import com.mnext.kernel.api.commands.FieldUpdate;
 import com.mnext.kernel.api.commands.UpdateFieldsCommand;
 import com.mnext.kernel.api.events.EventEnvelope;
+import com.mnext.kernel.api.metamodel.ApplyTemplateVersionCommand;
 import com.mnext.kernel.api.metamodel.InstantiateWorkspaceCommand;
 import com.mnext.server.plugin.ProfileManifest;
 import java.nio.file.Files;
@@ -119,8 +120,14 @@ class PcProcurementDevSeeder implements ApplicationRunner {
         throw new IllegalStateException(
             "DEV SEED: pc procurement workspace exists without its runtime profile");
       }
+      ensureWorkspaceTemplateVersion(actor);
       ensureRuntimeProfileMatches(manifest);
+      ensureRequiredProfileDefinitions();
       return;
+    }
+    var latest = latestPublishedTemplateVersion();
+    if (latest == null) {
+      throw new IllegalStateException("DEV SEED: pc-procurement has no published profile version");
     }
     lifecycle.instantiateWorkspace(
         new InstantiateWorkspaceCommand(
@@ -128,11 +135,81 @@ class PcProcurementDevSeeder implements ApplicationRunner {
             UUID.randomUUID(),
             key("instantiate"),
             templateId(),
-            1,
+            latest,
             WORKSPACE_ID,
             "电脑采购 Demo"),
         actor);
+    ensureWorkspaceTemplateVersion(actor);
     ensureRuntimeProfileMatches(manifest);
+    ensureRequiredProfileDefinitions();
+  }
+
+  private void ensureWorkspaceTemplateVersion(Actor actor) {
+    var current = workspaceTemplateVersion();
+    var latest = latestPublishedTemplateVersion();
+    if (current == null || latest == null) {
+      throw new IllegalStateException(
+          "DEV SEED: pc-procurement workspace profile version is unavailable; "
+              + "cannot apply the installed profile safely");
+    }
+    if (current != latest || !requiredProfileDefinitionsExist()) {
+      lifecycle.applyTemplateVersion(
+          new ApplyTemplateVersionCommand(
+              WORKSPACE_ID, UUID.randomUUID(), "pc-procurement-apply-profile-v" + latest, latest),
+          actor);
+    }
+  }
+
+  private Integer workspaceTemplateVersion() {
+    return jdbc.query(
+        "SELECT template_version FROM workspace WHERE id = ?",
+        result -> result.next() ? (Integer) result.getObject(1) : null,
+        WORKSPACE_ID);
+  }
+
+  private Integer latestPublishedTemplateVersion() {
+    return jdbc.query(
+        """
+        SELECT version.version
+        FROM scene_template template
+        JOIN scene_template_version version ON version.template_id = template.id
+        WHERE template.code = ? AND version.status = 'published'
+        ORDER BY version.version DESC LIMIT 1
+        """,
+        result -> result.next() ? result.getInt(1) : null,
+        TEMPLATE_CODE);
+  }
+
+  private void ensureRequiredProfileDefinitions() {
+    if (!requiredProfileDefinitionsExist()) {
+      throw new IllegalStateException(
+          "DEV SEED: pc-procurement profile upgrade incomplete; "
+              + "missing build_plan.requirement_max_total_power_w_fx or R-PC-MAX-TOTAL-POWER");
+    }
+  }
+
+  private boolean requiredProfileDefinitionsExist() {
+    var derived =
+        Boolean.TRUE.equals(
+            jdbc.queryForObject(
+                """
+                SELECT EXISTS(
+                  SELECT 1 FROM derived_field derived
+                  JOIN object_type type ON type.id = derived.object_type_id
+                  WHERE derived.workspace_id = ? AND type.template_version_id IS NULL
+                    AND type.code = 'build_plan'
+                    AND derived.code = 'requirement_max_total_power_w_fx')
+                """,
+                Boolean.class,
+                WORKSPACE_ID));
+    var rule =
+        Boolean.TRUE.equals(
+            jdbc.queryForObject(
+                "SELECT EXISTS(SELECT 1 FROM rule_def WHERE workspace_id = ? AND rule_code = ?)",
+                Boolean.class,
+                WORKSPACE_ID,
+                "R-PC-MAX-TOTAL-POWER"));
+    return derived && rule;
   }
 
   private void ensureRuntimeProfileMatches(ProfileManifest manifest) {
@@ -259,7 +336,7 @@ class PcProcurementDevSeeder implements ApplicationRunner {
                 "unit_budget_cny", 8000,
                 "warranty_requirement", "三年上门",
                 "os_requirement", "Windows 11 Pro",
-                "max_total_power_w", 650)));
+                "max_total_power_w", 500)));
     requirements.put(
         "REQ-DEV-ENTRY",
         createObject(

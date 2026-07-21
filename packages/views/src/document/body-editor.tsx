@@ -1,7 +1,13 @@
 import { type Editor, type JSONContent } from "@tiptap/core";
 import { NodeSelection } from "@tiptap/pm/state";
 import { EditorContent, useEditor } from "@tiptap/react";
-import { useState, type ReactElement } from "react";
+import {
+  useRef,
+  useState,
+  type FocusEvent,
+  type KeyboardEvent,
+  type ReactElement,
+} from "react";
 
 import {
   bodyExtensions,
@@ -22,7 +28,7 @@ export interface DocumentBodyBlockProps {
   readonly value: unknown;
   readonly editable: boolean;
   /** 保存正文:序列化后的 JSON 字符串走 updateSingleField 唯一出口(string 类型)。 */
-  readonly onSave: (json: string) => void | Promise<void>;
+  readonly onSave: (json: string) => DocumentBodySaveResponse;
   readonly showToolbar?: boolean;
   readonly dataBlockRenderer?: DocumentDataBlockRenderer;
   readonly renderDataBlockActions?: (
@@ -30,8 +36,43 @@ export interface DocumentBodyBlockProps {
   ) => ReactElement | null;
 }
 
+export type DocumentBodySaveResult = {
+  readonly kind: "saved" | "pending" | "failed";
+  readonly message?: string;
+};
+
+export type DocumentBodySaveResponse =
+  | void
+  | DocumentBodySaveResult
+  | Promise<void | DocumentBodySaveResult>;
+
+export function isBodyEditorEntryKey(key: string): boolean {
+  return key === "Enter" || key === "F2";
+}
+
+export function shouldCommitBodyOnBlur(
+  contains: (target: unknown) => boolean,
+  relatedTarget: unknown,
+): boolean {
+  return relatedTarget == null || !contains(relatedTarget);
+}
+
+export function isBodySaveSuccessful(
+  result: void | DocumentBodySaveResult,
+): boolean {
+  return result === undefined || result.kind === "saved";
+}
+
+export function shouldSubmitBodyContent(
+  json: string,
+  initialJson: string,
+  lastSubmittedJson: string | null,
+): boolean {
+  return json !== initialJson && json !== lastSubmittedJson;
+}
+
 /**
- * 文档视图的「正文」内容块:展示态渲染 body(只读 Tiptap),点击进入编辑(子集:段落/加粗/斜体/
+ * 文档视图的「正文」内容块:展示态渲染 body(只读 Tiptap),双击进入编辑(子集:段落/加粗/斜体/
  * 无序列表)。空态显示占位;坏 JSON 降级只读纯文本 + 提示。仅在文档视图使用。
  */
 export function DocumentBodyBlock(props: DocumentBodyBlockProps): ReactElement {
@@ -42,7 +83,6 @@ export function DocumentBodyBlock(props: DocumentBodyBlockProps): ReactElement {
     const initial = content.kind === "doc" ? content.doc : EMPTY_BODY_DOC;
     return (
       <section aria-label="正文" className="document-body">
-        <span className="document-body-label">正文</span>
         <BodyEditorForm
           dataBlockRenderer={props.dataBlockRenderer}
           initialDoc={initial}
@@ -56,10 +96,6 @@ export function DocumentBodyBlock(props: DocumentBodyBlockProps): ReactElement {
 
   return (
     <section aria-label="正文" className="document-body">
-      <span className="document-body-label">正文</span>
-      {props.showToolbar && content.kind !== "doc" ? (
-        <DocumentBodyToolbar editor={null} disabled />
-      ) : null}
       {content.kind === "invalid" ? (
         <div className="document-body-invalid">
           <p className="document-body-hint">
@@ -84,7 +120,6 @@ export function DocumentBodyBlock(props: DocumentBodyBlockProps): ReactElement {
           doc={content.doc}
           dataBlockRenderer={props.dataBlockRenderer}
           onEdit={props.editable ? () => setEditing(true) : undefined}
-          showToolbar={props.showToolbar}
         />
       )}
     </section>
@@ -96,6 +131,7 @@ export type DocumentBodyToolbarCommand =
   | "heading"
   | "bold"
   | "italic"
+  | "underline"
   | "bulletList"
   | "orderedList";
 
@@ -108,6 +144,7 @@ export function runDocumentBodyToolbarCommand(
   if (command === "heading") return chain.toggleHeading({ level: 2 }).run();
   if (command === "bold") return chain.toggleBold().run();
   if (command === "italic") return chain.toggleItalic().run();
+  if (command === "underline") return chain.toggleMark("underline").run();
   return command === "bulletList"
     ? chain.toggleBulletList().run()
     : chain.toggleOrderedList().run();
@@ -168,6 +205,18 @@ export function DocumentBodyToolbar({
         type="button"
       >
         I
+      </button>
+      <button
+        aria-label="下划线"
+        aria-pressed={editor?.isActive("underline") ?? false}
+        className={editor?.isActive("underline") ? "is-active" : ""}
+        disabled={unavailable}
+        onClick={() =>
+          editor && runDocumentBodyToolbarCommand(editor, "underline")
+        }
+        type="button"
+      >
+        U
       </button>
       <button
         aria-label="无序列表"
@@ -291,7 +340,6 @@ function moveSelectedDataBlock(editor: Editor, direction: -1 | 1): boolean {
 function BodyReadonly(props: {
   readonly doc: JSONContent;
   readonly onEdit?: () => void;
-  readonly showToolbar?: boolean;
   readonly dataBlockRenderer?: DocumentDataBlockRenderer;
 }): ReactElement {
   const editor = useEditor(
@@ -303,27 +351,29 @@ function BodyReadonly(props: {
     [props.dataBlockRenderer, props.doc],
   );
   return (
-    <div className="document-body-view">
-      {props.showToolbar ? (
-        <DocumentBodyToolbar editor={editor} disabled />
-      ) : null}
+    <div
+      className="document-body-view"
+      onClick={props.onEdit && isCoarsePointer() ? props.onEdit : undefined}
+      onDoubleClick={props.onEdit}
+      onKeyDown={
+        props.onEdit
+          ? (event: KeyboardEvent<HTMLDivElement>) => {
+              if (!isBodyEditorEntryKey(event.key)) return;
+              event.preventDefault();
+              props.onEdit?.();
+            }
+          : undefined
+      }
+      tabIndex={props.onEdit ? 0 : undefined}
+    >
       <EditorContent className="document-body-rendered" editor={editor} />
-      {props.onEdit ? (
-        <button
-          className="document-body-edit"
-          onClick={props.onEdit}
-          type="button"
-        >
-          编辑正文
-        </button>
-      ) : null}
     </div>
   );
 }
 
 function BodyEditorForm(props: {
   readonly initialDoc: JSONContent;
-  readonly onSave: (json: string) => void | Promise<void>;
+  readonly onSave: (json: string) => DocumentBodySaveResponse;
   readonly onCancel: () => void;
   readonly dataBlockRenderer?: DocumentDataBlockRenderer;
   readonly renderDataBlockActions?: (
@@ -333,6 +383,12 @@ function BodyEditorForm(props: {
   const [, setTick] = useState(0);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [status, setStatus] = useState<
+    "editing" | "saving" | "saved" | "pending" | "error"
+  >("editing");
+  const savingRef = useRef(false);
+  const initialJson = useRef(serializeBody(props.initialDoc));
+  const lastSubmittedJson = useRef<string | null>(null);
   const bump = () => setTick((tick) => tick + 1);
   const editor = useEditor({
     extensions: bodyExtensions(props.dataBlockRenderer),
@@ -345,9 +401,79 @@ function BodyEditorForm(props: {
 
   if (!editor) return <div className="document-body-editor" />;
   const dataBlockActions = documentBodyEditorActions(editor);
+  const save = async (): Promise<void> => {
+    if (savingRef.current) return;
+    const json = serializeBody(editor.getJSON());
+    if (json === initialJson.current) {
+      props.onCancel();
+      return;
+    }
+    if (
+      !shouldSubmitBodyContent(
+        json,
+        initialJson.current,
+        lastSubmittedJson.current,
+      )
+    ) {
+      return;
+    }
+    lastSubmittedJson.current = json;
+    savingRef.current = true;
+    setSaving(true);
+    setStatus("saving");
+    setError(null);
+    try {
+      const result = await props.onSave(json);
+      if (result?.kind === "failed") {
+        setStatus("error");
+        setError(result.message ?? "正文保存失败，请稍后重试");
+        lastSubmittedJson.current = null;
+        return;
+      }
+      if (!isBodySaveSuccessful(result)) {
+        setStatus("pending");
+        return;
+      }
+      initialJson.current = json;
+      lastSubmittedJson.current = null;
+      setStatus("saved");
+      props.onCancel();
+    } catch (cause: unknown) {
+      lastSubmittedJson.current = null;
+      setStatus("error");
+      setError(
+        cause instanceof Error ? cause.message : "正文保存失败，请稍后重试",
+      );
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
+    }
+  };
+  const onBlur = (event: FocusEvent<HTMLDivElement>) => {
+    if (
+      !savingRef.current &&
+      shouldCommitBodyOnBlur(
+        (target) => event.currentTarget.contains(target as Node),
+        event.relatedTarget,
+      )
+    ) {
+      void save();
+    }
+  };
+  const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      if (!savingRef.current) props.onCancel();
+      return;
+    }
+    if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
+      event.preventDefault();
+      void save();
+    }
+  };
 
   return (
-    <div className="document-body-editor">
+    <div className="document-body-editor" onBlur={onBlur} onKeyDown={onKeyDown}>
       <DocumentBodyToolbar editor={editor}>
         {props.renderDataBlockActions?.(dataBlockActions) ?? null}
       </DocumentBodyToolbar>
@@ -356,24 +482,31 @@ function BodyEditorForm(props: {
         <button
           className="document-body-save"
           disabled={saving}
-          onClick={() => {
-            setSaving(true);
-            setError(null);
-            void Promise.resolve(props.onSave(serializeBody(editor.getJSON())))
-              .then(() => setEditingAfterSave())
-              .catch((cause: unknown) => {
-                setError(
-                  cause instanceof Error
-                    ? cause.message
-                    : "正文保存失败，请稍后重试",
-                );
-              })
-              .finally(() => setSaving(false));
-          }}
+          onClick={() => void save()}
           type="button"
         >
           {saving ? "保存中…" : "保存"}
         </button>
+        {status === "error" ? (
+          <button
+            className="document-body-save-retry"
+            disabled={saving}
+            onClick={() => void save()}
+            type="button"
+          >
+            保存失败，点击重试
+          </button>
+        ) : (
+          <span className="document-body-save-state" role="status">
+            {status === "saving"
+              ? "保存中"
+              : status === "pending"
+                ? "已提交审批，等待确认"
+                : status === "saved"
+                  ? "已保存"
+                  : "编辑中"}
+          </span>
+        )}
         <button disabled={saving} onClick={props.onCancel} type="button">
           取消
         </button>
@@ -385,8 +518,12 @@ function BodyEditorForm(props: {
       ) : null}
     </div>
   );
+}
 
-  function setEditingAfterSave(): void {
-    props.onCancel();
-  }
+function isCoarsePointer(): boolean {
+  return (
+    typeof window !== "undefined" &&
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(pointer: coarse)").matches
+  );
 }

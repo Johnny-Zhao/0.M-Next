@@ -115,7 +115,9 @@ export function buildMatrixViewModel(
     );
   }
   const objects = workspace.objects.filter(
-    (object) => object.objectTypeCode === config.sourceTypeCode,
+    (object) =>
+      object.objectTypeCode === config.sourceTypeCode &&
+      !["archived", "deleted", "soft-deleted"].includes(object.status),
   );
   const columns = columnValues(objects, colField).map((value) => ({
     value,

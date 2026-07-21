@@ -10,7 +10,9 @@ import { WorkspaceStore, type WriteSink } from "../state/workspace-store";
 import {
   archiveProcurementObject,
   copyBuildPlan,
+  registerPcProcurementLifecycleActions,
 } from "./pc-procurement-lifecycle-actions";
+import { DataSourceLifecycleActionRegistry } from "./data-source-lifecycle-action-registry";
 
 const allowedSession = {
   can: () => true,
@@ -175,6 +177,34 @@ describe("PC procurement lifecycle actions", () => {
     expect(workspace.getObject("requirement-1")).toBeUndefined();
   });
 
+  it("archives every PC object type without deleting its facts", async () => {
+    const workspace = lifecycleWorkspace();
+    const result = await archiveProcurementObject({
+      objectId: "product-1",
+      objectTypeCode: "hardware_product",
+      workspace,
+      session: allowedSession,
+    });
+    expect(result.state).toBe("completed");
+    expect(workspace.getObject("product-1")).toBeUndefined();
+    expect(workspace.getRelations("item-1")).toHaveLength(2);
+  });
+
+  it("registers archive actions for all six PC object types", () => {
+    const registry = new DataSourceLifecycleActionRegistry();
+    registerPcProcurementLifecycleActions(registry);
+    for (const objectTypeCode of [
+      "procurement_requirement",
+      "build_plan",
+      "build_plan_item",
+      "hardware_product",
+      "supplier",
+      "supplier_quote",
+    ]) {
+      expect(registry.resolve("pc_procurement", objectTypeCode)).not.toBeNull();
+    }
+  });
+
   it("does not create or archive data when the member lacks edit permission", async () => {
     const workspace = lifecycleWorkspace();
     const readonlySession = { ...allowedSession, can: () => false };
@@ -241,6 +271,10 @@ function lifecycleWorkspace(): WorkspaceStore {
         code: "QUOTE-001",
         name: "报价",
       }),
+      dataObject("supplier-1", "supplier", {
+        code: "SUP-001",
+        name: "Supplier",
+      }),
     ],
     relations: [
       relation(
@@ -287,6 +321,7 @@ const lifecycleTypes: readonly ObjectTypeDef[] = [
   objectType("build_plan_item", ["code", "name", "quantity"]),
   objectType("procurement_requirement", ["code", "name"]),
   objectType("hardware_product", ["code", "name"]),
+  objectType("supplier", ["code", "name"]),
   objectType("supplier_quote", ["code", "name"]),
 ];
 

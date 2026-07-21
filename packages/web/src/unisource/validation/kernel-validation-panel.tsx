@@ -60,7 +60,7 @@ export function KernelValidationPanel({
       buildKernelValidationViewModel({
         workspace,
         results: validation.kernelResults,
-        status: validation.kernelStale ? "running" : validation.kernelStatus,
+        status: validation.kernelStatus,
         error: validation.kernelError,
         filter,
         selection: selection.current,
@@ -83,9 +83,7 @@ export function KernelValidationPanel({
         ? buildKernelValidationViewModel({
             workspace,
             results: validation.kernelResults,
-            status: validation.kernelStale
-              ? "running"
-              : validation.kernelStatus,
+            status: validation.kernelStatus,
             error: validation.kernelError,
             filter,
             selection: selection.current,
@@ -99,7 +97,7 @@ export function KernelValidationPanel({
     if (!config.allowManualRun || validation.kernelRunning) return;
     void validationStore.runKernelCheck(
       session.currentMemberId,
-      config.objectTypeCode,
+      config.scopeCanvasViewId ? null : config.objectTypeCode,
     );
   };
   const statusNotice = kernelValidationStatusNotice(validation);
@@ -118,16 +116,20 @@ export function KernelValidationPanel({
         <UsMonoTag active>KERNEL</UsMonoTag>
         <span data-tone="danger">{vm.blockCount} BLOCK</span>
         <span data-tone="change">{vm.warnCount} WARN</span>
+        <span data-tone="ok">{vm.passCount} PASS</span>
+        <span data-tone="neutral">{vm.totalIssueCount} 个问题</span>
         <span data-tone={latestReady && vm.noIssue ? "ok" : "neutral"}>
           {validation.kernelStatus === "idle"
             ? "未校验"
-            : latestReady && vm.noIssue
-              ? "无问题"
-              : latestReady
-                ? "已完成"
-                : validation.kernelStatus === "error"
-                  ? "失败"
-                  : "校验中"}
+            : validation.kernelStatus === "error"
+              ? "失败"
+              : validation.kernelStale
+                ? "结果过期"
+                : latestReady && vm.noIssue
+                  ? "无问题"
+                  : latestReady
+                    ? "已完成"
+                    : "校验中"}
         </span>
         {validation.kernelRunAt ? (
           <small className="us-kernel-validation__run-meta">
@@ -155,15 +157,21 @@ export function KernelValidationPanel({
       ) : null}
       {scope ? (
         <div className="us-kernel-validation__scope" role="status">
-          <span>
-            当前方案:{scope.label}（{currentScopeVm?.scopeIssueCount ?? 0} 条）
-          </span>
-          {useCurrentScope &&
-          (currentScopeVm?.outsideScopeIssueCount ?? 0) > 0 ? (
-            <small>
-              全工作空间另有 {currentScopeVm!.outsideScopeIssueCount} 条问题
-            </small>
-          ) : null}
+          {useCurrentScope ? (
+            <>
+              <span>
+                当前方案:{scope.label}（{currentScopeVm?.scopeIssueCount ?? 0}{" "}
+                条问题）
+              </span>
+              {(currentScopeVm?.outsideScopeIssueCount ?? 0) > 0 ? (
+                <small>
+                  全工作空间另有 {currentScopeVm!.outsideScopeIssueCount} 条问题
+                </small>
+              ) : null}
+            </>
+          ) : (
+            <span>全工作空间（{vm.totalIssueCount} 条问题）</span>
+          )}
           <button
             onClick={() =>
               setScopeMode((current) =>
@@ -219,8 +227,9 @@ export function kernelValidationStatusNotice(validation: {
   readonly kernelStatus: "idle" | "running" | "ready" | "error";
 }): string | null {
   if (validation.kernelStale && validation.kernelRunning)
-    return "数据已变更,正在重新校验…";
-  if (validation.kernelStale) return "数据已变更,校验结果可能已过期";
+    return "数据已变化，正在重新校验…";
+  if (validation.kernelStale)
+    return "数据已变化，请重新校验；校验结果可能已过期";
   if (validation.kernelLoading) return "正在加载校验结果…";
   if (validation.kernelStatus === "error") return "校验结果加载失败";
   if (validation.kernelRunning) return "正在校验…";
@@ -266,6 +275,10 @@ function ValidationResult({
             ? `${result.objectCode ?? result.objectId} · ${result.message}`
             : result.message}
         </p>
+        {result.fieldCode ? (
+          <small>字段：{result.fieldName ?? result.fieldCode}</small>
+        ) : null}
+        {result.suggestion ? <small>建议：{result.suggestion}</small> : null}
         {result.stateLabel ? <em>{result.stateLabel}</em> : null}
         {result.createdAt ? (
           <small>{new Date(result.createdAt).toLocaleString("zh-CN")}</small>

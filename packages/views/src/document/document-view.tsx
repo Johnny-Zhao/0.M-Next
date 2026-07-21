@@ -25,7 +25,7 @@ import {
 import type { SelectionCoordinator } from "../selection/selection-coordinator";
 import type { SelectionRef } from "../selection/selection-ref";
 import { supportsTreeRelation } from "../tree/tree-view";
-import { DocumentBodyBlock } from "./body-editor";
+import { DocumentBodyBlock, type DocumentBodySaveResult } from "./body-editor";
 
 const MAX_SECTIONS = 200;
 const terminalStatuses = new Set([
@@ -863,8 +863,10 @@ function DocumentSectionView(props: {
     (item) => item.definition.code === BODY_FIELD_CODE,
   );
 
-  async function saveBody(json: string): Promise<void> {
-    if (!props.commandClient) return;
+  async function saveBody(json: string): Promise<DocumentBodySaveResult> {
+    if (!props.commandClient) {
+      return { kind: "failed", message: "当前文档不可编辑" };
+    }
     const result = await saveDocumentField(
       props.commandClient,
       props.workspaceId,
@@ -881,11 +883,14 @@ function DocumentSectionView(props: {
         props.section.object.version + 1,
       );
       setBodyConflict(null);
+      return { kind: "saved" };
     } else if (result.kind === "conflict") {
       setBodyDraft(json);
       setBodyConflict(result.conflict);
+      return { kind: "failed", message: "正文保存发生版本冲突" };
     } else {
       props.onError?.(result.message);
+      return { kind: "failed", message: result.message };
     }
   }
 

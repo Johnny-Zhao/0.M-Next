@@ -253,6 +253,8 @@ class PcProcurementOutputIntegrationTest {
     assertTrue(text.contains("开发岗标准配置(A档)"), text);
     assertTrue(text.contains("8000"), text);
     assertTrue(text.contains("160000"), text);
+    assertTrue(text.contains("需求最大总功耗（瓦）"), text);
+    assertTrue(text.contains("500"), text);
     assertTrue(text.contains("标准开发配置(约8000元)"), text);
     assertTrue(text.contains("7920"), text);
     assertTrue(text.contains("Intel Core Ultra 7 265"), text);
@@ -272,6 +274,7 @@ class PcProcurementOutputIntegrationTest {
             "status", "table",
             "total_price_cny_fx", "table",
             "total_power_w_fx", "table",
+            "requirement_max_total_power_w_fx", "table",
             "total_performance_score_fx", "table",
             "power_supply_capacity_w_fx", "table"),
         Map.of(
@@ -280,6 +283,7 @@ class PcProcurementOutputIntegrationTest {
             "status", "状态",
             "total_price_cny_fx", "方案总价（元）",
             "total_power_w_fx", "方案总功耗（瓦）",
+            "requirement_max_total_power_w_fx", "需求最大总功耗（瓦）",
             "total_performance_score_fx", "方案性能分",
             "power_supply_capacity_w_fx", "电源容量（瓦）"),
         List.of(requirementTable(), itemTable()));

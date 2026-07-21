@@ -17,6 +17,7 @@ import type {
 } from "./structured-document-view-model";
 import {
   structuredDocumentFieldKey,
+  structuredDocumentObjectDomId,
   structuredDocumentReferenceDomId,
 } from "./structured-document-view-model";
 
@@ -71,6 +72,17 @@ export function resolveDataReference(
         );
   if (!object)
     return { field: null, message: "引用对象不存在", objectLabel: "" };
+  if (
+    config.objectTypeCode &&
+    object &&
+    object.objectTypeCode !== config.objectTypeCode
+  ) {
+    return {
+      field: null,
+      message: "引用对象类型不匹配",
+      objectLabel: label(object),
+    };
+  }
   if (terminalStatuses.has(object.status))
     return {
       field: null,
@@ -148,7 +160,18 @@ function ReferenceBlock({
   };
   if (editing)
     return (
-      <span className="us-structured-doc__editor">
+      <span
+        className="us-structured-doc__editor"
+        data-structured-document-reference={structuredDocumentFieldKey(
+          field.objectId,
+          field.fieldCode,
+        )}
+        id={structuredDocumentReferenceDomId(
+          field.objectId,
+          field.fieldCode,
+          config.blockId,
+        )}
+      >
         {field.field?.dataType === "enum" ? (
           <select
             onChange={(event) => setDraft(event.target.value)}
@@ -220,6 +243,7 @@ function TableBlock({
     () => resolveDataTable(workspace, root, config),
     [config, root, workspace],
   );
+  const selection = useSelectionSnapshot().current;
   if (table.message) return <p role="alert">{table.message}</p>;
   if (table.rows.length === 0) return <p role="status">暂无可展示数据</p>;
   return (
@@ -235,13 +259,44 @@ function TableBlock({
         <tbody>
           {table.rows.map((row) => (
             <tr
+              data-selected={
+                selection?.entityType === "object" &&
+                selection.entityId === row.object.id
+              }
+              id={structuredDocumentObjectDomId(row.object.id)}
               key={row.object.id}
               onClick={() =>
                 selectDataTableRow(row.object.id, config.allowRowSelection)
               }
             >
               {row.cells.map((cell) => (
-                <td data-state={cell.state} key={cell.id}>
+                <td
+                  data-state={cell.state}
+                  data-structured-document-reference={
+                    cell.objectId
+                      ? structuredDocumentFieldKey(
+                          cell.objectId,
+                          cell.fieldCode ?? cell.id,
+                        )
+                      : undefined
+                  }
+                  data-selected={
+                    selection?.entityType === "field" &&
+                    selection.entityId === cell.objectId &&
+                    selection.fieldCode === (cell.fieldCode ?? cell.id)
+                  }
+                  key={cell.id}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    if (cell.state === "fresh" && cell.objectId) {
+                      selectionStore.set({
+                        entityType: "field",
+                        entityId: cell.objectId,
+                        fieldCode: cell.fieldCode ?? cell.id,
+                      });
+                    }
+                  }}
+                >
                   {cell.text}
                   {cell.derived ? <em>派生</em> : null}
                 </td>
@@ -279,6 +334,8 @@ export function resolveDataTable(
       readonly text: string;
       readonly state: "fresh" | "dangling";
       readonly derived: boolean;
+      readonly objectId?: string | null;
+      readonly fieldCode?: string;
     }[];
   }[];
   readonly maxRows: number;
@@ -356,6 +413,8 @@ function tableCell(
   readonly text: string;
   readonly state: "fresh" | "dangling";
   readonly derived: boolean;
+  readonly objectId?: string | null;
+  readonly fieldCode?: string;
 } {
   const relationPath = column.relationPath ?? [];
   if (relationPath.length > maxRelationPathDepth) {
@@ -392,6 +451,8 @@ function tableCell(
     text: value === null ? "（空）" : formatCellValue(value, field),
     state: "fresh",
     derived: field.computed === true,
+    objectId: object.id,
+    fieldCode: field.code,
   };
 }
 

@@ -69,6 +69,24 @@ describe("OutputsStore", () => {
     expect(await downloads[0]?.blob.text()).toBe("# Markdown");
   });
 
+  it("can include the immutable snapshot id in a structured document filename", async () => {
+    const source = new FakeOutputSource("ZG9jeA==");
+    const downloads: OutputDownloadPayload[] = [];
+    const store = new OutputsStore({
+      kernelSource: source,
+      pushToast: vi.fn(),
+      download: (payload) => downloads.push(payload),
+    });
+
+    await store.exportToKernel(
+      "docx",
+      { fileBaseName: "标准开发配置", appendSnapshotId: true },
+      "wangyun",
+    );
+
+    expect(downloads[0]?.filename).toBe("标准开发配置-snapshot-1.docx");
+  });
+
   it("captures a bounded tree scope and forwards the snapshot-only mapping", async () => {
     const source = new FakeOutputSource("ZG9jeA==");
     const store = new OutputsStore({

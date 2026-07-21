@@ -5,7 +5,9 @@ export function rootUnisourceLocation(
 ): string | null {
   if (pathname !== "/") return null;
   const params = new URLSearchParams(search);
-  return params.has("backend") || params.has("ws")
+  const backend = params.get("backend")?.trim();
+  const workspaceId = params.get("ws")?.trim();
+  return backend === "1" && Boolean(workspaceId)
     ? `/us/home${search}${hash}`
     : null;
 }

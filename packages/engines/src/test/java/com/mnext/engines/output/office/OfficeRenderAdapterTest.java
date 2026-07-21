@@ -216,7 +216,8 @@ class OfficeRenderAdapterTest {
                                   "名称", "name", List.of()))))));
 
       try (var document =
-          new XWPFDocument(new ByteArrayInputStream(new DocxRenderAdapter().render(snapshot, template)))) {
+          new XWPFDocument(
+              new ByteArrayInputStream(new DocxRenderAdapter().render(snapshot, template)))) {
         var cells =
             document.getTables().stream()
                 .flatMap(table -> table.getRows().stream())
@@ -254,6 +255,84 @@ class OfficeRenderAdapterTest {
               .count());
       assertFalse(hasTableRow(document, "body", bodyJson()));
       assertTrue(hasTableRow(document, "功耗(W)", "920"));
+    }
+  }
+
+  @Test
+  void rendersStructuredBodyBlocksFromSnapshot() throws Exception {
+    var body =
+        """
+        {"type":"doc","content":[
+          {"type":"heading","attrs":{"level":2},"content":[{"type":"text","text":"配置明细"}]},
+          {"type":"paragraph","content":[{"type":"text","text":"说明","marks":[{"type":"underline"}]}]},
+          {"type":"orderedList","content":[{"type":"listItem","content":[{"type":"paragraph","content":[{"type":"text","text":"第一项"}]}]}]},
+          {"type":"dataReference","attrs":{"config":{"objectBinding":"document-root","objectTypeCode":"build_plan","fieldCode":"name"}}},
+          {"type":"dataTable","attrs":{"config":{"scope":"document-root","objectTypeCode":"build_plan_item","relationTypeCode":"contains","columns":[{"label":"明细名称","fieldCode":"name"}]}}}
+        ]}
+        """;
+    var snapshot =
+        new DataSet(
+            List.of(
+                new DataObject(
+                    "plan",
+                    "build_plan",
+                    Map.of("name", "标准开发配置", "body", body, "_tree", Map.of("depth", 0, "order", 0)),
+                    "ACTIVE",
+                    1),
+                new DataObject(
+                    "item",
+                    "build_plan_item",
+                    Map.of("name", "处理器", "_tree", Map.of("depth", 1, "order", 1)),
+                    "ACTIVE",
+                    1)),
+            List.of(new DataSet.DataRelation("contains-1", "contains", "plan", "item", Map.of())));
+
+    try (var document =
+        new XWPFDocument(
+            new ByteArrayInputStream(new DocxRenderAdapter().render(snapshot, treeTemplate())))) {
+      assertTrue(hasParagraph(document, "配置明细"));
+      assertTrue(hasParagraph(document, "说明"));
+      assertTrue(hasParagraph(document, "第一项"));
+      assertTrue(hasParagraph(document, "标准开发配置"));
+      assertTrue(
+          document.getTables().stream()
+              .flatMap(table -> table.getRows().stream())
+              .flatMap(row -> row.getTableCells().stream())
+              .anyMatch(cell -> "处理器".equals(cell.getText())));
+    }
+  }
+
+  @Test
+  void structuredBodyDanglingReferencesRemainDiagnosable() throws Exception {
+    var body =
+        """
+        {"type":"doc","content":[
+          {"type":"dataReference","attrs":{"config":{"objectId":"missing","fieldCode":"name"}}},
+          {"type":"dataTable","attrs":{"config":{"scope":"document-root","objectTypeCode":"build_plan_item","relationTypeCode":"contains","columns":[{"label":"名称","fieldCode":"name"}]}}}
+        ]}
+        """;
+    var snapshot =
+        new DataSet(
+            List.of(
+                new DataObject(
+                    "plan",
+                    "build_plan",
+                    Map.of("body", body, "_tree", Map.of("depth", 0)),
+                    "ACTIVE",
+                    1)),
+            List.of(
+                new DataSet.DataRelation(
+                    "dangling", "contains", "plan", "missing-item", Map.of())));
+
+    try (var document =
+        new XWPFDocument(
+            new ByteArrayInputStream(new DocxRenderAdapter().render(snapshot, treeTemplate())))) {
+      assertTrue(hasParagraph(document, "引用对象不存在"));
+      assertTrue(
+          document.getTables().stream()
+              .flatMap(table -> table.getRows().stream())
+              .flatMap(row -> row.getTableCells().stream())
+              .anyMatch(cell -> "引用对象不存在".equals(cell.getText())));
     }
   }
 

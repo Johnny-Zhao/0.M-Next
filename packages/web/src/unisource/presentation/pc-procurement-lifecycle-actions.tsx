@@ -21,6 +21,13 @@ import type {
 import { pcProcurementBuildPlanCopyConfig } from "./pc-procurement-preset";
 
 const terminalStatuses = new Set(["archived", "deleted", "soft-deleted"]);
+type PcProcurementObjectTypeCode =
+  | "procurement_requirement"
+  | "build_plan"
+  | "build_plan_item"
+  | "hardware_product"
+  | "supplier"
+  | "supplier_quote";
 
 export const pcProcurementLifecycleActionId = "pc_procurement.lifecycle";
 
@@ -41,7 +48,7 @@ export type ProcurementLifecycleResult =
 
 export async function archiveProcurementObject(input: {
   readonly objectId: string;
-  readonly objectTypeCode: "build_plan" | "procurement_requirement";
+  readonly objectTypeCode: PcProcurementObjectTypeCode;
   readonly workspace?: WorkspaceStore;
   readonly session?: Pick<SessionStore, "can" | "getSnapshot">;
 }): Promise<ProcurementLifecycleResult> {
@@ -142,6 +149,50 @@ export function registerPcProcurementLifecycleActions(
     "procurement_requirement",
     PcProcurementRequirementLifecycleAction,
   );
+  for (const objectTypeCode of [
+    "build_plan_item",
+    "hardware_product",
+    "supplier",
+    "supplier_quote",
+  ] as const) {
+    registry.register(
+      `${pcProcurementLifecycleActionId}.${objectTypeCode}`,
+      "pc_procurement",
+      objectTypeCode,
+      PcProcurementArchiveLifecycleAction,
+    );
+  }
+}
+
+export function PcProcurementArchiveLifecycleAction(
+  props: DataSourceLifecycleActionProps,
+) {
+  const [archiveOpen, setArchiveOpen] = useState(false);
+  const session = useSessionSnapshot();
+  const canEdit =
+    sessionStore.can(
+      session.currentMemberId,
+      props.objectType.code,
+      "editData",
+    ) && !terminalStatuses.has(props.object.status);
+  return (
+    <div className="us-data-source-lifecycle-action">
+      <UsButton
+        disabled={!canEdit}
+        onClick={() => setArchiveOpen(true)}
+        size="sm"
+      >
+        归档记录
+      </UsButton>
+      {archiveOpen ? (
+        <ArchiveConfirmation
+          objectTypeCode={props.objectType.code as PcProcurementObjectTypeCode}
+          props={props}
+          onClose={() => setArchiveOpen(false)}
+        />
+      ) : null}
+    </div>
+  );
 }
 
 export function PcProcurementBuildPlanLifecycleAction(
@@ -240,7 +291,7 @@ export function PcProcurementRequirementLifecycleAction(
 
 async function archiveFromAction(
   props: DataSourceLifecycleActionProps,
-  objectTypeCode: "build_plan" | "procurement_requirement",
+  objectTypeCode: PcProcurementObjectTypeCode,
 ): Promise<void> {
   const result = await archiveProcurementObject({
     objectId: props.object.id,
@@ -248,7 +299,12 @@ async function archiveFromAction(
   });
   if (result.state === "completed") {
     pushToast({
-      title: objectTypeCode === "build_plan" ? "方案已归档" : "采购需求已归档",
+      title:
+        objectTypeCode === "build_plan"
+          ? "方案已归档"
+          : objectTypeCode === "procurement_requirement"
+            ? "采购需求已归档"
+            : "记录已归档",
     });
     props.onCompleted(result.objectId);
     return;
@@ -261,7 +317,7 @@ function ArchiveConfirmation({
   props,
   onClose,
 }: {
-  readonly objectTypeCode: "build_plan" | "procurement_requirement";
+  readonly objectTypeCode: PcProcurementObjectTypeCode;
   readonly props: DataSourceLifecycleActionProps;
   readonly onClose: () => void;
 }) {

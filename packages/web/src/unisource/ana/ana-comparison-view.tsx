@@ -24,27 +24,53 @@ export function AnaComparisonView({
       )
     : comparison.issues;
   return (
-    <>
-      <section className="us-ana-card" aria-label="分析摘要">
-        <header>
-          <span>方案校验摘要</span>
-          <strong>来自最近一次内核校验</strong>
-        </header>
-        <div className="us-ana-factors">
-          <Summary label="方案数量" value={comparison.summary.total} />
-          <Summary label="通过" value={comparison.summary.ok} />
-          <Summary label="有阻断" value={comparison.summary.block} />
-          <Summary label="有警告" value={comparison.summary.warn} />
-        </div>
-      </section>
-      <ComparisonState state={comparison.state} />
-      <ComparisonTable
-        comparison={comparison}
-        activePlanId={activePlanId}
-        onSelectPlan={onSelectPlan}
-      />
-      <IssueList issues={issues} onSelectIssue={onSelectIssue} />
-    </>
+    <div className="us-ana-comparison-layout">
+      {comparison.stale ? (
+        <p className="us-ana-status" role="status">
+          数据已变更，请重新校验；分析结果可能已过期
+        </p>
+      ) : null}
+      <main className="us-ana-comparison-main">
+        <section className="us-ana-card us-ana-summary" aria-label="分析摘要">
+          <header>
+            <span>方案校验摘要</span>
+            <strong>来自最近一次内核校验</strong>
+          </header>
+          <div className="us-ana-factors">
+            <Summary label="方案数量" value={comparison.summary.total} />
+            <Summary label="通过" value={comparison.summary.ok} />
+            <Summary label="有阻断" value={comparison.summary.block} />
+            <Summary label="有警告" value={comparison.summary.warn} />
+          </div>
+        </section>
+        <ComparisonState state={comparison.state} />
+        {comparison.questions.length > 0 ? (
+          <section
+            className="us-ana-card us-ana-questions"
+            aria-label="分析问题"
+          >
+            <header>
+              <span>分析问题</span>
+              <strong>答案来自后端字段与校验结果</strong>
+            </header>
+            {comparison.questions.map((question) => (
+              <p className="us-ana-question" key={question.id}>
+                <strong>{question.label}</strong>
+                <span>{question.answer ?? "暂无可用分析数据"}</span>
+              </p>
+            ))}
+          </section>
+        ) : null}
+        <ComparisonTable
+          comparison={comparison}
+          activePlanId={activePlanId}
+          onSelectPlan={onSelectPlan}
+        />
+      </main>
+      <aside className="us-ana-risk-panel">
+        <IssueList issues={issues} onSelectIssue={onSelectIssue} />
+      </aside>
+    </div>
   );
 }
 
@@ -83,39 +109,49 @@ function ComparisonTable({
   onSelectPlan,
 }: Pick<Props, "comparison" | "activePlanId" | "onSelectPlan">) {
   return (
-    <section className="us-ana-card">
+    <section className="us-ana-card us-ana-comparison-table-card">
       <header>
         <span>方案对比</span>
         <strong>字段值来自当前工作空间</strong>
       </header>
-      <table className="us-ana-table">
-        <thead>
-          <tr>
-            {comparison.columns.map((column) => (
-              <th key={column.key}>{column.label}</th>
-            ))}
-            <th>校验状态</th>
-            <th>风险数量</th>
-          </tr>
-        </thead>
-        <tbody>
-          {comparison.rows.map((row) => (
-            <tr
-              aria-selected={row.objectId === activePlanId}
-              key={row.objectId}
-              onClick={() => onSelectPlan(row)}
-            >
+      <div className="us-ana-table-scroll">
+        <table className="us-ana-table">
+          <thead>
+            <tr>
               {comparison.columns.map((column) => (
-                <td className="us-data" key={column.key}>
-                  {row.values[column.key] ?? "当前数据未提供"}
-                </td>
+                <th data-column-key={column.key} key={column.key}>
+                  {column.label}
+                </th>
               ))}
-              <td>{statusLabel(row.status)}</td>
-              <td className="us-data">{row.issueCount}</td>
+              <th data-column-key="status">校验状态</th>
+              <th data-column-key="issueCount">风险数量</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {comparison.rows.map((row) => (
+              <tr
+                aria-selected={row.objectId === activePlanId}
+                key={row.objectId}
+                onClick={() => onSelectPlan(row)}
+              >
+                {comparison.columns.map((column) => (
+                  <td
+                    className="us-data"
+                    data-column-key={column.key}
+                    key={column.key}
+                  >
+                    {row.values[column.key] ?? "当前数据未提供"}
+                  </td>
+                ))}
+                <td data-column-key="status">{statusLabel(row.status)}</td>
+                <td className="us-data" data-column-key="issueCount">
+                  {row.issueCount}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </section>
   );
 }

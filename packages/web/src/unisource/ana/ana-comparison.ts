@@ -19,6 +19,16 @@ export interface AnaComparisonConfig {
   readonly scopeRelationTypeCodes: readonly string[];
   readonly scopeDepth: number;
   readonly columns: readonly AnaComparisonColumn[];
+  readonly analysisQuestions?: readonly AnaAnalysisQuestion[];
+}
+
+export interface AnaAnalysisQuestion {
+  readonly id: string;
+  readonly label: string;
+  readonly kind: "min" | "max" | "status";
+  readonly fieldCode?: string;
+  readonly ruleCodes?: readonly string[];
+  readonly status?: AnaComparisonRow["status"];
 }
 
 export interface AnaComparisonRow {
@@ -43,6 +53,13 @@ export interface AnaComparisonVm {
   readonly rows: readonly AnaComparisonRow[];
   readonly columns: readonly AnaComparisonColumn[];
   readonly issues: readonly AnaComparisonIssue[];
+  readonly stale: boolean;
+  readonly questions: readonly {
+    readonly id: string;
+    readonly label: string;
+    readonly answer: string | null;
+    readonly objectId: string | null;
+  }[];
   readonly summary: {
     readonly total: number;
     readonly ok: number;
@@ -70,6 +87,7 @@ export function readAnaComparisonConfig(
     ),
     scopeDepth: boundedDepth(value.scopeDepth),
     columns,
+    analysisQuestions: readQuestions(value.analysisQuestions),
   };
 }
 
@@ -78,6 +96,7 @@ export function buildAnaComparison(
   config: AnaComparisonConfig,
   results: readonly RuleOutcome[],
   validationStatus: "idle" | "running" | "ready" | "error",
+  validationStale = false,
 ): AnaComparisonVm {
   const plans = workspace.objects.filter(
     (object) =>
@@ -110,8 +129,58 @@ export function buildAnaComparison(
     rows,
     columns: config.columns,
     issues,
+    stale: validationStale,
+    questions: buildQuestions(config.analysisQuestions ?? [], rows),
     summary: comparisonSummary(rows),
   };
+}
+
+function buildQuestions(
+  questions: readonly AnaAnalysisQuestion[],
+  rows: readonly AnaComparisonRow[],
+) {
+  return questions.map((question) => {
+    if (question.kind === "status") {
+      const matches = rows.filter((row) => row.status === question.status);
+      return {
+        id: question.id,
+        label: question.label,
+        answer:
+          matches.length > 0
+            ? matches.map((row) => row.values.name ?? row.objectId).join("、")
+            : null,
+        objectId: matches[0]?.objectId ?? null,
+      };
+    }
+    const candidates = rows.flatMap((row) => {
+      const raw = question.fieldCode ? row.values[question.fieldCode] : null;
+      const value =
+        raw === null || raw === undefined ? Number.NaN : Number(raw);
+      return Number.isFinite(value) ? [{ row, value }] : [];
+    });
+    if (candidates.length === 0)
+      return {
+        id: question.id,
+        label: question.label,
+        answer: null,
+        objectId: null,
+      };
+    const selected = candidates.reduce((best, candidate) =>
+      question.kind === "min"
+        ? candidate.value < best.value
+          ? candidate
+          : best
+        : candidate.value > best.value
+          ? candidate
+          : best,
+    );
+    return {
+      id: question.id,
+      label: question.label,
+      answer: `${selected.row.values.name ?? selected.row.objectId}: ${selected.value}`,
+      objectId: selected.row.objectId,
+    };
+  });
 }
 
 export function anaSelectionForRow(row: AnaComparisonRow): SelectionRef {
@@ -311,6 +380,41 @@ function readColumn(value: unknown): readonly AnaComparisonColumn[] {
       unit: typeof value.unit === "string" ? value.unit : undefined,
     },
   ];
+}
+
+function readQuestions(
+  value: unknown,
+): readonly AnaAnalysisQuestion[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const questions = value.flatMap((entry) => {
+    if (
+      !isRecord(entry) ||
+      typeof entry.id !== "string" ||
+      typeof entry.label !== "string"
+    )
+      return [];
+    if (entry.kind !== "min" && entry.kind !== "max" && entry.kind !== "status")
+      return [];
+    return [
+      {
+        id: entry.id,
+        label: entry.label,
+        kind: entry.kind as AnaAnalysisQuestion["kind"],
+        fieldCode:
+          typeof entry.fieldCode === "string" ? entry.fieldCode : undefined,
+        status:
+          typeof entry.status === "string"
+            ? (entry.status as AnaComparisonRow["status"])
+            : undefined,
+        ruleCodes: Array.isArray(entry.ruleCodes)
+          ? entry.ruleCodes.filter(
+              (item): item is string => typeof item === "string",
+            )
+          : undefined,
+      },
+    ];
+  });
+  return questions.length === value.length ? questions : undefined;
 }
 
 function boundedDepth(value: unknown): number {

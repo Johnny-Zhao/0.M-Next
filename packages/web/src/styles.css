@@ -4196,7 +4196,6 @@ main {
 .document-field-editor button,
 .document-body-toolbar button,
 .document-body-actions button,
-.document-body-edit,
 .document-body-placeholder,
 .document-field-edit {
   background: var(--mn-surface);
@@ -4213,7 +4212,6 @@ main {
 .document-field-editor button:hover,
 .document-body-toolbar button:hover,
 .document-body-actions button:hover,
-.document-body-edit:hover,
 .document-body-placeholder:hover,
 .document-field-edit:hover {
   border-color: var(--mn-accent);
@@ -4252,7 +4250,18 @@ main {
 }
 
 .document-body-view {
+  cursor: text;
+  outline: none;
   position: relative;
+}
+
+.document-body-view:hover {
+  background: color-mix(in srgb, var(--mn-accent-bg) 35%, transparent);
+}
+
+.document-body-view:focus-visible {
+  outline: 2px solid var(--mn-accent-bd);
+  outline-offset: 3px;
 }
 
 .document-body-rendered {
@@ -4272,19 +4281,6 @@ main {
 .document-body-rendered ul {
   margin: 0.25rem 0 0.75rem 1.25rem;
   padding: 0;
-}
-
-.document-body-edit {
-  opacity: 0;
-  position: absolute;
-  right: 0;
-  top: 0;
-  transition: opacity 0.15s ease;
-}
-
-.document-body-view:hover .document-body-edit,
-.document-body-edit:focus-visible {
-  opacity: 1;
 }
 
 .document-body-placeholder {
@@ -4338,6 +4334,17 @@ main {
 .document-body-actions {
   border-top: 1px solid var(--mn-border);
   justify-content: flex-end;
+}
+
+.document-body-save-state {
+  color: var(--mn-ink-3);
+  font-size: 0.75rem;
+  margin-right: auto;
+}
+
+.document-body-save-retry {
+  color: var(--mn-danger, var(--mn-accent));
+  margin-right: auto;
 }
 
 .document-body-toolbar button.is-active {

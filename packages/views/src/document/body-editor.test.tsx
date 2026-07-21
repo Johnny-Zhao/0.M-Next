@@ -4,11 +4,41 @@ import { describe, expect, it } from "vitest";
 import {
   DocumentBodyToolbar,
   documentBodyEditorActions,
+  isBodyEditorEntryKey,
+  isBodySaveSuccessful,
   runDocumentBodyToolbarCommand,
+  shouldCommitBodyOnBlur,
+  shouldSubmitBodyContent,
 } from "./body-editor";
 import { bodyExtensions, parseBody, serializeBody } from "./body-content";
 
 describe("DocumentBodyToolbar", () => {
+  it("enters editing only for the supported keyboard shortcuts", () => {
+    expect(isBodyEditorEntryKey("Enter")).toBe(true);
+    expect(isBodyEditorEntryKey("F2")).toBe(true);
+    expect(isBodyEditorEntryKey(" ")).toBe(false);
+  });
+
+  it("commits only after focus leaves the whole editing region", () => {
+    const contains = (target: unknown) => target === "toolbar";
+    expect(shouldCommitBodyOnBlur(contains, "toolbar")).toBe(false);
+    expect(shouldCommitBodyOnBlur(contains, "outside")).toBe(true);
+    expect(shouldCommitBodyOnBlur(contains, null)).toBe(true);
+  });
+
+  it("does not treat an approval queue as a saved body", () => {
+    expect(isBodySaveSuccessful(undefined)).toBe(true);
+    expect(isBodySaveSuccessful({ kind: "saved" })).toBe(true);
+    expect(isBodySaveSuccessful({ kind: "pending" })).toBe(false);
+    expect(isBodySaveSuccessful({ kind: "failed" })).toBe(false);
+  });
+
+  it("does not submit unchanged content twice", () => {
+    expect(shouldSubmitBodyContent("same", "same", null)).toBe(false);
+    expect(shouldSubmitBodyContent("next", "same", "next")).toBe(false);
+    expect(shouldSubmitBodyContent("next", "same", null)).toBe(true);
+  });
+
   it("renders only the supported body controls and disables them without an editor", () => {
     const toolbar = DocumentBodyToolbar({ editor: null, disabled: true });
     const children = (
@@ -21,11 +51,19 @@ describe("DocumentBodyToolbar", () => {
     expect(toolbar.props["aria-label"]).toBe("正文格式");
     expect(children[0]?.props?.children).toBe("正文");
     expect(children.slice(1).map((child) => child.props?.["disabled"])).toEqual(
-      [true, true, true, true, true, true],
+      [true, true, true, true, true, true, true],
     );
     expect(
       children.slice(1).map((child) => child.props?.["aria-label"]),
-    ).toEqual(["段落", "标题", "加粗", "斜体", "无序列表", "有序列表"]);
+    ).toEqual([
+      "段落",
+      "标题",
+      "加粗",
+      "斜体",
+      "下划线",
+      "无序列表",
+      "有序列表",
+    ]);
   });
 
   it("runs formatting commands against the single Tiptap editor instance", () => {
@@ -43,9 +81,11 @@ describe("DocumentBodyToolbar", () => {
     editor.commands.selectAll();
     expect(runDocumentBodyToolbarCommand(editor, "bold")).toBe(true);
     expect(runDocumentBodyToolbarCommand(editor, "italic")).toBe(true);
+    expect(runDocumentBodyToolbarCommand(editor, "underline")).toBe(true);
     expect(editor.getJSON().content?.[0]?.content?.[0]?.marks).toEqual([
       { type: "bold" },
       { type: "italic" },
+      { type: "underline" },
     ]);
     expect(runDocumentBodyToolbarCommand(editor, "bulletList")).toBe(true);
     expect(editor.getJSON().content?.[0]?.type).toBe("bulletList");

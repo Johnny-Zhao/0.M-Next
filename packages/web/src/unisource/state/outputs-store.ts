@@ -19,6 +19,7 @@ export interface OutputExportScope extends OutputCreateOptions {
   readonly scopeObjectType?: string | null;
   readonly treeScope?: SnapshotTreeScope | null;
   readonly fileBaseName?: string;
+  readonly appendSnapshotId?: boolean;
 }
 
 export interface OutputDownloadPayload {
@@ -110,7 +111,9 @@ export class OutputsStore {
       );
       const outputId = readOutputId(outputMeta);
       const output = await this.kernelSource.getOutput(outputId);
-      this.download(toDownloadPayload(output, scope.fileBaseName));
+      this.download(
+        toDownloadPayload(output, scope.fileBaseName, scope.appendSnapshotId),
+      );
       this.state = { busy: false, lastOutput: output };
       this.emit();
       this.showToast({ title: `已导出 ${format}` });
@@ -150,9 +153,13 @@ function readOutputId(value: unknown): string {
 function toDownloadPayload(
   output: OutputArtifact,
   fileBaseName = "unisource-output",
+  appendSnapshotId = false,
 ): OutputDownloadPayload {
+  const name = appendSnapshotId
+    ? `${fileBaseName}-${output.snapshotId}`
+    : fileBaseName;
   return {
-    filename: `${safeFilename(fileBaseName)}.${extensionFor(output.format)}`,
+    filename: `${safeFilename(name)}.${extensionFor(output.format)}`,
     format: output.format,
     blob: artifactBlob(output),
     output,

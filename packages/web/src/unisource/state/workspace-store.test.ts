@@ -35,6 +35,24 @@ describe("WorkspaceStore", () => {
     expect(listener).toHaveBeenCalledOnce();
   });
 
+  it("does not let an older read-model response overwrite a newer object", () => {
+    const store = new WorkspaceStore(cloneDemoSeed());
+    store.updateField("prod-s3", "price", 1099, { actor: "wangyun" });
+    const current = store.getObject("prod-s3")!;
+
+    store.reconcileObject({
+      ...current,
+      version: current.version - 1,
+      fields: {
+        ...current.fields,
+        price: { ...current.fields.price!, value: 1 },
+      },
+    });
+
+    expect(store.getObject("prod-s3")?.version).toBe(current.version);
+    expect(store.getObject("prod-s3")?.fields.price?.value).toBe(1099);
+  });
+
   it("notifies the write sink after local data writes", () => {
     const store = new WorkspaceStore(cloneDemoSeed());
     const sink = createSink();

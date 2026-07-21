@@ -172,7 +172,7 @@ export class KernelGateway implements UnisourceGateway {
       this.loadKernelGraph(),
       this.loadWorkspaceSummary(),
     ]);
-    const preset = this.presetRegistry.resolve(workspaceSummary?.templateCode);
+    const preset = this.presetRegistry.resolve(workspaceSummary.templateCode);
     this.workspaceTemplateCode = workspaceSummary?.templateCode ?? null;
     const remapped = remapSeedPresentation({
       seed: kernelPresentationSeed(preset, this.workspaceId, workspaceSummary),
@@ -193,9 +193,8 @@ export class KernelGateway implements UnisourceGateway {
       workspace: {
         ...remapped.seed.workspace,
         id: this.workspaceId,
-        name: workspaceSummary?.name ?? remapped.seed.workspace.name,
-        updatedAt:
-          workspaceSummary?.updatedAt ?? remapped.seed.workspace.updatedAt,
+        name: workspaceSummary.name,
+        updatedAt: workspaceSummary.updatedAt,
       },
       objectTypes: graph.objectTypes,
       objects: graph.objects,
@@ -206,11 +205,15 @@ export class KernelGateway implements UnisourceGateway {
     };
   }
 
-  private async loadWorkspaceSummary(): Promise<WorkspaceSummary | undefined> {
+  private async loadWorkspaceSummary(): Promise<WorkspaceSummary> {
     const workspaces = await this.viewClient.workspaces();
-    return workspaces.find(
+    const workspace = workspaces.find(
       (workspace) => workspace.workspaceId === this.workspaceId,
     );
+    if (!workspace) {
+      throw new Error("指定工作空间不存在或当前用户无权访问。");
+    }
+    return workspace;
   }
 
   async seedDemoData(seed?: DemoSeed): Promise<KernelSeedReport> {
@@ -951,7 +954,7 @@ export class KernelGateway implements UnisourceGateway {
 function kernelPresentationSeed(
   preset: PresentationPreset,
   workspaceId: string,
-  workspace: WorkspaceSummary | undefined,
+  workspace: WorkspaceSummary,
 ): DemoSeed {
   const base = cloneDemoSeed();
   return {
@@ -959,8 +962,8 @@ function kernelPresentationSeed(
     workspace: {
       ...base.workspace,
       id: workspaceId,
-      name: workspace?.name ?? "统一数据工作空间",
-      updatedAt: workspace?.updatedAt ?? base.workspace.updatedAt,
+      name: workspace.name,
+      updatedAt: workspace.updatedAt,
     },
     objectTypes: [],
     objects: [],

@@ -83,6 +83,25 @@ describe("KernelGateway", () => {
     expect(api.objectPageCalls).toEqual([0]);
   });
 
+  it("rejects an inaccessible workspace instead of loading a generic fallback", async () => {
+    const api = new FakeKernelApi();
+    const fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = new URL(String(input), "http://localhost");
+      if (url.pathname.endsWith("/views/workspaces")) return json([]);
+      return api.fetch(input, init);
+    };
+    const gateway = new KernelGateway(
+      "",
+      "missing-workspace",
+      "wangyun",
+      fetch,
+    );
+
+    await expect(gateway.loadWorkspace()).rejects.toThrow(
+      "指定工作空间不存在或当前用户无权访问。",
+    );
+  });
+
   it("loads different object types concurrently while retaining complete pages", async () => {
     const api = new FakeKernelApi();
     api.seedObjects(101);
@@ -206,6 +225,7 @@ describe("KernelGateway", () => {
       "8783",
       "10000",
       "460",
+      "650",
       "560",
       "750",
       "0",
@@ -217,6 +237,27 @@ describe("KernelGateway", () => {
     expect(bi.title).toBe("采购指标");
     expect(bi.sourceLabel).toBe("当前电脑采购工作空间");
     expect(bi.kpis[0]).toMatchObject({ label: "方案数量", value: "2" });
+    expect(bi.kpis.map((kpi) => kpi.label)).toEqual(
+      expect.arrayContaining([
+        "需求数量",
+        "硬件配件数量",
+        "供应商数量",
+        "供应商报价数量",
+        "方案总价",
+        "需求单台预算",
+        "方案总功耗",
+        "需求最大总功耗",
+        "方案性能分",
+        "电源容量",
+        "报价库存（明细）",
+        "BLOCK 校验",
+        "WARN 校验",
+        "PASS 校验",
+      ]),
+    );
+    expect(bi.barGroups.map((group) => group.title)).toEqual(
+      expect.arrayContaining(["方案总价", "方案总功耗", "方案性能分"]),
+    );
     expect(bi.bars.map((bar) => bar.value)).toEqual([8783, 12872]);
 
     const report = seed.anaReports.find(
@@ -1225,6 +1266,10 @@ class FakeKernelApi {
             computed: true,
             readOnly: true,
           }),
+          fieldType("requirement_max_total_power_w_fx", "需求最大总功耗", "number", {
+            computed: true,
+            readOnly: true,
+          }),
           fieldType("total_performance_score_fx", "方案性能分", "number", {
             computed: true,
             readOnly: true,
@@ -1296,6 +1341,7 @@ class FakeKernelApi {
         {
           total_price_cny_fx: 8783,
           total_power_w_fx: 460,
+          requirement_max_total_power_w_fx: 650,
           total_performance_score_fx: 560,
           requirement_budget_cny_fx: 10000,
           power_supply_capacity_w_fx: 750,
@@ -1314,6 +1360,7 @@ class FakeKernelApi {
         {
           total_price_cny_fx: 12872,
           total_power_w_fx: 690,
+          requirement_max_total_power_w_fx: 650,
           total_performance_score_fx: 518,
           requirement_budget_cny_fx: 10000,
           power_supply_capacity_w_fx: 550,

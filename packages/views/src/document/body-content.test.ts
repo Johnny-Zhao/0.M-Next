@@ -47,7 +47,11 @@ describe("body-content", () => {
       "paragraph",
       "text",
     ]);
-    expect(Object.keys(schema.marks).sort()).toEqual(["bold", "italic"]);
+    expect(Object.keys(schema.marks).sort()).toEqual([
+      "bold",
+      "italic",
+      "underline",
+    ]);
     expect(schema.nodes.heading).toBeDefined();
     expect(schema.nodes.orderedList).toBeDefined();
     expect(schema.marks.strike).toBeUndefined();

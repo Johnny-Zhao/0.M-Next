@@ -11,7 +11,7 @@ describe("kernelValidationStatusNotice", () => {
         kernelStale: true,
         kernelStatus: "running",
       }),
-    ).toBe("数据已变更,正在重新校验…");
+    ).toBe("数据已变化，正在重新校验…");
     expect(
       kernelValidationStatusNotice({
         kernelRunning: false,
@@ -19,7 +19,7 @@ describe("kernelValidationStatusNotice", () => {
         kernelStale: true,
         kernelStatus: "ready",
       }),
-    ).toBe("数据已变更,校验结果可能已过期");
+    ).toBe("数据已变化，请重新校验；校验结果可能已过期");
   });
 
   it("does not present a non-stale running check as a completed result", () => {

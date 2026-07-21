@@ -224,10 +224,12 @@ export interface KpiCardDef {
   readonly deltaSign: "up" | "down" | "flat";
   readonly sourceLabel: string;
   readonly aiAdded?: boolean;
+  readonly objectId?: DataObjectId;
   readonly visible: boolean;
 }
 
 export interface BiBarDef {
+  readonly objectId?: DataObjectId;
   readonly label: string;
   readonly value: number;
   readonly percent: number;

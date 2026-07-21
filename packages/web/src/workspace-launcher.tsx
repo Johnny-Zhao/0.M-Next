@@ -1,12 +1,22 @@
 import { useEffect, useMemo, useState, type ReactElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { ViewClient, type WorkspaceSummary } from "@m-next/views";
+import {
+  CommandClient,
+  ViewClient,
+  type TemplateCatalogItem,
+  type WorkspaceSummary,
+} from "@m-next/views";
 
 import "./unisource/us-tokens.css";
 import "./unisource/us-components.css";
 import { UsLogoMark } from "./unisource/shell/logo";
 
 const workspaceClient = new ViewClient("");
+const workspaceCommandClient = new CommandClient("");
+workspaceCommandClient.setActorId("wangyun");
+
+type LauncherViewClient = Pick<ViewClient, "templates" | "workspaces">;
+type LauncherCommandClient = Pick<CommandClient, "instantiateWorkspace">;
 
 export function renderWorkspaceLauncher(
   element: HTMLElement | null,
@@ -17,14 +27,33 @@ export function renderWorkspaceLauncher(
   return root;
 }
 
-export function WorkspaceLauncher(): ReactElement {
+export function WorkspaceLauncher({
+  commandClient = workspaceCommandClient,
+  navigate = (location) => window.location.assign(location),
+  viewClient = workspaceClient,
+}: {
+  readonly commandClient?: LauncherCommandClient;
+  readonly navigate?: (location: string) => void;
+  readonly viewClient?: LauncherViewClient;
+}): ReactElement {
   const [workspaces, setWorkspaces] = useState<readonly WorkspaceSummary[]>([]);
+  const [templates, setTemplates] = useState<readonly TemplateCatalogItem[]>(
+    [],
+  );
   const [query, setQuery] = useState("");
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
+  const [templateState, setTemplateState] = useState<
+    "loading" | "ready" | "error"
+  >("loading");
+  const [createOpen, setCreateOpen] = useState(false);
+  const [workspaceName, setWorkspaceName] = useState("");
+  const [selectedTemplateId, setSelectedTemplateId] = useState("");
+  const [createError, setCreateError] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
 
   useEffect(() => {
     let active = true;
-    void workspaceClient
+    void viewClient
       .workspaces()
       .then((items) => {
         if (!active) return;
@@ -37,7 +66,27 @@ export function WorkspaceLauncher(): ReactElement {
     return () => {
       active = false;
     };
-  }, []);
+  }, [viewClient]);
+
+  useEffect(() => {
+    let active = true;
+    void viewClient
+      .templates()
+      .then((items) => {
+        if (!active) return;
+        setTemplates(items);
+        setSelectedTemplateId(
+          (current) => current || items[0]?.templateId || "",
+        );
+        setTemplateState("ready");
+      })
+      .catch(() => {
+        if (active) setTemplateState("error");
+      });
+    return () => {
+      active = false;
+    };
+  }, [viewClient]);
 
   const filtered = useMemo(() => {
     const normalized = query.trim().toLowerCase();
@@ -73,10 +122,135 @@ export function WorkspaceLauncher(): ReactElement {
         />
       </section>
       <LauncherBody
-        onOpen={openWorkspace}
+        onOpen={(workspace) =>
+          navigate(workspaceLaunchLocation(workspace.workspaceId))
+        }
         state={state}
         workspaces={filtered}
       />
+      <section
+        aria-label="从模板新建工作空间"
+        className="us-workspace-launcher__templates"
+      >
+        <div className="us-workspace-launcher__section-heading">
+          <div>
+            <span className="us-data">TEMPLATES</span>
+            <h2>从模板新建工作空间</h2>
+          </div>
+          <button
+            className="us-btn us-btn--secondary"
+            onClick={() => {
+              setCreateError(null);
+              setCreateOpen(true);
+            }}
+            type="button"
+          >
+            新建工作空间
+          </button>
+        </div>
+        <TemplateBody
+          onSelect={(template) => {
+            setSelectedTemplateId(template.templateId);
+            setCreateError(null);
+            setCreateOpen(true);
+          }}
+          state={templateState}
+          templates={templates}
+        />
+        {createOpen ? (
+          <form
+            className="us-workspace-launcher__create"
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (creating) return;
+              const template = templates.find(
+                (item) => item.templateId === selectedTemplateId,
+              );
+              if (!workspaceName.trim() || !template) {
+                setCreateError(
+                  "\u8bf7\u586b\u5199\u5de5\u4f5c\u7a7a\u95f4\u540d\u79f0\u5e76\u9009\u62e9\u6a21\u677f\u3002",
+                );
+                return;
+              }
+              setCreating(true);
+              setCreateError(null);
+              void instantiateWorkspaceFromTemplate({
+                commandClient,
+                name: workspaceName,
+                template,
+              })
+                .then((workspaceId) => {
+                  navigate(workspaceLaunchLocation(workspaceId));
+                })
+                .catch((error: unknown) => {
+                  setCreateError(
+                    error instanceof Error
+                      ? error.message
+                      : "\u5de5\u4f5c\u7a7a\u95f4\u521b\u5efa\u5931\u8d25\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5\u3002",
+                  );
+                })
+                .finally(() => setCreating(false));
+            }}
+          >
+            <label>
+              工作空间名称
+              <input
+                autoFocus
+                onChange={(event) =>
+                  setWorkspaceName(event.currentTarget.value)
+                }
+                required
+                value={workspaceName}
+              />
+            </label>
+            <label>
+              模板
+              <select
+                onChange={(event) =>
+                  setSelectedTemplateId(event.currentTarget.value)
+                }
+                required
+                value={selectedTemplateId}
+              >
+                <option disabled value="">
+                  请选择模板
+                </option>
+                {templates.map((template) => (
+                  <option key={template.templateId} value={template.templateId}>
+                    {template.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <p className="us-workspace-launcher__template-description">
+              {templates.find((item) => item.templateId === selectedTemplateId)
+                ?.description || "该模板未提供额外说明。"}
+            </p>
+            {createError ? (
+              <p className="us-workspace-launcher__status" role="alert">
+                {createError}
+              </p>
+            ) : null}
+            <div className="us-workspace-launcher__create-actions">
+              <button
+                className="us-btn"
+                disabled={creating}
+                onClick={() => setCreateOpen(false)}
+                type="button"
+              >
+                取消
+              </button>
+              <button
+                className="us-btn us-btn--primary"
+                disabled={creating}
+                type="submit"
+              >
+                {creating ? "创建中…" : "创建工作空间"}
+              </button>
+            </div>
+          </form>
+        ) : null}
+      </section>
     </main>
   );
 }
@@ -86,11 +260,37 @@ export function workspaceLaunchLocation(workspaceId: string): string {
   return `/us/home?${query.toString()}`;
 }
 
-function openWorkspace(workspace: WorkspaceSummary): void {
-  window.location.assign(workspaceLaunchLocation(workspace.workspaceId));
+export function publishedTemplateVersion(
+  template: TemplateCatalogItem,
+): number {
+  return template.latestPublishedVersion > 0
+    ? template.latestPublishedVersion
+    : template.version;
 }
 
-function LauncherBody({
+export async function instantiateWorkspaceFromTemplate({
+  commandClient,
+  name,
+  template,
+  newWorkspaceId = crypto.randomUUID(),
+}: {
+  readonly commandClient: LauncherCommandClient;
+  readonly name: string;
+  readonly template: TemplateCatalogItem;
+  readonly newWorkspaceId?: string;
+}): Promise<string> {
+  const workspaceName = name.trim();
+  if (!workspaceName) throw new Error("请输入工作空间名称。");
+  await commandClient.instantiateWorkspace(
+    newWorkspaceId,
+    template.templateId,
+    publishedTemplateVersion(template),
+    workspaceName,
+  );
+  return newWorkspaceId;
+}
+
+export function LauncherBody({
   onOpen,
   state,
   workspaces,
@@ -129,6 +329,7 @@ function LauncherBody({
           <span className="us-workspace-launcher__card-copy">
             <strong>{workspace.name}</strong>
             <small>{templateLabel(workspace.templateCode)}</small>
+            <small>更新于 {workspace.updatedAt}</small>
             <em>{workspace.workspaceId}</em>
           </span>
           <span aria-hidden="true" className="us-workspace-launcher__arrow">
@@ -140,17 +341,47 @@ function LauncherBody({
   );
 }
 
-function templateLabel(code: string | null): string {
-  switch (code) {
-    case "pc_procurement":
-      return "电脑采购插件";
-    case "interior_design":
-      return "室内设计插件";
-    case "hardware_products":
-      return "硬件产品插件";
-    case "technical_proposal":
-      return "技术方案插件";
-    default:
-      return code ? "领域工作空间" : "未绑定领域插件";
+export function TemplateBody({
+  onSelect,
+  state,
+  templates,
+}: {
+  readonly onSelect: (template: TemplateCatalogItem) => void;
+  readonly state: "loading" | "ready" | "error";
+  readonly templates: readonly TemplateCatalogItem[];
+}): ReactElement {
+  if (state === "loading") {
+    return <p className="us-workspace-launcher__status">正在读取模板…</p>;
   }
+  if (state === "error") {
+    return (
+      <p className="us-workspace-launcher__status" role="alert">
+        模板列表读取失败，请确认后端服务已启动。
+      </p>
+    );
+  }
+  if (templates.length === 0) {
+    return <p className="us-workspace-launcher__status">当前没有可用模板。</p>;
+  }
+  return (
+    <div className="us-workspace-launcher__template-grid">
+      {templates.map((template) => (
+        <button
+          className="us-workspace-launcher__template-card"
+          key={template.templateId}
+          onClick={() => onSelect(template)}
+          type="button"
+        >
+          <strong>{template.name}</strong>
+          <small>{template.code}</small>
+          <small>{template.description || "该模板未提供额外说明。"}</small>
+          <em>版本 {publishedTemplateVersion(template)}</em>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function templateLabel(code: string | null): string {
+  return code || "\u672a\u7ed1\u5b9a\u6a21\u677f";
 }

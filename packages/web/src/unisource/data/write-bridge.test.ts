@@ -184,7 +184,7 @@ describe("KernelWriteBridge", () => {
     ).toBe(true);
   });
 
-  it("refreshes only the relation endpoints after a relation write", async () => {
+  it("refreshes relation endpoints and their derived consumers after a relation write", async () => {
     const harness = createHarness();
     harness.workspace.setWriteSink(harness.bridge);
 
@@ -196,7 +196,9 @@ describe("KernelWriteBridge", () => {
     });
     await harness.bridge.whenIdle();
 
-    expect(harness.gateway.refreshObjectCalls).toEqual(["prod-s3", "prod-m1"]);
+    expect(harness.gateway.refreshObjectCalls).toEqual(
+      expect.arrayContaining(["prod-s3", "prod-m1", "prod-g2"]),
+    );
   });
 
   it("sends relation unlink through the gateway and refreshes endpoints", async () => {

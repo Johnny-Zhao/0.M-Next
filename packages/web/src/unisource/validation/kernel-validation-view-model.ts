@@ -21,6 +21,8 @@ export interface KernelValidationItemVm {
   readonly objectCode: string | null;
   readonly objectId: string | null;
   readonly fieldCode: string | null;
+  readonly fieldName: string | null;
+  readonly suggestion: string | null;
   readonly createdAt: string | null;
   readonly runId: string | null;
   readonly selection: SelectionRef | null;
@@ -34,6 +36,8 @@ export interface KernelValidationViewModel {
   readonly error: string | null;
   readonly blockCount: number;
   readonly warnCount: number;
+  readonly passCount: number;
+  readonly totalIssueCount: number;
   readonly scopeIssueCount: number;
   readonly outsideScopeIssueCount: number;
   readonly noIssue: boolean;
@@ -94,6 +98,10 @@ export function buildKernelValidationViewModel(
     (item) => item.severity === "BLOCK",
   ).length;
   const warnCount = allItems.filter((item) => item.severity === "WARN").length;
+  // The kernel endpoint persists violations only. Once a run is complete,
+  // active scoped objects without a BLOCK/WARN result are the backend-backed
+  // pass population; no pass is synthesized before a completed run exists.
+  const passCount = noIssueItems.length;
   const scopeIssueCount = blockCount + warnCount;
   const allIssueCount = input.results.filter(
     (result) => severity(result.level) !== "INFO",
@@ -103,6 +111,8 @@ export function buildKernelValidationViewModel(
     error: input.error,
     blockCount,
     warnCount,
+    passCount,
+    totalIssueCount: scopeIssueCount,
     scopeIssueCount,
     outsideScopeIssueCount: input.scopeMembers
       ? Math.max(0, allIssueCount - scopeIssueCount)
@@ -129,6 +139,7 @@ function mapResult(
           (candidate) => candidate.id === affectedObjectIds[0],
         )
       : null;
+  const fieldCode = selection?.fieldCode ?? null;
   return {
     key: `${result.runId ?? "run"}:${result.ruleCode}:${selection?.entityId ?? index}`,
     kind: "result",
@@ -138,7 +149,11 @@ function mapResult(
     objectName: object ? fieldText(object, "name") : null,
     objectCode: object ? fieldText(object, "code") : null,
     objectId: selection?.entityId ?? null,
-    fieldCode: selection?.fieldCode ?? null,
+    fieldCode,
+    fieldName: fieldCode
+      ? fieldLabel(workspace.objectTypes, object?.objectTypeCode, fieldCode)
+      : null,
+    suggestion: result.fixes[0]?.label ?? "请根据规则说明调整数据后重新校验",
     createdAt: result.createdAt ?? null,
     runId: result.runId ?? null,
     selection,
@@ -255,6 +270,8 @@ function noIssueItem(object: DataObject): KernelValidationItemVm {
     objectCode: fieldText(object, "code"),
     objectId: object.id,
     fieldCode: null,
+    fieldName: null,
+    suggestion: null,
     createdAt: null,
     runId: null,
     selection: { entityType: "object", entityId: object.id },
@@ -267,6 +284,18 @@ function noIssueItem(object: DataObject): KernelValidationItemVm {
 function fieldText(object: DataObject, fieldCode: string): string | null {
   const value = object.fields[fieldCode]?.value;
   return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function fieldLabel(
+  types: readonly ObjectTypeDef[],
+  objectTypeCode: string | undefined,
+  fieldCode: string,
+): string | null {
+  return (
+    types
+      .find((type) => type.code === objectTypeCode)
+      ?.fields.find((field) => field.code === fieldCode)?.name ?? null
+  );
 }
 
 function isSelectionInScope(input: KernelValidationViewModelInput): boolean {

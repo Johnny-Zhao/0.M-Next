@@ -13,7 +13,7 @@ import {
   updateRecord,
   type CreateRecordDraft,
 } from "./create-record-action";
-import { useWorkspaceSnapshot } from "../state/workspace-store";
+import { useWorkspaceSnapshot, workspaceStore } from "../state/workspace-store";
 
 export function CreateRecordDialog({
   objectType,
@@ -110,11 +110,12 @@ function RecordEditorDialog({
     }
     const result =
       mode === "edit"
-        ? updateRecord({
+        ? await updateRecord({
             objectType,
             object: object!,
             draft,
             objects: workspace.objects,
+            workspace: workspaceStore,
           })
         : await createRecord({ objectType, relationTypes, draft });
     setSaving(false);

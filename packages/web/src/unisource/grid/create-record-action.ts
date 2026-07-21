@@ -83,14 +83,18 @@ export function initialCreateRecordDraft(
   return initialRecordDraft(objectType);
 }
 
-export function updateRecord(input: {
+export async function updateRecord(input: {
   readonly objectType: ObjectTypeDef;
   readonly object: DataObject;
   readonly draft: CreateRecordDraft;
   readonly objects?: readonly DataObject[];
+  readonly workspace?: WorkspaceStore;
   readonly session?: SessionStore;
-}): UpdateRecordResult {
+}): Promise<UpdateRecordResult> {
   const session = input.session ?? sessionStore;
+  if (["archived", "deleted", "soft-deleted"].includes(input.object.status)) {
+    return { state: "failed", message: "当前记录已归档或删除，不能继续编辑" };
+  }
   const validation = validateCreateRecord(input.objectType, input.draft, {
     objects: input.objects,
     excludeObjectId: input.object.id,
@@ -117,6 +121,15 @@ export function updateRecord(input: {
     }
   } catch {
     return { state: "failed", message: "记录更新失败，请重试。" };
+  }
+  if (changed === 0 || queued === changed) {
+    return { state: "updated", changed, queued };
+  }
+  const completion = await (
+    input.workspace ?? workspaceStore
+  ).waitForLastWrite();
+  if (completion.state === "failed") {
+    return { state: "failed", message: completion.message };
   }
   return { state: "updated", changed, queued };
 }
@@ -149,6 +162,7 @@ export function validateCreateRecord(
     typeof code === "string" &&
     options.objects?.some(
       (object) =>
+        object.objectTypeCode === objectType.code &&
         object.id !== options.excludeObjectId &&
         object.fields.code?.value === code,
     )
@@ -215,6 +229,9 @@ function parseCreateValue(
   if (text === "") return { value: null };
   if (field.dataType === "number") {
     const value = Number(text);
+    if (Number.isFinite(value) && value < 0 && isNonNegativeField(field)) {
+      return { value: null, error: `${field.name}不能为负数` };
+    }
     if (field.code === "quantity" && Number.isFinite(value)) {
       return Number.isInteger(value) && value > 0
         ? { value }
@@ -233,4 +250,10 @@ function parseCreateValue(
       : { value: null, error: `${field.name}不是合法选项` };
   }
   return { value: text };
+}
+
+function isNonNegativeField(field: FieldDef): boolean {
+  return /(?:quantity|price|budget|power|inventory|delivery|rating|performance|capacity|days|amount)/i.test(
+    field.code,
+  );
 }

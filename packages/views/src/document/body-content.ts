@@ -1,4 +1,4 @@
-import { type Extensions, type JSONContent } from "@tiptap/core";
+import { Mark, type Extensions, type JSONContent } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
 
 import {
@@ -16,6 +16,15 @@ import {
 export function bodyExtensions(
   dataBlockRenderer?: DocumentDataBlockRenderer,
 ): Extensions {
+  const underline = Mark.create({
+    name: "underline",
+    parseHTML() {
+      return [{ tag: "u" }, { style: "text-decoration" }];
+    },
+    renderHTML({ HTMLAttributes }) {
+      return ["u", HTMLAttributes, 0];
+    },
+  });
   return [
     StarterKit.configure({
       blockquote: false,
@@ -29,6 +38,7 @@ export function bodyExtensions(
       underline: false,
       link: false,
     }),
+    underline,
     ...documentDataBlockExtensions(dataBlockRenderer),
   ];
 }

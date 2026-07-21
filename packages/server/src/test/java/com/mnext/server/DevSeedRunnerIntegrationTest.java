@@ -2,6 +2,7 @@ package com.mnext.server;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -290,9 +291,10 @@ class DevSeedRunnerIntegrationTest {
     assertEquals(28, relationCount(PC_PROCUREMENT_WORKSPACE, "supplier_quote_for_product"));
     assertEquals(28, relationCount(PC_PROCUREMENT_WORKSPACE, "supplier_quote_offered_by_supplier"));
 
-    assertEquals(14, derivedFieldCount(PC_PROCUREMENT_WORKSPACE));
-    assertEquals(6, ruleDefinitionCount(PC_PROCUREMENT_WORKSPACE));
+    assertEquals(15, derivedFieldCount(PC_PROCUREMENT_WORKSPACE));
+    assertEquals(7, ruleDefinitionCount(PC_PROCUREMENT_WORKSPACE));
     assertEquals("WARN", ruleSeverity(PC_PROCUREMENT_WORKSPACE, "R-PC-INVENTORY"));
+    assertEquals("BLOCK", ruleSeverity(PC_PROCUREMENT_WORKSPACE, "R-PC-MAX-TOTAL-POWER"));
     assertEquals(102, readModelTotalCount(PC_PROCUREMENT_WORKSPACE));
     assertEquals(102, distinctFieldValueCount(PC_PROCUREMENT_WORKSPACE, "code"));
     assertEquals(102, distinctFieldValueCount(PC_PROCUREMENT_WORKSPACE, "name"));
@@ -314,12 +316,16 @@ class DevSeedRunnerIntegrationTest {
     var fields = (List<Map<String, Object>>) planType.get("fields");
     var derived =
         fields.stream()
-            .filter(field -> String.valueOf(field.get("code")).startsWith("total_"))
+            .filter(
+                field ->
+                    String.valueOf(field.get("code")).startsWith("total_")
+                        || "requirement_max_total_power_w_fx".equals(field.get("code")))
             .collect(java.util.stream.Collectors.toMap(field -> field.get("code"), field -> field));
 
     assertDerivedDefinition(derived, "total_price_cny_fx", "方案总价（元）");
     assertDerivedDefinition(derived, "total_power_w_fx", "方案总功耗（瓦）");
     assertDerivedDefinition(derived, "total_performance_score_fx", "方案性能分");
+    assertDerivedDefinition(derived, "requirement_max_total_power_w_fx", "需求最大总功耗（瓦）");
 
     var page =
         http.getForEntity(
@@ -340,6 +346,7 @@ class DevSeedRunnerIntegrationTest {
     var requirement =
         objectIdByField(PC_PROCUREMENT_WORKSPACE, "procurement_requirement", "code", "REQ-DEV-A");
     var standardPlan = objectIdByField(PC_PROCUREMENT_WORKSPACE, "build_plan", "code", "PLAN-STD");
+    var proPlan = objectIdByField(PC_PROCUREMENT_WORKSPACE, "build_plan", "code", "PLAN-PRO");
     var badPlan = objectIdByField(PC_PROCUREMENT_WORKSPACE, "build_plan", "code", "PLAN-BAD");
 
     assertDecimal(
@@ -361,6 +368,14 @@ class DevSeedRunnerIntegrationTest {
         "0",
         derivedEvaluator.evaluate(
             PC_PROCUREMENT_WORKSPACE, standardPlan, "cpu_mainboard_platform_span_fx"));
+    assertDecimal(
+        "500",
+        derivedEvaluator.evaluate(
+            PC_PROCUREMENT_WORKSPACE, standardPlan, "requirement_max_total_power_w_fx"));
+    assertDecimal(
+        "500",
+        derivedEvaluator.evaluate(
+            PC_PROCUREMENT_WORKSPACE, proPlan, "requirement_max_total_power_w_fx"));
     assertDecimal(
         "1695",
         derivedEvaluator.evaluate(
@@ -386,6 +401,60 @@ class DevSeedRunnerIntegrationTest {
   }
 
   @Test
+  void pcProcurementRequirementPowerUsesStrictestLinkedRequirement() {
+    var plan = objectIdByField(PC_PROCUREMENT_WORKSPACE, "build_plan", "code", "PLAN-STD");
+    var entryRequirement =
+        objectIdByField(
+            PC_PROCUREMENT_WORKSPACE, "procurement_requirement", "code", "REQ-DEV-ENTRY");
+    var relationId = UUID.randomUUID();
+    jdbc.update(
+        """
+        INSERT INTO rm_relation
+          (workspace_id, relation_id, relation_type_code, source_id, target_id,
+           fields, hierarchical, status, version, updated_at)
+        VALUES (?, ?, 'build_plan_satisfies_requirement', ?, ?, '{}'::jsonb, false, 'ACTIVE', 1, now())
+        """,
+        PC_PROCUREMENT_WORKSPACE,
+        relationId,
+        plan,
+        entryRequirement);
+    try {
+      assertDecimal(
+          "450",
+          derivedEvaluator.evaluate(
+              PC_PROCUREMENT_WORKSPACE, plan, "requirement_max_total_power_w_fx"));
+    } finally {
+      jdbc.update(
+          "DELETE FROM rm_relation WHERE workspace_id = ? AND relation_id = ?",
+          PC_PROCUREMENT_WORKSPACE,
+          relationId);
+    }
+  }
+
+  @Test
+  void pcProcurementRequirementPowerWithoutRequirementIsUnavailable() {
+    var objectId = UUID.randomUUID();
+    jdbc.update(
+        """
+        INSERT INTO rm_object
+          (workspace_id, object_id, object_type_code, status, version, fields, updated_at)
+        VALUES (?, ?, 'build_plan', 'DRAFT', 1, '{}'::jsonb, now())
+        """,
+        PC_PROCUREMENT_WORKSPACE,
+        objectId);
+    try {
+      assertNull(
+          derivedEvaluator.evaluate(
+              PC_PROCUREMENT_WORKSPACE, objectId, "requirement_max_total_power_w_fx"));
+    } finally {
+      jdbc.update(
+          "DELETE FROM rm_object WHERE workspace_id = ? AND object_id = ?",
+          PC_PROCUREMENT_WORKSPACE,
+          objectId);
+    }
+  }
+
+  @Test
   void pcProcurementRulesDistinguishValidAndInvalidPlans() {
     var standardPlan = objectIdByField(PC_PROCUREMENT_WORKSPACE, "build_plan", "code", "PLAN-STD");
     var proPlan = objectIdByField(PC_PROCUREMENT_WORKSPACE, "build_plan", "code", "PLAN-PRO");
@@ -399,9 +468,10 @@ class DevSeedRunnerIntegrationTest {
                 null));
     var runId = UUID.fromString(result.events().getFirst());
 
-    assertEquals(3, blockingResultCount(runId));
+    assertEquals(4, blockingResultCount(runId));
     assertTrue(blockingRuleCodes(runId, standardPlan).isEmpty());
-    assertEquals(Set.of("R-PC-BUDGET"), blockingRuleCodes(runId, proPlan));
+    assertEquals(
+        Set.of("R-PC-BUDGET", "R-PC-MAX-TOTAL-POWER"), blockingRuleCodes(runId, proPlan));
     assertEquals(Set.of("R-PC-POWER", "R-PC-CPU-MAINBOARD"), blockingRuleCodes(runId, badPlan));
     assertEquals(1, warningResultCount(runId));
   }
@@ -446,15 +516,25 @@ class DevSeedRunnerIntegrationTest {
     var proPlan = objectIdByField(PC_PROCUREMENT_WORKSPACE, "build_plan", "code", "PLAN-PRO");
     var badPlan = objectIdByField(PC_PROCUREMENT_WORKSPACE, "build_plan", "code", "PLAN-BAD");
 
-    assertEquals(3, ((Number) page.get("total")).intValue());
+    assertEquals(4, ((Number) page.get("total")).intValue());
     assertTrue(
         items.stream().noneMatch(item -> standardPlan.toString().equals(item.get("objectId"))));
     assertEquals(
-        Set.of("R-PC-BUDGET"),
+        Set.of("R-PC-BUDGET", "R-PC-MAX-TOTAL-POWER"),
         items.stream()
             .filter(item -> proPlan.toString().equals(item.get("objectId")))
             .map(item -> String.valueOf(item.get("ruleCode")))
             .collect(java.util.stream.Collectors.toSet()));
+    var maxPowerResult =
+        items.stream()
+            .filter(item -> proPlan.toString().equals(item.get("objectId")))
+            .filter(item -> "R-PC-MAX-TOTAL-POWER".equals(item.get("ruleCode")))
+            .findFirst()
+            .orElseThrow();
+    assertEquals("BLOCK", maxPowerResult.get("severity"));
+    assertEquals(
+        "采购方案总功耗超过需求允许的整机最大功耗，请调整配件或采购需求。",
+        maxPowerResult.get("message"));
     assertEquals(
         Set.of("R-PC-POWER", "R-PC-CPU-MAINBOARD"),
         items.stream()

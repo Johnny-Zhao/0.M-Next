@@ -94,7 +94,8 @@ class ProfileLoaderIntegrationTest {
 
     var runId = runId(rule(workspace, runRuleCheck(workspace, "room", "run-profile-rules")));
     assertEquals(1, countResults(workspace, runId, "base_score_floor"));
-    assertEquals("WARN", ruleStatus(workspace, room));
+    // Scoped runs are not used for the legacy full-workspace rule-status badge.
+    assertEquals("UNKNOWN", ruleStatus(workspace, room));
 
     loader.uninstall(manifest.templateCode(), Actor.user(ACTOR));
     assertEquals("withdrawn", templateStatus(manifest.templateCode()));
@@ -170,11 +171,86 @@ class ProfileLoaderIntegrationTest {
             base.rules());
     loader.install(upgraded, Actor.user(ACTOR));
 
-    assertEquals(1, templateVersionCount(base.templateCode()));
-    assertTrue(fieldDefExists(templateVersionId(base.templateCode(), 1), "room", "body"));
-    assertTrue(fieldUniqueValue(templateVersionId(base.templateCode(), 1), "room", "name"));
+    assertEquals(2, templateVersionCount(base.templateCode()));
+    assertTrue(fieldDefExists(templateVersionId(base.templateCode(), 2), "room", "body"));
+    assertTrue(fieldUniqueValue(templateVersionId(base.templateCode(), 2), "room", "name"));
+    assertOk(meta(workspace, applyTemplateVersion(workspace, 2, "apply-upgrade")));
     assertTrue(runtimeFieldUniqueValue(workspace, "room", "name"));
     assertEquals("lab", fieldValue(room, "name"));
+  }
+
+  @Test
+  void reinstallWithNewDerivedFieldAndRuleCreatesVersionAndPreservesWorkspaceData()
+      throws Exception {
+    var base =
+        profileVariant(
+            fixture(), "profile-loader-derived-upgrade", "profile_loader_derived_upgrade");
+    loader.install(base, Actor.user(ACTOR));
+    var workspace = UUID.randomUUID();
+    assertOk(
+        meta(
+            AUTHOR,
+            instantiate(
+                templateId(base.templateCode()), workspace, "instantiate-derived-upgrade")));
+    var roomType = objectType(workspace, "room");
+    var room =
+        createObject(
+            workspace,
+            roomType,
+            "create-derived-upgrade-room",
+            Map.of("name", "lab", "base_score", 4));
+
+    var derived =
+        new ProfileManifest.DerivedField(
+            "room", "upgrade_score", "Upgrade Score", "number", "self.base_score", "ocl");
+    var rule =
+        new ProfileManifest.Rule(
+            "upgrade_score_high",
+            "room",
+            null,
+            "WARN",
+            "self.base_score > 100",
+            "ocl",
+            "upgrade score high",
+            null,
+            null,
+            null,
+            false);
+    var upgraded =
+        new ProfileManifest(
+            base.id(),
+            base.name(),
+            "1.1.0",
+            base.templateCode(),
+            base.kind(),
+            base.sourceProfile(),
+            base.targetProfile(),
+            base.tags(),
+            base.valueTypes(),
+            base.objectTypes(),
+            base.fields(),
+            base.relations(),
+            java.util.stream.Stream.concat(
+                    base.derivedOrEmpty().stream(), java.util.stream.Stream.of(derived))
+                .toList(),
+            java.util.stream.Stream.concat(
+                    base.rulesOrEmpty().stream(), java.util.stream.Stream.of(rule))
+                .toList());
+
+    loader.install(upgraded, Actor.user(ACTOR));
+    assertEquals(2, templateVersionCount(base.templateCode()));
+    assertTrue(templateDerivedExists(templateVersionId(base.templateCode(), 2), "upgrade_score"));
+    assertTrue(templateRuleExists(templateVersionId(base.templateCode(), 2), "upgrade_score_high"));
+    assertEquals("lab", fieldValue(room, "name"));
+
+    assertOk(meta(workspace, applyTemplateVersion(workspace, 2, "apply-derived-upgrade")));
+    assertEquals(2, copiedCount("derived_field", workspace));
+    assertEquals(2, copiedCount("rule_def", workspace));
+
+    loader.install(upgraded, Actor.user(ACTOR));
+    assertEquals(2, templateVersionCount(base.templateCode()));
+    assertEquals(2, copiedCount("derived_field", workspace));
+    assertEquals(2, copiedCount("rule_def", workspace));
   }
 
   @Test
@@ -685,6 +761,10 @@ class ProfileLoaderIntegrationTest {
         "ApplyProfile", workspace, key, Map.of("templateId", template, "version", version));
   }
 
+  private Map<String, Object> applyTemplateVersion(UUID workspace, int version, String key) {
+    return metaCommand("ApplyTemplateVersion", workspace, key, Map.of("toVersion", version));
+  }
+
   private Map<String, Object> createObjectCommand(
       UUID workspace, UUID objectType, String key, Map<String, Object> fields) {
     return command(
@@ -948,6 +1028,24 @@ class ProfileLoaderIntegrationTest {
             fieldCode));
   }
 
+  private boolean templateDerivedExists(UUID templateVersionId, String code) {
+    return Boolean.TRUE.equals(
+        jdbc.queryForObject(
+            "SELECT EXISTS(SELECT 1 FROM derived_field WHERE template_version_id = ? AND code = ?)",
+            Boolean.class,
+            templateVersionId,
+            code));
+  }
+
+  private boolean templateRuleExists(UUID templateVersionId, String code) {
+    return Boolean.TRUE.equals(
+        jdbc.queryForObject(
+            "SELECT EXISTS(SELECT 1 FROM rule_def WHERE template_version_id = ? AND rule_code = ?)",
+            Boolean.class,
+            templateVersionId,
+            code));
+  }
+
   private boolean fieldUniqueValue(
       UUID templateVersionId, String objectTypeCode, String fieldCode) {
     return Boolean.TRUE.equals(
@@ -964,7 +1062,8 @@ class ProfileLoaderIntegrationTest {
             fieldCode));
   }
 
-  private boolean runtimeFieldUniqueValue(UUID workspaceId, String objectTypeCode, String fieldCode) {
+  private boolean runtimeFieldUniqueValue(
+      UUID workspaceId, String objectTypeCode, String fieldCode) {
     return Boolean.TRUE.equals(
         jdbc.queryForObject(
             """

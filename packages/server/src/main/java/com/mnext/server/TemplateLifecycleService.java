@@ -62,6 +62,7 @@ class TemplateLifecycleService {
     var versionId = templateVersionId(templateId, command.toVersion());
     rules.copyNewRules(versionId, command.workspaceId());
     derivedFields.copyNewFields(versionId, command.workspaceId());
+    recordWorkspaceProfile(command.workspaceId(), versionId, actor.id());
     return result;
   }
 

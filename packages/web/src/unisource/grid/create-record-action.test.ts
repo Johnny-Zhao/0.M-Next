@@ -162,7 +162,7 @@ describe("create record action", () => {
     expect(test.sink.calls).toHaveLength(1);
   });
 
-  it("updates changed writable fields through the session write path", () => {
+  it("updates changed writable fields through the session write path", async () => {
     const test = harness();
     const created = test.workspace.createObject({
       objectTypeCode: "supplier",
@@ -175,7 +175,7 @@ describe("create record action", () => {
       },
       actor: "wangyun",
     });
-    const result = updateRecord({
+    const result = await updateRecord({
       objectType,
       object: created,
       draft: {
@@ -185,6 +185,7 @@ describe("create record action", () => {
         status: "DRAFT",
         enabled: true,
       },
+      workspace: test.workspace,
       session: test.session,
     });
 
@@ -195,7 +196,7 @@ describe("create record action", () => {
     expect(test.workspace.getObject(created.id)?.fields.amount?.value).toBe(20);
   });
 
-  it("queues each changed field when the member lacks edit permission", () => {
+  it("queues each changed field when the member lacks edit permission", async () => {
     const test = harness();
     const created = test.workspace.createObject({
       objectTypeCode: "supplier",
@@ -210,7 +211,7 @@ describe("create record action", () => {
     });
     test.session.switchMember("zhouran");
 
-    const result = updateRecord({
+    const result = await updateRecord({
       objectType,
       object: created,
       draft: {
@@ -220,6 +221,7 @@ describe("create record action", () => {
         status: "DRAFT",
         enabled: true,
       },
+      workspace: test.workspace,
       session: test.session,
     });
 
@@ -227,6 +229,64 @@ describe("create record action", () => {
     expect(test.workspace.getObject(created.id)?.fields.name?.value).toBe(
       "旧供应商",
     );
+  });
+
+  it("rejects negative quantity and price-like numbers before writing", async () => {
+    const test = harness();
+    const result = await createRecord({
+      objectType,
+      relationTypes: [],
+      draft: { ...validDraft(), amount: "-1" },
+      workspace: test.workspace,
+      session: test.session,
+    });
+    expect(result.state).toBe("invalid");
+    expect(test.sink.calls).toHaveLength(0);
+  });
+
+  it("does not update a terminal record", async () => {
+    const test = harness();
+    const created = test.workspace.createObject({
+      objectTypeCode: "supplier",
+      fields: { code: "SUP-OLD", name: "旧供应商", amount: 10 },
+      actor: "wangyun",
+    });
+    const terminal = { ...created, status: "archived" as const };
+    test.sink.calls.splice(0);
+    await expect(
+      updateRecord({
+        objectType,
+        object: terminal,
+        draft: { ...validDraft(), code: "SUP-OLD", name: "新供应商" },
+        workspace: test.workspace,
+        session: test.session,
+      }),
+    ).resolves.toMatchObject({ state: "failed" });
+    expect(test.sink.calls).toHaveLength(0);
+  });
+
+  it("keeps update failures visible instead of reporting success", async () => {
+    const test = harness();
+    const created = test.workspace.createObject({
+      objectTypeCode: "supplier",
+      fields: {
+        code: "SUP-OLD",
+        name: "旧供应商",
+        amount: 10,
+        status: "DRAFT",
+        enabled: true,
+      },
+      actor: "wangyun",
+    });
+    test.sink.failUpdates = true;
+    const result = await updateRecord({
+      objectType,
+      object: created,
+      draft: { ...validDraft(), code: "SUP-OLD", name: "新供应商" },
+      workspace: test.workspace,
+      session: test.session,
+    });
+    expect(result).toMatchObject({ state: "failed", message: "后端拒绝" });
   });
 
   it("hides generic creation for a hierarchical child without naming a domain", () => {
@@ -300,6 +360,7 @@ function harness(
 
 class CreateSink implements WriteSink {
   readonly calls: ObjectCreateDescriptor[] = [];
+  failUpdates = false;
 
   constructor(
     private readonly workspace: WorkspaceStore,
@@ -309,7 +370,14 @@ class CreateSink implements WriteSink {
     },
   ) {}
 
-  updateField(): void {}
+  updateField() {
+    return this.failUpdates
+      ? Promise.resolve({
+          state: "failed" as const,
+          message: "后端拒绝",
+        })
+      : Promise.resolve({ state: "synced" as const });
+  }
 
   createObject(descriptor: ObjectCreateDescriptor) {
     this.calls.push(descriptor);
