@@ -26,6 +26,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Component
 class RuleCheckRunner {
+  private static final int OBJECT_PAGE_SIZE = 200;
   private static final int MAX_RELATION_PAGE = 200;
   private static final Pattern FIELD_PLACEHOLDER =
       Pattern.compile("\\$\\{field\\('([a-z][a-z0-9_]{0,127})'\\)\\}");
@@ -57,28 +58,33 @@ class RuleCheckRunner {
     var configHash = hash(scopeKey(request.scope()) + "\n" + json(rules));
     var runId = UUID.randomUUID();
     var now = Instant.now();
-    for (var object : objects(request.workspaceId(), scopeTypeId)) {
-      var values = new LinkedHashMap<String, Object>(object.fields());
-      values.put("$objectId", object.objectId());
-      for (var rule : applicableRules(request.workspaceId(), object.objectTypeId())) {
-        var expression = ExpressionLanguageSupport.parse(rule.whenSrc());
-        var context = context(request.workspaceId(), object.objectTypeId(), values);
-        if (evaluator.evaluate(expression, context)) {
-          results.insert(
-              request.workspaceId(),
-              runId,
-              rule.ruleCode(),
-              rule.severity(),
-              interpolate(rule.message(), context),
-              object.objectId(),
-              rule.fieldCode(),
-              configHash,
-              now);
+    UUID afterObjectId = null;
+    while (true) {
+      var page = objectPage(request.workspaceId(), scopeTypeId, afterObjectId);
+      for (var object : page) {
+        var values = new LinkedHashMap<String, Object>(object.fields());
+        values.put("$objectId", object.objectId());
+        for (var rule : applicableRules(request.workspaceId(), object.objectTypeId())) {
+          var expression = ExpressionLanguageSupport.parse(rule.whenSrc());
+          var context = context(request.workspaceId(), object.objectTypeId(), values);
+          if (evaluator.evaluate(expression, context)) {
+            results.insert(
+                request.workspaceId(),
+                runId,
+                rule.ruleCode(),
+                rule.severity(),
+                interpolate(rule.message(), context),
+                object.objectId(),
+                rule.fieldCode(),
+                configHash,
+                now);
+          }
         }
       }
+      if (page.size() < OBJECT_PAGE_SIZE) break;
+      afterObjectId = page.getLast().objectId();
     }
-    results.completeRun(
-        request.workspaceId(), runId, scopeObjectTypeCode(request.scope()), now);
+    results.completeRun(request.workspaceId(), runId, scopeObjectTypeCode(request.scope()), now);
     var result =
         new CommandResult(
             commandId(), CommandStatus.ACCEPTED, false, List.of(runId.toString()), null);
@@ -107,9 +113,16 @@ class RuleCheckRunner {
     return types.getFirst();
   }
 
-  private List<ObjectRow> objects(UUID workspaceId, UUID scopeTypeId) {
+  private List<ObjectRow> objectPage(UUID workspaceId, UUID scopeTypeId, UUID afterObjectId) {
+    var mapper =
+        (org.springframework.jdbc.core.RowMapper<ObjectRow>)
+            (row, ignored) ->
+                new ObjectRow(
+                    row.getObject(1, UUID.class),
+                    row.getObject(2, UUID.class),
+                    map(row.getString(3)));
     if (scopeTypeId == null) {
-      return jdbc.query(
+      var sql =
           """
           SELECT object.object_id, type.id, object.fields::text
           FROM rm_object object
@@ -118,17 +131,16 @@ class RuleCheckRunner {
            AND type.code = object.object_type_code
           WHERE object.workspace_id = ?
             AND object.status NOT IN ('VOID', 'FILED', 'DELETED')
-          ORDER BY object.object_id
-          LIMIT 1000
-          """,
-          (row, ignored) ->
-              new ObjectRow(
-                  row.getObject(1, UUID.class),
-                  row.getObject(2, UUID.class),
-                  map(row.getString(3))),
-          workspaceId);
+          """
+              + (afterObjectId == null ? "" : " AND object.object_id > ?\n")
+              + " ORDER BY object.object_id\n LIMIT ?";
+      var args = new ArrayList<Object>();
+      args.add(workspaceId);
+      if (afterObjectId != null) args.add(afterObjectId);
+      args.add(OBJECT_PAGE_SIZE);
+      return jdbc.query(sql, mapper, args.toArray());
     }
-    return jdbc.query(
+    var sql =
         """
         WITH RECURSIVE descendants AS (
           SELECT id FROM object_type WHERE workspace_id = ? AND id = ?
@@ -146,16 +158,17 @@ class RuleCheckRunner {
         WHERE object.workspace_id = ?
           AND object.status NOT IN ('VOID', 'FILED', 'DELETED')
           AND type.id IN (SELECT id FROM descendants)
-        ORDER BY object.object_id
-        LIMIT 1000
-        """,
-        (row, ignored) ->
-            new ObjectRow(
-                row.getObject(1, UUID.class), row.getObject(2, UUID.class), map(row.getString(3))),
-        workspaceId,
-        scopeTypeId,
-        workspaceId,
-        workspaceId);
+        """
+            + (afterObjectId == null ? "" : " AND object.object_id > ?\n")
+            + " ORDER BY object.object_id\n LIMIT ?";
+    var args = new ArrayList<Object>();
+    args.add(workspaceId);
+    args.add(scopeTypeId);
+    args.add(workspaceId);
+    args.add(workspaceId);
+    if (afterObjectId != null) args.add(afterObjectId);
+    args.add(OBJECT_PAGE_SIZE);
+    return jdbc.query(sql, mapper, args.toArray());
   }
 
   private List<RuleRow> applicableRules(UUID workspaceId, UUID objectTypeId) {

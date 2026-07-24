@@ -30,8 +30,7 @@ export interface ExpressionGridFilterVm {
   readonly options: readonly string[];
 }
 
-export interface ExpressionGridValidationConfig
-  extends KernelValidationPanelConfig {}
+export type ExpressionGridValidationConfig = KernelValidationPanelConfig;
 
 export interface ExpressionGridViewModel {
   readonly state: "ready" | "empty" | "unavailable";

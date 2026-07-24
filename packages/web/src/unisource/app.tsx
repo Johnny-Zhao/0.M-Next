@@ -5,6 +5,7 @@ import "./us-tokens.css";
 import "./us-components.css";
 
 import { UsToastHost } from "./primitives";
+import { ExpressionCreateDialog } from "./expression/expression-create-dialog";
 import { US_BASENAME } from "./routes-paths";
 import { ViewportGuard } from "./shell/viewport-guard";
 import { AccessPage } from "./pages/access-page";
@@ -37,6 +38,7 @@ export function UnisourceApp() {
           <Route path="/preview" element={<PreviewPage />} />
           <Route path="*" element={<NotFoundPage />} />
         </Routes>
+        <ExpressionCreateDialog />
       </div>
       <UsToastHost />
       <ViewportGuard />

@@ -3,6 +3,8 @@ import {
   CommandClient,
   ViewClient,
   type CheckResultItem,
+  type CreateExpressionConfigRequest,
+  type ExpressionConfigDto,
   type FetchFn,
   type ObjectType,
   type RelationSummary,
@@ -20,9 +22,11 @@ import type {
   MemberId,
   RelationType,
   ReviewRecord,
+  ViewDef,
 } from "../model/kernel";
 import type {
   ChangeEvent,
+  Expression,
   FieldRef,
   KpiCardDef,
   PluginDef,
@@ -34,11 +38,12 @@ import {
   type PresentationPreset,
 } from "../presentation/presentation-preset-registry";
 import type { ChangeSetResult } from "../state/changeset-store";
-import type {
-  FieldWriteMeta,
-  FieldWriteResult,
-  RelationWriteResult,
-  ViewConfigWriteResult,
+import {
+  WorkspaceStore,
+  type FieldWriteMeta,
+  type FieldWriteResult,
+  type RelationWriteResult,
+  type ViewConfigWriteResult,
 } from "../state/workspace-store";
 import type { RuleOutcome } from "../validation/rules";
 import {
@@ -70,8 +75,12 @@ import type {
   ExchangeFormat,
   Lineage,
   LatestCheckRun,
+  GatewayCapabilities,
+  ExpressionConfigCreateInput,
+  ExpressionConfigCreated,
   UnisourceGateway,
 } from "./gateway";
+import { KERNEL_GATEWAY_CAPABILITIES } from "./gateway";
 import {
   objectBusinessKey,
   relationBusinessKey,
@@ -115,6 +124,7 @@ interface RelationLoadResult {
 }
 
 export class KernelGateway implements UnisourceGateway {
+  readonly capabilities: GatewayCapabilities = KERNEL_GATEWAY_CAPABILITIES;
   private readonly viewClient: ViewClient;
   private readonly commandClient: CommandClient;
   private readonly presetRegistry: PresentationPresetRegistry;
@@ -124,6 +134,11 @@ export class KernelGateway implements UnisourceGateway {
   private relationTypeIdsByCode: ReadonlyMap<string, string> | null = null;
   private workspaceTemplateCode: string | null = null;
   private inFlightWorkspaceLoad: Promise<DemoSeed> | null = null;
+  private expressionStore: WorkspaceStore | null = null;
+  private inFlightExpressionCreate: {
+    readonly key: string;
+    readonly promise: Promise<ExpressionConfigCreated>;
+  } | null = null;
 
   constructor(
     baseUrl: string,
@@ -142,6 +157,53 @@ export class KernelGateway implements UnisourceGateway {
   setActor(actorId: MemberId): void {
     this.currentActor = actorId;
     this.commandClient.setActorId(actorId);
+  }
+
+  attachExpressionStore(store: WorkspaceStore): this {
+    this.expressionStore = store;
+    return this;
+  }
+
+  createExpressionConfig(
+    input: ExpressionConfigCreateInput,
+  ): Promise<ExpressionConfigCreated> {
+    const key = JSON.stringify(input);
+    if (this.inFlightExpressionCreate?.key === key) {
+      return this.inFlightExpressionCreate.promise;
+    }
+    if (this.inFlightExpressionCreate) {
+      return Promise.reject(new Error("已有表达正在创建，请等待完成后重试。"));
+    }
+    const promise = this.createExpressionConfigInternal(input);
+    this.inFlightExpressionCreate = { key, promise };
+    const clear = () => {
+      if (this.inFlightExpressionCreate?.promise === promise) {
+        this.inFlightExpressionCreate = null;
+      }
+    };
+    void promise.then(clear, clear);
+    return promise;
+  }
+
+  private async createExpressionConfigInternal(
+    input: ExpressionConfigCreateInput,
+  ): Promise<ExpressionConfigCreated> {
+    if (!this.expressionStore) {
+      throw new Error("工作空间尚未准备好，无法保存表达。");
+    }
+    const dto = await this.viewClient.createExpressionConfig(
+      this.workspaceId,
+      this.currentActor,
+      input as CreateExpressionConfigRequest,
+    );
+    const assets = mapExpressionConfig(dto);
+    if (assets.views.length !== 1) {
+      throw new Error("后端未返回唯一的首个 View，表达未加入工作空间。");
+    }
+    const created = { expression: assets.expression, view: assets.views[0] };
+    const result = this.expressionStore.addExpressionConfig(created);
+    if (result.state === "invalid") throw new Error(result.message);
+    return result;
   }
 
   getLastLoadReport(): KernelGatewayLoadReport | null {
@@ -168,9 +230,13 @@ export class KernelGateway implements UnisourceGateway {
   }
 
   private async loadWorkspaceInternal(): Promise<DemoSeed> {
-    const [graph, workspaceSummary] = await Promise.all([
+    const [graph, workspaceSummary, userConfigs] = await Promise.all([
       this.loadKernelGraph(),
       this.loadWorkspaceSummary(),
+      this.viewClient.listExpressionConfigs(
+        this.workspaceId,
+        this.currentActor,
+      ),
     ]);
     const preset = this.presetRegistry.resolve(workspaceSummary.templateCode);
     this.workspaceTemplateCode = workspaceSummary?.templateCode ?? null;
@@ -188,21 +254,24 @@ export class KernelGateway implements UnisourceGateway {
       historyCount: 0,
       relationLoadFailures: graph.relationLoadFailures,
     };
-    return {
-      ...remapped.seed,
-      workspace: {
-        ...remapped.seed.workspace,
-        id: this.workspaceId,
-        name: workspaceSummary.name,
-        updatedAt: workspaceSummary.updatedAt,
+    return mergeExpressionConfigs(
+      {
+        ...remapped.seed,
+        workspace: {
+          ...remapped.seed.workspace,
+          id: this.workspaceId,
+          name: workspaceSummary.name,
+          updatedAt: workspaceSummary.updatedAt,
+        },
+        objectTypes: graph.objectTypes,
+        objects: graph.objects,
+        relationTypes: graph.relationTypes,
+        relations: graph.relations,
+        changeEvents: [],
+        activity: [],
       },
-      objectTypes: graph.objectTypes,
-      objects: graph.objects,
-      relationTypes: graph.relationTypes,
-      relations: graph.relations,
-      changeEvents: [],
-      activity: [],
-    };
+      userConfigs,
+    );
   }
 
   private async loadWorkspaceSummary(): Promise<WorkspaceSummary> {
@@ -993,6 +1062,78 @@ function kernelPresentationSeed(
     plugins: [],
     simScenarios: [],
   };
+}
+
+interface MappedExpressionConfig {
+  readonly expression: Expression;
+  readonly views: readonly ViewDef[];
+}
+
+export function mapExpressionConfig(
+  dto: ExpressionConfigDto,
+): MappedExpressionConfig {
+  const views = dto.views.map((view) => ({
+    id: view.viewId,
+    exprId: view.expressionId,
+    kind: view.kind,
+    config: view.config,
+  }));
+  const expression: Expression = {
+    id: dto.expressionId,
+    name: dto.name,
+    space: dto.space,
+    viewIds: views.map((view) => view.id),
+    defaultViewId: dto.defaultViewId,
+    defaultForm: dto.defaultForm,
+    activityMember: dto.updatedBy as MemberId,
+    lastActivity: dto.updatedAt,
+  };
+  return { expression, views };
+}
+
+export function mergeExpressionConfigs(
+  seed: DemoSeed,
+  configs: readonly ExpressionConfigDto[],
+): DemoSeed {
+  const expressions = [...seed.expressions];
+  const views = [...seed.views];
+  const expressionIds = new Set(expressions.map((item) => item.id));
+  const viewIds = new Set(views.map((item) => item.id));
+  for (const config of configs) {
+    const mapped = mapExpressionConfig(config);
+    validateMappedExpression(mapped);
+    if (expressionIds.has(mapped.expression.id)) {
+      throw new Error(`用户表达标识与内置表达冲突：${mapped.expression.id}`);
+    }
+    const conflictingView = mapped.views.find((view) => viewIds.has(view.id));
+    if (conflictingView) {
+      throw new Error(
+        `用户 View 标识与内置或其他 View 冲突：${conflictingView.id}`,
+      );
+    }
+    expressionIds.add(mapped.expression.id);
+    mapped.views.forEach((view) => viewIds.add(view.id));
+    expressions.push(mapped.expression);
+    views.push(...mapped.views);
+  }
+  return { ...seed, expressions, views };
+}
+
+function validateMappedExpression(mapped: MappedExpressionConfig): void {
+  const expression = mapped.expression;
+  const defaultView = mapped.views.find(
+    (view) => view.id === expression.defaultViewId,
+  );
+  const referencesMatch =
+    mapped.views.length > 0 &&
+    mapped.views.every(
+      (view) =>
+        view.exprId === expression.id && expression.viewIds.includes(view.id),
+    ) &&
+    expression.viewIds.length === mapped.views.length;
+  if (!referencesMatch || defaultView?.kind !== expression.defaultForm) {
+    throw new Error(`用户表达配置引用不完整：${expression.id}`);
+  }
 }
 
 function objectsOfTypeLoaded(

@@ -14,6 +14,8 @@ import {
   KernelGateway,
   type KernelGatewayLoadReport,
 } from "./data/kernel-gateway";
+import { MOCK_GATEWAY_CAPABILITIES } from "./data/gateway";
+import { MockUnisourceGateway } from "./data/mock-gateway";
 import { KernelWriteBridge } from "./data/write-bridge";
 import { annotationsStore } from "./state/annotations-store";
 import { applyDemoSeed, configureBackendReload } from "./state/demo-reset";
@@ -42,6 +44,10 @@ void boot(root, bootMode);
 
 async function boot(root: Root, mode: BootMode): Promise<void> {
   if (!mode.backend) {
+    const expressionGateway = new MockUnisourceGateway(
+      undefined,
+      workspaceStore,
+    );
     sessionStore.setPermissionSource("demo");
     configureBackendReload(null);
     workspaceStore.setWriteSink(null);
@@ -56,6 +62,8 @@ async function boot(root: Root, mode: BootMode): Promise<void> {
       workspaceId: null,
       templateCode: null,
       reportLabel: null,
+      gatewayCapabilities: MOCK_GATEWAY_CAPABILITIES,
+      expressionGateway,
     });
     renderApp(root);
     return;
@@ -70,7 +78,11 @@ async function boot(root: Root, mode: BootMode): Promise<void> {
   }
   const workspaceId = mode.workspaceId;
   const initialActor = sessionStore.getSnapshot().currentMemberId;
-  const gateway = new KernelGateway("", workspaceId, initialActor);
+  const gateway = new KernelGateway(
+    "",
+    workspaceId,
+    initialActor,
+  ).attachExpressionStore(workspaceStore);
   const writeBridge = new KernelWriteBridge(gateway, {
     onKernelWriteSucceeded: (actor) =>
       validationStore.scheduleAutoKernelCheck(actor),
@@ -102,6 +114,8 @@ async function boot(root: Root, mode: BootMode): Promise<void> {
       workspaceId,
       templateCode: gateway.getWorkspaceTemplateCode(),
       reportLabel: report ? formatReport(report) : null,
+      gatewayCapabilities: gateway.capabilities,
+      expressionGateway: gateway,
     });
   };
   const hydrateKernelCheck = (): Promise<boolean> =>
@@ -169,6 +183,7 @@ function renderBootError(
 }
 
 function fallbackToMock(root: Root): void {
+  const expressionGateway = new MockUnisourceGateway(undefined, workspaceStore);
   clearBrowserBackendPreference();
   sessionStore.setPermissionSource("demo");
   configureBackendReload(null);
@@ -184,6 +199,8 @@ function fallbackToMock(root: Root): void {
     workspaceId: null,
     templateCode: null,
     reportLabel: null,
+    gatewayCapabilities: MOCK_GATEWAY_CAPABILITIES,
+    expressionGateway,
   });
   renderApp(root);
 }

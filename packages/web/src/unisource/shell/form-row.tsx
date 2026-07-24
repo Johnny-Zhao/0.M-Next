@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 
+import { REGISTERED_EXPRESSION_FORMS } from "../expression/expression-form-registry";
 import {
   IconBarChart,
   IconDoc,
@@ -20,14 +21,9 @@ export interface FormOption {
   readonly label: string;
 }
 
-const BUILTIN_FORMS: readonly FormOption[] = [
-  { form: "grid", label: "表格 GRID" },
-  { form: "doc", label: "文档 DOC" },
-  { form: "canvas", label: "视图 CANVAS" },
-  { form: "matrix", label: "矩阵 MATRIX" },
-  { form: "bi", label: "BI" },
-  { form: "ana", label: "分析 ANA" },
-];
+const BUILTIN_FORMS: readonly FormOption[] = REGISTERED_EXPRESSION_FORMS.map(
+  (form) => ({ form: form.kind, label: form.label }),
+);
 
 const FORM_LABEL: Record<string, string> = {
   grid: "GRID",

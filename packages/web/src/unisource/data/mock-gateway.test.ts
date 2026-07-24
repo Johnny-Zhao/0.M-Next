@@ -14,6 +14,9 @@ describe("MockUnisourceGateway", () => {
     await expect(gateway.loadWorkspace()).resolves.toMatchObject({
       workspace: { id: "ws-unisource-demo" },
     });
+    expect(gateway.capabilities.expressionPersistence.mode).toBe(
+      "workspace-session",
+    );
   });
 
   it("persists updateField writes into the next loadWorkspace snapshot", async () => {

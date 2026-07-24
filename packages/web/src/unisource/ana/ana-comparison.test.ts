@@ -79,6 +79,92 @@ describe("ANA comparison", () => {
     expect(vm.questions[0]?.answer).toContain("420");
   });
 
+  it("compares raw numeric values while keeping formatted units for display", () => {
+    const numericConfig = {
+      ...config,
+      columns: config.columns.map((column) =>
+        column.key === "power"
+          ? { ...column, unit: "W" }
+          : column.key === "performance"
+            ? { ...column, unit: "分" }
+            : column,
+      ),
+      analysisQuestions: [
+        {
+          id: "lowest-power",
+          label: "功耗最低",
+          kind: "min",
+          fieldCode: "power",
+        },
+        {
+          id: "highest-performance",
+          label: "性能最高",
+          kind: "max",
+          fieldCode: "performance",
+        },
+      ],
+    } as const;
+    const vm = buildAnaComparison(workspace(), numericConfig, [], "ready");
+
+    expect(vm.rows[0]?.values.power).toBe("420 W");
+    expect(vm.questions).toEqual([
+      {
+        id: "lowest-power",
+        label: "功耗最低",
+        answer: "标准方案: 420 W",
+        objectId: "plan-a",
+      },
+      {
+        id: "highest-performance",
+        label: "性能最高",
+        answer: "风险方案: 700 分",
+        objectId: "plan-b",
+      },
+    ]);
+  });
+
+  it("treats zero as a valid value and ignores empty or invalid numeric values", () => {
+    const base = workspace();
+    const values = base.objects.map((object) => {
+      if (object.id === "plan-a")
+        return withField(object, "total_power_w_fx", 0);
+      if (object.id === "plan-b")
+        return withField(object, "total_power_w_fx", "not-a-number");
+      return object;
+    });
+    const vm = buildAnaComparison(
+      { ...base, objects: values },
+      {
+        ...config,
+        analysisQuestions: [
+          { id: "lowest", label: "功耗最低", kind: "min", fieldCode: "power" },
+        ],
+      },
+      [],
+      "ready",
+    );
+    expect(vm.questions[0]).toMatchObject({
+      objectId: "plan-a",
+      answer: expect.stringContaining("0"),
+    });
+
+    const noValues = buildAnaComparison(
+      {
+        ...base,
+        objects: base.objects.map((object) =>
+          withField(object, "total_power_w_fx", null),
+        ),
+      },
+      config,
+      [],
+      "ready",
+    );
+    expect(noValues.questions[0]).toMatchObject({
+      answer: null,
+      objectId: null,
+    });
+  });
+
   it("does not report missing derived data or missing validation as successful", () => {
     const noDerived = buildAnaComparison(
       workspace({
@@ -203,6 +289,26 @@ function object(
     createdAt: "",
     updatedBy: "wangyun",
     updatedAt: "",
+  };
+}
+
+function withField(
+  source: WorkspaceState["objects"][number],
+  code: string,
+  value: string | number | null,
+): WorkspaceState["objects"][number] {
+  return {
+    ...source,
+    fields: {
+      ...source.fields,
+      [code]: {
+        value,
+        fieldVersion: 1,
+        updatedBy: "wangyun",
+        updatedAt: "",
+        source: "manual",
+      },
+    },
   };
 }
 

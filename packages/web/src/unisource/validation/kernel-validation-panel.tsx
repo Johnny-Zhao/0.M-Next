@@ -38,6 +38,7 @@ export function KernelValidationPanel({
   const validation = useValidationSnapshot();
   const session = useSessionSnapshot();
   const selection = useSelectionSnapshot();
+  const currentSelection = selection.current;
   const [filter, setFilter] = useState<KernelValidationFilter>("all");
   const [expanded, setExpanded] = useState(true);
   const [scopeMode, setScopeMode] = useState<"current" | "all">("current");
@@ -46,10 +47,10 @@ export function KernelValidationPanel({
       resolveKernelValidationScope(
         workspace,
         config,
-        selection.current,
+        currentSelection,
         rootObjectId,
       ),
-    [config, rootObjectId, selection.current, workspace],
+    [config, currentSelection, rootObjectId, workspace],
   );
   const useCurrentScope = scopeMode === "current" && scope !== null;
   const displayObjectTypeCode = config.scopeCanvasViewId
@@ -63,7 +64,7 @@ export function KernelValidationPanel({
         status: validation.kernelStatus,
         error: validation.kernelError,
         filter,
-        selection: selection.current,
+        selection: currentSelection,
         scopeObjectTypeCode: displayObjectTypeCode,
         scopeMembers: useCurrentScope ? scope.members : null,
       }),
@@ -71,7 +72,7 @@ export function KernelValidationPanel({
       displayObjectTypeCode,
       filter,
       scope,
-      selection,
+      currentSelection,
       useCurrentScope,
       validation,
       workspace,
@@ -86,12 +87,12 @@ export function KernelValidationPanel({
             status: validation.kernelStatus,
             error: validation.kernelError,
             filter,
-            selection: selection.current,
+            selection: currentSelection,
             scopeObjectTypeCode: null,
             scopeMembers: scope.members,
           })
         : null,
-    [filter, scope, selection, validation, workspace],
+    [currentSelection, filter, scope, validation, workspace],
   );
   const run = () => {
     if (!config.allowManualRun || validation.kernelRunning) return;

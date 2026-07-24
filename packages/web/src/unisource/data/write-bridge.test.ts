@@ -232,6 +232,19 @@ describe("KernelWriteBridge", () => {
     });
   });
 
+  it("refreshes derived consumers after archiving an object", async () => {
+    const harness = createHarness();
+    harness.workspace.setWriteSink(harness.bridge);
+
+    harness.workspace.deleteObject("prod-s3", "wangyun");
+    await harness.bridge.whenIdle();
+
+    expect(harness.gateway.refreshObjectCalls).toEqual(
+      expect.arrayContaining(["prod-g2", "prod-d2-pro"]),
+    );
+    expect(harness.gateway.refreshObjectCalls).not.toContain("prod-s3");
+  });
+
   it("serializes writes for the same object id", async () => {
     const first = deferred<void>();
     const firstStarted = deferred<void>();

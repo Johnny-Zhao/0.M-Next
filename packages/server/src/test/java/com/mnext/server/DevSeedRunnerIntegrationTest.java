@@ -470,8 +470,7 @@ class DevSeedRunnerIntegrationTest {
 
     assertEquals(4, blockingResultCount(runId));
     assertTrue(blockingRuleCodes(runId, standardPlan).isEmpty());
-    assertEquals(
-        Set.of("R-PC-BUDGET", "R-PC-MAX-TOTAL-POWER"), blockingRuleCodes(runId, proPlan));
+    assertEquals(Set.of("R-PC-BUDGET", "R-PC-MAX-TOTAL-POWER"), blockingRuleCodes(runId, proPlan));
     assertEquals(Set.of("R-PC-POWER", "R-PC-CPU-MAINBOARD"), blockingRuleCodes(runId, badPlan));
     assertEquals(1, warningResultCount(runId));
   }
@@ -532,9 +531,7 @@ class DevSeedRunnerIntegrationTest {
             .findFirst()
             .orElseThrow();
     assertEquals("BLOCK", maxPowerResult.get("severity"));
-    assertEquals(
-        "采购方案总功耗超过需求允许的整机最大功耗，请调整配件或采购需求。",
-        maxPowerResult.get("message"));
+    assertEquals("采购方案总功耗超过需求允许的整机最大功耗，请调整配件或采购需求。", maxPowerResult.get("message"));
     assertEquals(
         Set.of("R-PC-POWER", "R-PC-CPU-MAINBOARD"),
         items.stream()

@@ -10,9 +10,12 @@ import type {
   MemberId,
   ReviewRecord,
   SelectionRef,
+  ViewDef,
+  ViewKind,
 } from "../model/kernel";
 import type {
   FieldRef,
+  Expression,
   KpiCardDef,
   PluginDef,
   SlotBinding,
@@ -41,6 +44,39 @@ export interface LatestCheckRun {
   readonly scopeObjectTypeCode: string | null;
   readonly status: string | null;
   readonly completedAt: string | null;
+}
+
+export interface GatewayCapabilities {
+  readonly expressionPersistence: {
+    readonly mode: "workspace-session" | "workspace-persistent" | "unavailable";
+    readonly reason: string | null;
+  };
+}
+
+export const MOCK_GATEWAY_CAPABILITIES: GatewayCapabilities = {
+  expressionPersistence: { mode: "workspace-session", reason: null },
+};
+
+export const KERNEL_GATEWAY_CAPABILITIES: GatewayCapabilities = {
+  expressionPersistence: {
+    mode: "workspace-persistent",
+    reason: null,
+  },
+};
+
+export interface ExpressionConfigCreateInput {
+  readonly name: string;
+  readonly space: "main" | "workshop";
+  readonly defaultForm: ViewKind;
+  readonly view: {
+    readonly kind: ViewKind;
+    readonly config: Readonly<Record<string, unknown>>;
+  };
+}
+
+export interface ExpressionConfigCreated {
+  readonly expression: Expression;
+  readonly view: ViewDef;
 }
 
 export interface SnapshotArtifact {
@@ -227,6 +263,8 @@ export function annotationFromComment(comment: Comment): Annotation {
 }
 
 export interface UnisourceGateway {
+  readonly capabilities: GatewayCapabilities;
+
   /**
    * Update the actor used by write-side command clients.
    * @kernel Maps to CommandClient.setActorId / X-Actor-Id.
@@ -241,6 +279,11 @@ export interface UnisourceGateway {
    * @gap G8/G9: field provenance and history detail remain coarse.
    */
   loadWorkspace(): Promise<DemoSeed>;
+
+  /** Persist one user Expression and its initial View as workspace configuration. */
+  createExpressionConfig(
+    input: ExpressionConfigCreateInput,
+  ): Promise<ExpressionConfigCreated>;
 
   /**
    * Update one object field through the data write path.

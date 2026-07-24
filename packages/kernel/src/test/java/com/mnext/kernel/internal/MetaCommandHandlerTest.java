@@ -388,6 +388,7 @@ class MetaCommandHandlerTest {
             eq(DataType.TEXT),
             eq(childValueType),
             eq(true),
+            eq(false),
             any(),
             eq(parentField),
             eq("author"),

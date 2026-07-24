@@ -36,6 +36,11 @@ import type {
 } from "../model/view-layer";
 import { cloneDemoSeed, type DemoSeed } from "../seed/demo-seed";
 import {
+  createExpressionRecords,
+  type ExpressionCreateResult,
+  type ExpressionDraft,
+} from "../expression/expression-create-model";
+import {
   copyObjectSubtree,
   type ObjectSubtreeCopyConfig,
   type ObjectSubtreeCopyResult,
@@ -284,6 +289,67 @@ export class WorkspaceStore {
 
   getExpressions(): readonly Expression[] {
     return this.state.expressions;
+  }
+
+  createExpressionWithView(
+    draft: ExpressionDraft,
+    options: {
+      readonly idFactory?: () => string;
+      readonly createdAt?: string;
+    } = {},
+  ): ExpressionCreateResult {
+    const result = createExpressionRecords(
+      this.state,
+      draft,
+      options.idFactory,
+      options.createdAt,
+    );
+    if (result.state !== "created") return result;
+    return this.addExpressionConfig(result);
+  }
+
+  addExpressionConfig(asset: {
+    readonly expression: Expression;
+    readonly view: ViewDef;
+  }): ExpressionCreateResult {
+    const { expression, view } = asset;
+    if (
+      expression.viewIds.length !== 1 ||
+      expression.viewIds[0] !== view.id ||
+      expression.defaultViewId !== view.id ||
+      expression.defaultForm !== view.kind ||
+      view.exprId !== expression.id
+    ) {
+      return {
+        state: "invalid",
+        message: "Expression 与首个 View 引用不一致。",
+      };
+    }
+    const idConflict =
+      this.state.expressions.some((item) => item.id === expression.id) ||
+      this.state.views.some((item) => item.id === view.id);
+    if (idConflict) {
+      return {
+        state: "invalid",
+        message: "表达或 View 标识已存在，无法加入工作空间。",
+      };
+    }
+    const normalizedName = expression.name.trim().toLocaleLowerCase("zh-CN");
+    if (
+      this.state.expressions.some(
+        (item) =>
+          item.name.trim().toLocaleLowerCase("zh-CN") === normalizedName,
+      )
+    ) {
+      return { state: "invalid", message: "当前工作空间已存在同名表达。" };
+    }
+    this.state = {
+      ...this.state,
+      expressions: [...this.state.expressions, expression],
+      views: [...this.state.views, view],
+    };
+    this.emit();
+    return { state: "created", expression, view };
   }
 
   getObjectTypes(): readonly ObjectTypeDef[] {

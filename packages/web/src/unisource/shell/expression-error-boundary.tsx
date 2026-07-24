@@ -18,12 +18,14 @@ export class ExpressionErrorBoundary extends Component<
   state: ExpressionErrorBoundaryState = { failed: false, retryKey: 0 };
 
   static getDerivedStateFromError(
-    _error: Error,
+    error: Error,
   ): Pick<ExpressionErrorBoundaryState, "failed"> {
+    void error;
     return { failed: true };
   }
 
-  componentDidCatch(error: Error, _info: ErrorInfo): void {
+  componentDidCatch(error: Error, info: ErrorInfo): void {
+    void info;
     console.error("Expression view render failed", error);
   }
 

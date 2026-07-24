@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 
+import { ExpressionCreateTrigger } from "../expression/expression-create-trigger";
 import { UsInput, UsSegmented } from "../primitives";
 import { usPaths } from "../routes-paths";
 import { useWorkspaceSnapshot } from "../state/workspace-store";
@@ -115,7 +116,7 @@ export function AppSidebar({
                 ))}
               </div>
             ) : null}
-            <span className="us-navitem us-navitem--new">+ 新建表达</span>
+            <ExpressionCreateTrigger surface="sidebar" />
           </>
         ) : (
           centerOrder.map((center) => (

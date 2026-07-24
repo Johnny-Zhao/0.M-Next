@@ -4,11 +4,10 @@ import {
   IconGrid,
   IconSpark,
   UsAvatar,
-  UsButton,
   UsInput,
   UsMonoTag,
-  pushToast,
 } from "../primitives";
+import { ExpressionCreateTrigger } from "../expression/expression-create-trigger";
 import { usPaths, type UsFormKind } from "../routes-paths";
 import { UsLogo } from "../shell/logo";
 import { RoleSwitcher } from "../shell/role-switcher";
@@ -44,12 +43,7 @@ export function HomePage() {
           <IconSpark size={13} />
           AI 导入
         </Link>
-        <UsButton
-          onClick={() => pushToast({ title: "P2 提供新建表达" })}
-          variant="primary"
-        >
-          新建表达
-        </UsButton>
+        <ExpressionCreateTrigger surface="home" />
         <RoleSwitcher />
       </header>
       <main className="us-home__body">

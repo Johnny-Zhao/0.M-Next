@@ -195,6 +195,72 @@ describe("view and command clients", () => {
     expect(workspaces[0]?.templateCode).toBe("interior_design");
   });
 
+  it("lists and creates workspace expression configs with the actor", async () => {
+    const config = {
+      expressionId: "user-exp-1",
+      name: "采购列表",
+      space: "main",
+      defaultViewId: "user-view-1",
+      defaultForm: "grid",
+      version: 1,
+      createdBy: "alice",
+      createdAt: "2026-07-22T10:00:00Z",
+      updatedBy: "alice",
+      updatedAt: "2026-07-22T10:00:00Z",
+      views: [],
+    };
+    const fetchFn = vi.fn<FetchFn>(async (_input, init) =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify(init?.method === "POST" ? config : [config]),
+        ),
+      ),
+    );
+    const client = new ViewClient("/api", fetchFn);
+
+    const listed = await client.listExpressionConfigs("ws", "alice");
+    const created = await client.createExpressionConfig("ws", "alice", {
+      name: "采购列表",
+      space: "main",
+      defaultForm: "grid",
+      view: {
+        kind: "grid",
+        config: { objectTypeCode: "plan", columns: ["name"] },
+      },
+    });
+
+    expect(listed[0]?.expressionId).toBe("user-exp-1");
+    expect(created.defaultViewId).toBe("user-view-1");
+    expect(fetchFn.mock.calls.map((call) => call[0])).toEqual([
+      "/api/workspaces/ws/expression-configs",
+      "/api/workspaces/ws/expression-configs",
+    ]);
+    expect(fetchFn.mock.calls[0]?.[1]?.headers).toMatchObject({
+      "X-Actor-Id": "alice",
+    });
+    expect(fetchFn.mock.calls[1]?.[1]?.method).toBe("POST");
+  });
+
+  it("surfaces expression config rejection messages", async () => {
+    const fetchFn = vi.fn<FetchFn>(async () =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({ error: { message: "当前工作空间已存在同名表达" } }),
+          { status: 409 },
+        ),
+      ),
+    );
+
+    await expect(
+      new ViewClient("/api", fetchFn).createExpressionConfig("ws", "alice", {
+        name: "重复表达",
+        space: "main",
+        defaultForm: "grid",
+        view: { kind: "grid", config: { objectTypeCode: "plan", columns: [] } },
+      }),
+    ).rejects.toThrow("当前工作空间已存在同名表达");
+  });
+
   it("reads mapping profile definitions for a workspace", async () => {
     const fetchFn = vi.fn<FetchFn>(
       async () =>

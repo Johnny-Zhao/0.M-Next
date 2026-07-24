@@ -214,6 +214,27 @@ export class KernelWriteBridge implements WriteSink {
           actor,
           descriptor.expectedVersion,
         );
+        const relatedObjectIds = new Set(
+          descriptor.snapshot.relations
+            .flatMap((relation) => [relation.sourceId, relation.targetId])
+            .filter((relatedId) => relatedId !== objectId),
+        );
+        const endpointRefresh = await this.refreshObjects([
+          ...relatedObjectIds,
+        ]);
+        const relatedRefresh = await Promise.all(
+          [...relatedObjectIds].map((relatedId) =>
+            this.refreshRelatedObjects(relatedId),
+          ),
+        );
+        if (
+          endpointRefresh.state === "failed" ||
+          relatedRefresh.some((refreshed) => !refreshed)
+        ) {
+          return refreshFailure(
+            "对象已归档，但关联派生数据尚未同步，请重新加载工作空间",
+          );
+        }
         this.onKernelWriteSucceeded?.(actor);
         return { state: "synced" };
       } catch (error) {

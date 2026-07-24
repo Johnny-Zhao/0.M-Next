@@ -299,7 +299,9 @@ function selectedCanvasConfig(
   });
   return {
     nodes,
-    edges: Array.from(subtree.relationIds).map((relationId) => ({ relationId })),
+    edges: Array.from(subtree.relationIds).map((relationId) => ({
+      relationId,
+    })),
   };
 }
 

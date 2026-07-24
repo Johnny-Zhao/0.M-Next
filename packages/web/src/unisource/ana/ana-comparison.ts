@@ -34,6 +34,8 @@ export interface AnaAnalysisQuestion {
 export interface AnaComparisonRow {
   readonly objectId: string;
   readonly values: Readonly<Record<string, string | null>>;
+  /** Raw read-model values used for numeric comparisons; never display text. */
+  readonly rawValues?: Readonly<Record<string, unknown>>;
   readonly status: "ok" | "block" | "warn" | "unchecked";
   readonly issueCount: number;
 }
@@ -153,9 +155,10 @@ function buildQuestions(
       };
     }
     const candidates = rows.flatMap((row) => {
-      const raw = question.fieldCode ? row.values[question.fieldCode] : null;
-      const value =
-        raw === null || raw === undefined ? Number.NaN : Number(raw);
+      const raw = question.fieldCode
+        ? row.rawValues?.[question.fieldCode]
+        : null;
+      const value = finiteNumber(raw);
       return Number.isFinite(value) ? [{ row, value }] : [];
     });
     if (candidates.length === 0)
@@ -177,7 +180,7 @@ function buildQuestions(
     return {
       id: question.id,
       label: question.label,
-      answer: `${selected.row.values.name ?? selected.row.objectId}: ${selected.value}`,
+      answer: `${selected.row.values.name ?? selected.row.objectId}: ${selected.row.values[question.fieldCode ?? ""] ?? selected.value}`,
       objectId: selected.row.objectId,
     };
   });
@@ -227,18 +230,43 @@ function comparisonRow(
   issues: readonly AnaComparisonIssue[],
   validationStatus: "idle" | "running" | "ready" | "error",
 ): AnaComparisonRow {
-  const values = Object.fromEntries(
-    config.columns.map((column) => [
-      column.key,
-      displayValue(resolveColumnObjects(workspace, objectId, column), column),
-    ]),
-  );
+  const resolved = config.columns.map((column) => {
+    const objects = resolveColumnObjects(workspace, objectId, column);
+    return {
+      key: column.key,
+      raw: rawValue(objects, column),
+      display: displayValue(objects, column),
+    };
+  });
   return {
     objectId,
-    values,
+    values: Object.fromEntries(
+      resolved.map((entry) => [entry.key, entry.display]),
+    ),
+    rawValues: Object.fromEntries(
+      resolved.map((entry) => [entry.key, entry.raw]),
+    ),
     status: comparisonStatus(issues, validationStatus),
     issueCount: issues.length,
   };
+}
+
+function rawValue(
+  objects: readonly WorkspaceState["objects"][number][],
+  column: AnaComparisonColumn,
+): unknown {
+  return (
+    objects.find((object) => object.fields[column.fieldCode]?.value != null)
+      ?.fields[column.fieldCode]?.value ?? null
+  );
+}
+
+function finiteNumber(value: unknown): number {
+  if (typeof value === "number")
+    return Number.isFinite(value) ? value : Number.NaN;
+  if (typeof value !== "string" || value.trim() === "") return Number.NaN;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : Number.NaN;
 }
 
 function resolveColumnObjects(

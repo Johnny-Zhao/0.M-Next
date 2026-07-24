@@ -5,9 +5,11 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mnext.engines.output.OutputTemplate.SectionMapping;
 import com.mnext.engines.output.OutputTemplate.SectionMapping.RelationColumn;
 import com.mnext.engines.output.OutputTemplate.SectionMapping.RelationTable;
+import com.mnext.kernel.api.events.EventEnvelope;
 import java.io.ByteArrayInputStream;
 import java.util.List;
 import java.util.Map;
@@ -55,6 +57,9 @@ class PcProcurementOutputIntegrationTest {
   @Autowired SnapshotRepository snapshots;
   @Autowired OutputSnapshotRepository outputs;
   @Autowired RuleCheckRunner ruleChecks;
+  @Autowired ReadModelProjection projection;
+  @Autowired ReadModelRepository readModel;
+  @Autowired ObjectMapper mapper;
   @Autowired JdbcTemplate jdbc;
   @Autowired TestRestTemplate http;
   @LocalServerPort int port;
@@ -69,11 +74,21 @@ class PcProcurementOutputIntegrationTest {
     var firstSnapshot = capture(plan);
     var firstOutput = createDocx(firstSnapshot);
     var firstText = docxText(firstOutput);
+    var firstTotalPrice = dataField(plan, "total_price_cny_fx");
+    var firstTotalPower = dataField(plan, "total_power_w_fx");
 
     assertCompleteDocument(firstText);
     assertEquals("OK", firstOutput.checkStatus());
 
     updateQuantity(item, 2);
+    assertEquals(
+        2,
+        jdbc.queryForObject(
+            "SELECT (fields ->> 'quantity')::int FROM rm_object WHERE object_id = ?",
+            Integer.class,
+            item));
+    assertNotEquals(firstTotalPrice, dataField(plan, "total_price_cny_fx"));
+    assertNotEquals(firstTotalPower, dataField(plan, "total_power_w_fx"));
     runFullWorkspaceCheck("pc-output-updated");
     var sameSnapshotOutput = createDocx(firstSnapshot);
     var secondSnapshot = capture(plan);
@@ -190,17 +205,61 @@ class PcProcurementOutputIntegrationTest {
         AUTHOR.toString());
   }
 
-  private void updateQuantity(UUID item, int quantity) {
-    jdbc.update(
-        """
-        UPDATE rm_object
-        SET fields = jsonb_set(fields, '{quantity}', to_jsonb(CAST(? AS integer))),
-            version = version + 1, updated_at = now()
-        WHERE workspace_id = ? AND object_id = ?
-        """,
-        quantity,
-        WORKSPACE,
-        item);
+  private void updateQuantity(UUID item, int quantity) throws Exception {
+    var objectVersion =
+        jdbc.queryForObject(
+            "SELECT version FROM data_object WHERE workspace_id = ? AND id = ?",
+            Long.class,
+            WORKSPACE,
+            item);
+    var payload =
+        Map.of(
+            "objectId",
+            item.toString(),
+            "expectedObjectVersion",
+            objectVersion,
+            "fields",
+            List.of(Map.of("fieldDefCode", "quantity", "value", quantity)));
+    var request =
+        Map.of(
+            "workspaceId",
+            WORKSPACE,
+            "correlationId",
+            UUID.randomUUID(),
+            "idempotencyKey",
+            "pc-output-update-" + quantity,
+            "commandType",
+            "UpdateFields",
+            "payload",
+            payload);
+    var headers = new HttpHeaders();
+    headers.setContentType(MediaType.APPLICATION_JSON);
+    headers.set("X-Actor-Id", AUTHOR.toString());
+    var response =
+        http.postForEntity(
+            "http://localhost:" + port + "/workspaces/" + WORKSPACE + "/commands",
+            new HttpEntity<>(request, headers),
+            Map.class);
+    assertEquals(200, response.getStatusCode().value(), String.valueOf(response.getBody()));
+
+    var eventPayload =
+        jdbc.queryForObject(
+            """
+            SELECT payload::text FROM event_outbox
+            WHERE event_type = 'FieldChanged' AND aggregate_id LIKE ?
+            ORDER BY created_at DESC LIMIT 1
+            """,
+            String.class,
+            item + ":%");
+    projection.apply(mapper.readValue(eventPayload, EventEnvelope.class));
+  }
+
+  private Object dataField(UUID objectId, String fieldCode) {
+    return readModel.dataSet(WORKSPACE).objects().stream()
+        .filter(object -> object.objectId().equals(objectId.toString()))
+        .findFirst()
+        .map(object -> object.fields().get(fieldCode))
+        .orElse(null);
   }
 
   private ResponseEntity<Map> postOutput(UUID snapshotId, UUID actor) {

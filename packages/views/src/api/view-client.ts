@@ -500,6 +500,50 @@ export interface WorkspaceSummary {
   readonly updatedAt: string;
 }
 
+export type ExpressionConfigKind =
+  | "grid"
+  | "canvas"
+  | "doc"
+  | "matrix"
+  | "bi"
+  | "ana";
+
+export interface ExpressionViewConfigDto {
+  readonly viewId: string;
+  readonly expressionId: string;
+  readonly kind: ExpressionConfigKind;
+  readonly config: Readonly<Record<string, unknown>>;
+  readonly version: number;
+  readonly createdBy: string;
+  readonly createdAt: string;
+  readonly updatedBy: string;
+  readonly updatedAt: string;
+}
+
+export interface ExpressionConfigDto {
+  readonly expressionId: string;
+  readonly name: string;
+  readonly space: "main" | "workshop";
+  readonly defaultViewId: string;
+  readonly defaultForm: ExpressionConfigKind;
+  readonly version: number;
+  readonly createdBy: string;
+  readonly createdAt: string;
+  readonly updatedBy: string;
+  readonly updatedAt: string;
+  readonly views: readonly ExpressionViewConfigDto[];
+}
+
+export interface CreateExpressionConfigRequest {
+  readonly name: string;
+  readonly space: "main" | "workshop";
+  readonly defaultForm: ExpressionConfigKind;
+  readonly view: {
+    readonly kind: ExpressionConfigKind;
+    readonly config: Readonly<Record<string, unknown>>;
+  };
+}
+
 export interface AiChangeSet {
   readonly setId: string;
   readonly action: string;
@@ -698,6 +742,35 @@ export class ViewClient {
 
   workspaces(): Promise<readonly WorkspaceSummary[]> {
     return this.get("/views/workspaces");
+  }
+
+  listExpressionConfigs(
+    workspaceId: string,
+    actorId: string,
+  ): Promise<readonly ExpressionConfigDto[]> {
+    return this.getWithActor(
+      `/workspaces/${workspaceId}/expression-configs`,
+      actorId,
+    );
+  }
+
+  async createExpressionConfig(
+    workspaceId: string,
+    actorId: string,
+    request: CreateExpressionConfigRequest,
+  ): Promise<ExpressionConfigDto> {
+    const response = await this.fetchFn(
+      `${this.baseUrl}/workspaces/${workspaceId}/expression-configs`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json", "X-Actor-Id": actorId },
+        body: JSON.stringify(request),
+      },
+    );
+    if (!response.ok) {
+      throw new Error(await readableExpressionConfigError(response));
+    }
+    return response.json() as Promise<ExpressionConfigDto>;
   }
 
   mappingProfiles(workspaceId: string): Promise<readonly MappingProfile[]> {
@@ -1081,6 +1154,22 @@ export class ViewClient {
 export function boundedDepth(depth: number): number {
   if (!Number.isFinite(depth)) return 1;
   return Math.min(5, Math.max(1, Math.trunc(depth)));
+}
+
+async function readableExpressionConfigError(
+  response: Response,
+): Promise<string> {
+  try {
+    const payload = (await response.json()) as {
+      readonly error?: { readonly message?: unknown };
+      readonly message?: unknown;
+    };
+    const message = payload.error?.message ?? payload.message;
+    if (typeof message === "string" && message.trim()) return message;
+  } catch {
+    // Fall through to the stable user-facing message.
+  }
+  return "表达保存失败，请检查配置后重试";
 }
 
 function validMatrixSize(size: number): boolean {

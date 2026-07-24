@@ -353,7 +353,8 @@ class RuleCommandIntegrationTest {
         post(define("latest-scoped", "field('name') == 'bad'", "name", "define-latest-scoped"))
             .getStatusCode()
             .value());
-    assertEquals(200, post(publish("latest-scoped", "publish-latest-scoped")).getStatusCode().value());
+    assertEquals(
+        200, post(publish("latest-scoped", "publish-latest-scoped")).getStatusCode().value());
     var runId = runId(post(runRuleCheck("run-latest-scoped", "demo_object")));
 
     var latest = get("/views/latest-check-run");
@@ -373,9 +374,11 @@ class RuleCommandIntegrationTest {
         post(define("status-current", "field('name') == 'bad'", "name", "define-status-current"))
             .getStatusCode()
             .value());
-    assertEquals(200, post(publish("status-current", "publish-status-current")).getStatusCode().value());
+    assertEquals(
+        200, post(publish("status-current", "publish-status-current")).getStatusCode().value());
     runId(post(runRuleCheck("run-status-blocked", null)));
-    assertEquals("BLOCK", checkResults.latestRuleStatuses(WORKSPACE, List.of(objectId)).get(objectId));
+    assertEquals(
+        "BLOCK", checkResults.latestRuleStatuses(WORKSPACE, List.of(objectId)).get(objectId));
 
     jdbc.update(
         "UPDATE rm_object SET fields = CAST(? AS jsonb) WHERE workspace_id = ? AND object_id = ?",
@@ -385,6 +388,44 @@ class RuleCommandIntegrationTest {
     runId(post(runRuleCheck("run-status-all-green", null)));
 
     assertEquals("OK", checkResults.latestRuleStatuses(WORKSPACE, List.of(objectId)).get(objectId));
+  }
+
+  @Test
+  void fullWorkspaceRuleCheckPagesBeyondOneThousandObjects() {
+    assertEquals(
+        200,
+        post(define("page-boundary", "field('name') == 'last-page'", "name", "define-page"))
+            .getStatusCode()
+            .value());
+    assertEquals(200, post(publish("page-boundary", "publish-page")).getStatusCode().value());
+    for (var index = 0; index < 1000; index++) {
+      insertReadModelObject(
+          String.format("00000000-0000-4000-8000-%012d", index), "ordinary-" + index, 1, "nobody");
+    }
+    var lastObject = UUID.fromString("ffffffff-ffff-4fff-8fff-ffffffffffff");
+    insertReadModelObject(lastObject.toString(), "last-page", 1, "nobody");
+
+    var runRequest = runRuleCheck("run-page-boundary", null);
+    var firstRun = post(runRequest);
+    var runId = runId(firstRun);
+    assertEquals(
+        1,
+        jdbc.queryForObject(
+            "SELECT count(*) FROM check_result WHERE run_id = ?::uuid AND object_id = ?",
+            Integer.class,
+            runId,
+            lastObject));
+
+    var replay = post(runRequest);
+    assertEquals(200, replay.getStatusCode().value(), String.valueOf(replay.getBody()));
+    assertTrue((Boolean) replay.getBody().get("idempotentReplay"));
+    assertEquals(
+        1,
+        jdbc.queryForObject(
+            "SELECT count(*) FROM check_result WHERE run_id = ?::uuid AND object_id = ?",
+            Integer.class,
+            runId,
+            lastObject));
   }
 
   private Map<String, Object> define(

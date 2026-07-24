@@ -383,10 +383,7 @@ public class ViewQueryController {
     return latest == null
         ? new LatestCheckRunView(null, null, null, null)
         : new LatestCheckRunView(
-            latest.runId(),
-            latest.scopeObjectTypeCode(),
-            latest.status(),
-            latest.completedAt());
+            latest.runId(), latest.scopeObjectTypeCode(), latest.status(), latest.completedAt());
   }
 
   private ScoredCandidate scoredCandidate(

@@ -7,10 +7,127 @@ import { buildDocViewModel } from "../doc/doc-view-model";
 import { buildMatrixViewModel } from "../matrix/matrix-view-model";
 import type { DataObject } from "../model/kernel";
 import { cloneDemoSeed } from "../seed/demo-seed";
+import { resolveExpressionView } from "../presentation/expression-runtime";
+import { WorkspaceStore } from "../state/workspace-store";
 import type { LatestCheckRun } from "./gateway";
 import { KernelGateway, RELATION_LOAD_CONCURRENCY } from "./kernel-gateway";
 
 describe("KernelGateway", () => {
+  it("declares workspace-persistent expression configuration support", () => {
+    const gateway = new KernelGateway("", "ws-1", "wangyun");
+    expect(gateway.capabilities.expressionPersistence).toEqual({
+      mode: "workspace-persistent",
+      reason: null,
+    });
+  });
+
+  it("loads the user expression catalog once and merges it with the preset", async () => {
+    const api = new FakeKernelApi();
+    api.expressionConfigs.push(
+      expressionConfigFixture("user-exp-grid", "user-view-grid", {
+        name: "用户采购表",
+        space: "main",
+        defaultForm: "grid",
+        view: {
+          kind: "grid",
+          config: { objectTypeCode: "product_specs", columns: ["name"] },
+        },
+      }),
+    );
+    const seed = await new KernelGateway(
+      "",
+      "ws-kernel",
+      "wangyun",
+      api.fetch,
+    ).loadWorkspace();
+
+    expect(api.expressionConfigCalls).toEqual(["GET"]);
+    expect(seed.expressions.some((item) => item.id === "exp-dashboard")).toBe(
+      true,
+    );
+    expect(seed.views.some((item) => item.id === "user-view-grid")).toBe(true);
+    const state = new WorkspaceStore(seed).getSnapshot();
+    expect(resolveExpressionView(state, "user-exp-grid", "grid").state).toBe(
+      "ready",
+    );
+  });
+
+  it("persists a user expression before atomically adding it to the store", async () => {
+    const api = new FakeKernelApi();
+    const store = new WorkspaceStore(cloneDemoSeed());
+    const gateway = new KernelGateway(
+      "",
+      "ws-kernel",
+      "wangyun",
+      api.fetch,
+    ).attachExpressionStore(store);
+    const input = {
+      name: "后端采购表",
+      space: "main" as const,
+      defaultForm: "grid" as const,
+      view: {
+        kind: "grid" as const,
+        config: { objectTypeCode: "product_specs", columns: ["name"] },
+      },
+    };
+
+    const first = gateway.createExpressionConfig(input);
+    const duplicateClick = gateway.createExpressionConfig(input);
+    expect(duplicateClick).toBe(first);
+    const created = await first;
+
+    expect(api.expressionConfigCalls).toEqual(["POST"]);
+    expect(store.getSnapshot().expressions.at(-1)?.id).toBe(
+      created.expression.id,
+    );
+    expect(store.getSnapshot().views.at(-1)?.id).toBe(created.view.id);
+  });
+
+  it("does not mutate the store when persistent expression creation fails", async () => {
+    const api = new FakeKernelApi();
+    api.failNextExpressionConfig = true;
+    const store = new WorkspaceStore(cloneDemoSeed());
+    const before = store.getSnapshot();
+    const gateway = new KernelGateway(
+      "",
+      "ws-kernel",
+      "wangyun",
+      api.fetch,
+    ).attachExpressionStore(store);
+
+    await expect(
+      gateway.createExpressionConfig({
+        name: "失败表达",
+        space: "main",
+        defaultForm: "grid",
+        view: {
+          kind: "grid",
+          config: { objectTypeCode: "product_specs", columns: [] },
+        },
+      }),
+    ).rejects.toThrow("表达保存失败，请重试");
+    expect(store.getSnapshot()).toBe(before);
+  });
+
+  it("rejects a persisted expression id collision instead of overwriting the preset", async () => {
+    const api = new FakeKernelApi();
+    api.expressionConfigs.push(
+      expressionConfigFixture("exp-dashboard", "user-view-collision", {
+        name: "冲突表达",
+        space: "main",
+        defaultForm: "grid",
+        view: {
+          kind: "grid",
+          config: { objectTypeCode: "product_specs", columns: ["name"] },
+        },
+      }),
+    );
+
+    await expect(
+      new KernelGateway("", "ws-kernel", "wangyun", api.fetch).loadWorkspace(),
+    ).rejects.toThrow("用户表达标识与内置表达冲突");
+  });
+
   it("loads paged objects and relations without bulk-loading history", async () => {
     const api = new FakeKernelApi();
     api.seedObjects(101);
@@ -864,6 +981,9 @@ class FakeKernelApi {
   readonly objectDetailCalls: string[] = [];
   readonly failObjectDetails = new Set<string>();
   readonly objectPageCalls: number[] = [];
+  expressionConfigs: ExpressionConfigFixture[] = [];
+  readonly expressionConfigCalls: string[] = [];
+  failNextExpressionConfig = false;
   readonly commands: {
     readonly actorId: string | null;
     readonly commandType: string;
@@ -992,6 +1112,25 @@ class FakeKernelApi {
           updatedAt: "2026-07-10T10:24:00+08:00",
         },
       ]);
+    }
+    if (url.pathname.endsWith("/expression-configs")) {
+      this.expressionConfigCalls.push(init?.method ?? "GET");
+      if (init?.method !== "POST") return json(this.expressionConfigs);
+      if (this.failNextExpressionConfig) {
+        this.failNextExpressionConfig = false;
+        return json({ error: { message: "表达保存失败，请重试" } }, 500);
+      }
+      const request = JSON.parse(
+        String(init.body),
+      ) as ExpressionConfigRequestFixture;
+      const created = expressionConfigFixture(
+        `user-exp-${this.expressionConfigs.length + 1}`,
+        `user-view-${this.expressionConfigs.length + 1}`,
+        request,
+        readHeader(init.headers, "X-Actor-Id") ?? "unknown",
+      );
+      this.expressionConfigs.push(created);
+      return json(created);
     }
     if (url.pathname.endsWith("/views/object-types")) {
       return json(this.objectTypes);
@@ -1266,10 +1405,15 @@ class FakeKernelApi {
             computed: true,
             readOnly: true,
           }),
-          fieldType("requirement_max_total_power_w_fx", "需求最大总功耗", "number", {
-            computed: true,
-            readOnly: true,
-          }),
+          fieldType(
+            "requirement_max_total_power_w_fx",
+            "需求最大总功耗",
+            "number",
+            {
+              computed: true,
+              readOnly: true,
+            },
+          ),
           fieldType("total_performance_score_fx", "方案性能分", "number", {
             computed: true,
             readOnly: true,
@@ -1657,6 +1801,30 @@ interface ViewObjectFixture {
   readonly ruleStatus: "BLOCK" | "WARN" | "OK" | "UNKNOWN";
 }
 
+interface ExpressionConfigRequestFixture {
+  readonly name: string;
+  readonly space: "main" | "workshop";
+  readonly defaultForm: "grid" | "canvas" | "doc" | "matrix" | "bi" | "ana";
+  readonly view: {
+    readonly kind: "grid" | "canvas" | "doc" | "matrix" | "bi" | "ana";
+    readonly config: Record<string, unknown>;
+  };
+}
+
+interface ExpressionConfigFixture {
+  readonly expressionId: string;
+  readonly name: string;
+  readonly space: "main" | "workshop";
+  readonly defaultViewId: string;
+  readonly defaultForm: ExpressionConfigRequestFixture["defaultForm"];
+  readonly version: number;
+  readonly createdBy: string;
+  readonly createdAt: string;
+  readonly updatedBy: string;
+  readonly updatedAt: string;
+  readonly views: readonly Record<string, unknown>[];
+}
+
 interface RelationFixture {
   readonly relationId: string;
   readonly relationType: string;
@@ -1970,6 +2138,40 @@ function outputMeta(
     createdAt: "2026-07-10T10:25:00+08:00",
     createdBy: actor,
     contentHash: "output-hash",
+  };
+}
+
+function expressionConfigFixture(
+  expressionId: string,
+  viewId: string,
+  request: ExpressionConfigRequestFixture,
+  actor = "wangyun",
+): ExpressionConfigFixture {
+  const at = "2026-07-22T10:00:00Z";
+  return {
+    expressionId,
+    name: request.name,
+    space: request.space,
+    defaultViewId: viewId,
+    defaultForm: request.defaultForm,
+    version: 1,
+    createdBy: actor,
+    createdAt: at,
+    updatedBy: actor,
+    updatedAt: at,
+    views: [
+      {
+        viewId,
+        expressionId,
+        kind: request.view.kind,
+        config: request.view.config,
+        version: 1,
+        createdBy: actor,
+        createdAt: at,
+        updatedBy: actor,
+        updatedAt: at,
+      },
+    ],
   };
 }
 

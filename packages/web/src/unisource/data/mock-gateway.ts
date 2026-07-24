@@ -42,10 +42,15 @@ import type {
   ExchangeFormat,
   Lineage,
   LatestCheckRun,
+  ExpressionConfigCreateInput,
+  ExpressionConfigCreated,
+  GatewayCapabilities,
   UnisourceGateway,
 } from "./gateway";
+import { MOCK_GATEWAY_CAPABILITIES } from "./gateway";
 
 export class MockUnisourceGateway implements UnisourceGateway {
+  readonly capabilities: GatewayCapabilities = MOCK_GATEWAY_CAPABILITIES;
   private readonly workspace: WorkspaceStore;
   private readonly changeSets: ChangeSetStore;
   private readonly validationRuns = new Map<string, readonly RuleOutcome[]>();
@@ -57,9 +62,9 @@ export class MockUnisourceGateway implements UnisourceGateway {
     completedAt: null,
   };
 
-  constructor(seed: DemoSeed = cloneDemoSeed()) {
+  constructor(seed: DemoSeed = cloneDemoSeed(), workspace?: WorkspaceStore) {
     const initialSeed = structuredClone(seed) as DemoSeed;
-    this.workspace = new WorkspaceStore(initialSeed);
+    this.workspace = workspace ?? new WorkspaceStore(initialSeed);
     this.changeSets = new ChangeSetStore(initialSeed, this.workspace);
   }
 
@@ -71,6 +76,29 @@ export class MockUnisourceGateway implements UnisourceGateway {
     return structuredClone(
       toDemoSeed(this.workspace.getSnapshot(), this.changeSets.getSnapshot()),
     );
+  }
+
+  async createExpressionConfig(
+    input: ExpressionConfigCreateInput,
+  ): Promise<ExpressionConfigCreated> {
+    const expressionId = `exp-${crypto.randomUUID()}`;
+    const viewId = `view-${crypto.randomUUID()}`;
+    const snapshot = this.workspace.getSnapshot();
+    const result = this.workspace.addExpressionConfig({
+      expression: {
+        id: expressionId,
+        name: input.name,
+        space: input.space,
+        viewIds: [viewId],
+        defaultViewId: viewId,
+        defaultForm: input.defaultForm,
+        activityMember: snapshot.workspace.currentMemberId,
+        lastActivity: new Date().toISOString(),
+      },
+      view: { id: viewId, exprId: expressionId, ...input.view },
+    });
+    if (result.state === "invalid") throw new Error(result.message);
+    return result;
   }
 
   async updateField(

@@ -45,8 +45,12 @@ export function StructuredDocumentOutputAction({
       {output.lastOutput ? (
         <span>
           <small>制品：{output.lastOutput.outputId}</small>
-          <UsMonoTag>{outputCheckStatusLabel(output.lastOutput.checkStatus)}</UsMonoTag>
-          <UsMonoTag>{outputReviewStatusLabel(output.lastOutput.reviewStatus)}</UsMonoTag>
+          <UsMonoTag>
+            {outputCheckStatusLabel(output.lastOutput.checkStatus)}
+          </UsMonoTag>
+          <UsMonoTag>
+            {outputReviewStatusLabel(output.lastOutput.reviewStatus)}
+          </UsMonoTag>
         </span>
       ) : null}
     </div>

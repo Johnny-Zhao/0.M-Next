@@ -1,5 +1,11 @@
 import { useSyncExternalStore } from "react";
 
+import {
+  MOCK_GATEWAY_CAPABILITIES,
+  type GatewayCapabilities,
+  type UnisourceGateway,
+} from "./gateway";
+
 export const BACKEND_STORAGE_KEY = "ui.us.backend";
 export const WORKSPACE_STORAGE_KEY = "ui.us.workspaceId";
 
@@ -14,6 +20,11 @@ export interface KernelRuntimeState {
   readonly workspaceId: string | null;
   readonly templateCode: string | null;
   readonly reportLabel: string | null;
+  readonly gatewayCapabilities: GatewayCapabilities;
+  readonly expressionGateway: Pick<
+    UnisourceGateway,
+    "createExpressionConfig"
+  > | null;
 }
 
 type StorageLike = Pick<Storage, "getItem" | "setItem" | "removeItem">;
@@ -24,6 +35,8 @@ let runtimeState: KernelRuntimeState = {
   workspaceId: null,
   templateCode: null,
   reportLabel: null,
+  gatewayCapabilities: MOCK_GATEWAY_CAPABILITIES,
+  expressionGateway: null,
 };
 const listeners = new Set<Listener>();
 
