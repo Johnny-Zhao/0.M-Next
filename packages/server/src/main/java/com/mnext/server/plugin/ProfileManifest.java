@@ -18,7 +18,45 @@ public record ProfileManifest(
     List<Field> fields,
     List<Relation> relations,
     List<DerivedField> derived,
-    List<Rule> rules) {
+    List<Rule> rules,
+    CatalogLayout catalog) {
+  public ProfileManifest(
+      String id,
+      String name,
+      String version,
+      String templateCode,
+      String kind,
+      String sourceProfile,
+      String targetProfile,
+      Tags tags,
+      List<ValueType> valueTypes,
+      List<ObjectType> objectTypes,
+      List<Field> fields,
+      List<Relation> relations,
+      List<DerivedField> derived,
+      List<Rule> rules) {
+    this(
+        id,
+        name,
+        version,
+        templateCode,
+        kind,
+        sourceProfile,
+        targetProfile,
+        tags,
+        valueTypes,
+        objectTypes,
+        fields,
+        relations,
+        derived,
+        rules,
+        null);
+  }
+
+  public CatalogLayout catalogOrEmpty() {
+    return catalog == null ? new CatalogLayout(List.of(), List.of()) : catalog;
+  }
+
   public List<ValueType> valueTypesOrEmpty() {
     return valueTypes == null ? List.of() : valueTypes;
   }
@@ -122,4 +160,19 @@ public record ProfileManifest(
       String suggest,
       JsonNode fix,
       Boolean lightweight) {}
+
+  public record CatalogLayout(List<Directory> directories, List<Placement> placements) {
+    public List<Directory> directoriesOrEmpty() {
+      return directories == null ? List.of() : directories;
+    }
+
+    public List<Placement> placementsOrEmpty() {
+      return placements == null ? List.of() : placements;
+    }
+  }
+
+  public record Directory(
+      String code, String name, @JsonAlias("parent") String parentCode, Integer sortOrder) {}
+
+  public record Placement(String objectTypeCode, String directoryCode, Integer sortOrder) {}
 }

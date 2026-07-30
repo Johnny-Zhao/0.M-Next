@@ -4,6 +4,22 @@ import { CommandClient, CommandFailure } from "./command-client";
 import { ViewClient, type FetchFn } from "./view-client";
 
 describe("view and command clients", () => {
+  it("reads the workspace-scoped data catalog with the actor", async () => {
+    const fetchFn = vi.fn<FetchFn>(
+      async () =>
+        new Response(
+          JSON.stringify({ workspaceId: "ws", directories: [], libraries: [] }),
+        ),
+    );
+
+    await new ViewClient("/api", fetchFn).dataCatalog("ws", "actor-1");
+
+    expect(fetchFn.mock.calls[0]?.[0]).toBe("/api/workspaces/ws/data-catalog");
+    expect(fetchFn.mock.calls[0]?.[1]?.headers).toEqual({
+      "X-Actor-Id": "actor-1",
+    });
+  });
+
   it("scopes paged object reads and caps page size", async () => {
     const fetchFn = vi.fn<FetchFn>(
       async () =>

@@ -17,6 +17,38 @@ describe("MockUnisourceGateway", () => {
     expect(gateway.capabilities.expressionPersistence.mode).toBe(
       "workspace-session",
     );
+    await expect(gateway.loadDataCatalog()).resolves.toMatchObject({
+      workspaceId: "ws-unisource-demo",
+      directories: [{ code: "data-source" }],
+    });
+  });
+
+  it("returns an empty library list when the mock workspace has no object types", async () => {
+    const seed = cloneDemoSeed();
+    const gateway = new MockUnisourceGateway({ ...seed, objectTypes: [] });
+
+    await expect(gateway.loadDataCatalog()).resolves.toMatchObject({
+      workspaceId: seed.workspace.id,
+      directories: [{ code: "data-source" }],
+      libraries: [],
+    });
+  });
+
+  it("provides paged catalog records without expanding another object type", async () => {
+    const gateway = new MockUnisourceGateway();
+
+    const page = await gateway.loadDataCatalogRecords("product_specs", 0, 1);
+
+    expect(page).toMatchObject({
+      objectTypeCode: "product_specs",
+      page: 0,
+      pageSize: 1,
+      total: 8,
+    });
+    expect(page.items).toHaveLength(1);
+    await expect(
+      gateway.loadDataCatalogRecords("product_specs", 0, 51),
+    ).rejects.toThrow("1..50");
   });
 
   it("persists updateField writes into the next loadWorkspace snapshot", async () => {

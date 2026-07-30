@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 
 import "@xyflow/react/dist/style.css";
@@ -8,15 +9,26 @@ import { UsToastHost } from "./primitives";
 import { ExpressionCreateDialog } from "./expression/expression-create-dialog";
 import { US_BASENAME } from "./routes-paths";
 import { ViewportGuard } from "./shell/viewport-guard";
+import { UniSourceUiProvider } from "./ui/uni-source-ui-provider";
 import { AccessPage } from "./pages/access-page";
 import { ExprPage } from "./pages/expr-page";
 import { HomePage } from "./pages/home-page";
 import { ImportPage } from "./pages/import-page";
 import { NotFoundPage } from "./pages/not-found-page";
 import { PluginsPage } from "./pages/plugins-page";
-import { PreviewPage } from "./pages/preview-page";
 import { SourcePage } from "./pages/source-page";
 import { ValidatePage } from "./pages/validate-page";
+
+const PreviewRoute = lazy(() => import("./ui/preview-route"));
+
+function PreviewRouteLoading() {
+  return (
+    <div className="us-empty" role="status">
+      <span className="us-empty__kicker">PREVIEW</span>
+      <p className="us-empty__title">正在加载组件预览…</p>
+    </div>
+  );
+}
 
 /**
  * 同源 UniSource 应用壳(路由映射见 docs/前端实施计划-同源主版本页面集.md §A)。
@@ -25,23 +37,32 @@ import { ValidatePage } from "./pages/validate-page";
 export function UnisourceApp() {
   return (
     <BrowserRouter basename={US_BASENAME}>
-      <div className="us-app">
-        <Routes>
-          <Route path="/" element={<Navigate to="/home" replace />} />
-          <Route path="/home" element={<HomePage />} />
-          <Route path="/source/validate" element={<ValidatePage />} />
-          <Route path="/source/:sourceId" element={<SourcePage />} />
-          <Route path="/expr/:exprId" element={<ExprPage />} />
-          <Route path="/import" element={<ImportPage />} />
-          <Route path="/settings/plugins" element={<PluginsPage />} />
-          <Route path="/settings/access" element={<AccessPage />} />
-          <Route path="/preview" element={<PreviewPage />} />
-          <Route path="*" element={<NotFoundPage />} />
-        </Routes>
-        <ExpressionCreateDialog />
-      </div>
-      <UsToastHost />
-      <ViewportGuard />
+      <UniSourceUiProvider>
+        <div className="us-app">
+          <Routes>
+            <Route path="/" element={<Navigate to="/home" replace />} />
+            <Route path="/home" element={<HomePage />} />
+            <Route path="/source/validate" element={<ValidatePage />} />
+            <Route path="/source/:sourceId" element={<SourcePage />} />
+            <Route path="/expr/:exprId" element={<ExprPage />} />
+            <Route path="/import" element={<ImportPage />} />
+            <Route path="/settings/plugins" element={<PluginsPage />} />
+            <Route path="/settings/access" element={<AccessPage />} />
+            <Route
+              path="/preview"
+              element={
+                <Suspense fallback={<PreviewRouteLoading />}>
+                  <PreviewRoute />
+                </Suspense>
+              }
+            />
+            <Route path="*" element={<NotFoundPage />} />
+          </Routes>
+          <ExpressionCreateDialog />
+        </div>
+        <UsToastHost />
+        <ViewportGuard />
+      </UniSourceUiProvider>
     </BrowserRouter>
   );
 }

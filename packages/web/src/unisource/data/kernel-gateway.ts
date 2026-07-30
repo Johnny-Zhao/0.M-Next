@@ -4,6 +4,7 @@ import {
   ViewClient,
   type CheckResultItem,
   type CreateExpressionConfigRequest,
+  type DataCatalogDto,
   type ExpressionConfigDto,
   type FetchFn,
   type ObjectType,
@@ -75,6 +76,8 @@ import type {
   ExchangeFormat,
   Lineage,
   LatestCheckRun,
+  WorkspaceDataCatalog,
+  DataCatalogRecordPage,
   GatewayCapabilities,
   ExpressionConfigCreateInput,
   ExpressionConfigCreated,
@@ -223,6 +226,44 @@ export class KernelGateway implements UnisourceGateway {
       () => this.clearInFlightWorkspaceLoad(load),
     );
     return load;
+  }
+
+  async loadDataCatalog(): Promise<WorkspaceDataCatalog> {
+    return mapDataCatalog(
+      await this.viewClient.dataCatalog(this.workspaceId, this.currentActor),
+    );
+  }
+
+  async loadDataCatalogRecords(
+    objectTypeCode: string,
+    page: number,
+    pageSize: number,
+  ): Promise<DataCatalogRecordPage> {
+    if (page < 0 || pageSize < 1 || pageSize > 50) {
+      throw new Error("Catalog record page must be within 1..50");
+    }
+    const result = await this.viewClient.objects(
+      this.workspaceId,
+      objectTypeCode,
+      page,
+      pageSize,
+    );
+    if (result.items.some((item) => item.objectType !== objectTypeCode)) {
+      throw new Error("Catalog record page contains a different object type");
+    }
+    return {
+      objectTypeCode,
+      page: result.page,
+      pageSize: result.pageSize,
+      total: result.total,
+      items: result.items.map((item) => ({
+        objectId: item.objectId,
+        objectTypeCode: item.objectType,
+        code: catalogText(item.fields.code),
+        name: catalogText(item.fields.name),
+        status: item.status,
+      })),
+    };
   }
 
   private clearInFlightWorkspaceLoad(load: Promise<DemoSeed>): void {
@@ -1289,6 +1330,25 @@ function byId<T extends { readonly id: string }>(
   items: readonly T[],
 ): ReadonlyMap<string, T> {
   return new Map(items.map((item) => [item.id, item]));
+}
+
+function mapDataCatalog(catalog: DataCatalogDto): WorkspaceDataCatalog {
+  return {
+    workspaceId: catalog.workspaceId,
+    directories: [...catalog.directories].sort(
+      (left, right) =>
+        left.sortOrder - right.sortOrder || left.code.localeCompare(right.code),
+    ),
+    libraries: [...catalog.libraries].sort(
+      (left, right) =>
+        left.sortOrder - right.sortOrder ||
+        left.objectTypeCode.localeCompare(right.objectTypeCode),
+    ),
+  };
+}
+
+function catalogText(value: unknown): string | null {
+  return typeof value === "string" && value.trim() ? value : null;
 }
 
 function isString(value: string | null): value is string {

@@ -1,5 +1,11 @@
 # 决策记录（一行一条，新决策追加在顶部）
 
+- 2026-07-24 **Data Catalog v1 workspace identity**：directory.code 与 Record Library.objectTypeCode 在同一工作空间内全局唯一；跨 Profile 冲突必须拒绝，不允许静默覆盖。模板限定复合身份留待后续独立设计。
+
+- 2026-07-24 **Data Catalog 语义边界**：Data Catalog 是工作空间导航组织元数据；Directory 不等于 DataObject，Record Library 对应 ObjectTypeDef，且不等于 DataRelation 模型树。本卡仅提供目录和记录库，记录/字段懒加载留给 T-CAT02。
+
+- 2026-07-24 **Ant Design 受控接入**：依据 ADR-012 固定使用已批准的 antd@6.5.1，仅经 `packages/web/src/unisource/ui/**` adapter 接入；`/us/preview` 保留技术验证用途，Data Catalog 正式只读目录树可经 `UsDataCatalogTree` 使用 antd Tree，不得任意扩散至生产页面；Form、Modal、Table 等生产迁移仍需独立任务确认。
+
 - 2026-07-17 **错误码前缀清单补录**:AUTH-/RBAC- 前缀经 contracts/权限矩阵.md 注册,属 AG-311 清单漏同步;补录清单,全部错误码保持现状(电脑卡22b 由改码卡改为本补录卡)。
 
 - 2026-07-15 **电脑采购插件边界**：电脑采购是 M-Next 的第一个领域插件验证样例，用于验证统一数据源、语义 Profile、派生校验、多视图和文档链路；不得将其扩展为独立采购 ERP。未来领域插件必须通过注册机制接入通用工作台。

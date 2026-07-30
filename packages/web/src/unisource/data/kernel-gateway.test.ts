@@ -21,6 +21,68 @@ describe("KernelGateway", () => {
     });
   });
 
+  it("maps the workspace-scoped catalog without loading records", async () => {
+    const api = new FakeKernelApi();
+    const catalog = await new KernelGateway(
+      "",
+      "ws-kernel",
+      "wangyun",
+      api.fetch,
+    ).loadDataCatalog();
+
+    expect(catalog).toEqual({
+      workspaceId: "ws-kernel",
+      directories: [
+        {
+          code: "data-source",
+          name: "Data source",
+          parentCode: null,
+          sortOrder: 0,
+        },
+      ],
+      libraries: [
+        {
+          objectTypeCode: "product_specs",
+          directoryCode: "data-source",
+          sortOrder: 0,
+          recordCount: 2,
+        },
+      ],
+    });
+    expect(api.objectPageCalls).toEqual([]);
+  });
+
+  it("loads one catalog record page through the workspace-scoped object query", async () => {
+    const api = new FakeKernelApi();
+    api.seedObjects(2);
+    const requests: URL[] = [];
+    const fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = new URL(String(input), "http://localhost");
+      if (url.pathname.endsWith("/views/objects")) requests.push(url);
+      return api.fetch(input, init);
+    };
+
+    const page = await new KernelGateway(
+      "",
+      "ws-kernel",
+      "wangyun",
+      fetch,
+    ).loadDataCatalogRecords("product_specs", 0, 50);
+
+    expect(requests).toHaveLength(1);
+    expect(requests[0]?.searchParams.get("objectType")).toBe("product_specs");
+    expect(requests[0]?.searchParams.get("pageSize")).toBe("50");
+    expect(page).toMatchObject({
+      objectTypeCode: "product_specs",
+      page: 0,
+      total: 2,
+    });
+    expect(page.items.map((item) => item.objectId)).toEqual([
+      "kernel-prod-s3",
+      "kernel-prod-g2",
+    ]);
+  });
+
   it("loads the user expression catalog once and merges it with the preset", async () => {
     const api = new FakeKernelApi();
     api.expressionConfigs.push(
@@ -1112,6 +1174,27 @@ class FakeKernelApi {
           updatedAt: "2026-07-10T10:24:00+08:00",
         },
       ]);
+    }
+    if (url.pathname.endsWith("/data-catalog")) {
+      return json({
+        workspaceId: "ws-kernel",
+        directories: [
+          {
+            code: "data-source",
+            name: "Data source",
+            parentCode: null,
+            sortOrder: 0,
+          },
+        ],
+        libraries: [
+          {
+            objectTypeCode: "product_specs",
+            directoryCode: "data-source",
+            sortOrder: 0,
+            recordCount: 2,
+          },
+        ],
+      });
     }
     if (url.pathname.endsWith("/expression-configs")) {
       this.expressionConfigCalls.push(init?.method ?? "GET");

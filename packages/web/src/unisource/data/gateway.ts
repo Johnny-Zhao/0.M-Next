@@ -79,6 +79,38 @@ export interface ExpressionConfigCreated {
   readonly view: ViewDef;
 }
 
+export interface WorkspaceDataCatalog {
+  readonly workspaceId: string;
+  readonly directories: readonly {
+    readonly code: string;
+    readonly name: string;
+    readonly parentCode: string | null;
+    readonly sortOrder: number;
+  }[];
+  readonly libraries: readonly {
+    readonly objectTypeCode: string;
+    readonly directoryCode: string;
+    readonly sortOrder: number;
+    readonly recordCount: number;
+  }[];
+}
+
+export interface DataCatalogRecord {
+  readonly objectId: string;
+  readonly objectTypeCode: string;
+  readonly code: string | null;
+  readonly name: string | null;
+  readonly status: string;
+}
+
+export interface DataCatalogRecordPage {
+  readonly objectTypeCode: string;
+  readonly items: readonly DataCatalogRecord[];
+  readonly page: number;
+  readonly pageSize: number;
+  readonly total: number;
+}
+
 export interface SnapshotArtifact {
   readonly snapshotId: string;
   readonly createdBy: string;
@@ -279,6 +311,16 @@ export interface UnisourceGateway {
    * @gap G8/G9: field provenance and history detail remain coarse.
    */
   loadWorkspace(): Promise<DemoSeed>;
+
+  /** Read catalog metadata only; records and fields remain lazy-loaded. */
+  loadDataCatalog(): Promise<WorkspaceDataCatalog>;
+
+  /** Read one record-library page without scanning other object types. */
+  loadDataCatalogRecords(
+    objectTypeCode: string,
+    page: number,
+    pageSize: number,
+  ): Promise<DataCatalogRecordPage>;
 
   /** Persist one user Expression and its initial View as workspace configuration. */
   createExpressionConfig(

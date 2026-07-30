@@ -93,6 +93,7 @@ class DevSeedRunnerIntegrationTest {
   @Autowired RuleCheckRunner ruleChecks;
   @Autowired DevSeedRunner runner;
   @Autowired PcProcurementDevSeeder pcProcurementSeeder;
+  @Autowired DataCatalogRepository catalogs;
   @Autowired SnapshotRepository snapshots;
   @LocalServerPort int port;
 
@@ -257,6 +258,29 @@ class DevSeedRunnerIntegrationTest {
   @Test
   void pcProcurementProfileAndSeedAreInstalled() {
     assertEquals(PC_PROCUREMENT_TYPES, runtimeObjectTypeCodes(PC_PROCUREMENT_WORKSPACE));
+    var catalog = catalogs.catalog(PC_PROCUREMENT_WORKSPACE);
+    assertEquals(
+        List.of("procurement-center", "requirements", "plans", "parts", "suppliers"),
+        catalog.directories().stream().map(DataCatalogRepository.CatalogDirectory::code).toList());
+    assertEquals(
+        Map.of(
+            "procurement_requirement",
+            "requirements",
+            "build_plan",
+            "plans",
+            "build_plan_item",
+            "plans",
+            "hardware_product",
+            "parts",
+            "supplier",
+            "suppliers",
+            "supplier_quote",
+            "suppliers"),
+        catalog.libraries().stream()
+            .collect(
+                java.util.stream.Collectors.toMap(
+                    DataCatalogRepository.CatalogLibrary::objectTypeCode,
+                    DataCatalogRepository.CatalogLibrary::directoryCode)));
     assertTrue(enumFieldAllows(PC_PROCUREMENT_WORKSPACE, "hardware_product", "category", "CASE"));
     assertTrue(enumFieldAllows(PC_PROCUREMENT_WORKSPACE, "hardware_product", "category", "COOLER"));
     assertTrue(

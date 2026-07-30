@@ -25,6 +25,10 @@ export interface KernelRuntimeState {
     UnisourceGateway,
     "createExpressionConfig"
   > | null;
+  readonly catalogGateway: Pick<
+    UnisourceGateway,
+    "loadDataCatalog" | "loadDataCatalogRecords"
+  > | null;
 }
 
 type StorageLike = Pick<Storage, "getItem" | "setItem" | "removeItem">;
@@ -37,6 +41,7 @@ let runtimeState: KernelRuntimeState = {
   reportLabel: null,
   gatewayCapabilities: MOCK_GATEWAY_CAPABILITIES,
   expressionGateway: null,
+  catalogGateway: null,
 };
 const listeners = new Set<Listener>();
 

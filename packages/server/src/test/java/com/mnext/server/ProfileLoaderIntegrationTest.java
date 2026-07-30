@@ -2,6 +2,7 @@ package com.mnext.server;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -14,6 +15,7 @@ import java.math.BigDecimal;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -136,6 +138,342 @@ class ProfileLoaderIntegrationTest {
     assertEquals("建筑装饰", tags.get("industry").get(0).asText());
     assertEquals("室内设计", tags.get("profession").get(0).asText());
     assertEquals("户型评估", tags.get("scenario").get(0).asText());
+  }
+
+  @Test
+  void installsCatalogLayoutIdempotentlyAndFallsBackForProfilesWithoutOne() throws Exception {
+    var manifest = catalogProfile(fixture(), "profile-loader-catalog", "profile_loader_catalog");
+    loader.install(manifest, Actor.user(ACTOR));
+    var workspace = UUID.randomUUID();
+    assertOk(
+        meta(
+            AUTHOR,
+            instantiate(templateId(manifest.templateCode()), workspace, "instantiate-catalog")));
+    createObject(
+        workspace,
+        objectType(workspace, "room"),
+        "create-catalog-room",
+        Map.of("name", "Catalog Room", "base_score", 0));
+
+    var catalog = catalog(workspace);
+    assertEquals(
+        List.of("root", "child"),
+        catalogDirectories(catalog).stream().map(item -> item.get("code")).toList());
+    assertEquals(
+        List.of("fixture", "room"),
+        catalogLibraries(catalog).stream().map(item -> item.get("objectTypeCode")).toList());
+    assertEquals(1, catalogLibrary(catalog, "room").get("recordCount"));
+    var otherWorkspace = UUID.randomUUID();
+    assertOk(
+        meta(
+            AUTHOR,
+            instantiate(
+                templateId(manifest.templateCode()), otherWorkspace, "instantiate-catalog-other")));
+    createObject(
+        otherWorkspace,
+        objectType(otherWorkspace, "room"),
+        "create-catalog-other-room",
+        Map.of("name", "Other Catalog Room", "base_score", 0));
+    assertEquals(1, catalogLibrary(catalog(workspace), "room").get("recordCount"));
+    loader.install(manifest, Actor.user(ACTOR));
+    assertEquals(2, catalogDirectoryCount(workspace));
+    assertEquals(2, catalogLibraryCount(workspace));
+
+    var fallback =
+        profileVariant(
+            fixture(), "profile-loader-catalog-fallback", "profile_loader_catalog_fallback");
+    loader.install(fallback, Actor.user(ACTOR));
+    var fallbackWorkspace = UUID.randomUUID();
+    assertOk(
+        meta(
+            AUTHOR,
+            instantiate(
+                templateId(fallback.templateCode()),
+                fallbackWorkspace,
+                "instantiate-catalog-fallback")));
+    var fallbackCatalog = catalog(fallbackWorkspace);
+    assertTrue(
+        ((String) catalogDirectories(fallbackCatalog).getFirst().get("code"))
+            .startsWith("data-source-profile-loader-catalog-fallback-"));
+    assertEquals(2, catalogLibraries(fallbackCatalog).size());
+  }
+
+  @Test
+  void keepsEmptyCatalogLayoutsAndSynchronizesAppliedProfileUpgrades() throws Exception {
+    var base =
+        withCatalog(
+            profileVariant(fixture(), "catalog-base", "profile_loader_catalog_base"),
+            emptyCatalog("base-root"));
+    var addon = catalogProfile(fixture(), "catalog-addon", "profile_loader_catalog_addon");
+    var empty =
+        new ProfileManifest(
+            "catalog-empty",
+            "Empty Catalog",
+            "1.0.0",
+            "profile_loader_catalog_empty",
+            "domain",
+            null,
+            null,
+            addon.tags(),
+            addon.valueTypes(),
+            addon.objectTypes(),
+            addon.fields(),
+            addon.relations(),
+            addon.derived(),
+            profileVariant(addon, "catalog-empty", "profile_loader_catalog_empty").rules(),
+            new ProfileManifest.CatalogLayout(
+                List.of(new ProfileManifest.Directory("other-root", "Other", null, 10)),
+                List.of()));
+    loader.install(base, Actor.user(ACTOR));
+    loader.install(addon, Actor.user(ACTOR));
+    loader.install(empty, Actor.user(ACTOR));
+
+    var workspace = UUID.randomUUID();
+    assertOk(
+        meta(
+            AUTHOR,
+            instantiate(templateId(base.templateCode()), workspace, "instantiate-catalog-base")));
+    assertOk(
+        meta(
+            workspace,
+            applyProfile(workspace, templateId(addon.templateCode()), 1, "apply-catalog-addon")));
+    assertOk(
+        meta(
+            workspace,
+            applyProfile(workspace, templateId(empty.templateCode()), 1, "apply-empty-catalog")));
+    assertTrue(
+        catalogDirectories(catalog(workspace)).stream()
+            .anyMatch(item -> "other-root".equals(item.get("code"))));
+
+    var upgraded =
+        new ProfileManifest(
+            addon.id(),
+            addon.name(),
+            "1.1.0",
+            addon.templateCode(),
+            "domain",
+            null,
+            null,
+            addon.tags(),
+            addon.valueTypes(),
+            addon.objectTypes(),
+            addon.fields(),
+            addon.relations(),
+            addon.derived(),
+            addon.rules(),
+            new ProfileManifest.CatalogLayout(
+                List.of(
+                    new ProfileManifest.Directory("root", "Root", null, 10),
+                    new ProfileManifest.Directory("relocated", "Relocated", "root", 20)),
+                List.of(new ProfileManifest.Placement("room", "relocated", 10))));
+    loader.install(upgraded, Actor.user(ACTOR));
+
+    var catalog = catalog(workspace);
+    var upgradedVersion = templateVersionId(addon.templateCode(), 2);
+    assertEquals(0, templateCatalogCount("template_catalog_directory", upgradedVersion, "child"));
+    assertEquals(0, templateCatalogCount("template_catalog_library", upgradedVersion, "fixture"));
+    assertEquals("relocated", catalogLibrary(catalog, "room").get("directoryCode"));
+    assertFalse(
+        catalogLibraries(catalog).stream()
+            .anyMatch(item -> "fixture".equals(item.get("objectTypeCode"))));
+    assertFalse(
+        catalogDirectories(catalog).stream().anyMatch(item -> "child".equals(item.get("code"))));
+    assertTrue(
+        catalogDirectories(catalog).stream()
+            .anyMatch(item -> "other-root".equals(item.get("code"))));
+    assertEquals(upgradedVersion, catalogDirectorySource(workspace, "root"));
+    assertEquals(upgradedVersion, catalogLibrarySource(workspace, "room"));
+    assertEquals(Set.of("workspaceId", "directories", "libraries"), catalog.keySet());
+    assertThrows(
+        org.springframework.dao.DataIntegrityViolationException.class,
+        () ->
+            jdbc.update(
+                """
+                INSERT INTO workspace_catalog_directory
+                  (workspace_id, code, name, parent_code, sort_order, source_template_version_id, installed_by, installed_at)
+                VALUES (?, 'invalid-parent', 'Invalid', 'missing', 0, ?, ?, CURRENT_TIMESTAMP)
+                """,
+                workspace,
+                upgradedVersion,
+                ACTOR));
+  }
+
+  @Test
+  void scopesFallbackCatalogsToTheirProfilesAndKeepsTemplateCodesStable() throws Exception {
+    var first = legacyProfile("legacy-first", "legacy_first", "legacy_room");
+    var second = legacyProfile("legacy-second", "legacy_second", "legacy_fixture");
+    loader.install(first, Actor.user(ACTOR));
+    loader.install(second, Actor.user(ACTOR));
+
+    var workspace = UUID.randomUUID();
+    assertOk(
+        meta(
+            AUTHOR,
+            instantiate(templateId(first.templateCode()), workspace, "instantiate-legacy-first")));
+    assertOk(
+        meta(
+            workspace,
+            applyProfile(workspace, templateId(second.templateCode()), 1, "apply-legacy-second")));
+
+    var initialCatalog = catalog(workspace);
+    assertEquals(Set.of("legacy_room", "legacy_fixture"), catalogObjectTypeCodes(initialCatalog));
+    var firstDirectory = catalogLibrary(initialCatalog, "legacy_room").get("directoryCode");
+    var secondDirectory = catalogLibrary(initialCatalog, "legacy_fixture").get("directoryCode");
+    assertNotEquals(firstDirectory, secondDirectory);
+    assertTrue(((String) firstDirectory).startsWith("data-source-legacy-first-"));
+    assertTrue(((String) secondDirectory).startsWith("data-source-legacy-second-"));
+
+    loader.install(first, Actor.user(ACTOR));
+    assertEquals(2, catalogDirectoryCount(workspace));
+    assertEquals(2, catalogLibraryCount(workspace));
+
+    var upgraded = legacyProfile(first.id(), first.templateCode(), "1.0.1", "legacy_room");
+    loader.install(upgraded, Actor.user(ACTOR));
+    assertEquals(
+        firstDirectory, catalogLibrary(catalog(workspace), "legacy_room").get("directoryCode"));
+    assertEquals(2, catalogDirectoryCount(workspace));
+
+    var explicit =
+        withCatalog(
+            legacyProfile("explicit-profile", "explicit_profile", "explicit_type"),
+            new ProfileManifest.CatalogLayout(
+                List.of(new ProfileManifest.Directory("explicit-root", "Explicit", null, 10)),
+                List.of(new ProfileManifest.Placement("explicit_type", "explicit-root", 10))));
+    loader.install(explicit, Actor.user(ACTOR));
+    assertOk(
+        meta(
+            workspace,
+            applyProfile(
+                workspace, templateId(explicit.templateCode()), 1, "apply-explicit-profile")));
+    assertEquals(
+        "explicit-root", catalogLibrary(catalog(workspace), "explicit_type").get("directoryCode"));
+
+    var directoryConflict =
+        withCatalog(
+            legacyProfile(
+                "fallback-directory-conflict", "fallback_directory_conflict", "conflict_type"),
+            new ProfileManifest.CatalogLayout(
+                List.of(
+                    new ProfileManifest.Directory((String) firstDirectory, "Conflict", null, 10)),
+                List.of()));
+    loader.install(directoryConflict, Actor.user(ACTOR));
+    var conflict =
+        meta(
+            workspace,
+            applyProfile(
+                workspace,
+                templateId(directoryConflict.templateCode()),
+                1,
+                "apply-fallback-directory-conflict"));
+    assertCatalogConflict(conflict, (String) firstDirectory, first.templateCode());
+  }
+
+  @Test
+  void rejectsCrossProfileCatalogIdentityConflictsWithoutChangingExistingMetadata()
+      throws Exception {
+    var base =
+        catalogProfile(
+            fixture(),
+            "catalog-conflict-base",
+            "profile_loader_catalog_conflict_base",
+            new ProfileManifest.CatalogLayout(
+                List.of(new ProfileManifest.Directory("shared", "Shared", null, 10)),
+                List.of(new ProfileManifest.Placement("fixture", "shared", 10))));
+    var directoryConflict =
+        catalogProfile(
+            fixture(),
+            "catalog-conflict-directory",
+            "profile_loader_catalog_conflict_directory",
+            new ProfileManifest.CatalogLayout(
+                List.of(
+                    new ProfileManifest.Directory("shared", "Conflicting", null, 10),
+                    new ProfileManifest.Directory("must-not-exist", "Blocked", null, 20)),
+                List.of()));
+    loader.install(base, Actor.user(ACTOR));
+    loader.install(directoryConflict, Actor.user(ACTOR));
+
+    var directoryWorkspace = UUID.randomUUID();
+    assertOk(
+        meta(
+            AUTHOR,
+            instantiate(
+                templateId(base.templateCode()),
+                directoryWorkspace,
+                "instantiate-directory-conflict")));
+    var existingDirectorySource = catalogDirectorySource(directoryWorkspace, "shared");
+    var directoryFailure =
+        meta(
+            directoryWorkspace,
+            applyProfile(
+                directoryWorkspace,
+                templateId(directoryConflict.templateCode()),
+                1,
+                "apply-directory-conflict"));
+    assertCatalogConflict(directoryFailure, "shared", base.templateCode());
+    assertEquals(existingDirectorySource, catalogDirectorySource(directoryWorkspace, "shared"));
+    assertEquals(1, catalogDirectoryCount(directoryWorkspace));
+
+    var libraryConflict =
+        catalogProfile(
+            fixture(),
+            "catalog-conflict-library",
+            "profile_loader_catalog_conflict_library",
+            new ProfileManifest.CatalogLayout(
+                List.of(new ProfileManifest.Directory("must-not-exist", "Blocked", null, 10)),
+                List.of(new ProfileManifest.Placement("fixture", "must-not-exist", 10))));
+    loader.install(libraryConflict, Actor.user(ACTOR));
+    var libraryWorkspace = UUID.randomUUID();
+    assertOk(
+        meta(
+            AUTHOR,
+            instantiate(
+                templateId(base.templateCode()),
+                libraryWorkspace,
+                "instantiate-library-conflict")));
+    var existingLibrarySource = catalogLibrarySource(libraryWorkspace, "fixture");
+    var libraryFailure =
+        meta(
+            libraryWorkspace,
+            applyProfile(
+                libraryWorkspace,
+                templateId(libraryConflict.templateCode()),
+                1,
+                "apply-library-conflict"));
+    assertCatalogConflict(libraryFailure, "fixture", base.templateCode());
+    assertEquals(existingLibrarySource, catalogLibrarySource(libraryWorkspace, "fixture"));
+    assertEquals(1, catalogDirectoryCount(libraryWorkspace));
+  }
+
+  @Test
+  void rejectsInvalidCatalogLayoutsWithProfileSpecificDiagnostics() throws Exception {
+    var directories = List.of(new ProfileManifest.Directory("root", "Root", null, 0));
+    assertCatalogRejected(
+        new ProfileManifest.CatalogLayout(
+            List.of(
+                new ProfileManifest.Directory("root", "Root", null, 0),
+                new ProfileManifest.Directory("root", "Duplicate", null, 1)),
+            List.of()));
+    assertCatalogRejected(
+        new ProfileManifest.CatalogLayout(
+            List.of(new ProfileManifest.Directory("child", "Child", "missing", 0)), List.of()));
+    assertCatalogRejected(
+        new ProfileManifest.CatalogLayout(
+            List.of(
+                new ProfileManifest.Directory("left", "Left", "right", 0),
+                new ProfileManifest.Directory("right", "Right", "left", 1)),
+            List.of()));
+    assertCatalogRejected(
+        new ProfileManifest.CatalogLayout(
+            directories, List.of(new ProfileManifest.Placement("missing", "root", 0))));
+    assertCatalogRejected(
+        new ProfileManifest.CatalogLayout(
+            directories, List.of(new ProfileManifest.Placement("room", "missing", 0))));
+    assertCatalogRejected(
+        new ProfileManifest.CatalogLayout(
+            directories,
+            List.of(
+                new ProfileManifest.Placement("room", "root", 0),
+                new ProfileManifest.Placement("room", "root", 1))));
   }
 
   @Test
@@ -320,7 +658,10 @@ class ProfileLoaderIntegrationTest {
   @Test
   void applyProfileAddsSecondProfileToExistingWorkspace() throws Exception {
     var first = fixture();
-    var second = profileVariant(first, "profile-loader-second", "profile_loader_second");
+    var second =
+        withCatalog(
+            profileVariant(first, "profile-loader-second", "profile_loader_second"),
+            emptyCatalog("second-root"));
     loader.install(first, Actor.user(ACTOR));
     loader.install(second, Actor.user(ACTOR));
 
@@ -367,8 +708,11 @@ class ProfileLoaderIntegrationTest {
   @Test
   void mappingProfileAddsCrossProfileCorrespondenceAndReadEndpoint() throws Exception {
     var source = fixture();
-    var target = profileVariant(source, "profile-loader-target", "profile_loader_target");
-    var mapping = mappingProfile(source, target);
+    var target =
+        withCatalog(
+            profileVariant(source, "profile-loader-target", "profile_loader_target"),
+            emptyCatalog("target-root"));
+    var mapping = withCatalog(mappingProfile(source, target), emptyCatalog("mapping-root"));
     loader.install(source, Actor.user(ACTOR));
     loader.install(target, Actor.user(ACTOR));
     loader.install(mapping, Actor.user(ACTOR));
@@ -578,6 +922,135 @@ class ProfileLoaderIntegrationTest {
                         rule.fix(),
                         rule.lightweight()))
             .toList());
+  }
+
+  private ProfileManifest withCatalog(
+      ProfileManifest manifest, ProfileManifest.CatalogLayout catalog) {
+    return new ProfileManifest(
+        manifest.id(),
+        manifest.name(),
+        manifest.version(),
+        manifest.templateCode(),
+        manifest.kind(),
+        manifest.sourceProfile(),
+        manifest.targetProfile(),
+        manifest.tags(),
+        manifest.valueTypes(),
+        manifest.objectTypes(),
+        manifest.fields(),
+        manifest.relations(),
+        manifest.derived(),
+        manifest.rules(),
+        catalog);
+  }
+
+  private ProfileManifest.CatalogLayout emptyCatalog(String directoryCode) {
+    return new ProfileManifest.CatalogLayout(
+        List.of(new ProfileManifest.Directory(directoryCode, directoryCode, null, 10)), List.of());
+  }
+
+  private ProfileManifest legacyProfile(String id, String templateCode, String objectTypeCode) {
+    return legacyProfile(id, templateCode, "1.0.0", objectTypeCode);
+  }
+
+  private ProfileManifest legacyProfile(
+      String id, String templateCode, String version, String objectTypeCode) {
+    return new ProfileManifest(
+        id,
+        "Legacy Profile",
+        version,
+        templateCode,
+        "domain",
+        null,
+        null,
+        null,
+        List.of(),
+        List.of(new ProfileManifest.ObjectType(objectTypeCode, objectTypeCode, null)),
+        List.of(
+            new ProfileManifest.Field(objectTypeCode, "name", "Name", "string", null, true, null)),
+        List.of(),
+        List.of(),
+        List.of());
+  }
+
+  private ProfileManifest catalogProfile(ProfileManifest manifest, String id, String templateCode) {
+    return catalogProfile(
+        manifest,
+        id,
+        templateCode,
+        new ProfileManifest.CatalogLayout(
+            List.of(
+                new ProfileManifest.Directory("root", "Root", null, 10),
+                new ProfileManifest.Directory("child", "Child", "root", 20)),
+            List.of(
+                new ProfileManifest.Placement("fixture", "child", 10),
+                new ProfileManifest.Placement("room", "root", 20))));
+  }
+
+  private ProfileManifest catalogProfile(
+      ProfileManifest manifest,
+      String id,
+      String templateCode,
+      ProfileManifest.CatalogLayout catalog) {
+    return new ProfileManifest(
+        id,
+        "Catalog Profile",
+        "1.0.0",
+        templateCode,
+        "domain",
+        null,
+        null,
+        manifest.tags(),
+        manifest.valueTypes(),
+        manifest.objectTypes(),
+        manifest.fields(),
+        manifest.relations(),
+        manifest.derived(),
+        manifest.rulesOrEmpty().stream()
+            .map(
+                rule ->
+                    new ProfileManifest.Rule(
+                        templateCode + "_" + rule.code(),
+                        rule.objectType(),
+                        rule.field(),
+                        rule.severity(),
+                        rule.when(),
+                        rule.lang(),
+                        rule.message(),
+                        rule.impact(),
+                        rule.suggest(),
+                        rule.fix(),
+                        rule.lightweight()))
+            .toList(),
+        catalog);
+  }
+
+  private void assertCatalogRejected(ProfileManifest.CatalogLayout catalog) throws Exception {
+    var base = fixture();
+    var manifest =
+        new ProfileManifest(
+            base.id() + "-catalog-invalid-" + UUID.randomUUID(),
+            "Invalid Catalog",
+            base.version(),
+            base.templateCode()
+                + "_catalog_invalid_"
+                + UUID.randomUUID().toString().replace("-", ""),
+            "domain",
+            null,
+            null,
+            base.tags(),
+            base.valueTypes(),
+            base.objectTypes(),
+            base.fields(),
+            base.relations(),
+            base.derived(),
+            base.rules(),
+            catalog);
+    var failure =
+        assertThrows(
+            CommandRejectedException.class, () -> loader.install(manifest, Actor.user(ACTOR)));
+    assertEquals("META-400-SCHEMA-INVALID", failure.error().code());
+    assertTrue(failure.error().message().contains(manifest.id()));
   }
 
   private List<ProfileManifest.Field> appendBodyField(List<ProfileManifest.Field> fields) {
@@ -1214,7 +1687,95 @@ class ProfileLoaderIntegrationTest {
     return (String) ((Map<?, ?>) response.getBody().getFirst()).get("ruleStatus");
   }
 
+  @SuppressWarnings("unchecked")
+  private Map<String, Object> catalog(UUID workspaceId) {
+    var headers = new HttpHeaders();
+    headers.set("X-Actor-Id", ACTOR);
+    var response =
+        http.exchange(
+            "http://localhost:" + port + "/workspaces/" + workspaceId + "/data-catalog",
+            org.springframework.http.HttpMethod.GET,
+            new HttpEntity<>(headers),
+            Map.class);
+    assertEquals(200, response.getStatusCode().value(), String.valueOf(response.getBody()));
+    return (Map<String, Object>) response.getBody();
+  }
+
+  @SuppressWarnings("unchecked")
+  private List<Map<String, Object>> catalogDirectories(Map<String, Object> catalog) {
+    return (List<Map<String, Object>>) catalog.get("directories");
+  }
+
+  @SuppressWarnings("unchecked")
+  private List<Map<String, Object>> catalogLibraries(Map<String, Object> catalog) {
+    return (List<Map<String, Object>>) catalog.get("libraries");
+  }
+
+  private Set<String> catalogObjectTypeCodes(Map<String, Object> catalog) {
+    return catalogLibraries(catalog).stream()
+        .map(item -> (String) item.get("objectTypeCode"))
+        .collect(java.util.stream.Collectors.toSet());
+  }
+
+  private Map<String, Object> catalogLibrary(Map<String, Object> catalog, String objectTypeCode) {
+    return catalogLibraries(catalog).stream()
+        .filter(item -> objectTypeCode.equals(item.get("objectTypeCode")))
+        .findFirst()
+        .orElseThrow();
+  }
+
+  private int catalogDirectoryCount(UUID workspace) {
+    return jdbc.queryForObject(
+        "SELECT count(*) FROM workspace_catalog_directory WHERE workspace_id = ?",
+        Integer.class,
+        workspace);
+  }
+
+  private int catalogLibraryCount(UUID workspace) {
+    return jdbc.queryForObject(
+        "SELECT count(*) FROM workspace_catalog_library WHERE workspace_id = ?",
+        Integer.class,
+        workspace);
+  }
+
+  private UUID catalogDirectorySource(UUID workspace, String code) {
+    return jdbc.queryForObject(
+        "SELECT source_template_version_id FROM workspace_catalog_directory WHERE workspace_id = ? AND code = ?",
+        UUID.class,
+        workspace,
+        code);
+  }
+
+  private UUID catalogLibrarySource(UUID workspace, String objectTypeCode) {
+    return jdbc.queryForObject(
+        "SELECT source_template_version_id FROM workspace_catalog_library WHERE workspace_id = ? AND object_type_code = ?",
+        UUID.class,
+        workspace,
+        objectTypeCode);
+  }
+
+  private int templateCatalogCount(String table, UUID versionId, String code) {
+    var column = table.endsWith("library") ? "object_type_code" : "code";
+    return jdbc.queryForObject(
+        "SELECT count(*) FROM %s WHERE template_version_id = ? AND %s = ?".formatted(table, column),
+        Integer.class,
+        versionId,
+        code);
+  }
+
   private String errorCode(ResponseEntity<Map> response) {
     return (String) ((Map<?, ?>) response.getBody().get("error")).get("code");
+  }
+
+  private void assertCatalogConflict(
+      ResponseEntity<Map> response, String code, String conflictingTemplateCode) {
+    assertEquals(400, response.getStatusCode().value(), String.valueOf(response.getBody()));
+    assertEquals("META-400-SCHEMA-INVALID", errorCode(response));
+    var message = (String) ((Map<?, ?>) response.getBody().get("error")).get("message");
+    var suggestion = (String) ((Map<?, ?>) response.getBody().get("error")).get("suggestion");
+    assertTrue(message.contains(code));
+    assertTrue(message.contains(conflictingTemplateCode));
+    assertTrue(message.contains("catalog code / objectTypeCode"));
+    assertTrue(suggestion.contains("catalog code / objectTypeCode"));
   }
 }

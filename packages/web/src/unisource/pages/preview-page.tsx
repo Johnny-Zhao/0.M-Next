@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 
 import {
   IconSpark,
@@ -64,7 +64,7 @@ function Swatch({ name, use }: { name: string; use: string }) {
 }
 
 /** /us/preview — P0 组件预览页(Story/demo):底座验收基准。 */
-export function PreviewPage() {
+export function PreviewPage({ previewLab }: { previewLab?: ReactNode }) {
   const [seg, setSeg] = useState("what");
   const [tab, setTab] = useState("props");
   const [net, setNet] = useState("normal");
@@ -107,6 +107,7 @@ export function PreviewPage() {
       }}
     >
       <div className="us-preview">
+        {previewLab}
         <UsPanel title="设计 Token" kicker="TOKENS · 交接规格 §03">
           {COLOR_TOKENS.map(([name, use]) => (
             <Swatch key={name} name={name} use={use} />

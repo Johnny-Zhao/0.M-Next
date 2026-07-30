@@ -45,6 +45,7 @@ public class ProfileLoader {
   private final MetaCommandService commands;
   private final DerivedFieldRepository derivedFields;
   private final RuleDefRepository rules;
+  private final DataCatalogRepository catalogs;
   private final JdbcTemplate jdbc;
   private final ObjectMapper mapper;
 
@@ -52,11 +53,13 @@ public class ProfileLoader {
       MetaCommandService commands,
       DerivedFieldRepository derivedFields,
       RuleDefRepository rules,
+      DataCatalogRepository catalogs,
       JdbcTemplate jdbc,
       ObjectMapper mapper) {
     this.commands = commands;
     this.derivedFields = derivedFields;
     this.rules = rules;
+    this.catalogs = catalogs;
     this.jdbc = jdbc;
     this.mapper = mapper;
   }
@@ -73,6 +76,7 @@ public class ProfileLoader {
           return;
         }
         defineMissingFields(manifest, existing, actor);
+        syncCatalogLayout(manifest, existing.versionId(), actor);
         return;
       }
       if ("withdrawn".equals(existing.status())) {
@@ -85,6 +89,7 @@ public class ProfileLoader {
           return;
         }
         defineMissingFields(manifest, existing, actor);
+        syncCatalogLayout(manifest, existing.versionId(), actor);
         return;
       }
       throw schema("templateCode 已存在未发布版本，无法装载 profile: " + manifest.templateCode());
@@ -111,6 +116,7 @@ public class ProfileLoader {
         new PublishTemplateVersionCommand(
             AUTHOR_WORKSPACE, correlation(), key(manifest, "publish-template"), versionId),
         actor);
+    syncCatalogLayout(manifest, versionId, actor);
   }
 
   private boolean templateNeedsUpgrade(ProfileManifest manifest, TemplateVersion version) {
@@ -186,6 +192,12 @@ public class ProfileLoader {
             key(manifest, "upgrade-publish", Integer.toString(source.version())),
             versionId),
         actor);
+    syncCatalogLayout(manifest, versionId, actor);
+  }
+
+  private void syncCatalogLayout(ProfileManifest manifest, UUID versionId, Actor actor) {
+    catalogs.syncTemplateLayout(versionId, manifest);
+    catalogs.syncInstalledWorkspaces(versionId, actor.id());
   }
 
   private void cloneTemplateDefinitions(UUID sourceVersionId, UUID targetVersionId, Actor actor) {
@@ -853,6 +865,7 @@ public class ProfileLoader {
     manifest.valueTypesOrEmpty().forEach(valueType -> valueTypeCodes.add(valueType.code()));
     var objectTypeCodes = new HashSet<String>();
     manifest.objectTypesOrEmpty().forEach(objectType -> objectTypeCodes.add(objectType.code()));
+    validateCatalog(manifest, objectTypeCodes);
     var fields = new HashSet<String>();
     for (var objectType : manifest.objectTypesOrEmpty()) {
       if (!blank(objectType.parentTypeCode())
@@ -910,6 +923,60 @@ public class ProfileLoader {
       }
     }
     typeCheckOcl(manifest);
+  }
+
+  private void validateCatalog(ProfileManifest manifest, Set<String> objectTypeCodes) {
+    var directories = new LinkedHashMap<String, ProfileManifest.Directory>();
+    for (var directory : manifest.catalogOrEmpty().directoriesOrEmpty()) {
+      if (blank(directory.code()) || blank(directory.name()) || directory.sortOrder() == null) {
+        throw catalogSchema(manifest, "directory must declare code, name and sortOrder");
+      }
+      if (directories.putIfAbsent(directory.code(), directory) != null) {
+        throw catalogSchema(manifest, "duplicate directory code " + directory.code());
+      }
+    }
+    for (var directory : directories.values()) {
+      if (!blank(directory.parentCode()) && !directories.containsKey(directory.parentCode())) {
+        throw catalogSchema(manifest, "missing parent directory " + directory.parentCode());
+      }
+      assertDirectoryAcyclic(manifest, directory.code(), directories, new HashSet<>());
+    }
+    var placements = new HashSet<String>();
+    for (var placement : manifest.catalogOrEmpty().placementsOrEmpty()) {
+      if (blank(placement.objectTypeCode())
+          || blank(placement.directoryCode())
+          || placement.sortOrder() == null) {
+        throw catalogSchema(
+            manifest, "placement must declare objectTypeCode, directoryCode and sortOrder");
+      }
+      if (!objectTypeCodes.contains(placement.objectTypeCode())) {
+        throw catalogSchema(
+            manifest, "placement references unknown object type " + placement.objectTypeCode());
+      }
+      if (!directories.containsKey(placement.directoryCode())) {
+        throw catalogSchema(
+            manifest, "placement references unknown directory " + placement.directoryCode());
+      }
+      if (!placements.add(placement.objectTypeCode())) {
+        throw catalogSchema(
+            manifest, "duplicate placement for object type " + placement.objectTypeCode());
+      }
+    }
+  }
+
+  private void assertDirectoryAcyclic(
+      ProfileManifest manifest,
+      String code,
+      Map<String, ProfileManifest.Directory> directories,
+      Set<String> ancestors) {
+    if (!ancestors.add(code)) throw catalogSchema(manifest, "directory cycle at " + code);
+    var parent = directories.get(code).parentCode();
+    if (!blank(parent)) assertDirectoryAcyclic(manifest, parent, directories, ancestors);
+    ancestors.remove(code);
+  }
+
+  private static CommandRejectedException catalogSchema(ProfileManifest manifest, String reason) {
+    return schema("profile " + manifest.id() + " catalog: " + reason);
   }
 
   private void typeCheckOcl(ProfileManifest manifest) {

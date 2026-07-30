@@ -64,6 +64,7 @@ async function boot(root: Root, mode: BootMode): Promise<void> {
       reportLabel: null,
       gatewayCapabilities: MOCK_GATEWAY_CAPABILITIES,
       expressionGateway,
+      catalogGateway: expressionGateway,
     });
     renderApp(root);
     return;
@@ -116,6 +117,7 @@ async function boot(root: Root, mode: BootMode): Promise<void> {
       reportLabel: report ? formatReport(report) : null,
       gatewayCapabilities: gateway.capabilities,
       expressionGateway: gateway,
+      catalogGateway: gateway,
     });
   };
   const hydrateKernelCheck = (): Promise<boolean> =>
@@ -201,6 +203,7 @@ function fallbackToMock(root: Root): void {
     reportLabel: null,
     gatewayCapabilities: MOCK_GATEWAY_CAPABILITIES,
     expressionGateway,
+    catalogGateway: expressionGateway,
   });
   renderApp(root);
 }

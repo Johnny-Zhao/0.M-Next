@@ -19,6 +19,26 @@ export interface ObjectType {
   readonly fields: readonly FieldDefinition[];
 }
 
+export interface DataCatalogDirectoryDto {
+  readonly code: string;
+  readonly name: string;
+  readonly parentCode: string | null;
+  readonly sortOrder: number;
+}
+
+export interface DataCatalogLibraryDto {
+  readonly objectTypeCode: string;
+  readonly directoryCode: string;
+  readonly sortOrder: number;
+  readonly recordCount: number;
+}
+
+export interface DataCatalogDto {
+  readonly workspaceId: string;
+  readonly directories: readonly DataCatalogDirectoryDto[];
+  readonly libraries: readonly DataCatalogLibraryDto[];
+}
+
 export interface RelationType {
   readonly id: string;
   readonly code: string;
@@ -734,6 +754,13 @@ export class ViewClient {
 
   relationTypes(workspaceId: string): Promise<readonly RelationType[]> {
     return this.get(`/workspaces/${workspaceId}/views/relation-types`);
+  }
+
+  dataCatalog(workspaceId: string, actorId: string): Promise<DataCatalogDto> {
+    return this.getWithActor(
+      `/workspaces/${workspaceId}/data-catalog`,
+      actorId,
+    );
   }
 
   templates(): Promise<readonly TemplateCatalogItem[]> {

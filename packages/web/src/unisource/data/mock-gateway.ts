@@ -42,6 +42,8 @@ import type {
   ExchangeFormat,
   Lineage,
   LatestCheckRun,
+  WorkspaceDataCatalog,
+  DataCatalogRecordPage,
   ExpressionConfigCreateInput,
   ExpressionConfigCreated,
   GatewayCapabilities,
@@ -76,6 +78,60 @@ export class MockUnisourceGateway implements UnisourceGateway {
     return structuredClone(
       toDemoSeed(this.workspace.getSnapshot(), this.changeSets.getSnapshot()),
     );
+  }
+
+  async loadDataCatalog(): Promise<WorkspaceDataCatalog> {
+    const state = this.workspace.getSnapshot();
+    const objectTypes = [...state.objectTypes].sort((left, right) =>
+      left.code.localeCompare(right.code),
+    );
+    return {
+      workspaceId: state.workspace.id,
+      directories: [
+        { code: "data-source", name: "数据源", parentCode: null, sortOrder: 0 },
+      ],
+      libraries: objectTypes.map((type, sortOrder) => ({
+        objectTypeCode: type.code,
+        directoryCode: "data-source",
+        sortOrder,
+        recordCount: state.objects.filter(
+          (object) =>
+            object.objectTypeCode === type.code && object.status !== "deleted",
+        ).length,
+      })),
+    };
+  }
+
+  async loadDataCatalogRecords(
+    objectTypeCode: string,
+    page: number,
+    pageSize: number,
+  ): Promise<DataCatalogRecordPage> {
+    if (page < 0 || pageSize < 1 || pageSize > 50) {
+      throw new Error("Catalog record page must be within 1..50");
+    }
+    const objects = this.workspace
+      .getSnapshot()
+      .objects.filter(
+        (object) =>
+          object.objectTypeCode === objectTypeCode &&
+          object.status !== "deleted",
+      )
+      .sort((left, right) => left.id.localeCompare(right.id));
+    const start = page * pageSize;
+    return {
+      objectTypeCode,
+      page,
+      pageSize,
+      total: objects.length,
+      items: objects.slice(start, start + pageSize).map((object) => ({
+        objectId: object.id,
+        objectTypeCode: object.objectTypeCode,
+        code: catalogText(object.fields.code?.value),
+        name: catalogText(object.fields.name?.value),
+        status: object.status,
+      })),
+    };
   }
 
   async createExpressionConfig(
@@ -463,6 +519,10 @@ function mockAnnotation(id: string, resolved: boolean): Annotation {
     resolvedBy: resolved ? "wangyun" : null,
     resolvedAt: resolved ? "2026-07-10T10:32:00+08:00" : null,
   };
+}
+
+function catalogText(value: unknown): string | null {
+  return typeof value === "string" && value.trim() ? value : null;
 }
 
 function emptyExchangeDiff(): ExchangeDiff {

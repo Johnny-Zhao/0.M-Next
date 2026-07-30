@@ -1,0 +1,169 @@
+.us-ant-provider {
+  color: var(--us-text);
+  font-family: var(--us-font-ui);
+}
+
+.us-ant-provider,
+.us-ant-provider .unisource {
+  --us-ant-border-radius: var(--us-radius-control);
+  --us-ant-color-bg-base: var(--us-paper);
+  --us-ant-color-bg-container: var(--us-paper);
+  --us-ant-color-bg-elevated: var(--us-paper);
+  --us-ant-color-bg-layout: var(--us-canvas);
+  --us-ant-color-border: var(--us-border);
+  --us-ant-color-error: var(--us-danger);
+  --us-ant-color-primary: var(--us-primary);
+  --us-ant-color-text: var(--us-text);
+  --us-ant-color-text-secondary: var(--us-text-muted);
+  --us-ant-color-warning: var(--us-change);
+  --us-ant-font-family: var(--us-font-ui);
+}
+
+.us-ant-provider .us-ant-preview {
+  background: var(--us-paper);
+  border: 1px solid var(--us-border);
+  border-radius: var(--us-radius-panel);
+  display: grid;
+  gap: var(--us-sp-5);
+  margin-block: var(--us-sp-7);
+  padding: var(--us-sp-6);
+}
+
+.us-ant-provider .us-ant-preview__header,
+.us-ant-provider .us-ant-preview__actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--us-sp-3);
+  justify-content: space-between;
+}
+
+.us-ant-provider .us-ant-preview__header h2,
+.us-ant-provider .us-ant-preview__header p {
+  margin: 0;
+}
+
+.us-ant-provider .us-ant-preview__eyebrow {
+  color: var(--us-primary-deep);
+  font-family: var(--us-font-data);
+  font-size: var(--us-fs-11);
+}
+
+.us-ant-provider .us-ant-preview__grid {
+  display: grid;
+  gap: var(--us-sp-5);
+  grid-template-columns: minmax(0, 1.5fr) minmax(18rem, 1fr);
+}
+
+.us-ant-provider .us-ant-preview__tree,
+.us-ant-provider .us-ant-preview__controls {
+  border: 1px solid var(--us-border-soft);
+  display: grid;
+  gap: var(--us-sp-4);
+  min-width: 0;
+  padding: var(--us-sp-4);
+}
+
+.us-ant-provider .us-ant-tree .us-ant-tree-treenode {
+  align-items: center;
+  min-height: var(--us-h-treerow);
+}
+
+.us-ant-provider .us-ant-tree mark {
+  background: var(--us-change-bg-2);
+  color: inherit;
+}
+
+.us-ant-provider .us-catalog-tree__state {
+  color: var(--us-danger);
+  display: grid;
+  gap: var(--us-sp-2);
+  padding: var(--us-sp-3);
+}
+
+.us-ant-provider .us-catalog-tree__state button {
+  background: transparent;
+  border: 0;
+  color: var(--us-primary-deep);
+  cursor: pointer;
+  justify-self: start;
+  padding: 0;
+}
+
+.us-ant-provider .us-catalog-tree__search-hint {
+  color: var(--us-text-secondary);
+  font: var(--us-fs-12) / 1.4 var(--us-font-sans);
+  margin: 0 0 var(--us-sp-2);
+}
+
+.us-ant-provider .us-catalog-tree__title {
+  align-items: center;
+  display: flex;
+  gap: var(--us-sp-2);
+  min-width: 0;
+}
+
+.us-ant-provider .us-catalog-tree__mark {
+  background: var(--us-text-ghost);
+  border-radius: 2px;
+  flex: none;
+  height: 6px;
+  width: 6px;
+}
+
+.us-ant-provider
+  .us-catalog-tree__title[data-kind="record-library"]
+  .us-catalog-tree__mark {
+  background: var(--us-primary);
+}
+
+.us-ant-provider
+  .us-catalog-tree__title[data-kind="record"]
+  .us-catalog-tree__mark {
+  background: var(--us-primary-deep);
+}
+
+.us-ant-provider .us-catalog-tree__title[data-active="true"] {
+  background: var(--us-primary-soft);
+}
+
+.us-ant-provider .us-catalog-tree__title[data-kind="record-action"] {
+  color: var(--us-primary-deep);
+}
+
+.us-ant-provider .us-catalog-tree__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.us-ant-provider .us-catalog-tree__count,
+.us-ant-provider .us-catalog-tree__diagnostic {
+  color: var(--us-text-disabled);
+  flex: none;
+  font: 700 var(--us-fs-10) var(--us-font-data);
+}
+
+.us-ant-provider .us-catalog-tree__diagnostic {
+  color: var(--us-change-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.us-ant-provider .us-ant-modal-root {
+  --us-ant-modal-content-bg: var(--us-paper);
+}
+
+.us-ant-provider .us-ant-preview__states {
+  display: grid;
+  gap: var(--us-sp-4);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+@media (max-width: 900px) {
+  .us-ant-provider .us-ant-preview__grid,
+  .us-ant-provider .us-ant-preview__states {
+    grid-template-columns: 1fr;
+  }
+}

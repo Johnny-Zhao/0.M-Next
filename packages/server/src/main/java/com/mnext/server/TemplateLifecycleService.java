@@ -21,16 +21,19 @@ class TemplateLifecycleService {
   private final MetaCommandService commands;
   private final TemplateRuleCopier rules;
   private final DerivedFieldCopier derivedFields;
+  private final DataCatalogRepository catalogs;
   private final JdbcTemplate jdbc;
 
   TemplateLifecycleService(
       MetaCommandService commands,
       TemplateRuleCopier rules,
       DerivedFieldCopier derivedFields,
+      DataCatalogRepository catalogs,
       JdbcTemplate jdbc) {
     this.commands = commands;
     this.rules = rules;
     this.derivedFields = derivedFields;
+    this.catalogs = catalogs;
     this.jdbc = jdbc;
   }
 
@@ -40,6 +43,7 @@ class TemplateLifecycleService {
     var versionId = templateVersionId(command.templateId(), command.version());
     rules.copyForInstantiate(versionId, command.newWorkspaceId());
     derivedFields.copyForInstantiate(versionId, command.newWorkspaceId());
+    catalogs.copyForInstantiate(versionId, command.newWorkspaceId(), actor.id());
     recordWorkspaceProfile(command.newWorkspaceId(), versionId, actor.id());
     return result;
   }
@@ -51,6 +55,7 @@ class TemplateLifecycleService {
     var versionId = templateVersionId(command.templateId(), command.version());
     rules.copyForApplyProfile(versionId, command.workspaceId());
     derivedFields.copyForApplyProfile(versionId, command.workspaceId());
+    catalogs.copyForApplyProfile(versionId, command.workspaceId(), actor.id());
     recordWorkspaceProfile(command.workspaceId(), versionId, actor.id());
     return result;
   }
@@ -62,6 +67,7 @@ class TemplateLifecycleService {
     var versionId = templateVersionId(templateId, command.toVersion());
     rules.copyNewRules(versionId, command.workspaceId());
     derivedFields.copyNewFields(versionId, command.workspaceId());
+    catalogs.copyNewLayout(versionId, command.workspaceId(), actor.id());
     recordWorkspaceProfile(command.workspaceId(), versionId, actor.id());
     return result;
   }

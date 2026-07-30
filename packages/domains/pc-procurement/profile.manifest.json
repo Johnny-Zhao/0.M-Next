@@ -1,12 +1,73 @@
 {
   "id": "pc-procurement",
   "name": "电脑采购",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "templateCode": "pc_procurement",
   "tags": {
     "industry": ["信息技术"],
     "profession": ["采购", "硬件"],
     "scenario": ["电脑采购"]
+  },
+  "catalog": {
+    "directories": [
+      { "code": "procurement-center", "name": "采购中心", "sortOrder": 10 },
+      {
+        "code": "requirements",
+        "name": "需求管理",
+        "parentCode": "procurement-center",
+        "sortOrder": 10
+      },
+      {
+        "code": "plans",
+        "name": "方案设计",
+        "parentCode": "procurement-center",
+        "sortOrder": 20
+      },
+      {
+        "code": "parts",
+        "name": "配件目录",
+        "parentCode": "procurement-center",
+        "sortOrder": 30
+      },
+      {
+        "code": "suppliers",
+        "name": "供应资源",
+        "parentCode": "procurement-center",
+        "sortOrder": 40
+      }
+    ],
+    "placements": [
+      {
+        "objectTypeCode": "procurement_requirement",
+        "directoryCode": "requirements",
+        "sortOrder": 10
+      },
+      {
+        "objectTypeCode": "build_plan",
+        "directoryCode": "plans",
+        "sortOrder": 10
+      },
+      {
+        "objectTypeCode": "build_plan_item",
+        "directoryCode": "plans",
+        "sortOrder": 20
+      },
+      {
+        "objectTypeCode": "hardware_product",
+        "directoryCode": "parts",
+        "sortOrder": 10
+      },
+      {
+        "objectTypeCode": "supplier",
+        "directoryCode": "suppliers",
+        "sortOrder": 10
+      },
+      {
+        "objectTypeCode": "supplier_quote",
+        "directoryCode": "suppliers",
+        "sortOrder": 20
+      }
+    ]
   },
   "valueTypes": [],
   "objectTypes": [
