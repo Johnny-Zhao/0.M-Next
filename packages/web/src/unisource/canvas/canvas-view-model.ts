@@ -87,14 +87,22 @@ export function selectedCanvasRootObjectId(
   objectId: string | null,
 ): string | null {
   const rootTypeCode = view.config.selectionObjectTypeCode;
-  if (typeof rootTypeCode !== "string" || objectId === null) return null;
-  const object = workspace.objects.find(
-    (candidate) => candidate.id === objectId,
+  const relationTypeCodes = view.config.selectionRelationTypeCodes;
+  if (
+    typeof rootTypeCode !== "string" ||
+    !Array.isArray(relationTypeCodes) ||
+    objectId === null
+  )
+    return null;
+  return resolveUniqueSubtreeRoot(
+    workspace,
+    objectId,
+    rootTypeCode,
+    relationTypeCodes.filter(
+      (code): code is string => typeof code === "string",
+    ),
+    boundedSubtreeDepth(Number(view.config.selectionDepth)),
   );
-  return object?.objectTypeCode === rootTypeCode &&
-    !terminalObjectStatuses.has(object.status)
-    ? object.id
-    : null;
 }
 
 export function canvasNodeConfigFromVm(node: CanvasNodeVm): CanvasNodeConfig {

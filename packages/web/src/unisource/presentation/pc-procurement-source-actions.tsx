@@ -13,6 +13,7 @@ import type {
   DataSourceCreateActionProps,
   DataSourceCreateActionRegistry,
 } from "./data-source-create-action-registry";
+import { isWriteSubmissionLocked } from "./write-submission-lock";
 
 const requirementRelation = "build_plan_satisfies_requirement";
 const terminalStatuses = new Set(["archived", "deleted", "soft-deleted"]);
@@ -34,6 +35,11 @@ export type BuildPlanRequirementBindResult =
     }
   | { readonly state: "validation-failed"; readonly message: string }
   | { readonly state: "permission-denied"; readonly message: string }
+  | {
+      readonly state: "committed-pending";
+      readonly pendingStep: string;
+      readonly message: string;
+    }
   | {
       readonly state: "partial-failure";
       readonly message: string;
@@ -117,6 +123,13 @@ export async function bindBuildPlanRequirement(input: {
       message: `绑定采购需求关系失败：${write.message}。方案对象已保留，请重新加载工作空间后重试。`,
     };
   }
+  if (write.state === "committed-pending") {
+    return {
+      state: "committed-pending",
+      pendingStep: "绑定采购需求关系",
+      message: write.message,
+    };
+  }
   const relationId =
     write.state === "synced" && write.relationId
       ? write.relationId
@@ -164,8 +177,10 @@ export function PcProcurementBuildPlanCreateAction({
   const [requirementId, setRequirementId] = useState<string>("");
   const [message, setMessage] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [committedPending, setCommittedPending] = useState(false);
 
   const save = async () => {
+    if (isWriteSubmissionLocked(saving, committedPending)) return;
     setSaving(true);
     setMessage(null);
     const result = await bindBuildPlanRequirement({
@@ -182,6 +197,7 @@ export function PcProcurementBuildPlanCreateAction({
       return;
     }
     setMessage(result.message);
+    if (result.state === "committed-pending") setCommittedPending(true);
   };
 
   return (
@@ -192,11 +208,18 @@ export function PcProcurementBuildPlanCreateAction({
             稍后绑定
           </UsButton>
           <UsButton
-            disabled={saving || options.length === 0}
+            disabled={
+              isWriteSubmissionLocked(saving, committedPending) ||
+              options.length === 0
+            }
             onClick={() => void save()}
             variant="primary"
           >
-            {saving ? "正在绑定…" : "绑定采购需求"}
+            {committedPending
+              ? "已提交，待同步"
+              : saving
+                ? "正在绑定…"
+                : "绑定采购需求"}
           </UsButton>
         </>
       }

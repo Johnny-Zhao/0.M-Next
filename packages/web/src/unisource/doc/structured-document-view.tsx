@@ -549,6 +549,7 @@ export type StructuredDocumentCommitResult =
       readonly kind: "written";
       readonly eventId: string;
       readonly refs: number;
+      readonly syncState?: "committed-pending";
     }
   | { readonly kind: "queued"; readonly changeSetId: string };
 
@@ -574,6 +575,14 @@ export async function commitStructuredDocumentFieldEdit(input: {
   if (completion.state === "failed") {
     pushToast({ title: "字段保存失败", desc: completion.message });
     throw new Error(completion.message);
+  }
+  if (completion.state === "committed-pending") {
+    return {
+      kind: "written",
+      eventId: result.eventId,
+      refs: result.syncedRefs,
+      syncState: "committed-pending",
+    };
   }
   pushToast({ title: `已更新 · ${result.syncedRefs} 处引用已同步` });
   return { kind: "written", eventId: result.eventId, refs: result.syncedRefs };
@@ -605,6 +614,14 @@ export async function commitStructuredDocumentBodyEdit(input: {
   if (completion.state === "failed") {
     pushToast({ title: "正文保存失败", desc: completion.message });
     throw new Error(completion.message);
+  }
+  if (completion.state === "committed-pending") {
+    return {
+      kind: "written",
+      eventId: result.eventId,
+      refs: result.syncedRefs,
+      syncState: "committed-pending",
+    };
   }
   pushToast({ title: "正文已保存" });
   return { kind: "written", eventId: result.eventId, refs: result.syncedRefs };

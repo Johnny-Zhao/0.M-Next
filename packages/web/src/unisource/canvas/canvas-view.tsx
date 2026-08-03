@@ -34,7 +34,10 @@ import {
   screenToCanvasPosition,
   upsertCanvasNodes,
 } from "./canvas-view-model";
-import { useCanvasRootObjectId } from "./canvas-root-selection";
+import {
+  canvasSelectionObjectId,
+  useCanvasRootObjectId,
+} from "./canvas-root-selection";
 import { CanvasContextMenu } from "./context-menu";
 import { DeleteObjectConfirmModal } from "./delete-confirm-modal";
 import { EdgeLabeled } from "./edge-labeled";
@@ -69,10 +72,7 @@ export function CanvasView({
   const view = workspace.views.find(
     (candidate) => candidate.id === viewId && candidate.kind === "canvas",
   );
-  const selectedObjectId =
-    selection.current?.entityType === "object"
-      ? selection.current.entityId
-      : null;
+  const selectedObjectId = canvasSelectionObjectId(selection.current);
   const canvasRootObjectId = useCanvasRootObjectId(
     workspace,
     view,
@@ -85,7 +85,9 @@ export function CanvasView({
     [canvasRootObjectId, view, workspace],
   );
   const selectedKey = selection.selected
-    .filter((item) => item.entityType === "object")
+    .filter(
+      (item) => item.entityType === "object" || item.entityType === "field",
+    )
     .map((item) => item.entityId)
     .join("|");
   const selectedIds = useMemo(

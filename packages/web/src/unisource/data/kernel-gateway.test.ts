@@ -9,7 +9,10 @@ import type { DataObject } from "../model/kernel";
 import { cloneDemoSeed } from "../seed/demo-seed";
 import { resolveExpressionView } from "../presentation/expression-runtime";
 import { WorkspaceStore } from "../state/workspace-store";
-import type { LatestCheckRun } from "./gateway";
+import {
+  CommittedPendingProjectionError,
+  type LatestCheckRun,
+} from "./gateway";
 import { KernelGateway, RELATION_LOAD_CONCURRENCY } from "./kernel-gateway";
 
 describe("KernelGateway", () => {
@@ -554,6 +557,39 @@ describe("KernelGateway", () => {
     ).toBeUndefined();
   });
 
+  it("confirms an updated object by its version and field value", async () => {
+    const api = new FakeKernelApi();
+    api.seedObjects(2);
+    api.staleObjectDetailResponses = 1;
+    const gateway = new KernelGateway("", "ws-kernel", "wangyun", api.fetch);
+
+    const result = await gateway.updateField("kernel-prod-s3", "price", 1000, {
+      actor: "wangyun",
+      expectedObjectVersion: 1,
+    });
+
+    expect(result.object.version).toBe(2);
+    expect(result.object.fields.price?.value).toBe(1000);
+    expect(api.objectDetailCalls).toEqual(["kernel-prod-s3", "kernel-prod-s3"]);
+    expect(api.syncStatusCalls).toEqual([]);
+  });
+
+  it("reports committed-pending when an updated projection remains stale", async () => {
+    const api = new FakeKernelApi();
+    api.seedObjects(2);
+    api.staleObjectDetailResponses = 5;
+    const gateway = new KernelGateway("", "ws-kernel", "wangyun", api.fetch);
+
+    await expect(
+      gateway.updateField("kernel-prod-s3", "price", 1000, {
+        actor: "wangyun",
+        expectedObjectVersion: 1,
+      }),
+    ).rejects.toBeInstanceOf(CommittedPendingProjectionError);
+    expect(api.objectDetailCalls).toHaveLength(5);
+    expect(api.syncStatusCalls).toEqual([]);
+  });
+
   it("creates objects through resolved object type ids and claims read-model ids", async () => {
     const api = new FakeKernelApi();
     const gateway = new KernelGateway("", "ws-kernel", "wangyun", api.fetch);
@@ -1041,6 +1077,8 @@ class FakeKernelApi {
   readonly history = new Map<string, HistoryFixture[]>();
   readonly historyCalls: string[] = [];
   readonly objectDetailCalls: string[] = [];
+  readonly syncStatusCalls: number[] = [];
+  staleObjectDetailResponses = 0;
   readonly failObjectDetails = new Set<string>();
   readonly objectPageCalls: number[] = [];
   expressionConfigs: ExpressionConfigFixture[] = [];
@@ -1221,6 +1259,10 @@ class FakeKernelApi {
     if (url.pathname.endsWith("/views/relation-types")) {
       return json(this.relationTypes);
     }
+    if (url.pathname.endsWith("/views/sync-status")) {
+      this.syncStatusCalls.push(this.syncStatusCalls.length);
+      return json({ pendingEvents: 0, caughtUp: true });
+    }
     if (url.pathname.endsWith("/views/objects")) {
       const page = Number(url.searchParams.get("page") ?? "0");
       const pageSize = Number(url.searchParams.get("pageSize") ?? "100");
@@ -1258,8 +1300,26 @@ class FakeKernelApi {
         if (this.failObjectDetails.has(objectId)) {
           return json({ message: "object detail failed" }, 500);
         }
+        const object = this.objects.find(
+          (candidate) => candidate.objectId === objectId,
+        );
+        if (object && this.staleObjectDetailResponses > 0) {
+          this.staleObjectDetailResponses -= 1;
+          return json({
+            object: {
+              ...object,
+              version: Math.max(0, object.version - 1),
+              fields: { ...object.fields, price: 999 },
+            },
+            relations: this.relations.filter(
+              (relation) =>
+                relation.sourceId === objectId ||
+                relation.targetId === objectId,
+            ),
+          });
+        }
         return json({
-          object: this.objects.find((object) => object.objectId === objectId),
+          object,
           relations: this.relations.filter(
             (relation) =>
               relation.sourceId === objectId || relation.targetId === objectId,

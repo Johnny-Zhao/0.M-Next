@@ -12,7 +12,11 @@ import {
   type WorkspaceStore,
   type WriteSink,
 } from "../state/workspace-store";
-import type { UnisourceGateway, WriteRejection } from "./gateway";
+import {
+  CommittedPendingProjectionError,
+  type UnisourceGateway,
+  type WriteRejection,
+} from "./gateway";
 
 type WriteGateway = Pick<
   UnisourceGateway,
@@ -73,13 +77,19 @@ export class KernelWriteBridge implements WriteSink {
         );
         this.workspace.reconcileObject(result.object);
         if (!(await this.refreshRelatedObjects(objectId))) {
-          return refreshFailure(
+          return this.committedPendingMessage(
             "字段已写入，但关联派生数据尚未同步，请重新加载工作空间",
+            { objectId },
           );
         }
         this.onKernelWriteSucceeded?.(actor);
         return { state: "synced", objectId };
       } catch (error) {
+        if (error instanceof CommittedPendingProjectionError) {
+          return this.committedPending(error, {
+            objectId: this.resolveObjectId(descriptor.objectId),
+          });
+        }
         const objectId = this.resolveObjectId(descriptor.objectId);
         this.workspace.rollbackField({
           objectId,
@@ -107,6 +117,9 @@ export class KernelWriteBridge implements WriteSink {
         this.onKernelWriteSucceeded?.(actor);
         return { state: "synced", objectId: object.id };
       } catch (error) {
+        if (error instanceof CommittedPendingProjectionError) {
+          return this.committedPending(error, {});
+        }
         this.workspace.removeObject(descriptor.temporaryObjectId);
         this.reportWriteFailure(error);
         return writeFailure(error);
@@ -150,13 +163,17 @@ export class KernelWriteBridge implements WriteSink {
             endpointRefresh.state === "failed" ||
             relatedRefresh.some((refreshed) => !refreshed)
           ) {
-            return refreshFailure(
+            return this.committedPendingMessage(
               "关系已写入，但关联派生数据尚未同步，请重新加载工作空间",
+              { relationId: result.relation.id },
             );
           }
           this.onKernelWriteSucceeded?.(actor);
           return { state: "synced", relationId: result.relation.id };
         } catch (error) {
+          if (error instanceof CommittedPendingProjectionError) {
+            return this.committedPending(error, {});
+          }
           this.workspace.removeRelation(descriptor.temporaryRelationId);
           this.reportWriteFailure(error);
           return writeFailure(error);
@@ -190,13 +207,19 @@ export class KernelWriteBridge implements WriteSink {
           endpointRefresh.state === "failed" ||
           relatedRefresh.some((refreshed) => !refreshed)
         ) {
-          return refreshFailure(
+          return this.committedPendingMessage(
             "关系已解除，但关联派生数据尚未同步，请重新加载工作空间",
+            { relationId: descriptor.previousRelation.id },
           );
         }
         this.onKernelWriteSucceeded?.(actor);
         return { state: "synced" };
       } catch (error) {
+        if (error instanceof CommittedPendingProjectionError) {
+          return this.committedPending(error, {
+            relationId: descriptor.previousRelation.id,
+          });
+        }
         this.workspace.reconcileRelation(descriptor.previousRelation);
         this.reportWriteFailure(error);
         return writeFailure(error);
@@ -231,13 +254,17 @@ export class KernelWriteBridge implements WriteSink {
           endpointRefresh.state === "failed" ||
           relatedRefresh.some((refreshed) => !refreshed)
         ) {
-          return refreshFailure(
+          return this.committedPendingMessage(
             "对象已归档，但关联派生数据尚未同步，请重新加载工作空间",
+            { objectId },
           );
         }
         this.onKernelWriteSucceeded?.(actor);
         return { state: "synced" };
       } catch (error) {
+        if (error instanceof CommittedPendingProjectionError) {
+          return this.committedPending(error, { objectId });
+        }
         this.workspace.restoreObject(descriptor.snapshot, objectId);
         this.reportWriteFailure(error);
         return writeFailure(error);
@@ -260,8 +287,7 @@ export class KernelWriteBridge implements WriteSink {
         ].map(async (objectId) => this.refreshObjectAuthoritatively(objectId)),
       );
       return { state: "synced" };
-    } catch (error) {
-      this.reportWriteFailure(error);
+    } catch {
       return {
         state: "failed",
         message: "派生字段同步失败，请重新加载工作空间",
@@ -381,6 +407,30 @@ export class KernelWriteBridge implements WriteSink {
       durationMs: 8000,
     });
   }
+
+  private committedPending(
+    error: CommittedPendingProjectionError,
+    fallback: { readonly objectId?: string; readonly relationId?: string },
+  ): WriteCompletion {
+    return this.committedPendingMessage(error.message, {
+      objectId: error.objectId ?? fallback.objectId,
+      relationId: error.relationId ?? fallback.relationId,
+    });
+  }
+
+  private committedPendingMessage(
+    _message: string,
+    ids: { readonly objectId?: string; readonly relationId?: string } = {},
+  ): WriteCompletion {
+    const message =
+      "写入已提交，派生数据仍在同步；请稍后重新加载工作空间确认。";
+    this.showToast({
+      title: "写入已提交，等待同步",
+      desc: message,
+      durationMs: 8000,
+    });
+    return { state: "committed-pending", ...ids, message };
+  }
 }
 
 function toWriteRejection(error: unknown): WriteRejection {
@@ -394,10 +444,6 @@ function toWriteRejection(error: unknown): WriteRejection {
 
 function writeFailure(error: unknown): WriteCompletion {
   return { state: "failed", message: toWriteRejection(error).title };
-}
-
-function refreshFailure(message: string): WriteCompletion {
-  return { state: "failed", message };
 }
 
 function isWriteRejection(value: unknown): value is WriteRejection {

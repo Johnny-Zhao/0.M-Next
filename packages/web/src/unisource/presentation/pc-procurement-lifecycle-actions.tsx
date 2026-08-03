@@ -19,6 +19,7 @@ import type {
   DataSourceLifecycleActionRegistry,
 } from "./data-source-lifecycle-action-registry";
 import { pcProcurementBuildPlanCopyConfig } from "./pc-procurement-preset";
+import { isWriteSubmissionLocked } from "./write-submission-lock";
 
 const terminalStatuses = new Set(["archived", "deleted", "soft-deleted"]);
 type PcProcurementObjectTypeCode =
@@ -39,6 +40,12 @@ export type ProcurementLifecycleResult =
     }
   | { readonly state: "validation-failed"; readonly message: string }
   | { readonly state: "permission-denied"; readonly message: string }
+  | {
+      readonly state: "committed-pending";
+      readonly pendingStep: string;
+      readonly completedSteps: readonly string[];
+      readonly message: string;
+    }
   | {
       readonly state: "partial-failure";
       readonly failedStep: string;
@@ -77,6 +84,14 @@ export async function archiveProcurementObject(input: {
       failedStep: "归档记录",
       completedSteps: [],
       message: `归档记录失败：${write.message}。请重新加载工作空间后重试。`,
+    };
+  }
+  if (write.state === "committed-pending") {
+    return {
+      state: "committed-pending",
+      pendingStep: "归档记录",
+      completedSteps: [],
+      message: write.message,
     };
   }
   return { state: "completed", objectId: object.id, message: null };
@@ -292,7 +307,7 @@ export function PcProcurementRequirementLifecycleAction(
 async function archiveFromAction(
   props: DataSourceLifecycleActionProps,
   objectTypeCode: PcProcurementObjectTypeCode,
-): Promise<void> {
+): Promise<ProcurementLifecycleResult> {
   const result = await archiveProcurementObject({
     objectId: props.object.id,
     objectTypeCode,
@@ -307,9 +322,11 @@ async function archiveFromAction(
             : "记录已归档",
     });
     props.onCompleted(result.objectId);
-    return;
+    return result;
   }
+  if (result.state === "committed-pending") return result;
   pushToast({ title: "归档失败", desc: result.message });
+  return result;
 }
 
 function ArchiveConfirmation({
@@ -328,19 +345,39 @@ function ArchiveConfirmation({
       (relation.sourceId === props.object.id ||
         relation.targetId === props.object.id),
   ).length;
+  const [saving, setSaving] = useState(false);
+  const [committedPending, setCommittedPending] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
   const confirm = async () => {
-    await archiveFromAction(props, objectTypeCode);
-    onClose();
+    if (isWriteSubmissionLocked(saving, committedPending)) return;
+    setSaving(true);
+    const result = await archiveFromAction(props, objectTypeCode);
+    setSaving(false);
+    if (result.state === "completed") {
+      onClose();
+      return;
+    }
+    setMessage(result.message);
+    if (result.state === "committed-pending") setCommittedPending(true);
   };
   return (
     <UsModal
       footer={
         <>
-          <UsButton onClick={onClose} size="sm">
+          <UsButton disabled={saving} onClick={onClose} size="sm">
             取消
           </UsButton>
-          <UsButton onClick={() => void confirm()} size="sm" variant="primary">
-            确认归档
+          <UsButton
+            disabled={isWriteSubmissionLocked(saving, committedPending)}
+            onClick={() => void confirm()}
+            size="sm"
+            variant="primary"
+          >
+            {committedPending
+              ? "已提交，待同步"
+              : saving
+                ? "正在归档…"
+                : "确认归档"}
           </UsButton>
         </>
       }
@@ -349,6 +386,7 @@ function ArchiveConfirmation({
       title="确认归档"
     >
       <p>归档后该记录及其 {relationCount} 条关联不会在默认表达中显示。</p>
+      {message ? <p role="alert">{message}</p> : null}
     </UsModal>
   );
 }
@@ -367,8 +405,10 @@ function CopyBuildPlanDialog({
     `${String(object.fields.name?.value ?? "采购方案")}（复制）`,
   );
   const [saving, setSaving] = useState(false);
+  const [committedPending, setCommittedPending] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const save = async () => {
+    if (isWriteSubmissionLocked(saving, committedPending)) return;
     setSaving(true);
     const result = await copyBuildPlan({ planId: object.id, code, name });
     setSaving(false);
@@ -380,6 +420,7 @@ function CopyBuildPlanDialog({
       return;
     }
     setMessage(result.message);
+    if (result.state === "committed-pending") setCommittedPending(true);
   };
   return (
     <UsModal
@@ -389,11 +430,15 @@ function CopyBuildPlanDialog({
             取消
           </UsButton>
           <UsButton
-            disabled={saving}
+            disabled={isWriteSubmissionLocked(saving, committedPending)}
             onClick={() => void save()}
             variant="primary"
           >
-            {saving ? "正在复制…" : "复制方案"}
+            {committedPending
+              ? "已提交，待同步"
+              : saving
+                ? "正在复制…"
+                : "复制方案"}
           </UsButton>
         </>
       }

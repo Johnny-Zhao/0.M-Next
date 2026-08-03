@@ -153,6 +153,67 @@ describe("pc procurement data source relation actions", () => {
       activeTarget(workspace, "quote-1", "supplier_quote_for_product"),
     ).toBeTruthy();
   });
+
+  it("stops quote replacement after an old relation is committed-pending", async () => {
+    const workspace = fixture();
+    workspace.createObject({
+      objectTypeCode: "hardware_product",
+      fields: { code: "HW-2", name: "备用配件" },
+      actor: "wangyun",
+    });
+    const productTwo = workspace
+      .getObjects("hardware_product")
+      .find((item) => item.fields.code?.value === "HW-2")!;
+    workspace.createRelation({
+      relationTypeCode: "supplier_quote_for_product",
+      sourceId: "quote-1",
+      targetId: "product-1",
+      actor: "wangyun",
+    });
+    const sink = createSink();
+    sink.unlinkRelation = vi.fn(() =>
+      Promise.resolve({
+        state: "committed-pending" as const,
+        message: pendingMessage,
+      }),
+    );
+    workspace.setWriteSink(sink);
+
+    const result = await updateSupplierQuoteRelations({
+      quoteId: "quote-1",
+      draft: { productId: productTwo.id, supplierId: "supplier-1" },
+      workspace,
+      session: allowedSession(workspace),
+    });
+
+    expect(result).toMatchObject({
+      state: "committed-pending",
+      completedSteps: [expect.any(String)],
+    });
+    expect(sink.createRelation).not.toHaveBeenCalled();
+  });
+
+  it("stops quote maintenance when its first new relation is committed-pending", async () => {
+    const workspace = fixture();
+    const sink = createSink();
+    sink.createRelation = vi.fn(() =>
+      Promise.resolve({
+        state: "committed-pending" as const,
+        message: pendingMessage,
+      }),
+    );
+    workspace.setWriteSink(sink);
+
+    const result = await updateSupplierQuoteRelations({
+      quoteId: "quote-1",
+      draft: { productId: "product-1", supplierId: "supplier-1" },
+      workspace,
+      session: allowedSession(workspace),
+    });
+
+    expect(result).toMatchObject({ state: "committed-pending" });
+    expect(sink.createRelation).toHaveBeenCalledTimes(1);
+  });
 });
 
 function fixture(): WorkspaceStore {
@@ -228,6 +289,9 @@ function createSink(): WriteSink {
     deleteObject: vi.fn(),
   };
 }
+
+const pendingMessage =
+  "写入已提交，派生数据仍在同步；请稍后重新加载工作空间确认。";
 
 function object(
   id: string,

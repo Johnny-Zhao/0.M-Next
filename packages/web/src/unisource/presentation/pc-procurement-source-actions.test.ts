@@ -85,6 +85,31 @@ describe("pc procurement build plan create action", () => {
     expect(workspace.getObject("plan-new")).toBeDefined();
   });
 
+  it("does not report a requirement binding as bound while projection is pending", async () => {
+    const workspace = fixtureWorkspace();
+    const sink = createSink();
+    sink.createRelation = vi.fn(() =>
+      Promise.resolve({
+        state: "committed-pending" as const,
+        message: pendingMessage,
+      }),
+    );
+    workspace.setWriteSink(sink);
+
+    const result = await bindBuildPlanRequirement({
+      planId: "plan-new",
+      requirementId: "requirement-1",
+      workspace,
+      session: allowedSession(workspace),
+    });
+
+    expect(result).toMatchObject({
+      state: "committed-pending",
+      pendingStep: "绑定采购需求关系",
+    });
+    expect("relationId" in result).toBe(false);
+  });
+
   it("does not write when the member lacks edit permission", async () => {
     const workspace = fixtureWorkspace();
     const sink = createSink();
@@ -179,6 +204,9 @@ function createSink(): WriteSink {
     deleteObject: vi.fn(),
   };
 }
+
+const pendingMessage =
+  "写入已提交，派生数据仍在同步；请稍后重新加载工作空间确认。";
 
 function object(
   id: string,

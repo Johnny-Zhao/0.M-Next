@@ -33,6 +33,7 @@ export interface CreateRecordValidation {
 
 export type CreateRecordResult =
   | { readonly state: "created"; readonly objectId: string }
+  | { readonly state: "committed-pending"; readonly message: string }
   | {
       readonly state: "invalid";
       readonly errors: Readonly<Record<string, string>>;
@@ -45,6 +46,12 @@ export type UpdateRecordResult =
       readonly state: "updated";
       readonly changed: number;
       readonly queued: number;
+    }
+  | {
+      readonly state: "committed-pending";
+      readonly changed: number;
+      readonly queued: number;
+      readonly message: string;
     }
   | {
       readonly state: "invalid";
@@ -131,6 +138,14 @@ export async function updateRecord(input: {
   if (completion.state === "failed") {
     return { state: "failed", message: completion.message };
   }
+  if (completion.state === "committed-pending") {
+    return {
+      state: "committed-pending",
+      changed,
+      queued,
+      message: completion.message,
+    };
+  }
   return { state: "updated", changed, queued };
 }
 
@@ -210,6 +225,9 @@ export async function createRecord(input: {
   const completion = await workspace.waitForLastWrite();
   if (completion.state === "failed") {
     return { state: "failed", message: completion.message };
+  }
+  if (completion.state === "committed-pending") {
+    return { state: "committed-pending", message: completion.message };
   }
   return {
     state: "created",

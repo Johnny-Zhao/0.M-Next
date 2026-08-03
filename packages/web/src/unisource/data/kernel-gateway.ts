@@ -83,7 +83,10 @@ import type {
   ExpressionConfigCreated,
   UnisourceGateway,
 } from "./gateway";
-import { KERNEL_GATEWAY_CAPABILITIES } from "./gateway";
+import {
+  CommittedPendingProjectionError,
+  KERNEL_GATEWAY_CAPABILITIES,
+} from "./gateway";
 import {
   objectBusinessKey,
   relationBusinessKey,
@@ -456,7 +459,12 @@ export class KernelGateway implements UnisourceGateway {
         expectedObjectVersion,
         [{ fieldDefCode: fieldCode, value }],
       );
-      const object = await this.loadObjectById(objectId);
+      const object = await this.claimUpdatedObject(
+        objectId,
+        expectedObjectVersion,
+        fieldCode,
+        value,
+      );
       return {
         event: kernelWriteEvent("field", objectId, fieldCode, meta.actor),
         syncedRefs: 0,
@@ -485,7 +493,13 @@ export class KernelGateway implements UnisourceGateway {
         type.id,
         params.fields,
       );
-      return this.claimObject(params.objectTypeCode, params.fields);
+      try {
+        return await this.claimObject(params.objectTypeCode, params.fields);
+      } catch {
+        throw committedPendingProjection({
+          objectId: params.objectId,
+        });
+      }
     });
   }
 
@@ -515,7 +529,11 @@ export class KernelGateway implements UnisourceGateway {
               version: result.version,
               annotationIds: [],
             }
-          : await this.claimRelation(params);
+          : await this.claimRelation(params).catch(() => {
+              throw committedPendingProjection({
+                relationId: undefined,
+              });
+            });
       return { relation };
     });
   }
@@ -915,6 +933,29 @@ export class KernelGateway implements UnisourceGateway {
     const detail = await this.viewClient.object(this.workspaceId, objectId);
     const type = await this.requireObjectType(detail.object.objectType);
     return mapViewObject(detail.object, mapObjectType(type));
+  }
+
+  private async claimUpdatedObject(
+    objectId: string,
+    expectedObjectVersion: number,
+    fieldCode: FieldCode,
+    value: DataFieldPrimitive,
+  ): Promise<DataObject> {
+    for (let attempt = 0; attempt < CLAIM_READ_ATTEMPTS; attempt += 1) {
+      try {
+        const object = await this.loadObjectById(objectId);
+        if (
+          object.version > expectedObjectVersion &&
+          Object.is(object.fields[fieldCode]?.value, value)
+        ) {
+          return object;
+        }
+      } catch {
+        // The command was already accepted; an unavailable projection is pending.
+      }
+      if (attempt + 1 < CLAIM_READ_ATTEMPTS) await nextReadModelTurn();
+    }
+    throw committedPendingProjection({ objectId });
   }
 
   private async claimObject(
@@ -1357,6 +1398,16 @@ function isString(value: string | null): value is string {
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+function committedPendingProjection(input: {
+  readonly objectId?: string;
+  readonly relationId?: string;
+}): CommittedPendingProjectionError {
+  return new CommittedPendingProjectionError({
+    ...input,
+    message: "写入已提交，派生数据仍在同步；请稍后重新加载工作空间确认。",
+  });
 }
 
 function tus016(): Error {

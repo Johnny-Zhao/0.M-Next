@@ -141,6 +141,24 @@ describe("create record action", () => {
     ).toBe(false);
   });
 
+  it("reports an accepted create as committed-pending without removing its local object", async () => {
+    const test = harness({ pending: true });
+    const result = await createRecord({
+      objectType,
+      relationTypes: [],
+      draft: validDraft(),
+      workspace: test.workspace,
+      session: test.session,
+    });
+
+    expect(result).toMatchObject({ state: "committed-pending" });
+    expect(
+      test.workspace
+        .getSnapshot()
+        .objects.some((item) => item.fields.code?.value === "SUP-NEW"),
+    ).toBe(true);
+  });
+
   it("rejects a duplicate code in the current workspace before creating", async () => {
     const test = harness();
     test.workspace.createObject({
@@ -339,7 +357,11 @@ function validDraft() {
 }
 
 function harness(
-  options: { readonly objectId?: string; readonly failure?: string } = {},
+  options: {
+    readonly objectId?: string;
+    readonly failure?: string;
+    readonly pending?: boolean;
+  } = {},
 ) {
   const seed = cloneDemoSeed();
   const workspace = new WorkspaceStore({
@@ -367,6 +389,7 @@ class CreateSink implements WriteSink {
     private readonly options: {
       readonly objectId?: string;
       readonly failure?: string;
+      readonly pending?: boolean;
     },
   ) {}
 
@@ -386,6 +409,12 @@ class CreateSink implements WriteSink {
       return Promise.resolve({
         state: "failed" as const,
         message: this.options.failure,
+      });
+    }
+    if (this.options.pending) {
+      return Promise.resolve({
+        state: "committed-pending" as const,
+        message: "写入已提交，派生数据仍在同步；请稍后重新加载工作空间确认。",
       });
     }
     const objectId = this.options.objectId ?? descriptor.temporaryObjectId;

@@ -56,6 +56,12 @@ export type ProcurementItemCreateResult =
       readonly itemId: string;
       readonly message: string | null;
     }
+  | {
+      readonly state: "committed-pending";
+      readonly pendingStep: string;
+      readonly message: string;
+      readonly completedSteps: readonly string[];
+    }
   | { readonly state: "validation-failed"; readonly message: string }
   | { readonly state: "permission-denied"; readonly message: string }
   | {
@@ -81,6 +87,13 @@ export type ProcurementItemEditResult =
   | { readonly state: "validation-failed"; readonly message: string }
   | { readonly state: "permission-denied"; readonly message: string }
   | {
+      readonly state: "committed-pending";
+      readonly itemId: string;
+      readonly pendingStep: string;
+      readonly message: string;
+      readonly completedSteps: readonly string[];
+    }
+  | {
       readonly state: "partial-failure";
       readonly failedStep: string;
       readonly message: string;
@@ -95,6 +108,13 @@ export type ProcurementItemRemoveResult =
     }
   | { readonly state: "validation-failed"; readonly message: string }
   | { readonly state: "permission-denied"; readonly message: string }
+  | {
+      readonly state: "committed-pending";
+      readonly itemId: string;
+      readonly pendingStep: string;
+      readonly message: string;
+      readonly completedSteps: readonly string[];
+    }
   | {
       readonly state: "partial-failure";
       readonly failedStep: string;
@@ -171,6 +191,14 @@ export async function createProcurementItem(input: {
     return partialFailure("创建明细对象", itemWrite, completedSteps);
   }
   completedSteps.push("创建明细对象");
+  if (itemWrite.state === "committed-pending") {
+    return {
+      state: "committed-pending",
+      pendingStep: "创建明细对象",
+      message: itemWrite.message,
+      completedSteps,
+    };
+  }
   const itemId = resolvedObjectId(item.id, itemWrite);
 
   const relations = [
@@ -202,6 +230,14 @@ export async function createProcurementItem(input: {
     const write = await workspace.waitForLastWrite();
     if (write.state === "failed") {
       return partialFailure(relation.label, write, completedSteps);
+    }
+    if (write.state === "committed-pending") {
+      return {
+        state: "committed-pending",
+        pendingStep: relation.label,
+        message: write.message,
+        completedSteps,
+      };
     }
     completedSteps.push(relation.label);
   }
@@ -274,6 +310,14 @@ export async function updateProcurementItem(input: {
       return editPartialFailure("更新采购明细数量", write, completedSteps);
     }
     completedSteps.push("更新采购明细数量");
+    if (write.state === "committed-pending") {
+      return editCommittedPending(
+        input.itemId,
+        "更新采购明细数量",
+        write,
+        completedSteps,
+      );
+    }
   }
 
   const relationSteps = await replaceProcurementItemRelations({
@@ -284,7 +328,7 @@ export async function updateProcurementItem(input: {
     actor,
     completedSteps,
   });
-  if (relationSteps.state === "partial-failure") return relationSteps;
+  if (relationSteps.state !== "updated") return relationSteps;
   const refresh = await workspace.refreshObjects([
     input.planId,
     input.itemId,
@@ -408,6 +452,15 @@ export async function removeProcurementItemFromPlan(input: {
       state: "partial-failure",
       failedStep: "解除方案明细关系",
       message: `解除方案明细关系失败：${write.message}。请重新加载工作空间后重试。`,
+      completedSteps: [],
+    };
+  }
+  if (write.state === "committed-pending") {
+    return {
+      state: "committed-pending",
+      itemId: item.id,
+      pendingStep: "解除方案明细关系",
+      message: write.message,
       completedSteps: [],
     };
   }
@@ -562,7 +615,10 @@ async function replaceProcurementItemRelations(input: {
   readonly completedSteps: readonly string[];
 }): Promise<
   | { readonly state: "updated"; readonly completedSteps: readonly string[] }
-  | Extract<ProcurementItemEditResult, { readonly state: "partial-failure" }>
+  | Extract<
+      ProcurementItemEditResult,
+      { readonly state: "partial-failure" | "committed-pending" }
+    >
 > {
   const completedSteps = [...input.completedSteps];
   const currentProduct = activeRelationTarget(
@@ -611,6 +667,14 @@ async function replaceProcurementItemRelations(input: {
       return editPartialFailure(change.label, write, completedSteps);
     }
     completedSteps.push(change.label);
+    if (write.state === "committed-pending") {
+      return editCommittedPending(
+        input.itemId,
+        change.label,
+        write,
+        completedSteps,
+      );
+    }
   }
 
   const additions = [
@@ -645,6 +709,14 @@ async function replaceProcurementItemRelations(input: {
     if (write.state === "failed") {
       return editPartialFailure(addition.label, write, completedSteps);
     }
+    if (write.state === "committed-pending") {
+      return editCommittedPending(
+        input.itemId,
+        addition.label,
+        write,
+        completedSteps,
+      );
+    }
     completedSteps.push(addition.label);
   }
   return { state: "updated", completedSteps };
@@ -661,6 +733,21 @@ function editPartialFailure(
     state: "partial-failure",
     failedStep,
     message: `${failedStep}失败：${message}。已完成步骤：${completedSteps.join("、") || "无"}。请重新加载工作空间后重试。`,
+    completedSteps,
+  };
+}
+
+function editCommittedPending(
+  itemId: string,
+  pendingStep: string,
+  completion: Extract<WriteCompletion, { state: "committed-pending" }>,
+  completedSteps: readonly string[],
+): Extract<ProcurementItemEditResult, { readonly state: "committed-pending" }> {
+  return {
+    state: "committed-pending",
+    itemId,
+    pendingStep,
+    message: completion.message,
     completedSteps,
   };
 }

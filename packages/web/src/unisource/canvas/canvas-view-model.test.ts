@@ -166,19 +166,72 @@ describe("canvas view model", () => {
     expect(buildCanvasViewModel(workspace, view, "missing").nodes).toEqual([]);
   });
 
-  it("keeps the active derived root when a non-root object is selected", () => {
+  it("resolves a selected descendant to its configured canvas root", () => {
     const { workspace, view } = selectedCanvasFixture();
-    const activeRootId = initialCanvasRootObjectId(workspace, view);
 
-    expect(selectedCanvasRootObjectId(workspace, view, "item-a")).toBeNull();
+    expect(selectedCanvasRootObjectId(workspace, view, "item-a")).toBe(
+      "plan-a",
+    );
     expect(
-      buildCanvasViewModel(workspace, view, activeRootId).nodes.map(
+      buildCanvasViewModel(workspace, view, "item-a").nodes.map(
         (node) => node.objectId,
       ),
     ).toEqual(["plan-a", "item-a"]);
     expect(selectedCanvasRootObjectId(workspace, view, "plan-a")).toBe(
       "plan-a",
     );
+  });
+
+  it("switches to the unique root that contains a selected other-plan item", () => {
+    const { workspace, view } = twoPlanCanvasFixture();
+
+    expect(selectedCanvasRootObjectId(workspace, view, "item-b")).toBe(
+      "plan-b",
+    );
+    expect(
+      buildCanvasViewModel(workspace, view, "item-b").nodes.map(
+        (node) => node.objectId,
+      ),
+    ).toEqual(["plan-b", "item-b"]);
+  });
+
+  it("does not choose a root for terminal, ambiguous, or misconfigured selections", () => {
+    const { workspace, view } = twoPlanCanvasFixture();
+    const ambiguousWorkspace = {
+      ...workspace,
+      relations: [
+        ...workspace.relations,
+        canvasRelation(
+          "contains-b-item-a",
+          "build_plan_contains_item",
+          "plan-b",
+          "item-a",
+        ),
+      ],
+    };
+    const terminalWorkspace = {
+      ...workspace,
+      objects: workspace.objects.map((object) =>
+        object.id === "item-b"
+          ? { ...object, status: "archived" as const }
+          : object,
+      ),
+    };
+
+    expect(
+      selectedCanvasRootObjectId(ambiguousWorkspace, view, "item-a"),
+    ).toBeNull();
+    expect(
+      selectedCanvasRootObjectId(terminalWorkspace, view, "item-b"),
+    ).toBeNull();
+    expect(
+      selectedCanvasRootObjectId(
+        workspace,
+        { ...view, config: { selectionObjectTypeCode: "build_plan" } },
+        "plan-a",
+      ),
+    ).toBeNull();
+    expect(selectedCanvasRootObjectId(workspace, view, "missing")).toBeNull();
   });
 
   it("overlays persisted layout and upserts a dragged derived node", () => {
@@ -234,6 +287,30 @@ function selectedCanvasFixture() {
         selectionDepth: 2,
       },
     },
+  };
+}
+
+function twoPlanCanvasFixture() {
+  const { workspace, view } = selectedCanvasFixture();
+  return {
+    workspace: {
+      ...workspace,
+      objects: [
+        ...workspace.objects,
+        canvasObject("plan-b", "build_plan"),
+        canvasObject("item-b", "build_plan_item"),
+      ],
+      relations: [
+        ...workspace.relations,
+        canvasRelation(
+          "contains-b",
+          "build_plan_contains_item",
+          "plan-b",
+          "item-b",
+        ),
+      ],
+    },
+    view,
   };
 }
 

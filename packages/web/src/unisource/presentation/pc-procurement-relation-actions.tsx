@@ -20,6 +20,7 @@ import type {
 } from "./data-source-relation-action-registry";
 import { ProcurementItemEditor } from "./pc-procurement-item-editor";
 import { buildPlanRequirementOptions } from "./pc-procurement-source-actions";
+import { isWriteSubmissionLocked } from "./write-submission-lock";
 
 const quoteForProduct = "supplier_quote_for_product";
 const quoteOfferedBy = "supplier_quote_offered_by_supplier";
@@ -36,6 +37,12 @@ export interface ProcurementQuoteRelationDraft {
 
 export type ProcurementRelationResult =
   | { readonly state: "updated"; readonly message: string | null }
+  | {
+      readonly state: "committed-pending";
+      readonly pendingStep: string;
+      readonly completedSteps: readonly string[];
+      readonly message: string;
+    }
   | { readonly state: "validation-failed"; readonly message: string }
   | { readonly state: "permission-denied"; readonly message: string }
   | {
@@ -188,6 +195,12 @@ export async function updateBuildPlanRequirement(input: {
       if (write.state === "failed")
         return partialFailure("解除旧采购需求", write.message, completedSteps);
       completedSteps.push("解除旧采购需求");
+      if (write.state === "committed-pending")
+        return committedPending(
+          "解除旧采购需求",
+          completedSteps,
+          write.message,
+        );
     }
     const refresh = await workspace.refreshObjects([plan.id]);
     return {
@@ -243,7 +256,7 @@ async function replaceRelation(input: {
   readonly completedSteps: string[];
 }): Promise<Extract<
   ProcurementRelationResult,
-  { state: "partial-failure" }
+  { state: "partial-failure" | "committed-pending" }
 > | null> {
   const current = input.workspace
     .getRelations(input.sourceId)
@@ -263,6 +276,12 @@ async function replaceRelation(input: {
         input.completedSteps,
       );
     input.completedSteps.push(`解除旧${input.label}`);
+    if (write.state === "committed-pending")
+      return committedPending(
+        `解除旧${input.label}`,
+        input.completedSteps,
+        write.message,
+      );
   }
   input.workspace.createRelation({
     relationTypeCode: input.relationTypeCode,
@@ -274,6 +293,8 @@ async function replaceRelation(input: {
   const write = await input.workspace.waitForLastWrite();
   if (write.state === "failed")
     return partialFailure(input.label, write.message, input.completedSteps);
+  if (write.state === "committed-pending")
+    return committedPending(input.label, input.completedSteps, write.message);
   input.completedSteps.push(input.label);
   return null;
 }
@@ -289,6 +310,14 @@ function partialFailure(
     completedSteps,
     message: `${failedStep}失败：${message}。已完成步骤：${completedSteps.join("、") || "无"}。请重新加载工作空间后重试。`,
   };
+}
+
+function committedPending(
+  pendingStep: string,
+  completedSteps: readonly string[],
+  message: string,
+): Extract<ProcurementRelationResult, { state: "committed-pending" }> {
+  return { state: "committed-pending", pendingStep, completedSteps, message };
 }
 
 export function registerPcProcurementRelationActions(
@@ -415,7 +444,9 @@ function PlanRequirementBinding({
   );
   const [message, setMessage] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [committedPending, setCommittedPending] = useState(false);
   const save = async (nextRequirementId = requirementId) => {
+    if (isWriteSubmissionLocked(saving, committedPending)) return;
     setSaving(true);
     const result = await updateBuildPlanRequirement({
       planId,
@@ -428,6 +459,7 @@ function PlanRequirementBinding({
       return;
     }
     setMessage(result.message);
+    if (result.state === "committed-pending") setCommittedPending(true);
   };
   return (
     <section className="us-procurement-relation-section">
@@ -453,14 +485,22 @@ function PlanRequirementBinding({
         ))}
       </UsSelect>
       <UsButton
-        disabled={saving || !requirementId}
+        disabled={
+          isWriteSubmissionLocked(saving, committedPending) || !requirementId
+        }
         onClick={() => void save()}
         size="sm"
       >
-        {saving ? "正在绑定…" : "绑定采购需求"}
+        {committedPending
+          ? "已提交，待同步"
+          : saving
+            ? "正在绑定…"
+            : "绑定采购需求"}
       </UsButton>
       <UsButton
-        disabled={saving || !requirementId}
+        disabled={
+          isWriteSubmissionLocked(saving, committedPending) || !requirementId
+        }
         onClick={() => {
           setRequirementId("");
           void save("");
@@ -468,7 +508,7 @@ function PlanRequirementBinding({
         size="sm"
         variant="secondary"
       >
-        解除采购需求
+        {committedPending ? "已提交，待同步" : "解除采购需求"}
       </UsButton>
       {message ? <p role="alert">{message}</p> : null}
     </section>
@@ -491,8 +531,10 @@ function SupplierQuoteRelationDialog({
     initialProcurementQuoteRelationDraft(workspace, object.id),
   );
   const [saving, setSaving] = useState(false);
+  const [committedPending, setCommittedPending] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const save = async () => {
+    if (isWriteSubmissionLocked(saving, committedPending)) return;
     setSaving(true);
     const result = await updateSupplierQuoteRelations({
       quoteId: object.id,
@@ -509,6 +551,7 @@ function SupplierQuoteRelationDialog({
       return;
     }
     setMessage(result.message);
+    if (result.state === "committed-pending") setCommittedPending(true);
   };
   return (
     <UsModal
@@ -518,11 +561,15 @@ function SupplierQuoteRelationDialog({
             取消
           </UsButton>
           <UsButton
-            disabled={saving}
+            disabled={isWriteSubmissionLocked(saving, committedPending)}
             onClick={() => void save()}
             variant="primary"
           >
-            {saving ? "正在保存…" : "保存关系"}
+            {committedPending
+              ? "已提交，待同步"
+              : saving
+                ? "正在保存…"
+                : "保存关系"}
           </UsButton>
         </>
       }

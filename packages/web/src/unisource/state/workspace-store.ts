@@ -176,6 +176,12 @@ export type WriteCompletion =
       readonly objectId?: string;
       readonly relationId?: string;
     }
+  | {
+      readonly state: "committed-pending";
+      readonly objectId?: string;
+      readonly relationId?: string;
+      readonly message: string;
+    }
   | { readonly state: "failed"; readonly message: string };
 
 export interface WriteSink {

@@ -124,6 +124,12 @@ function RecordEditorDialog({
       onClose();
       return;
     }
+    if (result.state === "committed-pending") {
+      pushToast({ title: "写入已提交，等待同步", desc: result.message });
+      onUpdated?.();
+      onClose();
+      return;
+    }
     if (result.state === "updated") {
       pushToast({
         title:

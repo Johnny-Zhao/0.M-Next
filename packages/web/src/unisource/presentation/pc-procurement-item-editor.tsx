@@ -14,6 +14,7 @@ import {
   type ProcurementItemEditDraft,
   type ProcurementItemDraft,
 } from "./pc-procurement-item-flow";
+import { isWriteSubmissionLocked } from "./write-submission-lock";
 
 export function ProcurementItemEditor({ planId }: { readonly planId: string }) {
   const workspace = useWorkspaceSnapshot();
@@ -23,6 +24,7 @@ export function ProcurementItemEditor({ planId }: { readonly planId: string }) {
     createInitialProcurementItemDraft,
   );
   const [saving, setSaving] = useState(false);
+  const [committedPending, setCommittedPending] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const model = useMemo(
     () => buildProcurementItemFormModel(workspace, planId, draft.productId),
@@ -37,9 +39,11 @@ export function ProcurementItemEditor({ planId }: { readonly planId: string }) {
   const begin = () => {
     setDraft(createInitialProcurementItemDraft());
     setMessage(null);
+    setCommittedPending(false);
     setOpen(true);
   };
   const save = async () => {
+    if (isWriteSubmissionLocked(saving, committedPending)) return;
     setSaving(true);
     const result = await createProcurementItem({ planId, draft });
     setSaving(false);
@@ -50,11 +54,18 @@ export function ProcurementItemEditor({ planId }: { readonly planId: string }) {
       return;
     }
     setMessage(result.message);
+    if (result.state === "committed-pending") setCommittedPending(true);
   };
 
   return (
     <div className="us-procurement-item-editor">
-      <UsButton disabled={!canCreate || saving} onClick={begin} size="sm">
+      <UsButton
+        disabled={
+          !canCreate || isWriteSubmissionLocked(saving, committedPending)
+        }
+        onClick={begin}
+        size="sm"
+      >
         新增明细
       </UsButton>
       {!canCreate ? <small>当前成员没有新增采购明细权限</small> : null}
@@ -146,8 +157,16 @@ export function ProcurementItemEditor({ planId }: { readonly planId: string }) {
           </label>
           {message ? <p role="alert">{message}</p> : null}
           <div className="us-procurement-item-editor__actions">
-            <UsButton disabled={saving} type="submit" variant="primary">
-              {saving ? "正在创建…" : "创建明细"}
+            <UsButton
+              disabled={isWriteSubmissionLocked(saving, committedPending)}
+              type="submit"
+              variant="primary"
+            >
+              {committedPending
+                ? "已提交，待同步"
+                : saving
+                  ? "正在创建…"
+                  : "创建明细"}
             </UsButton>
             <UsButton
               disabled={saving}
@@ -170,6 +189,7 @@ function ProcurementItemMaintenance({ planId }: { readonly planId: string }) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState<ProcurementItemEditDraft | null>(null);
   const [saving, setSaving] = useState(false);
+  const [committedPending, setCommittedPending] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const canEdit = sessionStore.can(
     session.currentMemberId,
@@ -200,6 +220,7 @@ function ProcurementItemMaintenance({ planId }: { readonly planId: string }) {
     setEditingId(itemId);
     setDraft(initialProcurementItemEditDraft(workspace, itemId));
     setMessage(null);
+    setCommittedPending(false);
   };
   const close = (force = false) => {
     if (saving && !force) return;
@@ -209,6 +230,7 @@ function ProcurementItemMaintenance({ planId }: { readonly planId: string }) {
   };
   const save = async () => {
     if (!editingId || !draft) return;
+    if (isWriteSubmissionLocked(saving, committedPending)) return;
     setSaving(true);
     setMessage(null);
     const result = await updateProcurementItem({
@@ -223,9 +245,11 @@ function ProcurementItemMaintenance({ planId }: { readonly planId: string }) {
       return;
     }
     setMessage(result.message);
+    if (result.state === "committed-pending") setCommittedPending(true);
   };
   const remove = async () => {
     if (!editingId) return;
+    if (isWriteSubmissionLocked(saving, committedPending)) return;
     setSaving(true);
     setMessage(null);
     const result = await removeProcurementItemFromPlan({
@@ -239,6 +263,7 @@ function ProcurementItemMaintenance({ planId }: { readonly planId: string }) {
       return;
     }
     setMessage(result.message);
+    if (result.state === "committed-pending") setCommittedPending(true);
   };
 
   return (
@@ -256,6 +281,7 @@ function ProcurementItemMaintenance({ planId }: { readonly planId: string }) {
             <UsButton
               disabled={
                 !canEdit ||
+                committedPending ||
                 ["archived", "deleted", "soft-deleted"].includes(
                   candidate!.status,
                 )
@@ -276,18 +302,26 @@ function ProcurementItemMaintenance({ planId }: { readonly planId: string }) {
                 取消
               </UsButton>
               <UsButton
-                disabled={saving || !canEdit}
+                disabled={
+                  isWriteSubmissionLocked(saving, committedPending) || !canEdit
+                }
                 onClick={() => void remove()}
                 size="sm"
               >
-                从方案移除
+                {committedPending ? "已提交，待同步" : "从方案移除"}
               </UsButton>
               <UsButton
-                disabled={saving || !canEdit}
+                disabled={
+                  isWriteSubmissionLocked(saving, committedPending) || !canEdit
+                }
                 onClick={() => void save()}
                 variant="primary"
               >
-                {saving ? "正在保存…" : "保存明细"}
+                {committedPending
+                  ? "已提交，待同步"
+                  : saving
+                    ? "正在保存…"
+                    : "保存明细"}
               </UsButton>
             </>
           }

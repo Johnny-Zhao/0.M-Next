@@ -101,6 +101,29 @@ describe("structured document field editing", () => {
     await expect(saved).resolves.toMatchObject({ kind: "written" });
   });
 
+  it("closes a committed document edit without presenting it as synced", async () => {
+    const requestWrite = vi.fn(() => ({
+      queued: false as const,
+      eventId: "event-document-write",
+      syncedRefs: 0,
+    }));
+
+    await expect(
+      commitStructuredDocumentFieldEdit({
+        field: documentField(),
+        rawValue: "1099",
+        session: { requestWrite },
+        waitForLastWrite: async () => ({
+          state: "committed-pending" as const,
+          message: "写入已提交，派生数据仍在同步；请稍后重新加载工作空间确认。",
+        }),
+      }),
+    ).resolves.toMatchObject({
+      kind: "written",
+      syncState: "committed-pending",
+    });
+  });
+
   it("saves body through SessionStore with the real object type and waits for sync", async () => {
     const requestWrite = vi.fn(() => ({
       queued: false as const,

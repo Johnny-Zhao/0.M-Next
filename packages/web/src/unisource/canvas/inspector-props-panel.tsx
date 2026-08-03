@@ -8,7 +8,10 @@ import {
   useWorkspaceSnapshot,
 } from "../state/workspace-store";
 import { buildCanvasViewModel } from "./canvas-view-model";
-import { useCanvasRootObjectId } from "./canvas-root-selection";
+import {
+  canvasSelectionObjectId,
+  useCanvasRootObjectId,
+} from "./canvas-root-selection";
 
 export function selectedCanvasPanelNodes(
   workspace: WorkspaceState,
@@ -39,17 +42,16 @@ export function CanvasPropsPanel({
   const view = workspace.views.find(
     (candidate) => candidate.id === viewId && candidate.kind === "canvas",
   );
-  const selectedObjectId =
-    selection.current?.entityType === "object"
-      ? selection.current.entityId
-      : null;
+  const selectedObjectId = canvasSelectionObjectId(selection.current);
   const canvasRootObjectId = useCanvasRootObjectId(
     workspace,
     view,
     selectedObjectId,
   );
   const selectedKey = selection.selected
-    .filter((item) => item.entityType === "object")
+    .filter(
+      (item) => item.entityType === "object" || item.entityType === "field",
+    )
     .map((item) => item.entityId)
     .join("|");
   const selectedIds = useMemo(

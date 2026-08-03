@@ -1,11 +1,20 @@
 import { useEffect, useState } from "react";
 
-import type { ViewDef } from "../model/kernel";
+import type { SelectionRef, ViewDef } from "../model/kernel";
 import type { WorkspaceState } from "../state/workspace-store";
 import {
   initialCanvasRootObjectId,
   selectedCanvasRootObjectId,
 } from "./canvas-view-model";
+
+/** A field selection belongs to the same object as its containing canvas card. */
+export function canvasSelectionObjectId(
+  selection: SelectionRef | null,
+): string | null {
+  return selection?.entityType === "object" || selection?.entityType === "field"
+    ? selection.entityId
+    : null;
+}
 
 /** Keeps a selection-derived canvas rooted until another root object is selected. */
 export function useCanvasRootObjectId(

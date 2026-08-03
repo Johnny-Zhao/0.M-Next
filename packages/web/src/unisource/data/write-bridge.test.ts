@@ -12,7 +12,11 @@ import { cloneDemoSeed, type DemoSeed } from "../seed/demo-seed";
 import { ChangeSetStore } from "../state/changeset-store";
 import { SessionStore } from "../state/session-store";
 import { WorkspaceStore } from "../state/workspace-store";
-import type { UnisourceGateway, WriteRejection } from "./gateway";
+import {
+  CommittedPendingProjectionError,
+  type UnisourceGateway,
+  type WriteRejection,
+} from "./gateway";
 import { KernelWriteBridge } from "./write-bridge";
 
 describe("KernelWriteBridge", () => {
@@ -82,6 +86,45 @@ describe("KernelWriteBridge", () => {
       title: "乐观版本冲突",
       desc: expect.stringContaining("price: 当前 1199"),
     });
+  });
+
+  it("keeps an accepted field write when its projection is pending", async () => {
+    const harness = createHarness({ updateFieldCommittedPending: true });
+    harness.workspace.setWriteSink(harness.bridge);
+
+    harness.workspace.updateField("prod-s3", "price", 1099, {
+      actor: "wangyun",
+    });
+
+    await expect(harness.workspace.waitForLastWrite()).resolves.toMatchObject({
+      state: "committed-pending",
+      objectId: "prod-s3",
+      message: "写入已提交，派生数据仍在同步；请稍后重新加载工作空间确认。",
+    });
+    expect(harness.workspace.getObject("prod-s3")?.fields.price?.value).toBe(
+      1099,
+    );
+    expect(getToasts()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ title: "写入已提交，等待同步" }),
+      ]),
+    );
+  });
+
+  it("does not roll back an accepted field write when related refresh fails", async () => {
+    const harness = createHarness({ refreshObjectError: true });
+    harness.workspace.setWriteSink(harness.bridge);
+    harness.workspace.updateField("prod-s3", "price", 1099, {
+      actor: "wangyun",
+    });
+
+    await expect(harness.workspace.waitForLastWrite()).resolves.toMatchObject({
+      state: "committed-pending",
+      objectId: "prod-s3",
+    });
+    expect(harness.workspace.getObject("prod-s3")?.fields.price?.value).toBe(
+      1099,
+    );
   });
 
   it("replaces the optimistic object with the authoritative field projection", async () => {
@@ -162,6 +205,22 @@ describe("KernelWriteBridge", () => {
     ).toBeDefined();
   });
 
+  it("does not remove a temporary object after an accepted pending create", async () => {
+    const harness = createHarness({ createObjectCommittedPending: true });
+    harness.workspace.setWriteSink(harness.bridge);
+    const local = harness.workspace.createObject({
+      objectTypeCode: "contracts",
+      fields: { name: "待同步合同" },
+      objectId: "obj-local-pending",
+      actor: "wangyun",
+    });
+
+    await expect(harness.workspace.waitForLastWrite()).resolves.toMatchObject({
+      state: "committed-pending",
+    });
+    expect(harness.workspace.getObject(local.id)).toBeDefined();
+  });
+
   it("reconciles temporary relation ids after createRelation succeeds", async () => {
     const harness = createHarness();
     harness.workspace.setWriteSink(harness.bridge);
@@ -182,6 +241,24 @@ describe("KernelWriteBridge", () => {
         .getRelations()
         .some((relation) => relation.id === "kernel-relation"),
     ).toBe(true);
+  });
+
+  it("does not remove a temporary relation after an accepted pending create", async () => {
+    const harness = createHarness({ createRelationCommittedPending: true });
+    harness.workspace.setWriteSink(harness.bridge);
+    const local = harness.workspace.createRelation({
+      relationTypeCode: "interconnects_with",
+      sourceId: "prod-s3",
+      targetId: "prod-m1",
+      actor: "wangyun",
+    }).relation;
+
+    await expect(harness.workspace.waitForLastWrite()).resolves.toMatchObject({
+      state: "committed-pending",
+    });
+    expect(harness.workspace.getRelations()).toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: local.id })]),
+    );
   });
 
   it("refreshes relation endpoints and their derived consumers after a relation write", async () => {
@@ -220,6 +297,28 @@ describe("KernelWriteBridge", () => {
     expect(harness.gateway.refreshObjectCalls).toEqual(
       expect.arrayContaining([relation.sourceId, relation.targetId]),
     );
+  });
+
+  it("does not restore accepted pending relation or archive writes", async () => {
+    const relationHarness = createHarness({ unlinkCommittedPending: true });
+    relationHarness.workspace.setWriteSink(relationHarness.bridge);
+    const relation = relationHarness.workspace.getRelations()[0]!;
+    relationHarness.workspace.unlinkRelation(relation.id, "wangyun");
+    await relationHarness.bridge.whenIdle();
+
+    expect(relationHarness.workspace.getRelations(relation.sourceId)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: relation.id, status: "unlinked" }),
+      ]),
+    );
+
+    const archiveHarness = createHarness({
+      deleteObjectCommittedPending: true,
+    });
+    archiveHarness.workspace.setWriteSink(archiveHarness.bridge);
+    archiveHarness.workspace.deleteObject("prod-s3", "wangyun");
+    await archiveHarness.bridge.whenIdle();
+    expect(archiveHarness.workspace.getObject("prod-s3")).toBeUndefined();
   });
 
   it("returns the archive write completion to lifecycle callers", async () => {
@@ -294,8 +393,14 @@ function createHarness(options: FakeGatewayOptions = {}): {
 
 interface FakeGatewayOptions {
   readonly updateFieldError?: WriteRejection;
+  readonly updateFieldCommittedPending?: boolean;
+  readonly createObjectCommittedPending?: boolean;
+  readonly createRelationCommittedPending?: boolean;
+  readonly unlinkCommittedPending?: boolean;
+  readonly deleteObjectCommittedPending?: boolean;
   readonly updateFieldObject?: DataObject;
   readonly refreshedObjects?: Readonly<Record<string, DataObject>>;
+  readonly refreshObjectError?: boolean;
   readonly firstUpdateGate?: Promise<void>;
   readonly onUpdateCall?: () => void;
   readonly onKernelWriteSucceeded?: (actor: MemberId) => void;
@@ -356,6 +461,9 @@ class FakeGateway
       await this.options.firstUpdateGate;
     }
     if (this.options.updateFieldError) throw this.options.updateFieldError;
+    if (this.options.updateFieldCommittedPending) {
+      throw pendingProjection({ objectId });
+    }
     return {
       event: {
         id: "kernel-event",
@@ -375,6 +483,9 @@ class FakeGateway
 
   async refreshObject(objectId: string): Promise<DataObject> {
     this.refreshObjectCalls.push(objectId);
+    if (this.options.refreshObjectError) {
+      throw new Error("projection unavailable");
+    }
     return (
       this.options.refreshedObjects?.[objectId] ??
       this.seed.objects.find((object) => object.id === objectId)!
@@ -385,6 +496,7 @@ class FakeGateway
     params: Parameters<UnisourceGateway["createObject"]>[0],
   ): Promise<DataObject> {
     this.createObjectCalls.push(params);
+    if (this.options.createObjectCommittedPending) throw pendingProjection({});
     return {
       id: `kernel-${params.objectId ?? "obj-local-contract"}`,
       objectTypeCode: params.objectTypeCode,
@@ -412,6 +524,8 @@ class FakeGateway
   async createRelation(
     params: Parameters<UnisourceGateway["createRelation"]>[0],
   ): Promise<{ readonly relation: DataRelation }> {
+    if (this.options.createRelationCommittedPending)
+      throw pendingProjection({});
     return {
       relation: {
         id: "kernel-relation",
@@ -430,6 +544,9 @@ class FakeGateway
     params: Parameters<UnisourceGateway["unlinkRelation"]>[0],
   ): Promise<{ readonly relation: DataRelation }> {
     this.unlinkRelationCalls.push(params.relation.id);
+    if (this.options.unlinkCommittedPending) {
+      throw pendingProjection({ relationId: params.relation.id });
+    }
     return {
       relation: {
         ...params.relation,
@@ -446,6 +563,9 @@ class FakeGateway
   ): Promise<DataObject> {
     void actor;
     void expectedVersion;
+    if (this.options.deleteObjectCommittedPending) {
+      throw pendingProjection({ objectId });
+    }
     return this.seed.objects.find((object) => object.id === objectId)!;
   }
 }
@@ -459,4 +579,14 @@ function deferred<T>(): {
     resolve = innerResolve as (value?: T | PromiseLike<T>) => void;
   });
   return { promise, resolve };
+}
+
+function pendingProjection(input: {
+  readonly objectId?: string;
+  readonly relationId?: string;
+}): CommittedPendingProjectionError {
+  return new CommittedPendingProjectionError({
+    ...input,
+    message: "写入已提交，派生数据仍在同步；请稍后重新加载工作空间确认。",
+  });
 }

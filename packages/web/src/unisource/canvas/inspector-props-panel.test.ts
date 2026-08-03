@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { cloneDemoSeed } from "../seed/demo-seed";
 import { WorkspaceStore } from "../state/workspace-store";
+import { selectedCanvasRootObjectId } from "./canvas-view-model";
 import { selectedCanvasPanelNodes } from "./inspector-props-panel";
 
 describe("CanvasPropsPanel", () => {
@@ -31,6 +32,41 @@ describe("CanvasPropsPanel", () => {
     expect(
       selectedCanvasPanelNodes(workspace, view, "plan", new Set(["item"])),
     ).toMatchObject([{ objectId: "item", name: "明细 A" }]);
+  });
+
+  it("uses the same derived root for a selected other-plan item", () => {
+    const workspace = new WorkspaceStore({
+      ...cloneDemoSeed(),
+      objectTypes: [
+        type("build_plan", "plan"),
+        type("build_plan_item", "item"),
+      ],
+      objects: [
+        object("plan-a", "build_plan", "plan A"),
+        object("item-a", "build_plan_item", "item A"),
+        object("plan-b", "build_plan", "plan B"),
+        object("item-b", "build_plan_item", "item B"),
+      ],
+      relations: [
+        relation("plan-a", "item-a"),
+        { ...relation("plan-b", "item-b"), id: "contains-b" },
+      ],
+    }).getSnapshot();
+    const view = {
+      id: "pc-canvas",
+      exprId: "pc",
+      kind: "canvas" as const,
+      config: {
+        selectionObjectTypeCode: "build_plan",
+        selectionRelationTypeCodes: ["build_plan_contains_item"],
+      },
+    };
+    const rootId = selectedCanvasRootObjectId(workspace, view, "item-b");
+
+    expect(rootId).toBe("plan-b");
+    expect(
+      selectedCanvasPanelNodes(workspace, view, rootId, new Set(["item-b"])),
+    ).toMatchObject([{ objectId: "item-b", name: "item B" }]);
   });
 });
 

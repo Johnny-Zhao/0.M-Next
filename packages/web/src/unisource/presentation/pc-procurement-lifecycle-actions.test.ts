@@ -22,6 +22,9 @@ const allowedSession = {
   }),
 };
 
+const pendingMessage =
+  "写入已提交，派生数据仍在同步；请稍后重新加载工作空间确认。";
+
 describe("PC procurement lifecycle actions", () => {
   it("copies a plan, its requirement and items without copying products or quotes", async () => {
     const workspace = lifecycleWorkspace();
@@ -101,6 +104,60 @@ describe("PC procurement lifecycle actions", () => {
         .getObjects("build_plan")
         .some((item) => item.fields.code?.value === "PLAN-003"),
     ).toBe(true);
+  });
+
+  it("stops copying when the first copied object is committed but pending", async () => {
+    const workspace = lifecycleWorkspace();
+    const createObject = vi.fn(() =>
+      Promise.resolve({
+        state: "committed-pending" as const,
+        message: pendingMessage,
+      }),
+    );
+    const createRelation = vi.fn();
+    workspace.setWriteSink({
+      ...createWriteSink(),
+      createObject,
+      createRelation,
+    });
+
+    const result = await copyBuildPlan({
+      planId: "plan-1",
+      code: "PLAN-003",
+      name: "待投影副本",
+      workspace,
+      session: allowedSession,
+    });
+
+    expect(result).toMatchObject({
+      state: "committed-pending",
+      pendingStep: "创建副本对象",
+      completedSteps: [],
+    });
+    expect(createObject).toHaveBeenCalledTimes(1);
+    expect(createRelation).not.toHaveBeenCalled();
+  });
+
+  it("stops copying remaining relations when a relation is committed-pending", async () => {
+    const workspace = lifecycleWorkspace();
+    const createRelation = vi.fn(() =>
+      Promise.resolve({
+        state: "committed-pending" as const,
+        message: pendingMessage,
+      }),
+    );
+    workspace.setWriteSink({ ...createWriteSink(), createRelation });
+
+    const result = await copyBuildPlan({
+      planId: "plan-1",
+      code: "PLAN-004",
+      name: "关系待投影副本",
+      workspace,
+      session: allowedSession,
+    });
+
+    expect(result).toMatchObject({ state: "committed-pending" });
+    expect(createRelation).toHaveBeenCalledTimes(1);
   });
 
   it("derives bounded unique codes and copies only configured descendants", async () => {
@@ -190,6 +247,30 @@ describe("PC procurement lifecycle actions", () => {
     expect(workspace.getRelations("item-1")).toHaveLength(2);
   });
 
+  it("does not report a committed archive as completed before projection", async () => {
+    const workspace = lifecycleWorkspace();
+    const deleteObject = vi.fn(() =>
+      Promise.resolve({
+        state: "committed-pending" as const,
+        message: pendingMessage,
+      }),
+    );
+    workspace.setWriteSink({ ...createWriteSink(), deleteObject });
+
+    const result = await archiveProcurementObject({
+      objectId: "requirement-1",
+      objectTypeCode: "procurement_requirement",
+      workspace,
+      session: allowedSession,
+    });
+
+    expect(result).toMatchObject({
+      state: "committed-pending",
+      pendingStep: "归档记录",
+    });
+    expect(workspace.getObject("requirement-1")).toBeUndefined();
+  });
+
   it("registers archive actions for all six PC object types", () => {
     const registry = new DataSourceLifecycleActionRegistry();
     registerPcProcurementLifecycleActions(registry);
@@ -231,7 +312,7 @@ describe("PC procurement lifecycle actions", () => {
   });
 });
 
-function createWriteSink() {
+function createWriteSink(): WriteSink {
   return {
     updateField: vi.fn(() => Promise.resolve({ state: "synced" as const })),
     createObject: vi.fn(() => Promise.resolve({ state: "synced" as const })),

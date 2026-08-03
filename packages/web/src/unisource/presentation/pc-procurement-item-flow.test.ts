@@ -194,6 +194,26 @@ describe("procurement item flow", () => {
     ).toBe(true);
   });
 
+  it("stops item assembly after a committed create without a real item id", async () => {
+    const workspace = fixtureWorkspace();
+    const sink = createSink();
+    sink.createObject = vi.fn(async () => ({
+      state: "committed-pending" as const,
+      message: "写入已提交，派生数据仍在同步；请稍后重新加载工作空间确认。",
+    }));
+    workspace.setWriteSink(sink);
+
+    const result = await createProcurementItem({
+      planId: "plan-1",
+      draft: validDraft(),
+      workspace,
+      session: allowedMockSession(workspace),
+    });
+
+    expect(result).toMatchObject({ state: "committed-pending" });
+    expect(sink.createRelation).not.toHaveBeenCalled();
+  });
+
   it("uses the write bridge to replace the temporary item id and refresh plan and item", async () => {
     const workspace = fixtureWorkspace();
     const gateway = new FlowGateway(workspace);
@@ -293,6 +313,32 @@ describe("procurement item flow", () => {
     expect(refreshObjects).toHaveBeenCalledWith(
       expect.arrayContaining(["plan-1", "item-existing"]),
     );
+  });
+
+  it("stops item editing when the quantity write is committed-pending", async () => {
+    const workspace = fixtureWorkspace();
+    const updateField = vi.fn(() =>
+      Promise.resolve({
+        state: "committed-pending" as const,
+        message: pendingMessage,
+      }),
+    );
+    const createRelation = vi.fn();
+    workspace.setWriteSink({ ...createSink(), updateField, createRelation });
+
+    const result = await updateProcurementItem({
+      planId: "plan-1",
+      itemId: "item-existing",
+      draft: { productId: "product-cpu", quoteId: "quote-cpu", quantity: 3 },
+      workspace,
+      session: allowedMockSession(workspace),
+    });
+
+    expect(result).toMatchObject({
+      state: "committed-pending",
+      pendingStep: "更新采购明细数量",
+    });
+    expect(createRelation).not.toHaveBeenCalled();
   });
 
   it("rejects zero, negative, fractional and non-numeric quantities", () => {
@@ -546,6 +592,9 @@ function createSink(): WriteSink {
     deleteObject: vi.fn(),
   };
 }
+
+const pendingMessage =
+  "写入已提交，派生数据仍在同步；请稍后重新加载工作空间确认。";
 
 function readonlySession(workspace: WorkspaceStore): SessionStore {
   const seed = cloneDemoSeed();

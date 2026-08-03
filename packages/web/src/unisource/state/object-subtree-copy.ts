@@ -23,6 +23,12 @@ export type ObjectSubtreeCopyResult =
       readonly objectId: string;
       readonly message: string | null;
     }
+  | {
+      readonly state: "committed-pending";
+      readonly pendingStep: string;
+      readonly completedSteps: readonly string[];
+      readonly message: string;
+    }
   | { readonly state: "validation-failed"; readonly message: string }
   | {
       readonly state: "partial-failure";
@@ -77,6 +83,8 @@ export async function copyObjectSubtree(
     const write = await workspace.waitForLastWrite();
     if (write.state === "failed")
       return failure("创建复制对象", write.message, completedSteps);
+    if (write.state === "committed-pending")
+      return committedPending("创建副本对象", completedSteps, write.message);
     const copiedId =
       write.state === "synced" && write.objectId ? write.objectId : copied.id;
     copiedIds.set(original.id, copiedId);
@@ -104,6 +112,8 @@ export async function copyObjectSubtree(
     const write = await workspace.waitForLastWrite();
     if (write.state === "failed")
       return failure("创建复制关系", write.message, completedSteps);
+    if (write.state === "committed-pending")
+      return committedPending("创建副本关系", completedSteps, write.message);
     completedSteps.push(`复制 ${relation.relationTypeCode}`);
   }
   const copiedRootId = copiedIds.get(rootObjectId)!;
@@ -208,5 +218,18 @@ function failure(
     failedStep,
     completedSteps,
     message: `${failedStep}失败：${message}。已完成步骤：${completedSteps.join("、") || "无"}。请重新加载工作空间后重试。`,
+  };
+}
+
+function committedPending(
+  pendingStep: string,
+  completedSteps: readonly string[],
+  message: string,
+): Extract<ObjectSubtreeCopyResult, { state: "committed-pending" }> {
+  return {
+    state: "committed-pending",
+    pendingStep,
+    completedSteps,
+    message,
   };
 }

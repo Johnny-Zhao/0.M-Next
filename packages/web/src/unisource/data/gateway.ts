@@ -39,6 +39,22 @@ export type OutputFormat =
   | "csv"
   | "xlsx";
 
+export class CommittedPendingProjectionError extends Error {
+  readonly objectId?: string;
+  readonly relationId?: string;
+
+  constructor(input: {
+    readonly message: string;
+    readonly objectId?: string;
+    readonly relationId?: string;
+  }) {
+    super(input.message);
+    this.name = "CommittedPendingProjectionError";
+    this.objectId = input.objectId;
+    this.relationId = input.relationId;
+  }
+}
+
 export interface LatestCheckRun {
   readonly runId: string | null;
   readonly scopeObjectTypeCode: string | null;
